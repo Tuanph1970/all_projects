@@ -1,0 +1,308 @@
+version: '3.8'
+
+# ============================================================================
+# Mathematic Mobile Microservices Architecture
+# ============================================================================
+# This configuration splits the monolithic application into microservices:
+#   - API Gateway (Kong/Traefik)
+#   - Auth Service
+#   - Problem Service
+#   - Solution Service (ML/AI)
+#   - Shared MySQL Database
+#   - Redis Cache
+#   - RabbitMQ Message Queue
+# ============================================================================
+
+services:
+  # ==========================================================================
+  # API GATEWAY - Traefik
+  # ==========================================================================
+  traefik:
+    image: traefik:v3.0
+    container_name: math_traefik
+    restart: unless-stopped
+    ports:
+      - "${GATEWAY_PORT:-8003}:80"
+      - "${TRAEFIK_DASHBOARD_PORT:-8083}:8080"
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--log.level=INFO"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - math_network
+
+  # ==========================================================================
+  # SHARED INFRASTRUCTURE
+  # ==========================================================================
+  
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: math_mysql
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-Mysql_2025}
+      - MYSQL_DATABASE=${MATH_DB_NAME:-mathematic_db}
+      - MYSQL_USER=${MATH_DB_USER:-mathematic_user}
+      - MYSQL_PASSWORD=${MATH_DB_PASSWORD:-Mysql_2025}
+      - MYSQL_CHARSET=utf8mb4
+      - MYSQL_COLLATION=utf8mb4_unicode_ci
+    ports:
+      - "${MATH_DB_PORT:-3310}:3306"
+    volumes:
+      - math_mysql_data:/var/lib/mysql
+      - ./scripts/init-multi-user.sql:/docker-entrypoint-initdb.d/00-init-multi-user.sql:ro
+      - ./scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-Mysql_2025}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - math_network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: math_redis
+    restart: unless-stopped
+    ports:
+      - "${MATH_REDIS_PORT:-6380}:6379"
+    volumes:
+      - math_redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - math_network
+
+  # RabbitMQ Message Queue
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: math_rabbitmq
+    restart: unless-stopped
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-admin}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-admin123}
+      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_VHOST:-math}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15673}:15672"
+    volumes:
+      - math_rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - math_network
+
+  # ==========================================================================
+  # MICROSERVICES
+  # ==========================================================================
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ./microservices/auth-service
+      dockerfile: Dockerfile
+    container_name: math_auth_service
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ENVIRONMENT:-Production}
+      - ASPNETCORE_URLS=http://+:5001
+      - ConnectionStrings__DefaultConnection=Server=mysql;Database=${MATH_DB_NAME:-mathematic_db};User=${MATH_DB_USER:-mathematic_user};Password=${MATH_DB_PASSWORD:-Mysql_2025};
+      - ConnectionStrings__Redis=redis:6379
+      - Jwt__SecretKey=${JWT_SECRET_KEY:-your-secret-key-here-min-32-characters!}
+      - Jwt__Issuer=${JWT_ISSUER:-MathematicsSolverAPI}
+      - Jwt__Audience=${JWT_AUDIENCE:-MathematicsSolverClient}
+      - Jwt__ExpirationMinutes=${JWT_EXPIRATION:-60}
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=${RABBITMQ_USER:-admin}
+      - RabbitMQ__Password=${RABBITMQ_PASS:-admin123}
+      - RabbitMQ__VirtualHost=${RABBITMQ_VHOST:-math}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth.rule=Host(`localhost`) && PathPrefix(`/api/v1/auth`)"
+      - "traefik.http.routers.auth.entrypoints=web"
+      - "traefik.http.services.auth.loadbalancer.server.port=5001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - math_network
+
+  # Problem Service
+  problem-service:
+    build:
+      context: ./microservices/problem-service
+      dockerfile: Dockerfile
+    container_name: math_problem_service
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ENVIRONMENT:-Production}
+      - ASPNETCORE_URLS=http://+:5002
+      - ConnectionStrings__DefaultConnection=Server=mysql;Database=${MATH_DB_NAME:-mathematic_db};User=${MATH_DB_USER:-mathematic_user};Password=${MATH_DB_PASSWORD:-Mysql_2025};
+      - ConnectionStrings__Redis=redis:6379
+      - FileStorage__UploadPath=/app/uploads
+      - FileStorage__MaxFileSizeInBytes=10485760
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=${RABBITMQ_USER:-admin}
+      - RabbitMQ__Password=${RABBITMQ_PASS:-admin123}
+      - RabbitMQ__VirtualHost=${RABBITMQ_VHOST:-math}
+      - Services__AuthService=http://auth-service:5001
+      - Services__SolutionService=http://solution-service:5003
+    volumes:
+      - math_uploads:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.problem.rule=Host(`localhost`) && PathPrefix(`/api/v1/problems`)"
+      - "traefik.http.routers.problem.entrypoints=web"
+      - "traefik.http.services.problem.loadbalancer.server.port=5002"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - math_network
+
+  # Solution Service (ML/AI)
+  solution-service:
+    build:
+      context: ./microservices/solution-service
+      dockerfile: Dockerfile
+    container_name: math_solution_service
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ENVIRONMENT:-Production}
+      - ASPNETCORE_URLS=http://+:5003
+      - ConnectionStrings__DefaultConnection=Server=mysql;Database=${MATH_DB_NAME:-mathematic_db};User=${MATH_DB_USER:-mathematic_user};Password=${MATH_DB_PASSWORD:-Mysql_2025};
+      - ConnectionStrings__Redis=redis:6379
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=${RABBITMQ_USER:-admin}
+      - RabbitMQ__Password=${RABBITMQ_PASS:-admin123}
+      - RabbitMQ__VirtualHost=${RABBITMQ_VHOST:-math}
+      - ML__ModelPath=/app/models
+      - ML__MaxConcurrentRequests=10
+      - ML__RequestTimeoutSeconds=300
+    volumes:
+      - math_models:/app/models
+      - math_uploads:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.solution.rule=Host(`localhost`) && PathPrefix(`/api/v1/solutions`)"
+      - "traefik.http.routers.solution.entrypoints=web"
+      - "traefik.http.services.solution.loadbalancer.server.port=5003"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    networks:
+      - math_network
+
+  # ==========================================================================
+  # MONITORING (Optional)
+  # ==========================================================================
+  
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: math_prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9091}:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - math_prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - math_network
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: math_grafana
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+    volumes:
+      - math_grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - math_network
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+volumes:
+  math_mysql_data:
+    driver: local
+  math_redis_data:
+    driver: local
+  math_rabbitmq_data:
+    driver: local
+  math_uploads:
+    driver: local
+  math_models:
+    driver: local
+  math_prometheus_data:
+    driver: local
+  math_grafana_data:
+    driver: local
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  math_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16

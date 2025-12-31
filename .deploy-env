@@ -1,0 +1,32 @@
+# ============================================================================
+# Shared Environment Configuration for Multi-Project Deployment
+# ============================================================================
+
+# Database Root Password
+MYSQL_ROOT_PASSWORD=Mysql_2025
+
+# Ceramic Project Configuration
+CERAMIC_API_PORT=8002
+CERAMIC_DB_PORT=3308
+CERAMIC_DB_NAME=ceramic_db
+CERAMIC_DB_USER=ceramic_user
+CERAMIC_DB_PASSWORD=Mysql_2025
+CERAMIC_REDIS_PORT=6379
+
+# Stock Predict Project Configuration
+STOCK_API_PORT=8080
+STOCK_DB_PORT=3309
+STOCK_DB_NAME=stockpredict_db
+STOCK_DB_USER=stock_user
+STOCK_DB_PASSWORD=Mysql_2025
+
+# Mathematic Mobile Project Configuration
+MATH_API_PORT=8003
+MATH_DB_PORT=3310
+MATH_DB_NAME=mathematic_db
+MATH_DB_USER=mathematic_user
+MATH_DB_PASSWORD=Mysql_2025
+MATH_REDIS_PORT=6380
+
+# General Configuration
+ENVIRONMENT=production

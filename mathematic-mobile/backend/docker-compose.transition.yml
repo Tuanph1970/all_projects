@@ -1,0 +1,157 @@
+version: '3.8'
+
+# ============================================================================
+# Mathematics Mobile - Transitional Architecture
+# ============================================================================
+# This configuration allows running the monolithic app with microservices
+# infrastructure, making it easier to migrate gradually
+# ============================================================================
+
+services:
+  # ==========================================================================
+  # API GATEWAY - Traefik (for future microservices)
+  # ==========================================================================
+  traefik:
+    image: traefik:v3.0
+    container_name: math_traefik
+    restart: unless-stopped
+    ports:
+      - "${GATEWAY_PORT:-8003}:80"
+      - "${TRAEFIK_DASHBOARD_PORT:-8083}:8080"
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--log.level=INFO"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - mathematics-solver-network
+
+  # ==========================================================================
+  # MONOLITHIC API (with microservices-ready configuration)
+  # ==========================================================================
+  mathematics-solver-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: math_api
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ENVIRONMENT:-Production}
+      - ASPNETCORE_URLS=http://+:8001
+      - ConnectionStrings__DefaultConnection=Server=mysql;Database=${MATH_DB_NAME:-mathematic_db};User=${MATH_DB_USER:-mathematic_user};Password=${MATH_DB_PASSWORD:-Mysql_2025};
+      - ConnectionStrings__Redis=redis:6379
+      - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=${RABBITMQ_USER:-admin}
+      - RabbitMQ__Password=${RABBITMQ_PASS:-admin123}
+      - RabbitMQ__VirtualHost=${RABBITMQ_VHOST:-math}
+    depends_on:
+      - mysql
+      - redis
+      - rabbitmq
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.math-api.rule=Host(`localhost`)"
+      - "traefik.http.routers.math-api.entrypoints=web"
+      - "traefik.http.services.math-api.loadbalancer.server.port=8001"
+    volumes:
+      - ./logs:/app/logs
+      - math_uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - mathematics-solver-network
+
+  # ==========================================================================
+  # SHARED INFRASTRUCTURE (Microservices-ready)
+  # ==========================================================================
+  
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: math_mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-Mysql_2025}
+      - MYSQL_DATABASE=${MATH_DB_NAME:-mathematic_db}
+      - MYSQL_USER=${MATH_DB_USER:-mathematic_user}
+      - MYSQL_PASSWORD=${MATH_DB_PASSWORD:-Mysql_2025}
+      - MYSQL_CHARSET=utf8mb4
+      - MYSQL_COLLATION=utf8mb4_unicode_ci
+    ports:
+      - "${MATH_DB_PORT:-3310}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init-multi-user.sql:/docker-entrypoint-initdb.d/00-init-multi-user.sql:ro
+      - ./scripts:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-Mysql_2025}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - mathematics-solver-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: math_redis
+    ports:
+      - "${MATH_REDIS_PORT:-6380}:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mathematics-solver-network
+
+  # RabbitMQ Message Queue (for future event-driven architecture)
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: math_rabbitmq
+    restart: unless-stopped
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-admin}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-admin123}
+      - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_VHOST:-math}
+    ports:
+      - "${RABBITMQ_PORT:-5673}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15673}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - mathematics-solver-network
+
+networks:
+  mathematics-solver-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  math_uploads:
+    driver: local
