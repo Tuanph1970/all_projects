@@ -210,3 +210,30 @@ __marimo__/
 .vscode/
 *.code-workspace
 .history/
+
+# .NET Core / C#
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.exe
+*.pdb
+*.sln.docstates
+.vs/
+appsettings.Development.json
+*.DotSettings.user
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+
+# NuGet
+*.nupkg
+packages/
+.nuget/
