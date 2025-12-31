@@ -1,0 +1,356 @@
+/* MarketMovers.css - Professional styling for Market Movers components */
+
+/* ============================================
+   Container Styles
+   ============================================ */
+.market-movers-container {
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    min-height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Theme-specific container borders */
+.gainers-container {
+    border-left: 4px solid #22c55e;
+}
+
+.losers-container {
+    border-left: 4px solid #ef4444;
+}
+
+.actives-container {
+    border-left: 4px solid #3b82f6;
+}
+
+/* ============================================
+   Header Styles
+   ============================================ */
+.market-movers-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.header-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.header-icon {
+    font-size: 1.75rem;
+    line-height: 1;
+}
+
+.header-title h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1e293b;
+    letter-spacing: -0.025em;
+}
+
+.header-stats {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* ============================================
+   Stat Badge Styles
+   ============================================ */
+.stat-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.375rem 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border-radius: 9999px;
+    letter-spacing: 0.025em;
+}
+
+.stat-badge-success {
+    background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+    color: #166534;
+    border: 1px solid #86efac;
+}
+
+.stat-badge-danger {
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+}
+
+.stat-badge-primary {
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    color: #1e40af;
+    border: 1px solid #93c5fd;
+}
+
+/* ============================================
+   Search Section Styles
+   ============================================ */
+.search-section {
+    margin-bottom: 1.25rem;
+}
+
+.search-wrapper {
+    display: flex;
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 0.5rem 1rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+    max-width: 400px;
+}
+
+.search-wrapper:focus-within {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.search-icon {
+    font-size: 1rem;
+    margin-right: 0.75rem;
+    opacity: 0.6;
+}
+
+.search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 0.875rem;
+    color: #334155;
+    background: transparent;
+}
+
+.search-input::placeholder {
+    color: #94a3b8;
+}
+
+/* ============================================
+   Table Wrapper Styles
+   ============================================ */
+.table-wrapper {
+    background: #ffffff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* ============================================
+   Cell Styles
+   ============================================ */
+.symbol-cell {
+    font-weight: 700;
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.symbol-gainer {
+    color: #166534;
+    background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+}
+
+.symbol-loser {
+    color: #991b1b;
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+}
+
+.symbol-active {
+    color: #1e40af;
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+}
+
+.company-name-cell {
+    color: #475569;
+    font-size: 0.8125rem;
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+}
+
+.change-cell {
+    font-weight: 600;
+    font-size: 0.8125rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.change-cell.positive {
+    color: #166534;
+    background: rgba(34, 197, 94, 0.1);
+}
+
+.change-cell.negative {
+    color: #991b1b;
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.price-cell {
+    font-weight: 600;
+    color: #1e293b;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.volume-cell {
+    color: #64748b;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.volume-highlight {
+    color: #1e40af;
+    font-weight: 600;
+}
+
+.marketcap-cell {
+    color: #64748b;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ============================================
+   Loading & Empty States
+   ============================================ */
+.loading-spinner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+    color: #64748b;
+    font-size: 0.9375rem;
+    font-weight: 500;
+}
+
+.loading-spinner::before {
+    content: '';
+    width: 20px;
+    height: 20px;
+    border: 2px solid #e2e8f0;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    margin-right: 0.75rem;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.no-data {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+    color: #94a3b8;
+    font-size: 0.9375rem;
+    font-weight: 500;
+}
+
+/* ============================================
+   Responsive Styles
+   ============================================ */
+@media (max-width: 768px) {
+    .market-movers-container {
+        padding: 1rem;
+    }
+
+    .market-movers-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .header-title h2 {
+        font-size: 1.25rem;
+    }
+
+    .search-wrapper {
+        max-width: 100%;
+    }
+
+    .company-name-cell {
+        max-width: 120px;
+    }
+}
+
+@media (max-width: 480px) {
+    .header-icon {
+        font-size: 1.5rem;
+    }
+
+    .stat-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.625rem;
+    }
+
+    .symbol-cell {
+        font-size: 0.8125rem;
+    }
+
+    .company-name-cell {
+        max-width: 80px;
+        font-size: 0.75rem;
+    }
+
+    .change-cell,
+    .price-cell,
+    .volume-cell,
+    .marketcap-cell {
+        font-size: 0.75rem;
+    }
+}
+
+/* ============================================
+   DataTable Override Styles
+   ============================================ */
+.rdt_Table {
+    border-radius: 10px;
+}
+
+.rdt_TableHead {
+    font-weight: 700;
+}
+
+.rdt_TableRow {
+    border-bottom: 1px solid #f1f5f9 !important;
+}
+
+.rdt_TableRow:last-child {
+    border-bottom: none !important;
+}
+
+.rdt_Pagination {
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+    padding: 0.75rem 1rem;
+}
+
+.rdt_Pagination button {
+    border-radius: 6px;
+    transition: all 0.15s ease;
+}
+
+.rdt_Pagination button:hover:not(:disabled) {
+    background: #e2e8f0;
+}
+
+.rdt_Pagination select {
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    padding: 0.25rem 0.5rem;
+}

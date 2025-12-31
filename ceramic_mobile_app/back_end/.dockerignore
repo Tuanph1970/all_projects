@@ -1,0 +1,97 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+Jenkinsfile
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Development
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+*.cover
+.hypothesis/
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# Documentation
+docs/
+*.md
+!README.md
+LICENSE
+
+# Tests
+tests/
+test_*.py
+*_test.py
+conftest.py
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env*
+!.env.example
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.cache
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Project specific
+local/
+scratch/
+secrets/
+
+# Static files (if not needed in container)
+static/collected/
+media/
+uploads/

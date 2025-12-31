@@ -1,0 +1,210 @@
+{
+  "metadata": {
+    "category": "probability_statistics",
+    "category_vi": "Xac suat va Thong ke",
+    "grade": 12,
+    "description": "Cong thuc xac suat va thong ke lop 12"
+  },
+  "formulas": [
+    {
+      "id": "prob_001",
+      "name": "probability_basic",
+      "name_vi": "Xac suat co ban",
+      "formula": "P(A) = n(A) / n(Omega)",
+      "description_vi": "Xac suat cua bien co A bang so ket qua thuan loi chia cho tong so ket qua",
+      "description_en": "Probability = favorable outcomes / total outcomes",
+      "keywords": ["xac suat", "probability", "bien co", "event"],
+      "examples": ["Tung xu: P(sap) = 1/2", "Tung xuc xac: P(so 6) = 1/6"]
+    },
+    {
+      "id": "prob_002",
+      "name": "probability_complement",
+      "name_vi": "Xac suat bien co doi",
+      "formula": "P(A') = 1 - P(A)",
+      "description_vi": "Xac suat bien co doi bang 1 tru xac suat bien co",
+      "description_en": "Probability of complement = 1 - P(A)",
+      "keywords": ["xac suat", "bien co doi", "complement"],
+      "examples": ["P(khong ra so 6) = 1 - 1/6 = 5/6"]
+    },
+    {
+      "id": "prob_003",
+      "name": "probability_union",
+      "name_vi": "Xac suat hop hai bien co",
+      "formula": "P(A ∪ B) = P(A) + P(B) - P(A ∩ B)",
+      "description_vi": "Xac suat hop hai bien co (cong thuc cong xac suat)",
+      "description_en": "Addition rule: P(A or B) = P(A) + P(B) - P(A and B)",
+      "keywords": ["xac suat", "hop", "union", "cong"],
+      "examples": ["P(A hoac B) khi A, B xung khac: P(A) + P(B)"]
+    },
+    {
+      "id": "prob_004",
+      "name": "probability_intersection_independent",
+      "name_vi": "Xac suat giao hai bien co doc lap",
+      "formula": "P(A ∩ B) = P(A) * P(B)",
+      "description_vi": "Xac suat giao hai bien co doc lap bang tich cac xac suat",
+      "description_en": "For independent events: P(A and B) = P(A) × P(B)",
+      "keywords": ["xac suat", "giao", "doc lap", "independent"],
+      "examples": ["Tung 2 xu: P(2 sap) = 1/2 * 1/2 = 1/4"]
+    },
+    {
+      "id": "prob_005",
+      "name": "probability_conditional",
+      "name_vi": "Xac suat co dieu kien",
+      "formula": "P(A|B) = P(A ∩ B) / P(B)",
+      "description_vi": "Xac suat cua A khi biet B da xay ra",
+      "description_en": "Conditional probability: P(A given B)",
+      "keywords": ["xac suat", "dieu kien", "conditional"],
+      "examples": ["P(do|bi do hoac xanh) = P(do) / P(do hoac xanh)"]
+    },
+    {
+      "id": "comb_001",
+      "name": "combination",
+      "name_vi": "To hop",
+      "formula": "C(n,k) = n! / (k! * (n-k)!)",
+      "description_vi": "So cach chon k phan tu tu n phan tu (khong quan tam thu tu)",
+      "description_en": "Combination: ways to choose k from n (order doesn't matter)",
+      "keywords": ["to hop", "combination", "chon"],
+      "examples": ["C(5,2) = 5!/(2!*3!) = 10", "C(10,3) = 120"]
+    },
+    {
+      "id": "comb_002",
+      "name": "permutation",
+      "name_vi": "Chinh hop",
+      "formula": "A(n,k) = n! / (n-k)!",
+      "description_vi": "So cach sap xep k phan tu tu n phan tu (quan tam thu tu)",
+      "description_en": "Permutation: ways to arrange k from n (order matters)",
+      "keywords": ["chinh hop", "permutation", "sap xep"],
+      "examples": ["A(5,2) = 5!/3! = 20", "A(10,3) = 720"]
+    },
+    {
+      "id": "comb_003",
+      "name": "factorial",
+      "name_vi": "Giai thua",
+      "formula": "n! = n * (n-1) * (n-2) * ... * 2 * 1",
+      "description_vi": "Giai thua cua n la tich cac so tu 1 den n",
+      "description_en": "Factorial: product of integers from 1 to n",
+      "keywords": ["giai thua", "factorial"],
+      "examples": ["5! = 120", "0! = 1", "10! = 3628800"]
+    },
+    {
+      "id": "comb_004",
+      "name": "binomial_coefficient_property",
+      "name_vi": "Tinh chat he so nhi thuc",
+      "formula": "C(n,k) = C(n, n-k)",
+      "description_vi": "He so nhi thuc doi xung",
+      "description_en": "Binomial coefficient symmetry",
+      "keywords": ["to hop", "nhi thuc", "binomial"],
+      "examples": ["C(10,3) = C(10,7) = 120"]
+    },
+    {
+      "id": "stat_001",
+      "name": "mean",
+      "name_vi": "Trung binh cong",
+      "formula": "x_bar = (x1 + x2 + ... + xn) / n",
+      "description_vi": "Trung binh cong la tong cac gia tri chia cho so luong",
+      "description_en": "Arithmetic mean = sum of values / count",
+      "keywords": ["trung binh", "mean", "average"],
+      "examples": ["Trung binh cua 2, 4, 6: (2+4+6)/3 = 4"]
+    },
+    {
+      "id": "stat_002",
+      "name": "mean_frequency",
+      "name_vi": "Trung binh theo tan so",
+      "formula": "x_bar = (n1*x1 + n2*x2 + ... + nk*xk) / N",
+      "description_vi": "Trung binh khi co bang tan so, N = tong tan so",
+      "description_en": "Weighted mean with frequencies",
+      "keywords": ["trung binh", "tan so", "frequency", "weighted mean"],
+      "examples": ["Diem 7 co 5 nguoi, diem 8 co 3 nguoi: (7*5+8*3)/8 = 7.375"]
+    },
+    {
+      "id": "stat_003",
+      "name": "variance",
+      "name_vi": "Phuong sai",
+      "formula": "s^2 = (1/n) * sum[(xi - x_bar)^2]",
+      "description_vi": "Phuong sai do muc do phan tan cua du lieu",
+      "description_en": "Variance measures spread of data around mean",
+      "keywords": ["phuong sai", "variance", "do phan tan"],
+      "examples": ["Du lieu 2,4,6: x_bar=4, s^2 = ((2-4)^2+(4-4)^2+(6-4)^2)/3 = 8/3"]
+    },
+    {
+      "id": "stat_004",
+      "name": "variance_formula_2",
+      "name_vi": "Phuong sai cong thuc 2",
+      "formula": "s^2 = (1/n) * sum[xi^2] - x_bar^2",
+      "description_vi": "Cong thuc tinh nhanh phuong sai",
+      "description_en": "Alternative variance formula",
+      "keywords": ["phuong sai", "variance"],
+      "examples": ["s^2 = E[X^2] - (E[X])^2"]
+    },
+    {
+      "id": "stat_005",
+      "name": "standard_deviation",
+      "name_vi": "Do lech chuan",
+      "formula": "s = sqrt(s^2)",
+      "description_vi": "Do lech chuan la can bac hai cua phuong sai",
+      "description_en": "Standard deviation = square root of variance",
+      "keywords": ["do lech chuan", "standard deviation"],
+      "examples": ["Phuong sai = 4 => Do lech chuan = 2"]
+    },
+    {
+      "id": "stat_006",
+      "name": "median",
+      "name_vi": "Trung vi (so trung binh)",
+      "formula": "Me = x[(n+1)/2] neu n le, Me = (x[n/2] + x[n/2+1])/2 neu n chan",
+      "description_vi": "Trung vi la gia tri o giua khi sap xep tang dan",
+      "description_en": "Median is middle value when data is sorted",
+      "keywords": ["trung vi", "median"],
+      "examples": ["Du lieu 1,3,5,7,9: Me = 5", "Du lieu 1,3,5,7: Me = (3+5)/2 = 4"]
+    },
+    {
+      "id": "stat_007",
+      "name": "mode",
+      "name_vi": "Mot (gia tri hay gap nhat)",
+      "formula": "Mo = gia tri co tan so lon nhat",
+      "description_vi": "Mot la gia tri xuat hien nhieu nhat trong tap du lieu",
+      "description_en": "Mode is most frequent value",
+      "keywords": ["mot", "mode", "tan so"],
+      "examples": ["Du lieu 1,2,2,3,3,3,4: Mo = 3"]
+    },
+    {
+      "id": "stat_008",
+      "name": "range",
+      "name_vi": "Khoang bien thien",
+      "formula": "R = x_max - x_min",
+      "description_vi": "Khoang bien thien la hieu gia tri lon nhat va nho nhat",
+      "description_en": "Range = maximum - minimum",
+      "keywords": ["khoang bien thien", "range"],
+      "examples": ["Du lieu 2,5,8,10: R = 10 - 2 = 8"]
+    },
+    {
+      "id": "binom_001",
+      "name": "binomial_probability",
+      "name_vi": "Xac suat nhi thuc",
+      "formula": "P(X = k) = C(n,k) * p^k * (1-p)^(n-k)",
+      "description_vi": "Xac suat dung k lan trong n lan thu doc lap",
+      "description_en": "Binomial probability: k successes in n trials",
+      "keywords": ["xac suat", "nhi thuc", "binomial"],
+      "examples": ["Tung xu 5 lan, P(3 sap) = C(5,3)*(1/2)^3*(1/2)^2 = 10/32"]
+    },
+    {
+      "id": "binom_002",
+      "name": "binomial_expected_value",
+      "name_vi": "Ky vong nhi thuc",
+      "formula": "E(X) = n * p",
+      "description_vi": "Ky vong cua phan phoi nhi thuc",
+      "description_en": "Expected value of binomial distribution",
+      "keywords": ["ky vong", "nhi thuc", "expected value"],
+      "examples": ["Tung xu 100 lan: E(so lan sap) = 100 * 0.5 = 50"]
+    },
+    {
+      "id": "binom_003",
+      "name": "binomial_variance",
+      "name_vi": "Phuong sai nhi thuc",
+      "formula": "Var(X) = n * p * (1-p)",
+      "description_vi": "Phuong sai cua phan phoi nhi thuc",
+      "description_en": "Variance of binomial distribution",
+      "keywords": ["phuong sai", "nhi thuc", "variance"],
+      "examples": ["Tung xu 100 lan: Var = 100 * 0.5 * 0.5 = 25"]
+    }
+  ]
+}

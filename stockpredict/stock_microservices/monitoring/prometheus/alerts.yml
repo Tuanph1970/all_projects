@@ -1,0 +1,161 @@
+# Prometheus Alert Rules for Stock Helper Microservices
+
+groups:
+  # =============================================================================
+  # SERVICE AVAILABILITY ALERTS
+  # =============================================================================
+  - name: service_availability
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 1 minute."
+
+      - alert: ServiceHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status_code=~"5.."}[5m])) by (job)
+          / sum(rate(http_requests_total[5m])) by (job) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "{{ $labels.job }} has error rate above 5% for 5 minutes."
+
+  # =============================================================================
+  # LATENCY ALERTS
+  # =============================================================================
+  - name: service_latency
+    rules:
+      - alert: HighRequestLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, job)
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High latency on {{ $labels.job }}"
+          description: "95th percentile latency is above 1s for {{ $labels.job }}."
+
+      - alert: VeryHighRequestLatency
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, job)
+          ) > 5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Very high latency on {{ $labels.job }}"
+          description: "99th percentile latency is above 5s for {{ $labels.job }}."
+
+  # =============================================================================
+  # CIRCUIT BREAKER ALERTS
+  # =============================================================================
+  - name: circuit_breaker
+    rules:
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker {{ $labels.name }} is open"
+          description: "Circuit breaker {{ $labels.name }} has been open for 1 minute."
+
+      - alert: HighCircuitBreakerFailures
+        expr: increase(circuit_breaker_failures_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High circuit breaker failures for {{ $labels.name }}"
+          description: "Circuit breaker {{ $labels.name }} has had more than 10 failures in 5 minutes."
+
+  # =============================================================================
+  # MESSAGE BROKER ALERTS
+  # =============================================================================
+  - name: message_broker
+    rules:
+      - alert: RabbitMQDown
+        expr: rabbitmq_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "RabbitMQ is down"
+          description: "RabbitMQ has been unreachable for more than 1 minute."
+
+      - alert: HighQueueDepth
+        expr: rabbitmq_queue_messages > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High queue depth on {{ $labels.queue }}"
+          description: "Queue {{ $labels.queue }} has more than 1000 messages."
+
+  # =============================================================================
+  # DATABASE ALERTS
+  # =============================================================================
+  - name: database
+    rules:
+      - alert: SlowDatabaseQueries
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(db_query_duration_seconds_bucket[5m])) by (le, operation)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow database queries for {{ $labels.operation }}"
+          description: "95th percentile query duration is above 500ms."
+
+  # =============================================================================
+  # PREDICTION SERVICE ALERTS
+  # =============================================================================
+  - name: prediction_service
+    rules:
+      - alert: TrainingJobStuck
+        expr: |
+          increase(events_published_total{event_type="prediction.training.started"}[1h])
+          - increase(events_published_total{event_type="prediction.training.completed"}[1h])
+          - increase(events_published_total{event_type="prediction.training.failed"}[1h]) > 5
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Training jobs appear to be stuck"
+          description: "There are more than 5 training jobs that haven't completed in 30 minutes."
+
+  # =============================================================================
+  # RESOURCE ALERTS
+  # =============================================================================
+  - name: resources
+    rules:
+      - alert: HighMemoryUsage
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is above 90%."
+
+      - alert: HighCPUUsage
+        expr: |
+          100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is above 90%."

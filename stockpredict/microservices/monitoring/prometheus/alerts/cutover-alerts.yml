@@ -1,0 +1,241 @@
+# Prometheus Alerting Rules for Traffic Cutover
+#
+# These alerts monitor the health and performance during
+# the gradual migration from Django to microservices.
+
+groups:
+  - name: cutover_alerts
+    interval: 30s
+    rules:
+      # =================================================================
+      # Error Rate Alerts
+      # =================================================================
+      - alert: HighMicroserviceErrorRate
+        expr: |
+          sum(rate(http_requests_total{service=~".*-service", status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total{service=~".*-service"}[5m]))
+          > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "High error rate in microservices"
+          description: "Microservices error rate is {{ $value | humanizePercentage }} (threshold: 5%). Consider rollback."
+          runbook_url: "https://wiki/runbooks/cutover-rollback"
+          action: "Check microservice logs and consider emergency rollback"
+
+      - alert: ElevatedMicroserviceErrorRate
+        expr: |
+          sum(rate(http_requests_total{service=~".*-service", status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total{service=~".*-service"}[5m]))
+          > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Elevated error rate in microservices"
+          description: "Microservices error rate is {{ $value | humanizePercentage }} (threshold: 1%)"
+
+      # =================================================================
+      # Latency Alerts
+      # =================================================================
+      - alert: HighMicroserviceLatency
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket{service=~".*-service"}[5m])) by (le, service)
+          ) > 0.5
+        for: 3m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "High P99 latency in {{ $labels.service }}"
+          description: "P99 latency is {{ $value | humanizeDuration }} (threshold: 500ms)"
+
+      - alert: LatencyRegressionVsDjango
+        expr: |
+          (
+            histogram_quantile(0.99, sum(rate(shadow_microservice_latency_seconds_bucket[5m])) by (le, endpoint))
+            -
+            histogram_quantile(0.99, sum(rate(shadow_django_latency_seconds_bucket[5m])) by (le, endpoint))
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Microservice slower than Django for {{ $labels.endpoint }}"
+          description: "Microservice is {{ $value | humanizeDuration }} slower than Django"
+
+      # =================================================================
+      # Shadow Comparison Alerts
+      # =================================================================
+      - alert: HighResponseMismatchRate
+        expr: |
+          (
+            sum(rate(shadow_comparisons_total{status="mismatch"}[5m]))
+            /
+            sum(rate(shadow_comparisons_total[5m]))
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "High response mismatch rate during shadow mode"
+          description: "{{ $value | humanizePercentage }} of responses differ between Django and microservices"
+          action: "Review mismatches at /metrics/mismatches and fix discrepancies"
+
+      - alert: ElevatedResponseMismatchRate
+        expr: |
+          (
+            sum(rate(shadow_comparisons_total{status="mismatch"}[5m]))
+            /
+            sum(rate(shadow_comparisons_total[5m]))
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Elevated response mismatch rate"
+          description: "{{ $value | humanizePercentage }} of responses differ (threshold: 5%)"
+
+      # =================================================================
+      # Service Health Alerts
+      # =================================================================
+      - alert: MicroserviceDown
+        expr: up{job=~"auth-service|stock-data-service|portfolio-service|prediction-service|analysis-service|ai-insights-service|chatbot-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Microservice {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been unreachable for 1 minute"
+          action: "Check service health and restart if necessary"
+
+      - alert: FeatureFlagServiceDown
+        expr: up{job="feature-flags"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Feature flag service is down"
+          description: "Feature flag service is unreachable - traffic routing may be affected"
+          action: "Restart feature-flags service immediately"
+
+      # =================================================================
+      # Cutover Progress Alerts
+      # =================================================================
+      - alert: CutoverRollbackTriggered
+        expr: cutover_current_phase == -1
+        for: 0m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Emergency rollback has been triggered"
+          description: "All traffic is now routing to Django. Investigate the issue."
+
+      - alert: CutoverPhaseChange
+        expr: changes(cutover_current_phase[1m]) > 0
+        for: 0m
+        labels:
+          severity: info
+          team: platform
+        annotations:
+          summary: "Cutover phase has changed"
+          description: "Traffic routing phase has been updated"
+
+      # =================================================================
+      # Traffic Distribution Alerts
+      # =================================================================
+      - alert: UnexpectedTrafficDistribution
+        expr: |
+          abs(
+            sum(rate(feature_flag_evaluations_total{result="microservice"}[5m])) by (flag_name)
+            /
+            sum(rate(feature_flag_evaluations_total[5m])) by (flag_name)
+            * 100
+            -
+            feature_flag_percentage
+          ) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Traffic distribution differs from configured percentage"
+          description: "Actual traffic for {{ $labels.flag_name }} differs from configured by {{ $value }}%"
+
+      # =================================================================
+      # Database & Infrastructure Alerts
+      # =================================================================
+      - alert: HighDatabaseLatency
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(mysql_query_duration_seconds_bucket[5m])) by (le, database)
+          ) > 0.2
+        for: 3m
+        labels:
+          severity: warning
+          team: database
+        annotations:
+          summary: "High database latency on {{ $labels.database }}"
+          description: "P99 query latency is {{ $value | humanizeDuration }}"
+
+      - alert: RedisConnectionErrors
+        expr: rate(redis_connection_errors_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Redis connection errors detected"
+          description: "Redis is experiencing connection issues"
+
+      # =================================================================
+      # Success Rate Alerts (For Complete Cutover)
+      # =================================================================
+      - alert: CutoverSuccessRateLow
+        expr: |
+          (
+            1 -
+            sum(rate(http_requests_total{service=~".*-service", status=~"[45].."}[5m]))
+            /
+            sum(rate(http_requests_total{service=~".*-service"}[5m]))
+          ) < 0.99
+          and
+          cutover_current_phase >= 4
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Success rate below 99% during majority cutover"
+          description: "Success rate is {{ $value | humanizePercentage }}. Consider pausing cutover."
+
+      - alert: CutoverSuccessRateCritical
+        expr: |
+          (
+            1 -
+            sum(rate(http_requests_total{service=~".*-service", status=~"[45].."}[5m]))
+            /
+            sum(rate(http_requests_total{service=~".*-service"}[5m]))
+          ) < 0.95
+          and
+          cutover_current_phase >= 3
+        for: 3m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Critical: Success rate below 95% during cutover"
+          description: "Success rate is {{ $value | humanizePercentage }}. Rollback recommended."
+          action: "Run emergency rollback: ./rollback.sh 'Success rate critical'"

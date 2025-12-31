@@ -1,0 +1,61 @@
+# Ceramic Marketplace API - Local Development Configuration
+# Uses native MySQL and Redis on host machine
+# API exposed on port 8002 (no nginx - uses system nginx if needed)
+
+version: '3.8'
+
+services:
+  # Python FastAPI Application
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - ENVIRONMENT=development
+    container_name: ceramic_api
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      # Database Configuration - Connect to native MySQL on host
+      - DB_HOST=host.docker.internal
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME:-ceramic_marketplace}
+      - DB_USER=${DB_USER:-ceramic_user}
+      - DB_PASSWORD=${DB_PASSWORD:-Mysql_2025}
+
+      # Redis Configuration - Connect to native Redis on host
+      - REDIS_HOST=host.docker.internal
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+
+      # Application Configuration
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      - ALGORITHM=${ALGORITHM:-HS256}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      - REFRESH_TOKEN_EXPIRE_DAYS=${REFRESH_TOKEN_EXPIRE_DAYS:-30}
+
+      # Application Settings
+      - API_BASE_URL=http://localhost:8002
+      - FRONTEND_URL=http://localhost:3000
+      - MAX_UPLOAD_SIZE=${MAX_UPLOAD_SIZE:-10485760}
+      - ALLOWED_ORIGINS=*
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - ceramic_local_network
+
+networks:
+  ceramic_local_network:
+    driver: bridge

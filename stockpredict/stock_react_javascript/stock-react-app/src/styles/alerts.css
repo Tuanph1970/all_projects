@@ -1,0 +1,478 @@
+/* Alerts Page Styles - Professional Enhanced */
+.alerts-page {
+  padding: 1rem;
+}
+
+.alerts-page .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.alerts-page .page-header h1 {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #1f2937;
+  margin: 0;
+}
+
+/* Summary Stats - Professional Enhanced */
+.alerts-summary {
+  margin-bottom: 1.5rem;
+}
+
+.summary-stats {
+  display: flex;
+  gap: 1.5rem;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.summary-stats::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #f59e0b 0%, #ef4444 50%, #8b5cf6 100%);
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem 1.5rem;
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  min-width: 120px;
+}
+
+.stat-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.stat-item:nth-child(1) {
+  border-bottom: 3px solid #10b981;
+}
+
+.stat-item:nth-child(2) {
+  border-bottom: 3px solid #f59e0b;
+}
+
+.stat-item:nth-child(3) {
+  border-bottom: 3px solid #6366f1;
+}
+
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+}
+
+.stat-item:nth-child(1) .stat-value {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.stat-item:nth-child(2) .stat-value {
+  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.stat-item:nth-child(3) .stat-value {
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+  margin-top: 0.25rem;
+}
+
+/* Alerts Table - Professional Enhanced */
+.alerts-table {
+  background: white;
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border: none;
+}
+
+.alerts-table .table-responsive {
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+.alerts-table table {
+  margin-bottom: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Enhanced Table Header */
+.alerts-table thead,
+.alerts-table thead.table-dark,
+.alerts-table .table thead {
+  background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%) !important;
+}
+
+.alerts-table thead th,
+.alerts-table thead.table-dark th {
+  color: #ffffff !important;
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-transform: capitalize;
+  letter-spacing: 0.3px;
+  padding: 1rem 1.25rem;
+  border: none !important;
+  white-space: nowrap;
+  position: relative;
+  background: transparent !important;
+}
+
+.alerts-table thead th:first-child {
+  border-top-left-radius: 1rem;
+}
+
+.alerts-table thead th:last-child {
+  border-top-right-radius: 1rem;
+}
+
+/* Enhanced Table Body */
+.alerts-table tbody tr {
+  transition: all 0.3s ease;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.alerts-table tbody tr:hover {
+  background: linear-gradient(90deg, #fffbeb 0%, #fef3c7 100%);
+  transform: scale(1.005);
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.15);
+}
+
+.alerts-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.alerts-table tbody td {
+  padding: 1rem 1.25rem;
+  vertical-align: middle;
+  font-size: 0.875rem;
+  border: none !important;
+  color: #374151;
+}
+
+/* Striped rows with subtle gradient */
+.alerts-table tbody tr:nth-child(even) {
+  background: linear-gradient(90deg, #fafbfc 0%, #f8fafc 100%);
+}
+
+.alerts-table tbody tr:nth-child(odd) {
+  background: white;
+}
+
+/* Stock Info Cell */
+.alerts-table .stock-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.alerts-table .stock-info .symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem 0.75rem;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  border-radius: 0.5rem;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+  width: fit-content;
+}
+
+.alerts-table .stock-info .company-name {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-weight: 500;
+  margin-top: 0.25rem;
+}
+
+/* Alert Type Cell */
+.alerts-table .alert-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+
+.alerts-table .alert-type svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Price Above - Green styling */
+.alerts-table .alert-type:has(svg.lucide-trending-up),
+.alerts-table td:has(.alert-type svg[class*="trending-up"]) .alert-type {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+/* Price Below - Red styling */
+.alerts-table .alert-type:has(svg.lucide-trending-down),
+.alerts-table td:has(.alert-type svg[class*="trending-down"]) .alert-type {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+}
+
+/* Price Cells */
+.alerts-table .price-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+}
+
+.alerts-table .target-price {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.alerts-table .current-price {
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+  color: #4338ca;
+  border: 1px solid #a5b4fc;
+}
+
+/* Alert Status */
+.alert-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  border-radius: 2rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.alert-status svg {
+  width: 14px;
+  height: 14px;
+}
+
+.alert-status.active {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+  color: #15803d;
+  border: 1px solid #86efac;
+  box-shadow: 0 2px 4px rgba(34, 197, 94, 0.2);
+}
+
+.alert-status.triggered {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  color: #92400e;
+  border: 1px solid #fcd34d;
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+  animation: pulse-amber 2s infinite;
+}
+
+.alert-status.inactive {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  color: #6b7280;
+  border: 1px solid #d1d5db;
+}
+
+@keyframes pulse-amber {
+  0%, 100% {
+    box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+  }
+  50% {
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.5);
+  }
+}
+
+/* Date Cell */
+.alerts-table .date-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.75rem;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  color: #0369a1;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border: 1px solid #7dd3fc;
+}
+
+/* Action Buttons - Enhanced */
+.alerts-table .action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.alerts-table .action-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.alerts-table .action-btn svg {
+  position: relative;
+  z-index: 1;
+}
+
+/* Active/Inactive Toggle Button */
+.alerts-table .active-btn {
+  color: #10b981;
+}
+
+.alerts-table .active-btn::before {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+}
+
+.alerts-table .active-btn:hover {
+  color: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.alerts-table .active-btn:hover::before {
+  opacity: 1;
+}
+
+.alerts-table .inactive-btn {
+  color: #6b7280;
+}
+
+.alerts-table .inactive-btn::before {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+}
+
+.alerts-table .inactive-btn:hover {
+  color: #374151;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
+}
+
+.alerts-table .inactive-btn:hover::before {
+  opacity: 1;
+}
+
+/* Edit Button */
+.alerts-table .edit-btn {
+  color: #3b82f6;
+}
+
+.alerts-table .edit-btn::before {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+}
+
+.alerts-table .edit-btn:hover {
+  color: #1d4ed8;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.alerts-table .edit-btn:hover::before {
+  opacity: 1;
+}
+
+/* Remove Button */
+.alerts-table .remove-btn {
+  color: #ef4444;
+}
+
+.alerts-table .remove-btn::before {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+}
+
+.alerts-table .remove-btn:hover {
+  color: #dc2626;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.alerts-table .remove-btn:hover::before {
+  opacity: 1;
+}
+
+/* Empty State */
+.alerts-table .text-center.p-4 {
+  padding: 3rem !important;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.alerts-table .text-muted {
+  color: #94a3b8 !important;
+}
+
+/* Responsive enhancements */
+@media (max-width: 768px) {
+  .alerts-table thead th,
+  .alerts-table tbody td {
+    padding: 0.75rem 0.625rem;
+    font-size: 0.8125rem;
+  }
+
+  .summary-stats {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .stat-item {
+    flex: 1 1 calc(50% - 0.5rem);
+    min-width: auto;
+  }
+
+  .alerts-table .action-btn {
+    width: 2rem;
+    height: 2rem;
+  }
+}

@@ -1,0 +1,33 @@
+table {
+  width: 100%;
+  max-width: 1400px;
+  border-collapse: collapse;
+}
+
+th, td {
+  width: 25%;
+  height: auto;
+  padding: 0.5rem 0.75rem;
+  background-color: #f9fafb;
+  font-size: 0.8125rem;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+th {
+  font-weight: 600;
+  color: #374151;
+  background-color: #f3f4f6;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+td {
+  color: #1f2937;
+}
+
+tr:hover td {
+  background-color: #f3f4f6;
+}
+

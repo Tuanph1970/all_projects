@@ -1,0 +1,230 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: front_end/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./front_end
+        run: npm ci
+
+      - name: Run unit tests
+        working-directory: ./front_end
+        run: npm run test:coverage
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./front_end/coverage/lcov.info
+          flags: unittests
+          name: unit-tests-coverage
+
+      - name: Comment PR with coverage
+        if: github.event_name == 'pull_request'
+        uses: romeovs/lcov-reporter-action@v0.3.1
+        with:
+          lcov-file: ./front_end/coverage/lcov.info
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: front_end/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./front_end
+        run: npm ci
+
+      - name: Run integration tests
+        working-directory: ./front_end
+        run: npm run test:integration
+
+  e2e-ios:
+    name: E2E Tests (iOS)
+    runs-on: macos-13
+    timeout-minutes: 45
+    # Only run E2E tests on main branch or when label is added
+    if: github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'run-e2e')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies (front_end)
+        working-directory: ./front_end
+        run: npm ci
+
+      - name: Install dependencies (mobile_automation_test)
+        working-directory: ./mobile_automation_test
+        run: npm ci
+
+      - name: Setup Ruby (for CocoaPods)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.0'
+          bundler-cache: true
+
+      - name: Install CocoaPods
+        working-directory: ./front_end/ios
+        run: pod install
+
+      - name: Build iOS app for testing
+        working-directory: ./mobile_automation_test
+        run: npm run build:ios
+
+      - name: Run Detox tests
+        working-directory: ./mobile_automation_test
+        run: npm run test:ios
+
+      - name: Upload screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: ios-test-screenshots
+          path: mobile_automation_test/artifacts/**/*.png
+
+  e2e-android:
+    name: E2E Tests (Android)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Only run E2E tests on main branch or when label is added
+    if: github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'run-e2e')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '11'
+
+      - name: Install dependencies (front_end)
+        working-directory: ./front_end
+        run: npm ci
+
+      - name: Install dependencies (mobile_automation_test)
+        working-directory: ./mobile_automation_test
+        run: npm ci
+
+      - name: Enable KVM (for Android emulator)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: AVD cache
+        uses: actions/cache@v3
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-29
+
+      - name: Create AVD and generate snapshot
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          target: default
+          arch: x86_64
+          profile: Nexus 6
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: echo "Generated AVD snapshot for caching."
+
+      - name: Build Android app for testing
+        working-directory: ./mobile_automation_test
+        run: npm run build:android
+
+      - name: Run Detox tests on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          target: default
+          arch: x86_64
+          profile: Nexus 6
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: cd mobile_automation_test && npm run test:android
+
+      - name: Upload screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: android-test-screenshots
+          path: mobile_automation_test/artifacts/**/*.png
+
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: front_end/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./front_end
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: ./front_end
+        run: npm run lint
+
+      - name: Run ESLint (mobile_automation_test)
+        working-directory: ./mobile_automation_test
+        run: npm run lint

@@ -1,0 +1,92 @@
+[09:10:20] [INFO] Loading API collection from api_test.json
+[09:10:20] [INFO] Base URL: http://localhost:8002/api/v1
+[09:10:20] [INFO] Test Email: seller_a@test.com
+[09:10:20] [INFO] Test Username: seller_a
+[09:10:20] [INFO] ================================================================================
+[09:10:20] [INFO] Using pre-seeded seller_a account (ID: 200)
+[09:10:21] [INFO] Logging in as SELLER...
+[09:10:21] [SUCCESS] ✓ Seller logged in successfully
+[09:10:21] [SUCCESS] ✓ Auth token captured
+[09:10:21] [SUCCESS] ✓ Refresh token captured
+[09:10:21] [INFO] 
+================================================================================
+[09:10:21] [INFO] Starting Seller-Specific Endpoint Tests
+[09:10:21] [INFO] ================================================================================
+
+[09:10:21] [INFO] 
+Testing Category: Seller Dashboard
+[09:10:21] [INFO] --------------------------------------------------------------------------------
+[09:10:21] [SUCCESS] PASS: Dashboard Overview (200)
+[09:10:21] [SUCCESS] PASS: Sales Chart (200)
+[09:10:21] [SUCCESS] PASS: Top Products (200)
+[09:10:21] [SUCCESS] PASS: Category Performance (200)
+[09:10:22] [SUCCESS] PASS: Recent Orders (200)
+[09:10:22] [SUCCESS] PASS: Inventory Alerts (200)
+[09:10:22] [SUCCESS] PASS: Product Analytics (200)
+[09:10:22] [INFO] 
+Testing Category: Seller Product Management
+[09:10:22] [INFO] --------------------------------------------------------------------------------
+[09:10:22] [SUCCESS] PASS: Get Products for Management (200)
+[09:10:22] [SUCCESS] PASS: Delete Product (Seller) (200)
+[09:10:22] [SKIP] SKIP: Upload Product Image (requires special handling)
+[09:10:22] [SUCCESS] PASS: Bulk Update Product Status (200)
+[09:10:22] [SUCCESS] PASS: Bulk Update Prices (200)
+[09:10:22] [INFO] 
+Testing Category: Order Fulfillment
+[09:10:22] [INFO] --------------------------------------------------------------------------------
+[09:10:23] [SUCCESS] PASS: Get Seller Orders (200)
+[09:10:23] [SUCCESS] PASS: Get Order Details (Fulfillment) (200)
+[09:10:23] [SUCCESS] PASS: Update Order Status (200)
+[09:10:23] [SUCCESS] PASS: Mark Order as Shipped (200)
+[09:10:23] [SUCCESS] PASS: Bulk Update Order Status (200)
+[09:10:23] [SUCCESS] PASS: Process Return Request (200)
+[09:10:23] [SUCCESS] PASS: Process Refund (200)
+[09:10:23] [SUCCESS] PASS: Get Pending Returns (200)
+[09:10:24] [SUCCESS] PASS: Order Statistics Overview (200)
+[09:10:24] [SUCCESS] PASS: Fulfillment Analytics (200)
+[09:10:24] [INFO] 
+Testing Category: Seller Analytics
+[09:10:24] [INFO] --------------------------------------------------------------------------------
+[09:10:24] [SUCCESS] PASS: Analytics Dashboard (200)
+[09:10:24] [SUCCESS] PASS: Revenue Trends (200)
+[09:10:24] [SUCCESS] PASS: Category Performance Analytics (200)
+[09:10:24] [SUCCESS] PASS: Customer Demographics (200)
+[09:10:24] [SUCCESS] PASS: Performance Metrics (200)
+[09:10:24] [SUCCESS] PASS: Top Products Analytics (200)
+[09:10:25] [SUCCESS] PASS: Performance Comparison (200)
+[09:10:25] [INFO] 
+Testing Category: Seller Profile
+[09:10:25] [INFO] --------------------------------------------------------------------------------
+[09:10:25] [SUCCESS] PASS: Get Seller Profile (200)
+[09:10:25] [SUCCESS] PASS: Update Seller Profile (200)
+[09:10:25] [SUCCESS] PASS: Get Complete Store Info (200)
+[09:10:25] [SUCCESS] PASS: Get Public Store Info (200)
+[09:10:25] [INFO] 
+Testing Category: Store Theme Management
+[09:10:25] [INFO] --------------------------------------------------------------------------------
+[09:10:25] [SUCCESS] PASS: Create Store Theme (200)
+[09:10:25] [SUCCESS] PASS: Update Theme (200)
+[09:10:25] [SUCCESS] PASS: Activate Theme (200)
+[09:10:26] [ERROR] FAIL: Delete Theme (400)
+[09:10:26] [INFO] 
+Testing Category: Store Analytics & Media
+[09:10:26] [INFO] --------------------------------------------------------------------------------
+[09:10:26] [SUCCESS] PASS: Get Store Analytics (200)
+[09:10:26] [SUCCESS] PASS: Get Store Statistics (200)
+[09:10:26] [SKIP] SKIP: Upload Store Logo (requires special handling)
+[09:10:26] [SKIP] SKIP: Upload Store Banner (requires special handling)
+[09:10:26] [SUCCESS] PASS: Request Business Verification (200)
+[09:10:26] [INFO] 
+================================================================================
+[09:10:26] [INFO] SELLER TEST SUMMARY
+[09:10:26] [INFO] ================================================================================
+[09:10:26] [INFO] Total Tests: 42
+[09:10:26] [SUCCESS] Passed: 38
+[09:10:26] [ERROR] Failed: 1
+[09:10:26] [WARNING] Skipped: 3
+[09:10:26] [SUCCESS] Success Rate: 90.5%
+[09:10:26] [ERROR] 
+================================================================================
+[09:10:26] [ERROR] ERRORS
+[09:10:26] [ERROR] ================================================================================
+[09:10:26] [ERROR] Delete Theme: Status 400 - Cannot delete active theme

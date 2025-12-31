@@ -1,0 +1,287 @@
+/**
+ * API Configuration
+ * Centralized API endpoints configuration for Microservices Architecture
+ *
+ * API Gateway: Traefik routes requests to microservices via /api/v2/ prefix
+ * Services:
+ *   - Auth Service: /api/v2/auth
+ *   - Stock Data Service: /api/v2/stocks, /api/v2/companies, /api/v2/market
+ *   - Portfolio Service: /api/v2/portfolio, /api/v2/alerts
+ *   - Analysis Service: /api/v2/analysis, /api/v2/industries
+ *   - Prediction Service: /api/v2/predict, /api/v2/models, /api/v2/solutions
+ *   - AI Insights Service: /api/v2/ai
+ *   - Chatbot Service: /api/v2/chatbot
+ */
+
+// Gateway base URL (Traefik API Gateway)
+const API_GATEWAY_URL = process.env.REACT_APP_API_URL || 'http://localhost';
+
+// Base URLs for different services (direct access to microservices)
+export const API_BASE_URLS = {
+  // External services (not through gateway)
+  CHAT_SERVICE: process.env.REACT_APP_CHAT_SERVICE_URL || 'http://localhost:3005',
+  FILE_SERVICE: process.env.REACT_APP_FILE_SERVICE_URL || 'http://localhost:3005',
+
+  // Microservices direct access with stock_helper prefix
+  GATEWAY: API_GATEWAY_URL,
+  AUTH_API: `${API_GATEWAY_URL}:8007/stock_helper/api/v2/auth`,
+  STOCK_API: `${API_GATEWAY_URL}:8001/stock_helper/api/v2`,
+  COMPANIES_API: `${API_GATEWAY_URL}:8001/stock_helper/api/v2/companies`,
+  MARKET_API: `${API_GATEWAY_URL}:8001/stock_helper/api/v2/market`,
+  PORTFOLIO_API: `${API_GATEWAY_URL}:8003/stock_helper/api/v2/portfolio`,
+  ALERTS_API: `${API_GATEWAY_URL}:8003/stock_helper/api/v2/alerts`,
+  ANALYSIS_API: `${API_GATEWAY_URL}:8004/stock_helper/api/v2/analysis`,
+  INDUSTRIES_API: `${API_GATEWAY_URL}:8001/stock_helper/api/v2/industries`,
+  PREDICT_API: `${API_GATEWAY_URL}:8002/stock_helper/api/v2/predict`,
+  MODELS_API: `${API_GATEWAY_URL}:8002/stock_helper/api/v2/models`,
+  SOLUTIONS_API: `${API_GATEWAY_URL}:8002/stock_helper/api/v2/solutions`,
+  AI_API: `${API_GATEWAY_URL}:8005/stock_helper/api/v2/ai`,
+  CHATBOT_API: `${API_GATEWAY_URL}:8006/stock_helper/api/v2/chatbot`,
+
+  // Legacy API (fallback - Django monolith)
+  LEGACY_API: `${API_GATEWAY_URL}/api/v1`
+};
+
+// API Endpoints organized by service
+export const API_ENDPOINTS = {
+  // ==========================================
+  // AUTH SERVICE ENDPOINTS (/api/v2/auth)
+  // ==========================================
+  AUTH_LOGIN: `${API_BASE_URLS.AUTH_API}/login`,
+  AUTH_REGISTER: `${API_BASE_URLS.AUTH_API}/register`,
+  AUTH_LOGOUT: `${API_BASE_URLS.AUTH_API}/logout`,
+  AUTH_REFRESH: `${API_BASE_URLS.AUTH_API}/refresh`,
+  AUTH_VERIFY: `${API_BASE_URLS.AUTH_API}/verify`,
+  AUTH_ME: `${API_BASE_URLS.AUTH_API}/me`,
+  AUTH_CHANGE_PASSWORD: `${API_BASE_URLS.AUTH_API}/change-password`,
+  AUTH_RESET_PASSWORD: `${API_BASE_URLS.AUTH_API}/reset-password`,
+
+  // ==========================================
+  // STOCK DATA SERVICE ENDPOINTS (/api/v2/stocks, /api/v2/companies)
+  // ==========================================
+  STOCK_SEARCH: `${API_BASE_URLS.STOCK_API}/search`,
+  STOCK_DETAIL: (symbol) => `${API_BASE_URLS.STOCK_API}/${symbol}`,
+  STOCK_HISTORY: (symbol) => `${API_BASE_URLS.STOCK_API}/${symbol}/history`,
+
+  COMPANIES_LIST: `${API_BASE_URLS.COMPANIES_API}`,
+  COMPANIES_ALL: `${API_BASE_URLS.COMPANIES_API}/all`,
+  COMPANY_PROFILE: (symbol) => `${API_BASE_URLS.COMPANIES_API}/${symbol}/profile`,
+  COMPANY_FINANCIALS: (symbol) => `${API_BASE_URLS.COMPANIES_API}/${symbol}/financials`,
+  COMPANY_CHARTS: (symbol) => `${API_BASE_URLS.STOCK_API}/${symbol}/history`,
+  COMPANY_DIVIDENDS: (symbol) => `${API_BASE_URLS.COMPANIES_API}/${symbol}/dividends`,
+  COMPANY_EVENTS: (symbol) => `${API_BASE_URLS.COMPANIES_API}/${symbol}/events`,
+  COMPANY_NEWS: (symbol) => `${API_BASE_URLS.COMPANIES_API}/${symbol}/news`,
+
+  TOP_GAINERS: `${API_BASE_URLS.COMPANIES_API}/top-gainers`,
+  TOP_LOSERS: `${API_BASE_URLS.COMPANIES_API}/top-losers`,
+  TOP_ACTIVES: `${API_BASE_URLS.COMPANIES_API}/top-actives`,
+  PRICEBOARDS: `${API_BASE_URLS.STOCK_API}/priceboards`,
+
+  // Market endpoints
+  MARKET_INDICES: `${API_BASE_URLS.MARKET_API}/indices`,
+  MARKET_INDICES_LATEST: `${API_BASE_URLS.MARKET_API}/indices/latest`,
+
+  // Industries endpoints
+  INDUSTRIES_LIST: `${API_BASE_URLS.INDUSTRIES_API}`,
+  INDUSTRY_COMPANIES: (id) => `${API_BASE_URLS.INDUSTRIES_API}/${id}/companies`,
+
+  // ==========================================
+  // PORTFOLIO SERVICE ENDPOINTS (/api/v2/portfolio)
+  // ==========================================
+  PORTFOLIOS_LIST: `${API_BASE_URLS.PORTFOLIO_API}/portfolios`,
+  PORTFOLIO_DEFAULT: `${API_BASE_URLS.PORTFOLIO_API}/portfolios/default`,
+  PORTFOLIO_DETAIL: (id) => `${API_BASE_URLS.PORTFOLIO_API}/portfolios/${id}`,
+  PORTFOLIO_SUMMARY: (id) => `${API_BASE_URLS.PORTFOLIO_API}/portfolios/${id}/summary`,
+  PORTFOLIO_HOLDINGS: (id) => `${API_BASE_URLS.PORTFOLIO_API}/portfolios/${id}/holdings`,
+  PORTFOLIO_HOLDING: (id, symbol) => `${API_BASE_URLS.PORTFOLIO_API}/portfolios/${id}/holdings/${symbol}`,
+  PORTFOLIO_TRANSACTIONS: (id) => `${API_BASE_URLS.PORTFOLIO_API}/portfolios/${id}/transactions`,
+  PORTFOLIO_TRANSACTIONS_BULK: (id) => `${API_BASE_URLS.PORTFOLIO_API}/portfolios/${id}/transactions/bulk`,
+
+  // Watchlist endpoints
+  WATCHLIST: `${API_BASE_URLS.PORTFOLIO_API}/watchlist`,
+  WATCHLIST_REMOVE: (symbol) => `${API_BASE_URLS.PORTFOLIO_API}/watchlist/${symbol}`,
+
+  // Alerts endpoints (/api/v2/alerts)
+  ALERTS_LIST: `${API_BASE_URLS.ALERTS_API}`,
+  ALERT_CREATE: `${API_BASE_URLS.ALERTS_API}`,
+  ALERT_DETAIL: (id) => `${API_BASE_URLS.ALERTS_API}/${id}`,
+  ALERT_UPDATE: (id) => `${API_BASE_URLS.ALERTS_API}/${id}`,
+  ALERT_DELETE: (id) => `${API_BASE_URLS.ALERTS_API}/${id}`,
+  ALERT_TOGGLE: (id) => `${API_BASE_URLS.ALERTS_API}/${id}/toggle`,
+
+  // ==========================================
+  // ANALYSIS SERVICE ENDPOINTS (/api/v2/analysis)
+  // ==========================================
+  ANALYSIS_TECHNICAL: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/technical/${symbol}`,
+  ANALYSIS_TECHNICAL_INDICATORS: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/technical/${symbol}/indicators`,
+  ANALYSIS_TECHNICAL_INTRADAY: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/technical/${symbol}/intraday`,
+  ANALYSIS_FUNDAMENTAL: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/fundamental/${symbol}`,
+  ANALYSIS_FUNDAMENTAL_STATEMENTS: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/fundamental/${symbol}/statements`,
+
+  // Financial Reports endpoints (under analysis)
+  FINANCIAL_INCOME_STATEMENT: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/fundamental/${symbol}/income-statement`,
+  FINANCIAL_BALANCE_SHEET: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/fundamental/${symbol}/balance-sheet`,
+  FINANCIAL_CASH_FLOW: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/fundamental/${symbol}/cash-flow`,
+  FINANCIAL_RATIO: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/fundamental/${symbol}/ratios`,
+  ANALYSIS_COMPARE: `${API_BASE_URLS.ANALYSIS_API}/compare`,
+  ANALYSIS_SCREENER: `${API_BASE_URLS.ANALYSIS_API}/screener`,
+  ANALYSIS_SCREENER_CONFIGS: `${API_BASE_URLS.ANALYSIS_API}/screener/configs`,
+  ANALYSIS_FILTERS: `${API_BASE_URLS.ANALYSIS_API}/filters`,
+  ANALYSIS_SIGNALS: `${API_BASE_URLS.ANALYSIS_API}/signals`,
+  ANALYSIS_SECTORS: `${API_BASE_URLS.ANALYSIS_API}/sectors`,
+  ANALYSIS_INDUSTRY: (id) => `${API_BASE_URLS.ANALYSIS_API}/industries/${id}/analysis`,
+
+  // ==========================================
+  // PREDICTION SERVICE ENDPOINTS (/api/v2/predict, /api/v2/models, /api/v2/solutions)
+  // ==========================================
+  // Predict endpoints
+  PREDICT: `${API_BASE_URLS.PREDICT_API}/predict`,
+  PREDICT_SYMBOL: (symbol) => `${API_BASE_URLS.PREDICT_API}/predict/${symbol}`,
+  PREDICT_BULK: `${API_BASE_URLS.PREDICT_API}/predict/bulk`,
+  PREDICT_BACKTEST: `${API_BASE_URLS.PREDICT_API}/backtest`,
+  PREDICT_COMPARE: `${API_BASE_URLS.PREDICT_API}/compare`,
+  PREDICT_SUPPORTED_MODELS: `${API_BASE_URLS.PREDICT_API}/supported-models`,
+
+  // Model endpoints
+  MODELS_LIST: `${API_BASE_URLS.MODELS_API}`,
+  MODEL_DETAIL: (id) => `${API_BASE_URLS.MODELS_API}/${id}`,
+  MODEL_CREATE: `${API_BASE_URLS.MODELS_API}`,
+  MODEL_UPDATE: (id) => `${API_BASE_URLS.MODELS_API}/${id}`,
+  MODEL_DELETE: (id) => `${API_BASE_URLS.MODELS_API}/${id}`,
+  MODEL_FEATURES: (id) => `${API_BASE_URLS.MODELS_API}/${id}/features`,
+  MODEL_TRAINING_LOGS: (id) => `${API_BASE_URLS.MODELS_API}/${id}/training-logs`,
+  MODEL_TRAIN: `${API_BASE_URLS.MODELS_API}/train`,
+  MODEL_PARAMETERS: `${API_BASE_URLS.MODELS_API}/parameters`,
+  MODEL_PARAM_OPTIONS: `${API_BASE_URLS.MODELS_API}/params/options`,
+  MODEL_TYPES: `${API_BASE_URLS.MODELS_API}/types`,
+  MODELS_HEALTH: `${API_BASE_URLS.PREDICT_API}/health/models`,
+
+  // Solution endpoints
+  SOLUTIONS_LIST: `${API_BASE_URLS.SOLUTIONS_API}`,
+  SOLUTION_DETAIL: (id) => `${API_BASE_URLS.SOLUTIONS_API}/${id}`,
+  SOLUTION_CREATE: `${API_BASE_URLS.SOLUTIONS_API}`,
+  SOLUTION_UPDATE: (id) => `${API_BASE_URLS.SOLUTIONS_API}/${id}`,
+  SOLUTION_DELETE: (id) => `${API_BASE_URLS.SOLUTIONS_API}/${id}`,
+  SOLUTION_TICKERS: `${API_BASE_URLS.SOLUTIONS_API}/tickers`,
+  SOLUTION_INDICATORS: (id) => `${API_BASE_URLS.SOLUTIONS_API}/${id}/indicators`,
+  SOLUTION_INDICATORS_SET: (id) => `${API_BASE_URLS.SOLUTIONS_API}/${id}/indicators/set`,
+
+  // Time Series endpoints (under predict)
+  TIME_SERIES_LIST: `${API_BASE_URLS.PREDICT_API}/time_series`,
+  TIME_SERIES_DETAIL: (id) => `${API_BASE_URLS.PREDICT_API}/time_series/${id}`,
+  TIME_SERIES_CREATE: `${API_BASE_URLS.PREDICT_API}/time_series`,
+  TIME_SERIES_UPDATE: (id) => `${API_BASE_URLS.PREDICT_API}/time_series/${id}`,
+  TIME_SERIES_DELETE: (id) => `${API_BASE_URLS.PREDICT_API}/time_series/${id}`,
+  TIME_SERIES_BY_IDS: `${API_BASE_URLS.PREDICT_API}/time_series/by_ids`,
+  TIME_SERIES_BATCH_UPDATE: `${API_BASE_URLS.PREDICT_API}/time_series/batch_update`,
+  TIME_SERIES_CATEGORIES: `${API_BASE_URLS.PREDICT_API}/time_series/categories`,
+
+  // Solution training/prediction endpoints
+  SOLUTION_TRAIN: `${API_BASE_URLS.SOLUTIONS_API}/train`,
+  SOLUTION_PREDICT: `${API_BASE_URLS.SOLUTIONS_API}/predict`,
+  SOLUTION_TRAINING_STATUS: (id) => `${API_BASE_URLS.SOLUTIONS_API}/${id}/training-status`,
+  SOLUTION_COVARIATES: `${API_BASE_URLS.SOLUTIONS_API}/covariates`,
+  SOLUTION_CALCULATE_DATE_RANGE: `${API_BASE_URLS.SOLUTIONS_API}/calculate-date-range`,
+
+  // Simulation endpoints
+  SIMULATION_MODELS: `${API_BASE_URLS.PREDICT_API}/simulation/models`,
+  SIMULATION_TRAINED_SOLUTIONS: `${API_BASE_URLS.PREDICT_API}/simulation/trained-solutions`,
+  SIMULATION_RUN: `${API_BASE_URLS.PREDICT_API}/simulation/run`,
+
+  // Model endpoints (additional)
+  MODELS_ALL: `${API_BASE_URLS.MODELS_API}/all`,
+  MODEL_BY_TYPE: (type) => `${API_BASE_URLS.MODELS_API}/${type}`,
+
+  // Company historical data
+  COMPANY_HISTORICAL_DATA: (symbol, startDate, endDate) =>
+    `${API_BASE_URLS.COMPANIES_API}/${symbol}/historical-data?start_date=${startDate}&end_date=${endDate}`,
+
+  // Technical Indicators endpoints (under predict)
+  INDICATORS_LIST: `${API_BASE_URLS.PREDICT_API}/indicators`,
+  INDICATORS_BY_TYPE: (type) => `${API_BASE_URLS.PREDICT_API}/indicators/type/${type}`,
+  INDICATOR_DETAIL: (id) => `${API_BASE_URLS.PREDICT_API}/indicators/${id}`,
+  INDICATOR_CALCULATE: `${API_BASE_URLS.PREDICT_API}/indicators/calculate`,
+  INDICATOR_CREATE: `${API_BASE_URLS.PREDICT_API}/indicators`,
+  INDICATOR_UPDATE: (id) => `${API_BASE_URLS.PREDICT_API}/indicators/${id}`,
+  INDICATOR_DELETE: (id) => `${API_BASE_URLS.PREDICT_API}/indicators/${id}`,
+
+  // ==========================================
+  // AI INSIGHTS SERVICE ENDPOINTS (/api/v2/ai)
+  // ==========================================
+  AI_INSIGHT: `${API_BASE_URLS.AI_API}/insight`,
+  AI_INSIGHT_SYMBOL: (symbol) => `${API_BASE_URLS.AI_API}/insight/${symbol}`,
+  AI_COMPARE: `${API_BASE_URLS.AI_API}/compare`,
+  AI_NEWS_ANALYSIS: `${API_BASE_URLS.AI_API}/news-analysis`,
+  AI_ASK: `${API_BASE_URLS.AI_API}/ask`,
+  AI_MARKET_OVERVIEW: `${API_BASE_URLS.AI_API}/market-overview`,
+  AI_BATCH: `${API_BASE_URLS.AI_API}/batch`,
+  AI_TRENDING: `${API_BASE_URLS.AI_API}/trending`,
+  AI_PORTFOLIO_INSIGHTS: `${API_BASE_URLS.AI_API}/portfolio-insights`,
+  AI_SECTORS: `${API_BASE_URLS.AI_API}/sectors`,
+  AI_CAPABILITIES: `${API_BASE_URLS.AI_API}/capabilities`,
+  AI_INDICATORS_AVAILABLE: `${API_BASE_URLS.AI_API}/indicators/available`,
+  AI_INDICATORS_DATA: `${API_BASE_URLS.AI_API}/indicators/data`,
+
+  // Agent endpoints (under AI)
+  AGENTS_LIST: `${API_BASE_URLS.AI_API}/agents`,
+  AGENT_GET: `${API_BASE_URLS.AI_API}/agent`,
+  AGENT_ML: `${API_BASE_URLS.AI_API}/ml_agent`,
+
+  // ==========================================
+  // CHATBOT SERVICE ENDPOINTS (/api/v2/chatbot)
+  // ==========================================
+  CHATBOT_CHAT: `${API_BASE_URLS.CHATBOT_API}/chat`,
+  CHATBOT_HISTORY: (sessionId) => `${API_BASE_URLS.CHATBOT_API}/history/${sessionId}`,
+  CHATBOT_SESSION_CLEAR: (sessionId) => `${API_BASE_URLS.CHATBOT_API}/session/${sessionId}`,
+  CHATBOT_SUGGESTIONS: `${API_BASE_URLS.CHATBOT_API}/suggestions`,
+  CHATBOT_FEEDBACK: `${API_BASE_URLS.CHATBOT_API}/feedback`,
+  CHATBOT_EXPORT: (id) => `${API_BASE_URLS.CHATBOT_API}/history/${id}/export`,
+  CHATBOT_INTENTS: `${API_BASE_URLS.CHATBOT_API}/intents`,
+  CHATBOT_STATS: `${API_BASE_URLS.CHATBOT_API}/stats`,
+  CHATBOT_CAPABILITIES: `${API_BASE_URLS.CHATBOT_API}/capabilities`,
+  CHATBOT_HEALTH: `${API_BASE_URLS.CHATBOT_API}/health`,
+  CHATBOT_WS: (sessionId) => `ws://${API_GATEWAY_URL.replace(/^https?:\/\//, '')}/api/v2/chatbot/ws/${sessionId}`,
+
+  // ==========================================
+  // FILE SERVICE ENDPOINTS (external service)
+  // ==========================================
+  FILE_LIST: `${API_BASE_URLS.FILE_SERVICE}/files`,
+  FILE_UPLOAD: `${API_BASE_URLS.FILE_SERVICE}/upload`,
+  FILE_DELETE: `${API_BASE_URLS.FILE_SERVICE}/delete`,
+  FILE_PROCESS: `${API_BASE_URLS.FILE_SERVICE}/process`,
+
+  // Chat service (external)
+  CHAT_QUERY: `${API_BASE_URLS.CHAT_SERVICE}/query`,
+
+  // ==========================================
+  // LEGACY ENDPOINTS (backward compatibility)
+  // These map old endpoint patterns to new microservices
+  // ==========================================
+  // Legacy aliases for gradual migration
+  STOCK_DATA: `${API_BASE_URLS.STOCK_API}`,
+  STOCK_ANALYSIS: `${API_BASE_URLS.ANALYSIS_API}`,
+
+  // Old chatbot endpoints (mapped to new)
+  CHATBOT_ASK: `${API_BASE_URLS.CHATBOT_API}/chat`,
+  CHATBOT_CATEGORIES: `${API_BASE_URLS.CHATBOT_API}/suggestions`,
+
+  // Old model endpoints (mapped to new)
+  MODEL_LIST: `${API_BASE_URLS.MODELS_API}`,
+
+  // Old solution endpoints (mapped to new)
+  SOLUTION_LIST: `${API_BASE_URLS.SOLUTIONS_API}`
+};
+
+// HTTP Status Codes
+export const HTTP_STATUS = {
+  OK: 200,
+  CREATED: 201,
+  BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  INTERNAL_SERVER_ERROR: 500
+};
+
+// Request timeout in milliseconds
+export const REQUEST_TIMEOUT = 30000;

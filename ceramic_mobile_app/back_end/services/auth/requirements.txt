@@ -1,0 +1,16 @@
+# Auth Service Dependencies
+fastapi==0.116.1
+uvicorn==0.35.0
+gunicorn==23.0.0
+pydantic==2.11.7
+pydantic-settings==2.10.1
+SQLAlchemy==2.0.43
+PyMySQL==1.1.2
+python-jose==3.5.0
+passlib==1.7.4
+cryptography==44.0.0
+python-multipart==0.0.20
+email_validator==2.2.0
+redis==5.0.1
+httpx==0.27.0
+python-dotenv==1.1.1

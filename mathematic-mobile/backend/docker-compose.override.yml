@@ -1,0 +1,22 @@
+# Override file for development environment
+services:
+  mathematics-solver-api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8001
+      - ConnectionStrings__DefaultConnection=Server=mysql;Database=MathematicsSolverDb_Dev;User=root;Password=YourStrong@Passw0rd;
+      - Logging__LogLevel__Default=Debug
+      - Logging__LogLevel__Microsoft.AspNetCore=Information
+    volumes:
+      - ./src:/app/src:ro  # Mount source code for development
+      - ./appsettings.Development.json:/app/appsettings.Development.json:ro
+    ports:
+      - "8001:8001"
+      - "8002:8002"  # Additional port for debugging
+
+  mysql:
+    environment:
+      - MYSQL_ROOT_PASSWORD=YourStrong@Passw0rd
+      - MYSQL_DATABASE=MathematicsSolverDb_Dev
+    ports:
+      - "3306:3306"

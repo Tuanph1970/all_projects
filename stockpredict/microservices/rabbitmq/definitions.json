@@ -1,0 +1,192 @@
+{
+  "rabbit_version": "3.13.0",
+  "users": [
+    {
+      "name": "stockuser",
+      "password_hash": "EI3GpDjXVlhyMbloT8qGKG4t/uPSu/5D4t0V7GN9Xb8yPqHj",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": ["administrator"]
+    }
+  ],
+  "vhosts": [
+    {"name": "/"},
+    {"name": "/stock"}
+  ],
+  "permissions": [
+    {
+      "user": "stockuser",
+      "vhost": "/stock",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "topic_permissions": [],
+  "parameters": [],
+  "global_parameters": [],
+  "policies": [
+    {
+      "vhost": "/stock",
+      "name": "ha-all",
+      "pattern": ".*",
+      "apply-to": "queues",
+      "definition": {
+        "ha-mode": "all",
+        "ha-sync-mode": "automatic"
+      },
+      "priority": 0
+    },
+    {
+      "vhost": "/stock",
+      "name": "dlx-policy",
+      "pattern": "^(?!dead\\.).*",
+      "apply-to": "queues",
+      "definition": {
+        "dead-letter-exchange": "stock_events.dlx",
+        "dead-letter-routing-key": "dead"
+      },
+      "priority": 1
+    }
+  ],
+  "queues": [
+    {
+      "name": "stock.sync.queue",
+      "vhost": "/stock",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 86400000
+      }
+    },
+    {
+      "name": "prediction.training.queue",
+      "vhost": "/stock",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-message-ttl": 3600000
+      }
+    },
+    {
+      "name": "portfolio.alerts.queue",
+      "vhost": "/stock",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "analysis.requests.queue",
+      "vhost": "/stock",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "ai.insights.queue",
+      "vhost": "/stock",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "chatbot.requests.queue",
+      "vhost": "/stock",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "dead.letter.queue",
+      "vhost": "/stock",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "stock_events",
+      "vhost": "/stock",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "stock_events.dlx",
+      "vhost": "/stock",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "stock_events",
+      "vhost": "/stock",
+      "destination": "stock.sync.queue",
+      "destination_type": "queue",
+      "routing_key": "stock.sync.#",
+      "arguments": {}
+    },
+    {
+      "source": "stock_events",
+      "vhost": "/stock",
+      "destination": "prediction.training.queue",
+      "destination_type": "queue",
+      "routing_key": "prediction.training.#",
+      "arguments": {}
+    },
+    {
+      "source": "stock_events",
+      "vhost": "/stock",
+      "destination": "portfolio.alerts.queue",
+      "destination_type": "queue",
+      "routing_key": "portfolio.alert.#",
+      "arguments": {}
+    },
+    {
+      "source": "stock_events",
+      "vhost": "/stock",
+      "destination": "portfolio.alerts.queue",
+      "destination_type": "queue",
+      "routing_key": "stock.price.updated",
+      "arguments": {}
+    },
+    {
+      "source": "stock_events",
+      "vhost": "/stock",
+      "destination": "analysis.requests.queue",
+      "destination_type": "queue",
+      "routing_key": "analysis.#",
+      "arguments": {}
+    },
+    {
+      "source": "stock_events",
+      "vhost": "/stock",
+      "destination": "ai.insights.queue",
+      "destination_type": "queue",
+      "routing_key": "ai.#",
+      "arguments": {}
+    },
+    {
+      "source": "stock_events",
+      "vhost": "/stock",
+      "destination": "chatbot.requests.queue",
+      "destination_type": "queue",
+      "routing_key": "chatbot.#",
+      "arguments": {}
+    },
+    {
+      "source": "stock_events.dlx",
+      "vhost": "/stock",
+      "destination": "dead.letter.queue",
+      "destination_type": "queue",
+      "routing_key": "#",
+      "arguments": {}
+    }
+  ]
+}

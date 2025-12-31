@@ -1,0 +1,345 @@
+================================================================================
+MOBILE AUTOMATION TEST - DEPLOYMENT PACKAGE SUMMARY
+================================================================================
+
+Created on: 2025-11-18
+Location: ceramic_mobile_app/mobile_automation_test/
+
+================================================================================
+FILES CREATED
+================================================================================
+
+1. README.md
+   - Quick start guide
+   - Common commands
+   - Troubleshooting tips
+   - 150 lines
+
+2. SETUP_GUIDE.md
+   - Comprehensive setup instructions
+   - Prerequisites and system requirements
+   - Manual and automated setup steps
+   - Detailed troubleshooting section
+   - CI/CD examples
+   - 600+ lines
+
+3. setup.sh (Executable)
+   - Automated environment setup
+   - Checks prerequisites
+   - Installs dependencies
+   - Configures Android SDK
+   - Creates emulator
+   - Builds application
+   - Sets up test database
+   - 350+ lines
+
+4. run-tests.sh (Executable)
+   - Test execution script with options
+   - Pre-flight checks
+   - Build management
+   - Backend server management
+   - Test report generation
+   - 400+ lines
+
+================================================================================
+QUICK START FOR NEW PC
+================================================================================
+
+Step 1: Prerequisites
+--------------------
+Install required software:
+- Node.js 18.x or 20.x
+- OpenJDK 11 (NOT 17 or higher!)
+- Android SDK command line tools
+- Git
+
+Ubuntu Installation:
+```bash
+# Node.js (using nvm)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+source ~/.bashrc
+nvm install 20
+
+# JDK 11
+sudo apt install openjdk-11-jdk -y
+
+# Git
+sudo apt install git -y
+```
+
+Step 2: Clone Repository
+-----------------------
+```bash
+git clone <repository-url>
+cd ceramic_mobile_app/mobile_automation_test
+```
+
+Step 3: Run Automated Setup
+--------------------------
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+This will:
+- Check prerequisites
+- Install Node.js dependencies
+- Configure Android SDK
+- Create Android emulator
+- Build the application
+- Setup test database
+
+Estimated time: 10-20 minutes (longer on first run)
+
+Step 4: Start Backend Server
+---------------------------
+In a separate terminal:
+```bash
+cd ceramic_mobile_app/back_end
+gunicorn app.main:app --workers 4 --bind 0.0.0.0:8002
+```
+
+Step 5: Run Tests
+----------------
+```bash
+./run-tests.sh
+```
+
+================================================================================
+USAGE EXAMPLES
+================================================================================
+
+Basic Usage
+-----------
+# Run all tests
+./run-tests.sh
+
+# Run with help
+./run-tests.sh --help
+
+Specific Tests
+--------------
+# Login tests only
+./run-tests.sh --file e2e/auth/login.test.js
+
+# Registration tests only  
+./run-tests.sh --file e2e/auth/register.test.js
+
+# Specific test by name
+./run-tests.sh --pattern "should login successfully"
+
+Debug Mode
+----------
+# Run with console logs (slower but more info)
+./run-tests.sh --debug
+
+# Debug specific test
+./run-tests.sh --debug --file e2e/auth/login.test.js
+
+Advanced Options
+---------------
+# Start backend automatically
+./run-tests.sh --backend
+
+# Clean old artifacts
+./run-tests.sh --cleanup
+
+# Combine multiple options
+./run-tests.sh --debug --backend --cleanup --file e2e/auth/login.test.js
+
+================================================================================
+TEST USERS
+================================================================================
+
+Username: test_customer
+Password: 12345678
+Role: CUSTOMER
+ID: 500
+
+Username: test_seller
+Password: 12345678
+Role: SELLER
+ID: 501
+
+Username: test_dual
+Password: 12345678
+Role: DUAL
+ID: 502
+
+These users are created automatically by setup.sh
+
+================================================================================
+DIRECTORY STRUCTURE
+================================================================================
+
+mobile_automation_test/
+├── README.md                    # Quick reference guide
+├── SETUP_GUIDE.md              # Detailed setup instructions
+├── DEPLOYMENT_SUMMARY.txt      # This file
+├── setup.sh                    # Automated setup script
+├── run-tests.sh                # Test runner script
+├── e2e/                        # Test files
+│   ├── auth/                   
+│   │   ├── login.test.js      # Login tests
+│   │   └── register.test.js   # Registration tests
+│   ├── config/
+│   │   └── testConfig.js      # Test configuration
+│   └── helpers/
+│       └── testHelpers.js     # Utility functions
+├── artifacts/                  # Generated during tests
+│   ├── *.png                  # Screenshots
+│   └── *.log                  # Test logs
+├── package.json                # Node dependencies
+└── .detoxrc.js                # Detox configuration
+
+================================================================================
+COMMON ISSUES & SOLUTIONS
+================================================================================
+
+Issue: "JAVA_HOME is set to an invalid directory"
+Solution:
+  export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+  
+Issue: "Emulator not found"
+Solution:
+  ./setup.sh  # Re-run setup to create emulator
+  
+Issue: "Connection refused"
+Solution:
+  # Start backend server
+  cd ../back_end
+  gunicorn app.main:app --workers 4 --bind 0.0.0.0:8002
+
+Issue: Tests timing out
+Solution:
+  ./run-tests.sh  # Use release build (default, faster)
+
+Issue: "npm install" fails
+Solution:
+  rm -rf node_modules package-lock.json
+  npm install
+
+================================================================================
+SCRIPT FEATURES
+================================================================================
+
+setup.sh Features:
+- Automatic prerequisite checking
+- Dependency installation
+- Android SDK configuration
+- Emulator creation
+- Application building
+- Database setup
+- Colored output with progress indicators
+- Error handling and recovery
+- Verification at each step
+
+run-tests.sh Features:
+- Pre-flight checks
+- Multiple test modes (release/debug)
+- Selective test execution
+- Automatic backend management
+- Artifact cleanup
+- Build caching (skip rebuild if recent)
+- Detailed test reports
+- Cleanup on exit
+- Colored output
+
+================================================================================
+WHAT'S AUTOMATED
+================================================================================
+
+✅ Node.js dependency installation
+✅ Android SDK path detection and configuration
+✅ Android emulator creation (Pixel 3a API 33)
+✅ React Native app building (release + test APKs)
+✅ Test database user creation
+✅ Environment variable configuration
+✅ Backend server startup (optional)
+✅ Test execution with multiple options
+✅ Screenshot and log collection
+✅ Test report generation
+
+================================================================================
+WHAT NEEDS MANUAL SETUP
+================================================================================
+
+⚠️ Node.js installation (if not already installed)
+⚠️ JDK 11 installation (MUST be JDK 11, not 17+)
+⚠️ Android SDK installation (command line tools)
+⚠️ MySQL server (for test database)
+⚠️ Backend server startup (unless using --backend flag)
+
+================================================================================
+PERFORMANCE NOTES
+================================================================================
+
+First Run:
+- Setup time: 15-30 minutes
+- Includes downloading dependencies and building APKs
+
+Subsequent Runs:
+- Test execution: 3-5 minutes for all tests
+- Release build: 15-20 seconds per test
+- Debug build: 45-60 seconds per test
+
+Optimization Tips:
+- Use release build for faster tests (default)
+- Use --file to run specific tests
+- Use --pattern to run single test
+- Rebuild only when code changes
+
+================================================================================
+CI/CD INTEGRATION
+================================================================================
+
+The scripts can be integrated into CI/CD pipelines:
+
+GitHub Actions:
+```yaml
+- name: Setup environment
+  run: |
+    cd mobile_automation_test
+    ./setup.sh
+
+- name: Run tests
+  run: |
+    cd mobile_automation_test
+    ./run-tests.sh --backend
+```
+
+GitLab CI:
+```yaml
+test:
+  script:
+    - cd mobile_automation_test
+    - ./setup.sh
+    - ./run-tests.sh --backend
+```
+
+================================================================================
+SUPPORT & DOCUMENTATION
+================================================================================
+
+For detailed information:
+- README.md - Quick reference
+- SETUP_GUIDE.md - Complete setup guide
+- run-tests.sh --help - Script options
+
+For issues:
+- Check SETUP_GUIDE.md troubleshooting section
+- Review test logs in artifacts/ directory
+- Check screenshots in artifacts/ directory
+
+================================================================================
+CHANGELOG
+================================================================================
+
+2025-11-18 - Initial deployment package
+- Created comprehensive setup documentation
+- Added automated setup script
+- Added test runner script with multiple options
+- Configured test users and database
+- Fixed authentication bugs in app code
+
+================================================================================

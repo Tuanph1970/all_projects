@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Technical Analysis Test</title>
+</head>
+<body>
+    <h1>Technical Analysis Component Test</h1>
+    <p>Open the browser console (F12) to see debug information</p>
+
+    <h2>Test Instructions:</h2>
+    <ol>
+        <li>Open your React app at <a href="http://localhost:3000" target="_blank">http://localhost:3000</a></li>
+        <li>Open browser DevTools (F12) and go to Console tab</li>
+        <li>Navigate to Technical Analysis page</li>
+        <li>Search for a stock symbol (e.g., "TCB" or "VIC")</li>
+        <li>Click on a stock from the search results</li>
+        <li>Check the console for debug messages</li>
+        <li>Check the Network tab to see if API calls are made</li>
+    </ol>
+
+    <h2>Expected Console Output:</h2>
+    <pre>
+=== STOCK SELECTION DEBUG ===
+1. handleStockSelect called with stock: {symbol: "TCB", ...}
+1a. Current state - selectedSymbol: "" period: 100
+2. Search query set to: TCB
+3. Search results hidden
+4. Called setSelectedSymbol with: TCB
+5. The useEffect should now trigger and call fetchTechnicalAnalysis
+=== END STOCK SELECTION DEBUG ===
+
+STATE CHANGE - selectedSymbol: TCB
+
+useEffect triggered for period change - symbol: TCB period: 100
+
+=== FETCH TECHNICAL ANALYSIS DEBUG ===
+1. fetchTechnicalAnalysis called with symbol: TCB period: 100
+...
+=== API CALL DEBUG ===
+getTechnicalAnalysis called with: {symbol: "TCB", period: 100}
+API URL: http://127.0.0.1:8000/stock/api/analysis/technical/TCB/?period=100
+...
+    </pre>
+
+    <h2>Check Network Tab:</h2>
+    <p>Look for a request to: <code>http://127.0.0.1:8000/stock/api/analysis/technical/[SYMBOL]/?period=100</code></p>
+
+    <script>
+        console.log('Test page loaded. Please follow the instructions above.');
+    </script>
+</body>
+</html>

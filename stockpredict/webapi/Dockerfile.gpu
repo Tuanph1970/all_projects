@@ -1,0 +1,117 @@
+# =============================================================================
+# Stock Predict WebAPI - GPU (CUDA) Docker Image
+# =============================================================================
+# This Dockerfile builds an image with CUDA support for GPU acceleration
+# Use this for servers with NVIDIA GPUs
+
+# -----------------------------------------------------------------------------
+# Stage 1: Builder - Install dependencies with CUDA
+# -----------------------------------------------------------------------------
+FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04 as builder
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+# Install Python 3.12 and build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    software-properties-common \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 \
+    python3.12-venv \
+    python3.12-dev \
+    python3-pip \
+    build-essential \
+    gcc \
+    g++ \
+    libffi-dev \
+    libssl-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    zlib1g-dev \
+    libjpeg-dev \
+    libpng-dev \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment with Python 3.12
+RUN python3.12 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt /tmp/requirements.txt
+
+# Install PyTorch with CUDA 12.1 support
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 && \
+    pip install -r /tmp/requirements.txt
+
+# -----------------------------------------------------------------------------
+# Stage 2: Runtime - Final GPU image
+# -----------------------------------------------------------------------------
+FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04 as runtime
+
+# Labels
+LABEL maintainer="TuanPH" \
+      version="1.0-gpu" \
+      description="Stock Predict Django WebAPI with GPU Support"
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    DJANGO_SETTINGS_MODULE=stockapi.settings \
+    DEBIAN_FRONTEND=noninteractive \
+    NVIDIA_VISIBLE_DEVICES=all \
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+# Install Python 3.12 and runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    software-properties-common \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 \
+    python3.12-venv \
+    libgomp1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Create non-root user for security
+RUN groupadd -r stockapi && useradd -r -g stockapi stockapi
+
+# Set working directory
+WORKDIR /app
+
+# Copy application code
+COPY --chown=stockapi:stockapi . .
+
+# Create necessary directories
+RUN mkdir -p /app/media /app/static /app/logs /app/model_data && \
+    chown -R stockapi:stockapi /app
+
+# Switch to non-root user
+USER stockapi
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/stock/api/ || exit 1
+
+# Default command
+CMD ["sh", "-c", "python3.12 manage.py migrate --noinput && python3.12 manage.py runserver 0.0.0.0:8000"]

@@ -1,0 +1,230 @@
+{
+  "metadata": {
+    "category": "geometry",
+    "category_vi": "Hinh hoc",
+    "grade": 12,
+    "description": "Cong thuc hinh hoc khong gian va toa do khong gian lop 12"
+  },
+  "formulas": [
+    {
+      "id": "plane_001",
+      "name": "plane_general_equation",
+      "name_vi": "Phuong trinh tong quat mat phang",
+      "formula": "Ax + By + Cz + D = 0",
+      "description_vi": "Phuong trinh tong quat cua mat phang voi vecto phap tuyen n = (A, B, C)",
+      "description_en": "General equation of plane with normal vector n = (A, B, C)",
+      "keywords": ["mat phang", "phuong trinh", "plane equation", "vecto phap tuyen"],
+      "examples": ["2x + 3y - z + 5 = 0 co vecto phap tuyen (2, 3, -1)"]
+    },
+    {
+      "id": "plane_002",
+      "name": "plane_intercept_form",
+      "name_vi": "Phuong trinh mat phang dang doan chan",
+      "formula": "x/a + y/b + z/c = 1",
+      "description_vi": "Mat phang cat cac truc toa do tai A(a,0,0), B(0,b,0), C(0,0,c)",
+      "description_en": "Intercept form: plane intersects axes at (a,0,0), (0,b,0), (0,0,c)",
+      "keywords": ["mat phang", "doan chan", "intercept"],
+      "examples": ["x/2 + y/3 + z/4 = 1"]
+    },
+    {
+      "id": "plane_003",
+      "name": "plane_through_point_normal",
+      "name_vi": "Mat phang qua diem voi vecto phap tuyen",
+      "formula": "A(x - x0) + B(y - y0) + C(z - z0) = 0",
+      "description_vi": "Mat phang qua M(x0, y0, z0) voi vecto phap tuyen n = (A, B, C)",
+      "description_en": "Plane through point M with normal vector n",
+      "keywords": ["mat phang", "vecto phap tuyen", "qua diem"],
+      "examples": ["Mat phang qua M(1,2,3) voi n=(1,1,1): x-1+y-2+z-3=0"]
+    },
+    {
+      "id": "line_001",
+      "name": "line_parametric_equation",
+      "name_vi": "Phuong trinh tham so duong thang",
+      "formula": "x = x0 + at, y = y0 + bt, z = z0 + ct",
+      "description_vi": "Duong thang qua M(x0,y0,z0) voi vecto chi phuong u = (a,b,c)",
+      "description_en": "Parametric equation of line through M with direction vector u",
+      "keywords": ["duong thang", "phuong trinh tham so", "parametric", "vecto chi phuong"],
+      "examples": ["Qua M(1,2,3) voi u=(2,1,-1): x=1+2t, y=2+t, z=3-t"]
+    },
+    {
+      "id": "line_002",
+      "name": "line_canonical_equation",
+      "name_vi": "Phuong trinh chinh tac duong thang",
+      "formula": "(x - x0)/a = (y - y0)/b = (z - z0)/c",
+      "description_vi": "Phuong trinh chinh tac duong thang qua M voi VTCP u = (a,b,c)",
+      "description_en": "Canonical equation of line",
+      "keywords": ["duong thang", "phuong trinh chinh tac", "canonical"],
+      "examples": ["(x-1)/2 = (y-2)/1 = (z-3)/(-1)"]
+    },
+    {
+      "id": "dist_001",
+      "name": "distance_point_to_plane",
+      "name_vi": "Khoang cach tu diem den mat phang",
+      "formula": "d = |Ax0 + By0 + Cz0 + D| / sqrt(A^2 + B^2 + C^2)",
+      "description_vi": "Khoang cach tu diem M(x0,y0,z0) den mat phang Ax+By+Cz+D=0",
+      "description_en": "Distance from point to plane",
+      "keywords": ["khoang cach", "diem", "mat phang", "distance"],
+      "examples": ["d(M(1,2,3), 2x+2y+z-1=0) = |2+4+3-1|/3 = 8/3"]
+    },
+    {
+      "id": "dist_002",
+      "name": "distance_point_to_line",
+      "name_vi": "Khoang cach tu diem den duong thang",
+      "formula": "d = |AM x u| / |u|",
+      "description_vi": "Khoang cach tu diem M den duong thang d, A thuoc d, u la VTCP",
+      "description_en": "Distance from point to line using cross product",
+      "keywords": ["khoang cach", "diem", "duong thang", "distance"],
+      "examples": ["AM = (1,2,3), u = (1,1,0): d = |(-3,3,1)| / sqrt(2)"]
+    },
+    {
+      "id": "dist_003",
+      "name": "distance_parallel_planes",
+      "name_vi": "Khoang cach hai mat phang song song",
+      "formula": "d = |D1 - D2| / sqrt(A^2 + B^2 + C^2)",
+      "description_vi": "Khoang cach giua hai mat phang song song Ax+By+Cz+D1=0 va Ax+By+Cz+D2=0",
+      "description_en": "Distance between parallel planes",
+      "keywords": ["khoang cach", "mat phang", "song song", "distance"],
+      "examples": ["d(x+y+z=1, x+y+z=4) = |1-4|/sqrt(3) = sqrt(3)"]
+    },
+    {
+      "id": "dist_004",
+      "name": "distance_skew_lines",
+      "name_vi": "Khoang cach hai duong thang cheo nhau",
+      "formula": "d = |[AB, u1, u2]| / |u1 x u2|",
+      "description_vi": "Khoang cach giua hai duong cheo nhau dung tich hon tap",
+      "description_en": "Distance between skew lines using scalar triple product",
+      "keywords": ["khoang cach", "duong thang", "cheo nhau", "skew lines"],
+      "examples": ["[AB, u1, u2] la tich hon tap cua AB, u1, u2"]
+    },
+    {
+      "id": "angle_001",
+      "name": "angle_two_planes",
+      "name_vi": "Goc giua hai mat phang",
+      "formula": "cos(alpha) = |n1 . n2| / (|n1| * |n2|)",
+      "description_vi": "Goc giua hai mat phang tinh qua tich vo huong cac vecto phap tuyen",
+      "description_en": "Angle between two planes using normal vectors",
+      "keywords": ["goc", "mat phang", "angle", "plane"],
+      "examples": ["cos(alpha) = |A1A2+B1B2+C1C2| / (sqrt(...)sqrt(...))"]
+    },
+    {
+      "id": "angle_002",
+      "name": "angle_line_plane",
+      "name_vi": "Goc giua duong thang va mat phang",
+      "formula": "sin(alpha) = |u . n| / (|u| * |n|)",
+      "description_vi": "Goc giua duong thang (VTCP u) va mat phang (VTPT n)",
+      "description_en": "Angle between line and plane",
+      "keywords": ["goc", "duong thang", "mat phang", "angle"],
+      "examples": ["sin(alpha) = |aA+bB+cC| / (|u|*|n|)"]
+    },
+    {
+      "id": "angle_003",
+      "name": "angle_two_lines",
+      "name_vi": "Goc giua hai duong thang",
+      "formula": "cos(alpha) = |u1 . u2| / (|u1| * |u2|)",
+      "description_vi": "Goc giua hai duong thang tinh qua tich vo huong cac VTCP",
+      "description_en": "Angle between two lines using direction vectors",
+      "keywords": ["goc", "duong thang", "angle", "line"],
+      "examples": ["cos(alpha) = |a1a2+b1b2+c1c2| / (|u1|*|u2|)"]
+    },
+    {
+      "id": "vol_001",
+      "name": "volume_tetrahedron",
+      "name_vi": "The tich tu dien",
+      "formula": "V = (1/6) * |[AB, AC, AD]|",
+      "description_vi": "The tich tu dien ABCD bang 1/6 gia tri tuyet doi tich hon tap",
+      "description_en": "Volume of tetrahedron using scalar triple product",
+      "keywords": ["the tich", "tu dien", "volume", "tetrahedron"],
+      "examples": ["V = (1/6)|det([AB, AC, AD])|"]
+    },
+    {
+      "id": "vol_002",
+      "name": "volume_prism",
+      "name_vi": "The tich lang tru",
+      "formula": "V = S_day * h",
+      "description_vi": "The tich lang tru bang dien tich day nhan chieu cao",
+      "description_en": "Volume of prism = base area × height",
+      "keywords": ["the tich", "lang tru", "volume", "prism"],
+      "examples": ["Lang tru tam giac deu canh a, chieu cao h: V = (a^2*sqrt(3)/4)*h"]
+    },
+    {
+      "id": "vol_003",
+      "name": "volume_pyramid",
+      "name_vi": "The tich hinh chop",
+      "formula": "V = (1/3) * S_day * h",
+      "description_vi": "The tich hinh chop bang 1/3 dien tich day nhan chieu cao",
+      "description_en": "Volume of pyramid = (1/3) × base area × height",
+      "keywords": ["the tich", "hinh chop", "volume", "pyramid"],
+      "examples": ["Chop tu giac deu canh a, chieu cao h: V = (1/3)*a^2*h"]
+    },
+    {
+      "id": "vol_004",
+      "name": "volume_cylinder",
+      "name_vi": "The tich hinh tru",
+      "formula": "V = pi * r^2 * h",
+      "description_vi": "The tich hinh tru tron bang pi nhan binh phuong ban kinh nhan chieu cao",
+      "description_en": "Volume of cylinder = πr²h",
+      "keywords": ["the tich", "hinh tru", "volume", "cylinder"],
+      "examples": ["r = 3, h = 5: V = 45*pi"]
+    },
+    {
+      "id": "vol_005",
+      "name": "volume_cone",
+      "name_vi": "The tich hinh non",
+      "formula": "V = (1/3) * pi * r^2 * h",
+      "description_vi": "The tich hinh non bang 1/3 pi nhan binh phuong ban kinh nhan chieu cao",
+      "description_en": "Volume of cone = (1/3)πr²h",
+      "keywords": ["the tich", "hinh non", "volume", "cone"],
+      "examples": ["r = 3, h = 4: V = 12*pi"]
+    },
+    {
+      "id": "vol_006",
+      "name": "volume_sphere",
+      "name_vi": "The tich hinh cau",
+      "formula": "V = (4/3) * pi * r^3",
+      "description_vi": "The tich hinh cau bang 4/3 pi nhan lap phuong ban kinh",
+      "description_en": "Volume of sphere = (4/3)πr³",
+      "keywords": ["the tich", "hinh cau", "volume", "sphere"],
+      "examples": ["r = 3: V = 36*pi"]
+    },
+    {
+      "id": "cross_001",
+      "name": "cross_product",
+      "name_vi": "Tich co huong (tich vecto)",
+      "formula": "a x b = (a2b3-a3b2, a3b1-a1b3, a1b2-a2b1)",
+      "description_vi": "Tich co huong cua hai vecto trong khong gian",
+      "description_en": "Cross product of two vectors",
+      "keywords": ["tich co huong", "tich vecto", "cross product"],
+      "examples": ["(1,2,3) x (4,5,6) = (-3, 6, -3)"]
+    },
+    {
+      "id": "dot_001",
+      "name": "dot_product",
+      "name_vi": "Tich vo huong",
+      "formula": "a . b = a1b1 + a2b2 + a3b3 = |a||b|cos(alpha)",
+      "description_vi": "Tich vo huong cua hai vecto",
+      "description_en": "Dot product of two vectors",
+      "keywords": ["tich vo huong", "dot product"],
+      "examples": ["(1,2,3) . (4,5,6) = 4+10+18 = 32"]
+    },
+    {
+      "id": "parallel_001",
+      "name": "parallel_condition_lines",
+      "name_vi": "Dieu kien song song hai duong thang",
+      "formula": "u1 = k * u2 (u1 cung phuong u2)",
+      "description_vi": "Hai duong thang song song khi VTCP cung phuong",
+      "description_en": "Two lines parallel when direction vectors are parallel",
+      "keywords": ["song song", "duong thang", "parallel"],
+      "examples": ["u1 = (1,2,3), u2 = (2,4,6): song song"]
+    },
+    {
+      "id": "perp_001",
+      "name": "perpendicular_condition_lines",
+      "name_vi": "Dieu kien vuong goc hai duong thang",
+      "formula": "u1 . u2 = 0",
+      "description_vi": "Hai duong thang vuong goc khi tich vo huong VTCP bang 0",
+      "description_en": "Two lines perpendicular when dot product of direction vectors is 0",
+      "keywords": ["vuong goc", "duong thang", "perpendicular"],
+      "examples": ["u1 = (1,2,3), u2 = (1,1,-1): 1+2-3=0 => vuong goc"]
+    }
+  ]
+}

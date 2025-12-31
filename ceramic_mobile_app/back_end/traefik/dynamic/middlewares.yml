@@ -1,0 +1,73 @@
+# Traefik Dynamic Configuration - Middlewares
+# Rate limiting, headers, and other security configurations
+
+http:
+  middlewares:
+    # Rate Limiting Middleware
+    ratelimit:
+      rateLimit:
+        average: 100
+        burst: 200
+        period: 1m
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+
+    # CORS Headers
+    cors:
+      headers:
+        accessControlAllowMethods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        accessControlAllowHeaders:
+          - Content-Type
+          - Authorization
+          - X-Requested-With
+        accessControlAllowOriginList:
+          - "*"
+        accessControlAllowCredentials: true
+        accessControlMaxAge: 100
+        addVaryHeader: true
+
+    # Security Headers
+    security-headers:
+      headers:
+        frameDeny: true
+        sslRedirect: false
+        browserXssFilter: true
+        contentTypeNosniff: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        customResponseHeaders:
+          X-Robots-Tag: "noindex,nofollow,nosnippet,noarchive,notranslate,noimageindex"
+
+    # Retry Middleware for Circuit Breaker pattern
+    retry:
+      retry:
+        attempts: 3
+        initialInterval: 100ms
+
+    # Compress Responses
+    compress:
+      compress:
+        excludedContentTypes:
+          - text/event-stream
+
+    # Strip Prefix (if needed for routing)
+    strip-api-prefix:
+      stripPrefix:
+        prefixes:
+          - "/api"
+
+  # Service-level configurations
+  services:
+    # Health check service aggregator
+    health-aggregator:
+      loadBalancer:
+        healthCheck:
+          path: /health
+          interval: 10s
+          timeout: 3s

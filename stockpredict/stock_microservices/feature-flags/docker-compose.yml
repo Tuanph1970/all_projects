@@ -1,0 +1,48 @@
+version: "3.8"
+
+services:
+  feature-flags:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: feature-flags
+    ports:
+      - "8010:8010"
+    environment:
+      - REDIS_URL=redis://redis:6379/6
+      - ADMIN_API_KEY=${ADMIN_API_KEY:-change-me-in-production}
+      - DEBUG=false
+    depends_on:
+      - redis
+    networks:
+      - stock-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.feature-flags.rule=PathPrefix(`/api/flags`)"
+      - "traefik.http.services.feature-flags.loadbalancer.server.port=8010"
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: feature-flags-redis
+    ports:
+      - "6386:6379"
+    volumes:
+      - feature-flags-redis-data:/data
+    networks:
+      - stock-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+networks:
+  stock-network:
+    external: true
+
+volumes:
+  feature-flags-redis-data:

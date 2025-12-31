@@ -1,0 +1,206 @@
+{
+  "metadata": {
+    "description": "Sample data to enrich formula database with textbook examples",
+    "purpose": "Add example problems to formulas for better retrieval and understanding"
+  },
+  "formula_updates": [
+    {
+      "formula_id": "calc_006",
+      "action": "add_examples",
+      "examples": [
+        {
+          "id": "calc_006_ex1",
+          "problem": "Tính đạo hàm: y = (2x + 1)^5",
+          "problem_vi": "Tính đạo hàm của hàm số y = (2x + 1)^5",
+          "solution_steps": [
+            "Đặt u = 2x + 1, y = u^5",
+            "u' = 2",
+            "y' = 5u^4 · u' = 5(2x+1)^4 · 2",
+            "y' = 10(2x+1)^4"
+          ],
+          "answer": "y' = 10(2x+1)^4",
+          "difficulty": "medium",
+          "source": "SGK Toán 12"
+        },
+        {
+          "id": "calc_006_ex2",
+          "problem": "Tính đạo hàm: y = sin(3x + π/4)",
+          "problem_vi": "Tính đạo hàm của hàm số y = sin(3x + π/4)",
+          "solution_steps": [
+            "Đặt u = 3x + π/4, y = sin(u)",
+            "u' = 3",
+            "y' = cos(u) · u' = cos(3x + π/4) · 3",
+            "y' = 3cos(3x + π/4)"
+          ],
+          "answer": "y' = 3cos(3x + π/4)",
+          "difficulty": "medium",
+          "source": "SGK Toán 12"
+        },
+        {
+          "id": "calc_006_ex3",
+          "problem": "Tính đạo hàm: y = e^(x² + 2x)",
+          "problem_vi": "Tính đạo hàm của hàm số y = e^(x² + 2x)",
+          "solution_steps": [
+            "Đặt u = x² + 2x, y = e^u",
+            "u' = 2x + 2",
+            "y' = e^u · u' = e^(x²+2x) · (2x + 2)",
+            "y' = (2x + 2)e^(x² + 2x)"
+          ],
+          "answer": "y' = (2x + 2)e^(x² + 2x)",
+          "difficulty": "hard",
+          "source": "SGK Toán 12"
+        },
+        {
+          "id": "calc_006_ex4",
+          "problem": "Tính đạo hàm: y = √(x² + 1)",
+          "problem_vi": "Tính đạo hàm của hàm số y = √(x² + 1)",
+          "solution_steps": [
+            "Viết lại: y = (x² + 1)^(1/2)",
+            "Đặt u = x² + 1, y = u^(1/2)",
+            "u' = 2x",
+            "y' = (1/2)u^(-1/2) · u' = (1/2)(x²+1)^(-1/2) · 2x",
+            "y' = x/√(x² + 1)"
+          ],
+          "answer": "y' = x/√(x² + 1)",
+          "difficulty": "medium",
+          "source": "Đề thi THPT QG"
+        }
+      ]
+    },
+    {
+      "formula_id": "calc_012",
+      "action": "add_examples",
+      "examples": [
+        {
+          "id": "calc_012_ex1",
+          "problem": "Tính: ∫x·e^x dx",
+          "problem_vi": "Tính tích phân ∫x·e^x dx",
+          "solution_steps": [
+            "Đặt u = x → du = dx",
+            "dv = e^x dx → v = e^x",
+            "∫x·e^x dx = x·e^x - ∫e^x dx",
+            "= x·e^x - e^x + C",
+            "= e^x(x - 1) + C"
+          ],
+          "answer": "e^x(x - 1) + C",
+          "difficulty": "medium",
+          "source": "SGK Toán 12"
+        },
+        {
+          "id": "calc_012_ex2",
+          "problem": "Tính: ∫x·sin(x) dx",
+          "problem_vi": "Tính tích phân ∫x·sin(x) dx",
+          "solution_steps": [
+            "Đặt u = x → du = dx",
+            "dv = sin(x) dx → v = -cos(x)",
+            "∫x·sin(x) dx = -x·cos(x) - ∫(-cos(x)) dx",
+            "= -x·cos(x) + ∫cos(x) dx",
+            "= -x·cos(x) + sin(x) + C"
+          ],
+          "answer": "-x·cos(x) + sin(x) + C",
+          "difficulty": "medium",
+          "source": "SGK Toán 12"
+        },
+        {
+          "id": "calc_012_ex3",
+          "problem": "Tính: ∫x²·e^x dx",
+          "problem_vi": "Tính tích phân ∫x²·e^x dx",
+          "solution_steps": [
+            "Áp dụng tích phân từng phần 2 lần",
+            "Lần 1: u = x², dv = e^x dx",
+            "= x²·e^x - 2∫x·e^x dx",
+            "Lần 2: ∫x·e^x dx = e^x(x-1)",
+            "= x²·e^x - 2e^x(x-1) + C",
+            "= e^x(x² - 2x + 2) + C"
+          ],
+          "answer": "e^x(x² - 2x + 2) + C",
+          "difficulty": "hard",
+          "source": "Đề thi THPT QG"
+        },
+        {
+          "id": "calc_012_ex4",
+          "problem": "Tính: ∫ln(x) dx",
+          "problem_vi": "Tính tích phân ∫ln(x) dx",
+          "solution_steps": [
+            "Đặt u = ln(x) → du = dx/x",
+            "dv = dx → v = x",
+            "∫ln(x) dx = x·ln(x) - ∫x · (1/x) dx",
+            "= x·ln(x) - ∫1 dx",
+            "= x·ln(x) - x + C"
+          ],
+          "answer": "x·ln(x) - x + C",
+          "difficulty": "medium",
+          "source": "SGK Toán 12"
+        }
+      ]
+    },
+    {
+      "formula_id": "prob_001",
+      "action": "add_examples",
+      "examples": [
+        {
+          "id": "prob_001_ex1",
+          "problem": "Từ 10 học sinh, chọn 3 học sinh. Có bao nhiêu cách?",
+          "problem_vi": "Có 10 học sinh, cần chọn ra 3 học sinh để tham gia cuộc thi. Hỏi có bao nhiêu cách chọn?",
+          "solution_steps": [
+            "Đây là bài toán tổ hợp (không quan tâm thứ tự)",
+            "C(10,3) = 10!/(3! × 7!)",
+            "= (10 × 9 × 8)/(3 × 2 × 1)",
+            "= 720/6 = 120"
+          ],
+          "answer": "120 cách",
+          "difficulty": "easy",
+          "source": "SGK Toán 12"
+        },
+        {
+          "id": "prob_001_ex2",
+          "problem": "Hộp có 5 bi đỏ, 3 bi xanh. Lấy 3 bi, có bao nhiêu cách lấy được đúng 2 bi đỏ?",
+          "problem_vi": "Một hộp có 5 bi đỏ và 3 bi xanh. Lấy ngẫu nhiên 3 bi từ hộp. Có bao nhiêu cách lấy được đúng 2 bi đỏ?",
+          "solution_steps": [
+            "Chọn 2 bi đỏ từ 5 bi đỏ: C(5,2) = 10",
+            "Chọn 1 bi xanh từ 3 bi xanh: C(3,1) = 3",
+            "Số cách = C(5,2) × C(3,1) = 10 × 3 = 30"
+          ],
+          "answer": "30 cách",
+          "difficulty": "medium",
+          "source": "SGK Toán 12"
+        }
+      ]
+    },
+    {
+      "formula_id": "trig_010",
+      "action": "add_examples",
+      "examples": [
+        {
+          "id": "trig_010_ex1",
+          "problem": "Giải phương trình: sin(x) = 1/2",
+          "problem_vi": "Giải phương trình lượng giác: sin(x) = 1/2",
+          "solution_steps": [
+            "sin(x) = 1/2 = sin(π/6)",
+            "Công thức nghiệm: x = α + k2π hoặc x = π - α + k2π",
+            "x = π/6 + k2π",
+            "x = π - π/6 + k2π = 5π/6 + k2π"
+          ],
+          "answer": "x = π/6 + k2π hoặc x = 5π/6 + k2π (k ∈ ℤ)",
+          "difficulty": "easy",
+          "source": "SGK Toán 12"
+        },
+        {
+          "id": "trig_010_ex2",
+          "problem": "Giải phương trình: sin(2x) + sin(x) = 0",
+          "problem_vi": "Giải phương trình: sin(2x) + sin(x) = 0",
+          "solution_steps": [
+            "Dùng công thức nhân đôi: sin(2x) = 2sin(x)cos(x)",
+            "2sin(x)cos(x) + sin(x) = 0",
+            "sin(x)(2cos(x) + 1) = 0",
+            "TH1: sin(x) = 0 → x = kπ",
+            "TH2: cos(x) = -1/2 → x = ±2π/3 + k2π"
+          ],
+          "answer": "x = kπ hoặc x = ±2π/3 + k2π (k ∈ ℤ)",
+          "difficulty": "medium",
+          "source": "SGK Toán 12"
+        }
+      ]
+    }
+  ]
+}

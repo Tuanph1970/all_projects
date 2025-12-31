@@ -1,0 +1,31 @@
+# =============================================================================
+# Stock Predict WebAPI - GPU (CUDA) Override Configuration
+# =============================================================================
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+#
+# Prerequisites:
+#   - NVIDIA GPU with CUDA support
+#   - NVIDIA Container Toolkit installed
+#   - nvidia-docker2 package installed
+
+services:
+  stockapi:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    image: stockpredict-webapi:gpu
+
+    # GPU access
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+        limits:
+          memory: 16G
+
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility

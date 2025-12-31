@@ -1,0 +1,677 @@
+/* Custom Modal Styling - Full Control Without Bootstrap Modal Component */
+
+/* Modal Overlay - Full screen backdrop */
+.custom-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+/* Modal Dialog - 90% width and centered */
+.custom-modal-dialog {
+  width: 90vw;
+  max-width: 90vw;
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 1.75rem 0;
+}
+
+/* Modal Content Container */
+.custom-modal-content {
+  background-color: #ffffff;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Modal Header */
+.custom-modal-header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.custom-modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.custom-modal-close {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  line-height: 1;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.25rem;
+  transition: all 0.2s ease;
+}
+
+.custom-modal-close:hover {
+  background-color: #f3f4f6;
+  color: #1f2937;
+}
+
+/* Modal Body */
+.custom-modal-body {
+  padding: 1.5rem 2rem;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 400px;
+  height: auto;
+}
+
+/* Modal Footer */
+.custom-modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  border-bottom-left-radius: 0.5rem;
+  border-bottom-right-radius: 0.5rem;
+}
+
+/* Tab Styling - Horizontal Layout */
+.custom-modal-body .nav-tabs {
+  border-bottom: 2px solid #e5e7eb;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: 0;
+  margin-bottom: 1.5rem;
+}
+
+.custom-modal-body .nav-tabs .nav-item {
+  margin-bottom: 0;
+  display: inline-block;
+}
+
+.custom-modal-body .nav-tabs .nav-link {
+  color: #6b7280;
+  font-weight: 500;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 0.75rem 1.5rem;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  display: inline-block;
+  background: none;
+}
+
+.custom-modal-body .nav-tabs .nav-link:hover {
+  color: #2563eb;
+  border-bottom-color: #93c5fd;
+  background-color: transparent;
+}
+
+.custom-modal-body .nav-tabs .nav-link.active {
+  color: #2563eb;
+  background-color: transparent;
+  border-bottom-color: #2563eb;
+  font-weight: 600;
+}
+
+.custom-modal-body .nav-tabs .nav-link:disabled {
+  color: #d1d5db;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Tab Content Container */
+.custom-modal-body .tab-content {
+  padding-top: 0;
+  overflow: visible;
+  min-height: 300px;
+  display: block;
+}
+
+/* Custom Tab Pane Content - Simple visible div */
+.custom-modal-body .tab-pane-content {
+  display: block;
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Form Styling */
+.form-label {
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.form-control, .form-select {
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-control:focus, .form-select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  outline: none;
+}
+
+/* Model Parameters Display */
+.model-parameters-readonly {
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.model-parameters-readonly h6 {
+  color: #1f2937;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  font-size: 0.9375rem;
+}
+
+.param-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.param-grid div {
+  color: #4b5563;
+}
+
+.param-grid strong {
+  color: #1f2937;
+  font-weight: 600;
+}
+
+/* Chart Container */
+.chart-container {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.chart-container h6 {
+  color: #1f2937;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+/* Training Result Card */
+.training-result {
+  background-color: #f0f9ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.training-result h6 {
+  color: #1e40af;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.result-card {
+  background-color: #ffffff;
+  padding: 1rem;
+  border-radius: 0.375rem;
+}
+
+.result-card p {
+  margin-bottom: 0.5rem;
+  color: #374151;
+  font-size: 0.875rem;
+}
+
+.result-card strong {
+  color: #1f2937;
+  font-weight: 600;
+}
+
+/* Button Styling */
+.btn-primary {
+  background-color: #2563eb;
+  border-color: #2563eb;
+  font-weight: 500;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.375rem;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background-color: #1d4ed8;
+  border-color: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+}
+
+.btn-primary:disabled {
+  background-color: #93c5fd;
+  border-color: #93c5fd;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-success {
+  background-color: #10b981;
+  border-color: #10b981;
+  font-weight: 500;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.375rem;
+  transition: all 0.2s ease;
+}
+
+.btn-success:hover {
+  background-color: #059669;
+  border-color: #059669;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2);
+}
+
+.btn-secondary {
+  background-color: #6b7280;
+  border-color: #6b7280;
+  font-weight: 500;
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.375rem;
+}
+
+.btn-secondary:hover {
+  background-color: #4b5563;
+  border-color: #4b5563;
+}
+
+/* Alert Styling */
+.alert {
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  padding: 0.875rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.alert-danger {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.alert-success {
+  background-color: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+/* Spinner */
+.spinner-border-sm {
+  width: 1rem;
+  height: 1rem;
+  border-width: 0.15em;
+  margin-right: 0.5rem;
+}
+
+/* Date Picker Styling */
+.react-datepicker-wrapper {
+  width: 100%;
+}
+
+.react-datepicker__input-container input {
+  width: 100%;
+}
+
+/* Checkbox Styling */
+.form-check-input {
+  border-color: #d1d5db;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.form-check-input:checked {
+  background-color: #2563eb;
+  border-color: #2563eb;
+}
+
+.form-check-label {
+  font-weight: 500;
+  color: #374151;
+  margin-left: 0.5rem;
+  cursor: pointer;
+}
+
+/* Indicator Selector Integration */
+.indicator-selector {
+  margin-top: 1rem;
+}
+
+/* Loading State */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  border-radius: 0.5rem;
+}
+
+/* Form Validation */
+.form-control:invalid, .form-select:invalid {
+  border-color: #ef4444;
+}
+
+.form-control:invalid:focus, .form-select:invalid:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+/* Responsive Design */
+@media (max-width: 1400px) {
+  .custom-modal-dialog {
+    width: 92vw;
+    max-width: 92vw;
+  }
+}
+
+@media (max-width: 1200px) {
+  .custom-modal-dialog {
+    width: 95vw;
+    max-width: 95vw;
+  }
+}
+
+@media (max-width: 768px) {
+  .custom-modal-dialog {
+    width: 98vw;
+    max-width: 98vw;
+    padding: 0.5rem 0;
+  }
+
+  .custom-modal-body {
+    padding: 1rem;
+  }
+
+  .custom-modal-header {
+    padding: 0.75rem 1rem;
+  }
+
+  .custom-modal-footer {
+    padding: 0.75rem 1rem;
+  }
+
+  .param-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .custom-modal-body .nav-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .custom-modal-body .nav-tabs .nav-link {
+    padding: 0.5rem 1rem;
+    font-size: 0.8125rem;
+    min-width: fit-content;
+  }
+
+  .chart-container {
+    padding: 1rem;
+  }
+}
+
+/* Prevent body scroll when modal is open */
+body.modal-open {
+  overflow: hidden;
+}
+
+/* ===================================
+   Professional Trading Chart Styling
+   =================================== */
+
+/* Trading Chart Container - Dark Theme */
+#trading-charts-container {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+/* Chart Panel Styling */
+.chart-panel {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chart-panel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Chart Headers */
+.chart-panel h6 {
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border-left: 3px solid #2196F3;
+  padding-left: 10px;
+}
+
+/* Recharts Custom Styling */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke-opacity: 0.3;
+}
+
+.recharts-text {
+  fill: #8e96a3;
+}
+
+/* Tooltip Enhancement */
+.recharts-tooltip-wrapper {
+  outline: none;
+  z-index: 10;
+}
+
+.recharts-default-tooltip {
+  background-color: #1a1d29 !important;
+  border: 1px solid #333842 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+.recharts-tooltip-label {
+  color: #fff !important;
+  font-weight: 600;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #333842;
+}
+
+.recharts-tooltip-item {
+  color: #fff !important;
+  padding: 2px 0;
+}
+
+/* Legend Styling */
+.recharts-legend-wrapper {
+  padding-top: 10px;
+}
+
+.recharts-legend-item {
+  margin-right: 15px !important;
+}
+
+.recharts-legend-item-text {
+  color: #8e96a3 !important;
+  font-weight: 500;
+}
+
+/* Line Animation */
+.recharts-line-curve,
+.recharts-area-curve {
+  filter: drop-shadow(0 0 2px currentColor);
+}
+
+/* Bar Animation */
+.recharts-bar-rectangle {
+  transition: opacity 0.2s ease;
+}
+
+.recharts-bar-rectangle:hover {
+  opacity: 0.8;
+}
+
+/* Reference Line Labels */
+.recharts-label {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* Responsive Chart Adjustments */
+@media (max-width: 768px) {
+  .chart-panel {
+    margin-bottom: 1rem !important;
+  }
+
+  .chart-panel h6 {
+    font-size: 0.75rem !important;
+  }
+
+  .recharts-text {
+    font-size: 9px !important;
+  }
+
+  .recharts-legend-item {
+    margin-right: 8px !important;
+  }
+}
+
+/* Volume Bar Colors */
+.volume-bar-green {
+  fill: #26a69a;
+}
+
+.volume-bar-red {
+  fill: #ef5350;
+}
+
+/* Price Chart Gradient Enhancement */
+.recharts-area {
+  opacity: 0.3;
+}
+
+/* MACD Histogram Colors */
+.macd-histogram-positive {
+  fill: #26a69a;
+  opacity: 0.6;
+}
+
+.macd-histogram-negative {
+  fill: #ef5350;
+  opacity: 0.6;
+}
+
+/* Loading State for Charts */
+.chart-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  color: #8e96a3;
+  font-size: 0.9rem;
+}
+
+.chart-loading::before {
+  content: '📊';
+  font-size: 3rem;
+  opacity: 0.3;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
+}
+
+/* Chart Panel Borders */
+.chart-panel:first-child {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.chart-panel:last-child {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  margin-bottom: 0 !important;
+}
+
+/* Professional Trading Platform Color Palette */
+:root {
+  /* Price colors */
+  --price-actual: #2196F3;
+  --price-predicted: #4CAF50;
+  --price-validation: #FF9800;
+
+  /* Indicator colors */
+  --sma-20: #9C27B0;
+  --sma-50: #FF5722;
+  --ema-12: #00BCD4;
+
+  /* Volume colors */
+  --volume-up: #26a69a;
+  --volume-down: #ef5350;
+  --volume-sma: #FFD700;
+
+  /* MACD colors */
+  --macd-line: #2196F3;
+  --macd-signal: #FF9800;
+  --macd-histogram-pos: #26a69a;
+  --macd-histogram-neg: #ef5350;
+
+  /* RSI colors */
+  --rsi-line: #9C27B0;
+  --rsi-signal: #FFC107;
+  --rsi-overbought: #ef5350;
+  --rsi-oversold: #26a69a;
+
+  /* Background colors */
+  --chart-bg-dark: #1a1d29;
+  --chart-panel-bg: #252833;
+  --chart-grid: #333842;
+  --chart-text: #8e96a3;
+}

@@ -1,0 +1,65 @@
+version: '3.8'
+
+# Production configuration
+services:
+  mathematics-solver-api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8001
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=MathematicsSolverDb_Prod;User Id=sa;Password=${DB_PASSWORD};TrustServerCertificate=true;
+      - Logging__LogLevel__Default=Information
+      - Logging__LogLevel__Microsoft.AspNetCore=Warning
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  sqlserver:
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${DB_PASSWORD}
+      - MSSQL_PID=Standard
+    volumes:
+      - sqlserver_prod_data:/var/opt/mssql
+      - ./backup:/var/opt/mssql/backup
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P ${DB_PASSWORD} -Q 'SELECT 1'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  redis:
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+    volumes:
+      - redis_prod_data:/data
+
+networks:
+  mathematics-solver-network:
+    driver: overlay
+    attachable: true
+
+volumes:
+  sqlserver_prod_data:
+    driver: local
+  redis_prod_data:
+    driver: local

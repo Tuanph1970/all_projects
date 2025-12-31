@@ -1,0 +1,59 @@
+# Blackbox Exporter Configuration
+# =============================================================================
+
+modules:
+  # HTTP probe for health endpoints
+  http_2xx:
+    prober: http
+    timeout: 5s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: [200, 201, 204]
+      method: GET
+      follow_redirects: true
+      fail_if_ssl: false
+      fail_if_not_ssl: false
+      tls_config:
+        insecure_skip_verify: true
+
+  # HTTP probe for API endpoints (allows more status codes)
+  http_api:
+    prober: http
+    timeout: 5s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: [200, 201, 204, 400, 401, 403, 404]
+      method: GET
+      follow_redirects: true
+
+  # HTTP POST probe
+  http_post:
+    prober: http
+    timeout: 5s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: [200, 201, 204]
+      method: POST
+      headers:
+        Content-Type: application/json
+
+  # TCP probe for database connections
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
+
+  # TCP probe for Redis
+  tcp_redis:
+    prober: tcp
+    timeout: 5s
+    tcp:
+      query_response:
+        - send: "PING\r\n"
+        - expect: "+PONG"
+
+  # ICMP probe (ping)
+  icmp:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: "ip4"

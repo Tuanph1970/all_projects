@@ -1,0 +1,51 @@
+# Test dependencies for Stock Helper microservices
+
+# Test framework
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+pytest-cov>=4.1.0
+pytest-html>=4.1.0
+pytest-xdist>=3.5.0  # Parallel test execution
+pytest-timeout>=2.2.0
+
+# HTTP client
+httpx>=0.26.0
+
+# Database
+sqlalchemy>=2.0.0
+asyncmy>=0.2.9
+aiosqlite>=0.19.0  # For SQLite testing alternative
+
+# Async utilities
+aiofiles>=23.2.0
+
+# Data generation
+faker>=22.0.0
+
+# Performance testing
+locust>=2.20.0
+
+# Contract testing
+schemathesis>=3.25.0
+
+# Mocking
+pytest-mock>=3.12.0
+respx>=0.20.2  # HTTPX mocking
+
+# Code quality
+ruff>=0.1.0
+mypy>=1.8.0
+
+# Reporting
+allure-pytest>=2.13.0
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Redis testing
+fakeredis>=2.20.0
+
+# Time manipulation
+freezegun>=1.4.0

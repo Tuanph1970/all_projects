@@ -1,0 +1,94 @@
+# Prometheus Configuration for Stock Helper Microservices
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'stock-helper'
+    env: 'development'
+
+# Alertmanager configuration (for future use)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Rule files
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+# Scrape configurations
+scrape_configs:
+  # =============================================================================
+  # PROMETHEUS SELF-MONITORING
+  # =============================================================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # =============================================================================
+  # TRAEFIK METRICS
+  # =============================================================================
+  - job_name: 'traefik'
+    static_configs:
+      - targets: ['traefik:8080']
+
+  # =============================================================================
+  # RABBITMQ METRICS
+  # =============================================================================
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq:15692']
+    metrics_path: /metrics
+
+  # =============================================================================
+  # MICROSERVICES
+  # =============================================================================
+  - job_name: 'auth-service'
+    static_configs:
+      - targets: ['auth-service:8007']
+    metrics_path: /metrics
+
+  - job_name: 'stock-data-service'
+    static_configs:
+      - targets: ['stock-data-service:8001']
+    metrics_path: /metrics
+
+  - job_name: 'portfolio-service'
+    static_configs:
+      - targets: ['portfolio-service:8003']
+    metrics_path: /metrics
+
+  - job_name: 'analysis-service'
+    static_configs:
+      - targets: ['analysis-service:8004']
+    metrics_path: /metrics
+
+  - job_name: 'prediction-service'
+    static_configs:
+      - targets: ['prediction-service:8002']
+    metrics_path: /metrics
+
+  - job_name: 'ai-insights-service'
+    static_configs:
+      - targets: ['ai-insights-service:8005']
+    metrics_path: /metrics
+
+  - job_name: 'chatbot-service'
+    static_configs:
+      - targets: ['chatbot-service:8006']
+    metrics_path: /metrics
+
+  # =============================================================================
+  # REDIS METRICS (via redis_exporter if deployed)
+  # =============================================================================
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
+
+  # =============================================================================
+  # MYSQL METRICS (via mysqld_exporter if deployed)
+  # =============================================================================
+  # - job_name: 'mysql'
+  #   static_configs:
+  #     - targets: ['mysql-exporter:9104']

@@ -1,0 +1,116 @@
+# Stock Helper Microservices - Local Development Configuration
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.local.yml up -d
+#
+# IMPORTANT: This configuration avoids port 8002 which is reserved for another service
+
+services:
+  # =============================================================================
+  # OVERRIDE: Traefik - Use different ports for local dev
+  # =============================================================================
+  traefik:
+    ports:
+      - "8088:8088"  # API Gateway
+      - "8089:8080"  # Traefik dashboard
+
+  # =============================================================================
+  # OVERRIDE: RabbitMQ - Keep default ports
+  # =============================================================================
+  rabbitmq:
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  # =============================================================================
+  # OVERRIDE: Redis - Use port 6380 to avoid conflict with native Redis on 6379
+  # =============================================================================
+  redis:
+    ports:
+      - "6380:6379"
+
+  # =============================================================================
+  # OVERRIDE: Prometheus - Keep accessible
+  # =============================================================================
+  prometheus:
+    ports:
+      - "9090:9090"
+
+  # =============================================================================
+  # OVERRIDE: Jaeger - Keep accessible
+  # =============================================================================
+  jaeger:
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+
+  # =============================================================================
+  # MICROSERVICES - Keep individual service ports for direct access
+  # =============================================================================
+  auth-service:
+    ports:
+      - "8007:8007"
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=1
+
+  stock-data-service:
+    ports:
+      - "8001:8001"
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=1
+
+  portfolio-service:
+    ports:
+      - "8003:8003"
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=1
+
+  # IMPORTANT: prediction-service uses internal port 8002 but NOT exposed to host
+  # This avoids conflict with your existing service on port 8002
+  prediction-service:
+    expose:
+      - "8002"
+    # NO ports mapping - access only through Traefik gateway
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=1
+
+  analysis-service:
+    ports:
+      - "8004:8004"
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=1
+
+  ai-insights-service:
+    ports:
+      - "8005:8005"
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=1
+
+  chatbot-service:
+    ports:
+      - "8006:8006"
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=1
+
+  # =============================================================================
+  # REACT CLIENT - Commented out, run with npm start separately
+  # =============================================================================
+  # react-client:
+  #   build:
+  #     context: ../stock_react_javascript/stock-react-app
+  #     dockerfile: Dockerfile.dev
+  #   container_name: stock-react-client
+  #   environment:
+  #     - REACT_APP_API_URL=http://localhost
+  #     - REACT_APP_CHAT_SERVICE_URL=http://localhost:8006
+  #     - REACT_APP_FILE_SERVICE_URL=http://localhost:8006
+  #   ports:
+  #     - "3000:3000"
+  #   networks:
+  #     - stock-network

@@ -1,0 +1,51 @@
+# Common files to ignore
+.git
+.gitignore
+README.md
+.env
+.env.local
+.env.*.local
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+
+# Documentation
+docs/
+*.md
+LICENSE
+
+# Testing
+coverage/
+.nyc_output
+.coverage
+
+# Monitoring and logs
+monitoring/
+logs/
+*.log

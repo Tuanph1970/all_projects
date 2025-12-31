@@ -1,0 +1,83 @@
+# =============================================================================
+# Stock Predict WebAPI - Docker Compose Configuration
+# =============================================================================
+# Usage:
+#   Development:  docker-compose up -d
+#   Production:   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#   With GPU:     docker-compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+
+services:
+  # ---------------------------------------------------------------------------
+  # Stock Predict Django API
+  # ---------------------------------------------------------------------------
+  stockapi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: stockpredict-webapi:latest
+    container_name: stockpredict-api
+    restart: unless-stopped
+
+    # Environment variables
+    env_file:
+      - .env
+
+    environment:
+      - DJANGO_SETTINGS_MODULE=stockapi.settings
+      - PYTHONUNBUFFERED=1
+
+    # Port mapping
+    ports:
+      - "${API_PORT:-8000}:8000"
+
+    # Volume mounts for persistence
+    volumes:
+      # Model data persistence
+      - model_data:/app/model_data
+      # Media files
+      - media_data:/app/media
+      # Logs
+      - logs_data:/app/logs
+      # Optional: Mount local code for development
+      # - .:/app:ro
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/stock/api/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    # Resource limits (adjust based on your server)
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 2G
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# -----------------------------------------------------------------------------
+# Named Volumes
+# -----------------------------------------------------------------------------
+volumes:
+  model_data:
+    name: stockpredict_model_data
+  media_data:
+    name: stockpredict_media_data
+  logs_data:
+    name: stockpredict_logs_data
+
+# -----------------------------------------------------------------------------
+# Networks
+# -----------------------------------------------------------------------------
+networks:
+  default:
+    name: stockpredict_network

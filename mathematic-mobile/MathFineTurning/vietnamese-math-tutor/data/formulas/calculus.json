@@ -1,0 +1,260 @@
+{
+  "metadata": {
+    "category": "calculus",
+    "category_vi": "Giai tich",
+    "grade": 12,
+    "description": "Cong thuc giai tich lop 12: dao ham, tich phan, gioi han"
+  },
+  "formulas": [
+    {
+      "id": "deriv_001",
+      "name": "derivative_constant",
+      "name_vi": "Dao ham hang so",
+      "formula": "(c)' = 0",
+      "description_vi": "Dao ham cua hang so bang 0",
+      "description_en": "Derivative of a constant is 0",
+      "keywords": ["dao ham", "hang so", "derivative", "constant"],
+      "examples": ["(5)' = 0", "(-3)' = 0", "(pi)' = 0"]
+    },
+    {
+      "id": "deriv_002",
+      "name": "derivative_power_rule",
+      "name_vi": "Dao ham luy thua",
+      "formula": "(x^n)' = n*x^(n-1)",
+      "description_vi": "Dao ham cua x mu n bang n nhan x mu (n-1)",
+      "description_en": "Power rule: derivative of x^n is n*x^(n-1)",
+      "keywords": ["dao ham", "luy thua", "power rule", "derivative"],
+      "examples": ["(x^3)' = 3x^2", "(x^5)' = 5x^4", "(x^(-2))' = -2x^(-3)"]
+    },
+    {
+      "id": "deriv_003",
+      "name": "derivative_sum_rule",
+      "name_vi": "Dao ham tong",
+      "formula": "(f + g)' = f' + g'",
+      "description_vi": "Dao ham cua tong bang tong cac dao ham",
+      "description_en": "Sum rule: derivative of sum equals sum of derivatives",
+      "keywords": ["dao ham", "tong", "sum rule"],
+      "examples": ["(x^2 + 3x)' = 2x + 3"]
+    },
+    {
+      "id": "deriv_004",
+      "name": "derivative_product_rule",
+      "name_vi": "Dao ham tich",
+      "formula": "(f*g)' = f'*g + f*g'",
+      "description_vi": "Dao ham cua tich: (uv)' = u'v + uv'",
+      "description_en": "Product rule: (fg)' = f'g + fg'",
+      "keywords": ["dao ham", "tich", "product rule"],
+      "examples": ["(x*sin(x))' = sin(x) + x*cos(x)"]
+    },
+    {
+      "id": "deriv_005",
+      "name": "derivative_quotient_rule",
+      "name_vi": "Dao ham thuong",
+      "formula": "(f/g)' = (f'*g - f*g') / g^2",
+      "description_vi": "Dao ham cua thuong: (u/v)' = (u'v - uv') / v^2",
+      "description_en": "Quotient rule: (f/g)' = (f'g - fg') / g^2",
+      "keywords": ["dao ham", "thuong", "quotient rule", "phan thuc"],
+      "examples": ["(x/(x+1))' = 1/(x+1)^2"]
+    },
+    {
+      "id": "deriv_006",
+      "name": "derivative_chain_rule",
+      "name_vi": "Dao ham ham hop",
+      "formula": "(f(g(x)))' = f'(g(x)) * g'(x)",
+      "description_vi": "Dao ham ham hop: lay dao ham ngoai nhan dao ham trong",
+      "description_en": "Chain rule: derivative of composite function",
+      "keywords": ["dao ham", "ham hop", "chain rule", "composite"],
+      "examples": ["(sin(2x))' = 2*cos(2x)", "((x^2+1)^3)' = 6x(x^2+1)^2"]
+    },
+    {
+      "id": "deriv_007",
+      "name": "derivative_exp",
+      "name_vi": "Dao ham ham mu e",
+      "formula": "(e^x)' = e^x",
+      "description_vi": "Dao ham cua e mu x bang chinh no",
+      "description_en": "Derivative of e^x is e^x",
+      "keywords": ["dao ham", "ham mu", "exponential", "e^x"],
+      "examples": ["(e^(2x))' = 2e^(2x)"]
+    },
+    {
+      "id": "deriv_008",
+      "name": "derivative_ln",
+      "name_vi": "Dao ham logarit tu nhien",
+      "formula": "(ln(x))' = 1/x",
+      "description_vi": "Dao ham cua ln(x) bang 1/x",
+      "description_en": "Derivative of ln(x) is 1/x",
+      "keywords": ["dao ham", "logarit", "ln", "log"],
+      "examples": ["(ln(2x))' = 1/x"]
+    },
+    {
+      "id": "deriv_009",
+      "name": "derivative_sin",
+      "name_vi": "Dao ham sin",
+      "formula": "(sin(x))' = cos(x)",
+      "description_vi": "Dao ham cua sin(x) bang cos(x)",
+      "description_en": "Derivative of sin(x) is cos(x)",
+      "keywords": ["dao ham", "sin", "luong giac", "trigonometric"],
+      "examples": ["(sin(3x))' = 3cos(3x)"]
+    },
+    {
+      "id": "deriv_010",
+      "name": "derivative_cos",
+      "name_vi": "Dao ham cos",
+      "formula": "(cos(x))' = -sin(x)",
+      "description_vi": "Dao ham cua cos(x) bang -sin(x)",
+      "description_en": "Derivative of cos(x) is -sin(x)",
+      "keywords": ["dao ham", "cos", "luong giac", "trigonometric"],
+      "examples": ["(cos(2x))' = -2sin(2x)"]
+    },
+    {
+      "id": "deriv_011",
+      "name": "derivative_tan",
+      "name_vi": "Dao ham tan",
+      "formula": "(tan(x))' = 1/cos^2(x) = 1 + tan^2(x)",
+      "description_vi": "Dao ham cua tan(x) bang 1/cos^2(x)",
+      "description_en": "Derivative of tan(x) is sec^2(x)",
+      "keywords": ["dao ham", "tan", "luong giac"],
+      "examples": ["(tan(x))' = 1/cos^2(x)"]
+    },
+    {
+      "id": "deriv_012",
+      "name": "derivative_sqrt",
+      "name_vi": "Dao ham can bac hai",
+      "formula": "(sqrt(x))' = 1/(2*sqrt(x))",
+      "description_vi": "Dao ham cua can x bang 1/(2 can x)",
+      "description_en": "Derivative of sqrt(x) is 1/(2*sqrt(x))",
+      "keywords": ["dao ham", "can", "sqrt", "square root"],
+      "examples": ["(sqrt(x^2+1))' = x/sqrt(x^2+1)"]
+    },
+    {
+      "id": "integ_001",
+      "name": "integral_power_rule",
+      "name_vi": "Nguyen ham luy thua",
+      "formula": "integral(x^n) = x^(n+1)/(n+1) + C, n != -1",
+      "description_vi": "Nguyen ham cua x mu n (n khac -1)",
+      "description_en": "Power rule for integration",
+      "keywords": ["nguyen ham", "tich phan", "luy thua", "integral"],
+      "examples": ["integral(x^2) = x^3/3 + C", "integral(x^3) = x^4/4 + C"]
+    },
+    {
+      "id": "integ_002",
+      "name": "integral_exp",
+      "name_vi": "Nguyen ham ham mu",
+      "formula": "integral(e^x) = e^x + C",
+      "description_vi": "Nguyen ham cua e^x bang e^x + C",
+      "description_en": "Integral of e^x is e^x + C",
+      "keywords": ["nguyen ham", "tich phan", "ham mu", "e^x"],
+      "examples": ["integral(e^(2x)) = e^(2x)/2 + C"]
+    },
+    {
+      "id": "integ_003",
+      "name": "integral_1_over_x",
+      "name_vi": "Nguyen ham 1/x",
+      "formula": "integral(1/x) = ln|x| + C",
+      "description_vi": "Nguyen ham cua 1/x bang ln|x| + C",
+      "description_en": "Integral of 1/x is ln|x| + C",
+      "keywords": ["nguyen ham", "tich phan", "logarit", "1/x"],
+      "examples": ["integral(1/x) = ln|x| + C"]
+    },
+    {
+      "id": "integ_004",
+      "name": "integral_sin",
+      "name_vi": "Nguyen ham sin",
+      "formula": "integral(sin(x)) = -cos(x) + C",
+      "description_vi": "Nguyen ham cua sin(x) bang -cos(x) + C",
+      "description_en": "Integral of sin(x) is -cos(x) + C",
+      "keywords": ["nguyen ham", "tich phan", "sin", "luong giac"],
+      "examples": ["integral(sin(2x)) = -cos(2x)/2 + C"]
+    },
+    {
+      "id": "integ_005",
+      "name": "integral_cos",
+      "name_vi": "Nguyen ham cos",
+      "formula": "integral(cos(x)) = sin(x) + C",
+      "description_vi": "Nguyen ham cua cos(x) bang sin(x) + C",
+      "description_en": "Integral of cos(x) is sin(x) + C",
+      "keywords": ["nguyen ham", "tich phan", "cos", "luong giac"],
+      "examples": ["integral(cos(3x)) = sin(3x)/3 + C"]
+    },
+    {
+      "id": "integ_006",
+      "name": "definite_integral_area",
+      "name_vi": "Dien tich hinh phang",
+      "formula": "S = integral(a,b)|f(x) - g(x)|dx",
+      "description_vi": "Dien tich hinh phang gioi han boi hai do thi",
+      "description_en": "Area between two curves using definite integral",
+      "keywords": ["tich phan", "dien tich", "hinh phang", "area"],
+      "examples": ["S = integral(0,1)(x - x^2)dx = 1/6"]
+    },
+    {
+      "id": "integ_007",
+      "name": "volume_revolution",
+      "name_vi": "The tich khoi tron xoay",
+      "formula": "V = pi * integral(a,b) f(x)^2 dx",
+      "description_vi": "The tich khoi tron xoay quanh truc Ox",
+      "description_en": "Volume of solid of revolution around x-axis",
+      "keywords": ["tich phan", "the tich", "tron xoay", "volume"],
+      "examples": ["V = pi * integral(0,1) x^2 dx = pi/3"]
+    },
+    {
+      "id": "ext_001",
+      "name": "extrema_first_derivative",
+      "name_vi": "Cuc tri theo dao ham cap 1",
+      "formula": "f'(x0) = 0 va f' doi dau qua x0 => cuc tri",
+      "description_vi": "Diem cuc tri khi dao ham bang 0 va doi dau",
+      "description_en": "Extrema occurs when f'=0 and f' changes sign",
+      "keywords": ["cuc tri", "cuc dai", "cuc tieu", "extrema"],
+      "examples": ["y = x^3 - 3x: y' = 3x^2 - 3 = 0 => x = +-1"]
+    },
+    {
+      "id": "ext_002",
+      "name": "extrema_second_derivative",
+      "name_vi": "Cuc tri theo dao ham cap 2",
+      "formula": "f'(x0) = 0: f''(x0) > 0 => cuc tieu, f''(x0) < 0 => cuc dai",
+      "description_vi": "Kiem tra cuc tri bang dao ham cap 2",
+      "description_en": "Second derivative test for extrema",
+      "keywords": ["cuc tri", "dao ham cap 2", "second derivative test"],
+      "examples": ["y'' > 0 tai x0 => cuc tieu", "y'' < 0 tai x0 => cuc dai"]
+    },
+    {
+      "id": "asymp_001",
+      "name": "vertical_asymptote",
+      "name_vi": "Tiem can dung",
+      "formula": "lim(x->a) f(x) = +-infinity => x = a la tiem can dung",
+      "description_vi": "Duong thang x = a la tiem can dung khi gioi han la vo cung",
+      "description_en": "Vertical asymptote when limit is infinity",
+      "keywords": ["tiem can", "tiem can dung", "vertical asymptote"],
+      "examples": ["y = 1/(x-2): x = 2 la tiem can dung"]
+    },
+    {
+      "id": "asymp_002",
+      "name": "horizontal_asymptote",
+      "name_vi": "Tiem can ngang",
+      "formula": "lim(x->+-infinity) f(x) = b => y = b la tiem can ngang",
+      "description_vi": "Duong thang y = b la tiem can ngang khi gioi han huu han",
+      "description_en": "Horizontal asymptote when limit at infinity is finite",
+      "keywords": ["tiem can", "tiem can ngang", "horizontal asymptote"],
+      "examples": ["y = (2x+1)/(x-1): y = 2 la tiem can ngang"]
+    },
+    {
+      "id": "tangent_001",
+      "name": "tangent_line_equation",
+      "name_vi": "Phuong trinh tiep tuyen",
+      "formula": "y - y0 = f'(x0)(x - x0)",
+      "description_vi": "Phuong trinh tiep tuyen cua do thi tai diem (x0, y0)",
+      "description_en": "Equation of tangent line at point (x0, y0)",
+      "keywords": ["tiep tuyen", "tangent", "phuong trinh"],
+      "examples": ["y = x^2 tai x=1: y - 1 = 2(x - 1) => y = 2x - 1"]
+    },
+    {
+      "id": "limit_001",
+      "name": "limit_lhopital",
+      "name_vi": "Quy tac L'Hopital",
+      "formula": "lim f/g = lim f'/g' (dang 0/0 hoac inf/inf)",
+      "description_vi": "Ap dung khi gioi han co dang vo dinh 0/0 hoac inf/inf",
+      "description_en": "L'Hopital's rule for indeterminate forms",
+      "keywords": ["gioi han", "limit", "lhopital", "vo dinh"],
+      "examples": ["lim(x->0) sin(x)/x = lim(x->0) cos(x)/1 = 1"]
+    }
+  ]
+}

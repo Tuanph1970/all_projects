@@ -1,0 +1,150 @@
+/* ModelList Component Styles */
+.model-list-container {
+  padding: 20px;
+}
+
+.model-list-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+}
+
+.model-list-header .btn {
+  margin-left: 10px;
+}
+
+.model-list-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.model-list-table td {
+  padding: 10px;
+  vertical-align: top;
+}
+
+.model-list-table .header-row {
+  background-color: #f8f9fa;
+}
+
+.model-list-table .header-row td {
+  text-align: right;
+  padding-bottom: 15px;
+}
+
+.model-list-table .content-row td {
+  padding-top: 0;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.action-buttons .btn {
+  padding: 5px 12px;
+  font-size: 14px;
+}
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  font-size: 16px;
+  color: #6c757d;
+}
+
+/* Modal Styles */
+.modal-header {
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.modal-title {
+  font-weight: 600;
+  color: #495057;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-footer {
+  background-color: #f8f9fa;
+  border-top: 1px solid #dee2e6;
+}
+
+/* Data Table Customizations */
+.rdt_Table {
+  border-radius: 6px;
+  border: 1px solid #dee2e6;
+}
+
+.rdt_TableHead {
+  background-color: #f8f9fa;
+}
+
+.rdt_TableHeadRow {
+  border-bottom: 2px solid #dee2e6;
+}
+
+.rdt_TableRow:hover {
+  background-color: #f8f9fa;
+}
+
+.rdt_Pagination {
+  border-top: 1px solid #dee2e6;
+  background-color: #f8f9fa;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .model-list-container {
+    padding: 10px;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .action-buttons .btn {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+}
+
+/* Button Variants */
+.btn-edit {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+  color: white;
+}
+
+.btn-edit:hover {
+  background-color: #0b5ed7;
+  border-color: #0a58ca;
+}
+
+.btn-delete {
+  background-color: #dc3545;
+  border-color: #dc3545;
+  color: white;
+}
+
+.btn-delete:hover {
+  background-color: #c82333;
+  border-color: #bd2130;
+}
+
+.btn-new {
+  background-color: #6c757d;
+  border-color: #6c757d;
+  color: white;
+}
+
+.btn-new:hover {
+  background-color: #5a6268;
+  border-color: #545b62;
+}
