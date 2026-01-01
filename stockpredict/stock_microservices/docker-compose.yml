@@ -59,7 +59,7 @@ services:
       start_period: 30s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.rabbitmq.rule=Host(`rabbitmq.localhost`)"
+      - "traefik.http.routers.stock-rabbitmq.rule=Host(`rabbitmq.localhost`)"
       - "traefik.http.services.rabbitmq.loadbalancer.server.port=15672"
 
   # =============================================================================
@@ -168,7 +168,7 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.prometheus.rule=Host(`prometheus.localhost`)"
+      - "traefik.http.routers.stock-prometheus.rule=Host(`prometheus.localhost`)"
       - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
 
   # =============================================================================
@@ -194,7 +194,7 @@ services:
       - prometheus
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.grafana.rule=Host(`grafana.localhost`)"
+      - "traefik.http.routers.stock-grafana.rule=Host(`grafana.localhost`)"
       - "traefik.http.services.grafana.loadbalancer.server.port=3000"
 
   # =============================================================================
@@ -221,7 +221,7 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.jaeger.rule=Host(`jaeger.localhost`)"
+      - "traefik.http.routers.stock-jaeger.rule=Host(`jaeger.localhost`)"
       - "traefik.http.services.jaeger.loadbalancer.server.port=16686"
 
   # =============================================================================
@@ -279,8 +279,8 @@ services:
       start_period: 10s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.auth.rule=PathPrefix(`/stock_helper/api/v2/auth`)"
-      - "traefik.http.routers.auth.priority=10"
+      - "traefik.http.routers.stock-auth.rule=PathPrefix(`/stock_helper/api/v2/auth`)"
+      - "traefik.http.routers.stock-auth.priority=10"
       - "traefik.http.services.auth.loadbalancer.server.port=8007"
 
   # Stock Data Service - Stock data, companies, market info
@@ -329,8 +329,8 @@ services:
       start_period: 10s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.stocks.rule=PathPrefix(`/stock_helper/api/v2/companies`) || PathPrefix(`/stock_helper/api/v2/stocks`) || PathPrefix(`/stock_helper/api/v2/market`) || PathPrefix(`/stock_helper/api/v2/industries`)"
-      - "traefik.http.routers.stocks.priority=10"
+      - "traefik.http.routers.stock-stocks.rule=PathPrefix(`/stock_helper/api/v2/companies`) || PathPrefix(`/stock_helper/api/v2/stocks`) || PathPrefix(`/stock_helper/api/v2/market`) || PathPrefix(`/stock_helper/api/v2/industries`)"
+      - "traefik.http.routers.stock-stocks.priority=10"
       - "traefik.http.services.stocks.loadbalancer.server.port=8001"
 
   # Portfolio Service - Portfolio management, holdings, transactions
@@ -384,8 +384,8 @@ services:
       start_period: 10s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.portfolio.rule=PathPrefix(`/stock_helper/api/v2/portfolio`)"
-      - "traefik.http.routers.portfolio.priority=10"
+      - "traefik.http.routers.stock-portfolio.rule=PathPrefix(`/stock_helper/api/v2/portfolio`)"
+      - "traefik.http.routers.stock-portfolio.priority=10"
       - "traefik.http.services.portfolio.loadbalancer.server.port=8003"
 
   # Prediction Service - ML-based stock price predictions
@@ -441,8 +441,8 @@ services:
       start_period: 15s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.predictions.rule=PathPrefix(`/stock_helper/api/v2/predictions`)"
-      - "traefik.http.routers.predictions.priority=10"
+      - "traefik.http.routers.stock-predictions.rule=PathPrefix(`/stock_helper/api/v2/predictions`)"
+      - "traefik.http.routers.stock-predictions.priority=10"
       - "traefik.http.services.predictions.loadbalancer.server.port=8002"
 
   # Analysis Service - Technical and Fundamental Analysis
@@ -489,8 +489,8 @@ services:
       start_period: 10s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.analysis.rule=PathPrefix(`/stock_helper/api/v2/analysis`)"
-      - "traefik.http.routers.analysis.priority=10"
+      - "traefik.http.routers.stock-analysis.rule=PathPrefix(`/stock_helper/api/v2/analysis`)"
+      - "traefik.http.routers.stock-analysis.priority=10"
       - "traefik.http.services.analysis.loadbalancer.server.port=8004"
 
   # AI Insights Service - LLM-powered insights
@@ -532,8 +532,8 @@ services:
       start_period: 10s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.ai.rule=PathPrefix(`/stock_helper/api/v2/ai`)"
-      - "traefik.http.routers.ai.priority=10"
+      - "traefik.http.routers.stock-ai.rule=PathPrefix(`/stock_helper/api/v2/ai`)"
+      - "traefik.http.routers.stock-ai.priority=10"
       - "traefik.http.services.ai.loadbalancer.server.port=8005"
 
   # Chatbot Service - Conversational AI
@@ -574,8 +574,8 @@ services:
       start_period: 10s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.chatbot.rule=PathPrefix(`/stock_helper/api/v2/chat`)"
-      - "traefik.http.routers.chatbot.priority=10"
+      - "traefik.http.routers.stock-chatbot.rule=PathPrefix(`/stock_helper/api/v2/chat`)"
+      - "traefik.http.routers.stock-chatbot.priority=10"
       - "traefik.http.services.chatbot.loadbalancer.server.port=8006"
 
 networks:

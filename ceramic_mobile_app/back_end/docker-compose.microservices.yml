@@ -8,7 +8,7 @@ services:
 
   # Traefik API Gateway
   traefik:
-    image: traefik:v3.0
+    image: traefik:v2.11
     container_name: ceramic_traefik
     restart: unless-stopped
     command:
@@ -35,8 +35,8 @@ services:
       - ceramic_network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.dashboard.rule=Host(`traefik.localhost`)"
-      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.ceramic-dashboard.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.ceramic-dashboard.service=api@internal"
 
   # Redis Cache Service
   redis:
@@ -121,10 +121,10 @@ services:
       - ceramic_network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.auth.rule=PathPrefix(`/api/v1/auth`) || PathPrefix(`/api/v1/users`)"
-      - "traefik.http.routers.auth.entrypoints=web"
-      - "traefik.http.services.auth.loadbalancer.server.port=8001"
-      - "traefik.http.routers.auth.middlewares=ratelimit@file"
+      - "traefik.http.routers.ceramic-auth.rule=PathPrefix(`/api/v1/auth`) || PathPrefix(`/api/v1/users`)"
+      - "traefik.http.routers.ceramic-auth.entrypoints=web"
+      - "traefik.http.services.ceramic-auth.loadbalancer.server.port=8001"
+      - "traefik.http.routers.ceramic-auth.middlewares=ratelimit@file"
 
   # Product Service - Catalog & Search
   product-service:
@@ -165,10 +165,10 @@ services:
       - ceramic_network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.product.rule=PathPrefix(`/api/v1/products`) || PathPrefix(`/api/v1/reviews`)"
-      - "traefik.http.routers.product.entrypoints=web"
-      - "traefik.http.services.product.loadbalancer.server.port=8002"
-      - "traefik.http.routers.product.middlewares=ratelimit@file"
+      - "traefik.http.routers.ceramic-product.rule=PathPrefix(`/api/v1/products`) || PathPrefix(`/api/v1/reviews`)"
+      - "traefik.http.routers.ceramic-product.entrypoints=web"
+      - "traefik.http.services.ceramic-product.loadbalancer.server.port=8002"
+      - "traefik.http.routers.ceramic-product.middlewares=ratelimit@file"
 
   # Order Service - Cart & Orders
   order-service:
@@ -208,10 +208,10 @@ services:
       - ceramic_network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.order.rule=PathPrefix(`/api/v1/orders`) || PathPrefix(`/api/v1/cart`)"
-      - "traefik.http.routers.order.entrypoints=web"
-      - "traefik.http.services.order.loadbalancer.server.port=8003"
-      - "traefik.http.routers.order.middlewares=ratelimit@file"
+      - "traefik.http.routers.ceramic-order.rule=PathPrefix(`/api/v1/orders`) || PathPrefix(`/api/v1/cart`)"
+      - "traefik.http.routers.ceramic-order.entrypoints=web"
+      - "traefik.http.services.ceramic-order.loadbalancer.server.port=8003"
+      - "traefik.http.routers.ceramic-order.middlewares=ratelimit@file"
 
   # Chat Service - Real-time Messaging
   chat-service:
@@ -250,9 +250,9 @@ services:
       - ceramic_network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.chat.rule=PathPrefix(`/api/v1/chat`)"
-      - "traefik.http.routers.chat.entrypoints=web"
-      - "traefik.http.services.chat.loadbalancer.server.port=8004"
+      - "traefik.http.routers.ceramic-chat.rule=PathPrefix(`/api/v1/chat`)"
+      - "traefik.http.routers.ceramic-chat.entrypoints=web"
+      - "traefik.http.services.ceramic-chat.loadbalancer.server.port=8004"
 
   # Seller Service - Dashboard & Analytics
   seller-service:
@@ -295,10 +295,10 @@ services:
       - ceramic_network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.seller.rule=PathPrefix(`/api/v1/seller`)"
-      - "traefik.http.routers.seller.entrypoints=web"
-      - "traefik.http.services.seller.loadbalancer.server.port=8005"
-      - "traefik.http.routers.seller.middlewares=ratelimit@file"
+      - "traefik.http.routers.ceramic-seller.rule=PathPrefix(`/api/v1/seller`)"
+      - "traefik.http.routers.ceramic-seller.entrypoints=web"
+      - "traefik.http.services.ceramic-seller.loadbalancer.server.port=8005"
+      - "traefik.http.routers.ceramic-seller.middlewares=ratelimit@file"
 
 # ===========================================
 # VOLUMES
