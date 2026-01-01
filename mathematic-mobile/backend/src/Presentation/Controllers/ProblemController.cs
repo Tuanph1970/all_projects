@@ -11,7 +11,7 @@ using System.Security.Claims;
 namespace Presentation.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("mathematic/v1/api/[controller]")]
 [Authorize]
 public class ProblemController : ControllerBase
 {

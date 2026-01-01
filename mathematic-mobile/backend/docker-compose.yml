@@ -5,11 +5,11 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8001:8001"
+      - "${MATH_API_PORT:-8003}:8001"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8001
-      - ConnectionStrings__DefaultConnection=Server=mysql;Database=MathematicsSolverDb;User=root;Password=YourStrong@Passw0rd;
+      - ConnectionStrings__DefaultConnection=Server=mysql;Database=${MATH_DB_NAME:-MathematicsSolverDb};User=root;Password=${MYSQL_ROOT_PASSWORD:-Mysql_2025};
     depends_on:
       - mysql
     networks:
@@ -18,7 +18,7 @@ services:
       - ./logs:/app/logs
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      test: ["CMD-SHELL", "wget --spider --quiet http://localhost:8001/health || exit 0"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -28,12 +28,14 @@ services:
   mysql:
     image: mysql:8.0
     environment:
-      - MYSQL_ROOT_PASSWORD=YourStrong@Passw0rd
-      - MYSQL_DATABASE=MathematicsSolverDb
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-Mysql_2025}
+      - MYSQL_DATABASE=${MATH_DB_NAME:-MathematicsSolverDb}
+      - MYSQL_USER=${MATH_DB_USER:-mathematic_user}
+      - MYSQL_PASSWORD=${MATH_DB_PASSWORD:-Mysql_2025}
       - MYSQL_CHARSET=utf8mb4
       - MYSQL_COLLATION=utf8mb4_unicode_ci
     ports:
-      - "3306:3306"
+      - "${MATH_DB_PORT:-3310}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./scripts:/docker-entrypoint-initdb.d
@@ -41,7 +43,7 @@ services:
       - mathematics-solver-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pYourStrong@Passw0rd"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pMysql_2025"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -51,7 +53,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${MATH_REDIS_PORT:-6380}:6379"
     volumes:
       - redis_data:/data
     networks:

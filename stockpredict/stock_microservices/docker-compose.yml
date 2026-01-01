@@ -6,34 +6,29 @@ services:
   # API GATEWAY - Traefik
   # =============================================================================
   traefik:
-    image: traefik:v3.0
+    image: traefik:v3.2
     container_name: stock-traefik
     command:
       - "--api.insecure=true"
       - "--api.dashboard=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
       - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
       - "--entrypoints.web.address=:8088"
       - "--entrypoints.websecure.address=:443"
       - "--accesslog=true"
       - "--accesslog.format=json"
+      - "--log.level=INFO"
       - "--metrics.prometheus=true"
       - "--metrics.prometheus.buckets=0.1,0.3,1.2,5.0"
     ports:
-      - "8088:8088"  # API Gateway (changed from 80)
-      - "443:443"
-      - "8089:8080"  # Traefik dashboard (mapped to 8089)
+      - "8088:8088"  # API Gateway
+      - "8443:443"   # HTTPS (mapped to 8443 to avoid conflicts)
+      - "8089:8080"  # Traefik dashboard
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik:/etc/traefik/dynamic:ro
     networks:
       - stock-network
     restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.dashboard.rule=Host(`traefik.localhost`)"
-      - "traefik.http.routers.dashboard.service=api@internal"
 
   # =============================================================================
   # MESSAGE BROKER - RabbitMQ
@@ -370,7 +365,7 @@ services:
       - TRACING_JAEGER_HOST=jaeger
       - TRACING_JAEGER_PORT=6831
     ports:
-      - "8003:8003"
+      - "8013:8003"  # Mapped to 8013 to avoid conflict with Math API
     networks:
       - stock-network
     depends_on:

@@ -41,7 +41,8 @@ ta==0.11.0
 # Stock Market Data
 vnstock==3.3.0
 vnstock_ezchart==0.0.2
-vnai==2.1.9
+# vnai version must be >=2.2.3 for vnstock 3.3.0 compatibility
+vnai>=2.2.3
 polygon-api-client==1.15.4
 beautifulsoup4==4.14.2
 seaborn==0.13.2

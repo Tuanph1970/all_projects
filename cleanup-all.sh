@@ -207,9 +207,12 @@ cleanup_override_files() {
     print_header "Cleaning Override Files"
     
     local files=(
-        "/home/tuanph/all_projects/ceramic_mobile_app/back_end/docker-compose.override.yml"
-        "/home/tuanph/all_projects/stockpredict/webapi/docker-compose.override.yml"
-        "/home/tuanph/all_projects/mathematic-mobile/backend/docker-compose.override.yml"
+        # "/home/tuanph/all_projects/ceramic_mobile_app/back_end/docker-compose.override.yml"
+        # "/home/tuanph/all_projects/stockpredict/webapi/docker-compose.override.yml"
+        # "/home/tuanph/all_projects/mathematic-mobile/backend/docker-compose.override.yml"
+        "/home/home/all_projects/ceramic_mobile_app/back_end/docker-compose.override.yml"
+        "/home/home/all_projects/stockpredict/webapi/docker-compose.override.yml"
+        "/home/home/all_projects/mathematic-mobile/backend/docker-compose.override.yml"
     )
     
     for file in "${files[@]}"; do

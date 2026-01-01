@@ -23,9 +23,11 @@ MAGENTA='\033[0;35m'
 NC='\033[0m' # No Color
 
 # Project directories
-BASE_DIR="/home/tuanph/all_projects"
+# BASE_DIR="/home/tuanph/all_projects"
+BASE_DIR="/home/home/all_projects"
 CERAMIC_DIR="$BASE_DIR/ceramic_mobile_app/back_end"
-STOCK_DIR="$BASE_DIR/stockpredict/webapi"
+# STOCK_DIR="$BASE_DIR/stockpredict/webapi"
+STOCK_DIR="$BASE_DIR/stockpredict/stock_microservices"
 MATH_DIR="$BASE_DIR/mathematic-mobile/backend"
 
 # Environment files
@@ -178,7 +180,7 @@ get_project_status() {
     fi
 }
 
-# Function to create docker-compose override file
+# Function to create docker compose override file
 create_compose_override() {
     local project=$1
     
@@ -312,18 +314,18 @@ deploy_project() {
     
     cd "$project_dir"
     
-    # Create custom docker-compose override
+    # Create custom docker compose override
     create_compose_override "$project"
     
     # Build if requested
     if [ -n "$BUILD_FLAG" ]; then
         print_color $YELLOW "🔨 Building images..."
-        docker-compose -f "$compose_file" -f docker-compose.override.yml -p "$project_name" build
+        docker compose -f "$compose_file" -f docker-compose.override.yml -p "$project_name" build
     fi
     
     # Start services
     print_color $YELLOW "🚀 Starting services..."
-    docker-compose -f "$compose_file" -f docker-compose.override.yml -p "$project_name" up -d
+    docker compose -f "$compose_file" -f docker-compose.override.yml -p "$project_name" up -d
     
     print_color $GREEN "✓ $project_name deployed successfully!"
 }

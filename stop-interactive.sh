@@ -23,9 +23,11 @@ MAGENTA='\033[0;35m'
 NC='\033[0m' # No Color
 
 # Project directories
-BASE_DIR="/home/tuanph/all_projects"
+# BASE_DIR="/home/tuanph/all_projects"
+BASE_DIR="/home/home/all_projects"
 CERAMIC_DIR="$BASE_DIR/ceramic_mobile_app/back_end"
-STOCK_DIR="$BASE_DIR/stockpredict/webapi"
+# STOCK_DIR="$BASE_DIR/stockpredict/webapi"
+STOCK_DIR="$BASE_DIR/stockpredict/stock_microservices"
 MATH_DIR="$BASE_DIR/mathematic-mobile/backend"
 
 # Selected projects
@@ -129,9 +131,9 @@ stop_project() {
     cd "$project_dir"
     
     if [ -f "docker-compose.override.yml" ]; then
-        docker-compose -f "$compose_file" -f docker-compose.override.yml -p "$project_name" down
+        docker compose -f "$compose_file" -f docker-compose.override.yml -p "$project_name" down
     else
-        docker-compose -f "$compose_file" -p "$project_name" down
+        docker compose -f "$compose_file" -p "$project_name" down
     fi
     
     print_color $GREEN "✓ $project_name stopped successfully!"

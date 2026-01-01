@@ -7,7 +7,7 @@ using Presentation.Models.Requests;
 namespace Presentation.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("mathematic/v1/api/[controller]")]
 public class AuthController : ControllerBase
 {
     private readonly ISender _mediator;

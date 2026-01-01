@@ -6,18 +6,22 @@ http:
   # ROUTERS - Route requests to services
   # =============================================================================
   routers:
-    # API v2 routes (new microservices)
+    # API v2 routes (new microservices) - Using stock_helper prefix
     auth-service:
-      rule: "PathPrefix(`/api/v2/auth`)"
+      rule: "PathPrefix(`/stock_helper/api/v2/auth`)"
       service: auth-service
+      entryPoints:
+        - web
       priority: 10
       middlewares:
         - rate-limit
         - cors
 
     stock-data-service:
-      rule: "PathPrefix(`/api/v2/stocks`) || PathPrefix(`/api/v2/companies`) || PathPrefix(`/api/v2/market`)"
+      rule: "PathPrefix(`/stock_helper/api/v2/stocks`) || PathPrefix(`/stock_helper/api/v2/companies`) || PathPrefix(`/stock_helper/api/v2/market`)"
       service: stock-data-service
+      entryPoints:
+        - web
       priority: 10
       middlewares:
         - rate-limit
@@ -25,8 +29,10 @@ http:
         - circuit-breaker
 
     portfolio-service:
-      rule: "PathPrefix(`/api/v2/portfolio`) || PathPrefix(`/api/v2/alerts`)"
+      rule: "PathPrefix(`/stock_helper/api/v2/portfolio`) || PathPrefix(`/stock_helper/api/v2/alerts`)"
       service: portfolio-service
+      entryPoints:
+        - web
       priority: 10
       middlewares:
         - rate-limit
@@ -34,16 +40,20 @@ http:
         - jwt-auth
 
     analysis-service:
-      rule: "PathPrefix(`/api/v2/analysis`) || PathPrefix(`/api/v2/industries`)"
+      rule: "PathPrefix(`/stock_helper/api/v2/analysis`) || PathPrefix(`/stock_helper/api/v2/industries`)"
       service: analysis-service
+      entryPoints:
+        - web
       priority: 10
       middlewares:
         - rate-limit
         - cors
 
     prediction-service:
-      rule: "PathPrefix(`/api/v2/predict`) || PathPrefix(`/api/v2/models`) || PathPrefix(`/api/v2/solutions`)"
+      rule: "PathPrefix(`/stock_helper/api/v2/predict`) || PathPrefix(`/stock_helper/api/v2/models`) || PathPrefix(`/stock_helper/api/v2/solutions`)"
       service: prediction-service
+      entryPoints:
+        - web
       priority: 10
       middlewares:
         - rate-limit-low
@@ -51,8 +61,10 @@ http:
         - jwt-auth
 
     ai-insights-service:
-      rule: "PathPrefix(`/api/v2/ai`)"
+      rule: "PathPrefix(`/stock_helper/api/v2/ai`)"
       service: ai-insights-service
+      entryPoints:
+        - web
       priority: 10
       middlewares:
         - rate-limit-low
@@ -60,13 +72,42 @@ http:
         - jwt-auth
 
     chatbot-service:
-      rule: "PathPrefix(`/api/v2/chatbot`)"
+      rule: "PathPrefix(`/stock_helper/api/v2/chat`)"
       service: chatbot-service
+      entryPoints:
+        - web
       priority: 10
       middlewares:
         - rate-limit-low
         - cors
         - jwt-auth
+
+    # Health check routes (no middleware for easier testing)
+    health-auth:
+      rule: "PathPrefix(`/health/auth`)"
+      service: auth-service
+      entryPoints:
+        - web
+      priority: 20
+      middlewares:
+        - strip-health-auth
+
+    health-stocks:
+      rule: "PathPrefix(`/health/stocks`)"
+      service: stock-data-service
+      entryPoints:
+        - web
+      priority: 20
+      middlewares:
+        - strip-health-stocks
+
+    # Gateway health check
+    gateway-health:
+      rule: "Path(`/health`)"
+      service: auth-service
+      entryPoints:
+        - web
+      priority: 30
 
   # =============================================================================
   # SERVICES - Backend service definitions
@@ -197,3 +238,16 @@ http:
       compress:
         excludedContentTypes:
           - "text/event-stream"
+
+    # Strip prefix for health routes
+    strip-health-auth:
+      stripPrefix:
+        prefixes:
+          - "/health/auth"
+        forceSlash: false
+
+    strip-health-stocks:
+      stripPrefix:
+        prefixes:
+          - "/health/stocks"
+        forceSlash: false

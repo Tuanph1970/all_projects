@@ -1,22 +1,23 @@
-# Override file for development environment
+version: '3.8'
+
 services:
   mathematics-solver-api:
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:8001
-      - ConnectionStrings__DefaultConnection=Server=mysql;Database=MathematicsSolverDb_Dev;User=root;Password=YourStrong@Passw0rd;
-      - Logging__LogLevel__Default=Debug
-      - Logging__LogLevel__Microsoft.AspNetCore=Information
-    volumes:
-      - ./src:/app/src:ro  # Mount source code for development
-      - ./appsettings.Development.json:/app/appsettings.Development.json:ro
     ports:
-      - "8001:8001"
-      - "8002:8002"  # Additional port for debugging
-
+      - "${MATH_API_PORT:-8003}:8001"
+    environment:
+      - ConnectionStrings__DefaultConnection=Server=mysql;Database=${MATH_DB_NAME};User=${MATH_DB_USER};Password=${MATH_DB_PASSWORD};
+  
   mysql:
-    environment:
-      - MYSQL_ROOT_PASSWORD=YourStrong@Passw0rd
-      - MYSQL_DATABASE=MathematicsSolverDb_Dev
     ports:
-      - "3306:3306"
+      - "${MATH_DB_PORT:-3310}:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MATH_DB_NAME}
+      - MYSQL_USER=${MATH_DB_USER}
+      - MYSQL_PASSWORD=${MATH_DB_PASSWORD}
+    volumes:
+      - ./scripts/init-multi-user.sql:/docker-entrypoint-initdb.d/00-init-multi-user.sql:ro
+  
+  redis:
+    ports:
+      - "${MATH_REDIS_PORT:-6380}:6379"
