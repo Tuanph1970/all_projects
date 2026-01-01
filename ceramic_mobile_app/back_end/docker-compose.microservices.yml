@@ -16,6 +16,8 @@ services:
       - "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=ceramic_local_ceramic_network"
+      - "--providers.docker.constraints=Label(`com.docker.compose.project`,`ceramic_local`)"
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"

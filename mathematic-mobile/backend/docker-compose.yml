@@ -26,6 +26,8 @@ services:
       - "--api.dashboard=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=backend_math_network"
+      - "--providers.docker.constraints=Label(`com.docker.compose.project`,`backend`)"
       - "--entrypoints.web.address=:80"
       - "--log.level=INFO"
       - "--accesslog=true"
