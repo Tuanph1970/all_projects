@@ -241,6 +241,3 @@ volumes:
 networks:
   math_network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.22.0.0/16
