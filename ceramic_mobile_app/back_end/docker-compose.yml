@@ -54,17 +54,16 @@ services:
     networks:
       - ceramic_network
 
-  # MySQL Database Service (Optional - use profiles: ["with-db"] to enable)
-  # Skip this if using local MySQL on host machine
+  # MySQL Database Service
   db:
     image: mysql:8.0
     container_name: ceramic_mysql
     restart: unless-stopped
-    profiles:
-      - with-db  # Only starts when: docker-compose --profile with-db up
+    ports:
+      - "${CERAMIC_DB_PORT:-3308}:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
-      MYSQL_DATABASE: ${DB_NAME:-ceramic_marketplace}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-Mysql_2025}
+      MYSQL_DATABASE: ${DB_NAME:-ceramic_db}
       MYSQL_USER: ${DB_USER:-ceramic_user}
       MYSQL_PASSWORD: ${DB_PASSWORD:-Mysql_2025}
     command:
@@ -75,7 +74,7 @@ services:
     volumes:
       - ceramic_mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-rootpassword}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-Mysql_2025}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -99,7 +98,7 @@ services:
     environment:
       - SERVICE_NAME=auth-service
       - SERVICE_PORT=8001
-      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_HOST=${DB_HOST:-db}
       - DB_PORT=${DB_PORT:-3306}
       - DB_NAME=${DB_NAME:-ceramic_marketplace}
       - DB_USER=${DB_USER:-ceramic_user}
@@ -110,6 +109,8 @@ services:
       - ENVIRONMENT=${ENVIRONMENT:-production}
     depends_on:
       redis:
+        condition: service_healthy
+      db:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
@@ -138,7 +139,7 @@ services:
     environment:
       - SERVICE_NAME=product-service
       - SERVICE_PORT=8002
-      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_HOST=${DB_HOST:-db}
       - DB_PORT=${DB_PORT:-3306}
       - DB_NAME=${DB_NAME:-ceramic_marketplace}
       - DB_USER=${DB_USER:-ceramic_user}
@@ -182,7 +183,7 @@ services:
     environment:
       - SERVICE_NAME=order-service
       - SERVICE_PORT=8003
-      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_HOST=${DB_HOST:-db}
       - DB_PORT=${DB_PORT:-3306}
       - DB_NAME=${DB_NAME:-ceramic_marketplace}
       - DB_USER=${DB_USER:-ceramic_user}
@@ -225,7 +226,7 @@ services:
     environment:
       - SERVICE_NAME=chat-service
       - SERVICE_PORT=8004
-      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_HOST=${DB_HOST:-db}
       - DB_PORT=${DB_PORT:-3306}
       - DB_NAME=${DB_NAME:-ceramic_marketplace}
       - DB_USER=${DB_USER:-ceramic_user}
@@ -266,7 +267,7 @@ services:
     environment:
       - SERVICE_NAME=seller-service
       - SERVICE_PORT=8005
-      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_HOST=${DB_HOST:-db}
       - DB_PORT=${DB_PORT:-3306}
       - DB_NAME=${DB_NAME:-ceramic_marketplace}
       - DB_USER=${DB_USER:-ceramic_user}
