@@ -1,0 +1,90 @@
+# =============================================================================
+# SHARED ENVIRONMENT CONFIGURATION FOR MULTI-PROJECT DEPLOYMENT
+# =============================================================================
+# Copy this file to .deploy-env: cp .deploy-env.example .deploy-env
+# This file contains shared configuration used by deployment scripts
+# =============================================================================
+
+# =============================================================================
+# DATABASE ROOT PASSWORD (shared across all projects)
+# =============================================================================
+MYSQL_ROOT_PASSWORD=Mysql_2025
+
+# =============================================================================
+# CERAMIC PROJECT CONFIGURATION
+# =============================================================================
+CERAMIC_API_PORT=8002
+CERAMIC_DB_PORT=3308
+CERAMIC_DB_NAME=ceramic_marketplace
+CERAMIC_DB_USER=ceramic_user
+CERAMIC_DB_PASSWORD=Mysql_2025
+CERAMIC_REDIS_PORT=6379
+CERAMIC_NGINX_HTTP_PORT=80
+CERAMIC_NGINX_HTTPS_PORT=443
+
+# =============================================================================
+# STOCK PREDICT PROJECT CONFIGURATION
+# =============================================================================
+STOCK_API_PORT=8080
+STOCK_DB_PORT=3309
+STOCK_DB_NAME=stockpredict_db
+STOCK_DB_USER=stock_user
+STOCK_DB_PASSWORD=Mysql_2025
+STOCK_REDIS_PORT=6382
+STOCK_RABBITMQ_PORT=5672
+STOCK_RABBITMQ_MGMT_PORT=15672
+STOCK_TRAEFIK_PORT=8088
+STOCK_TRAEFIK_DASHBOARD_PORT=8089
+STOCK_GRAFANA_PORT=3100
+STOCK_PROMETHEUS_PORT=9090
+
+# =============================================================================
+# MATHEMATIC MOBILE PROJECT CONFIGURATION
+# =============================================================================
+MATH_API_PORT=8003
+MATH_DB_PORT=3310
+MATH_DB_NAME=MathematicsSolverDb
+MATH_DB_USER=mathematic_user
+MATH_DB_PASSWORD=Mysql_2025
+MATH_REDIS_PORT=6380
+
+# =============================================================================
+# GENERAL CONFIGURATION
+# =============================================================================
+ENVIRONMENT=production
+TZ=Asia/Ho_Chi_Minh
+
+# =============================================================================
+# PORT ALLOCATION SUMMARY
+# =============================================================================
+#
+# CERAMIC PROJECT:
+#   - API:          8002
+#   - MySQL:        3308
+#   - Redis:        6379
+#   - Nginx HTTP:   80
+#   - Nginx HTTPS:  443
+#   - Nginx Alt:    8082
+#
+# STOCK PROJECT:
+#   - Auth:         8007
+#   - Data:         8001
+#   - Analysis:     8004
+#   - Insights:     8005
+#   - Chatbot:      8006
+#   - Portfolio:    8013
+#   - Traefik:      8088
+#   - Dashboard:    8089
+#   - MySQL:        3309
+#   - Redis:        6382
+#   - RabbitMQ:     5672/15672
+#   - Grafana:      3100
+#   - Prometheus:   9090
+#   - Jaeger:       16686
+#
+# MATHEMATIC PROJECT:
+#   - API:          8003
+#   - MySQL:        3310
+#   - Redis:        6380
+#
+# =============================================================================

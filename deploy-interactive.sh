@@ -187,96 +187,66 @@ create_compose_override() {
     case $project in
         ceramic)
             cat > "$CERAMIC_DIR/docker-compose.override.yml" <<EOF
-version: '3.8'
+# Ceramic Microservices Override
 
 services:
-  api:
+  traefik:
     ports:
-      - "\${CERAMIC_API_PORT:-8002}:8002"
-    environment:
-      - DB_NAME=\${CERAMIC_DB_NAME}
-      - DB_USER=\${CERAMIC_DB_USER}
-      - DB_PASSWORD=\${CERAMIC_DB_PASSWORD}
-      - DB_ROOT_PASSWORD=\${MYSQL_ROOT_PASSWORD}
-  
+      - "\${CERAMIC_API_PORT:-8002}:80"
+      - "8443:443"
+      - "8080:8080"
+
   db:
     ports:
       - "\${CERAMIC_DB_PORT:-3308}:3306"
     environment:
-      - MYSQL_ROOT_PASSWORD=\${MYSQL_ROOT_PASSWORD}
-      - MYSQL_DATABASE=\${CERAMIC_DB_NAME}
-      - MYSQL_USER=\${CERAMIC_DB_USER}
-      - MYSQL_PASSWORD=\${CERAMIC_DB_PASSWORD}
-  
+      MYSQL_ROOT_PASSWORD: \${MYSQL_ROOT_PASSWORD:-Mysql_2025}
+      MYSQL_DATABASE: \${CERAMIC_DB_NAME:-ceramic_db}
+      MYSQL_USER: \${CERAMIC_DB_USER:-ceramic_user}
+      MYSQL_PASSWORD: \${CERAMIC_DB_PASSWORD:-Mysql_2025}
+
   redis:
     ports:
       - "\${CERAMIC_REDIS_PORT:-6379}:6379"
-  
-  nginx:
-    ports:
-      - "8082:80"
 EOF
             ;;
             
         stock)
             cat > "$STOCK_DIR/docker-compose.override.yml" <<EOF
-version: '3.8'
+# Stock Microservices Override
 
 services:
-  stockapi:
+  traefik:
     ports:
-      - "\${STOCK_API_PORT:-8080}:8000"
-    environment:
-      - DATABASE_URL=mysql://\${STOCK_DB_USER}:\${STOCK_DB_PASSWORD}@stock_mysql:\${STOCK_DB_PORT}/\${STOCK_DB_NAME}
-    depends_on:
-      - stock_mysql
+      - "8088:8088"
+      - "8444:443"
+      - "8089:8080"
 
-  stock_mysql:
-    image: mysql:8.0
-    container_name: stock_mysql
-    restart: unless-stopped
-    environment:
-      - MYSQL_ROOT_PASSWORD=\${MYSQL_ROOT_PASSWORD}
-      - MYSQL_DATABASE=\${STOCK_DB_NAME}
-      - MYSQL_USER=\${STOCK_DB_USER}
-      - MYSQL_PASSWORD=\${STOCK_DB_PASSWORD}
+  grafana:
     ports:
-      - "\${STOCK_DB_PORT:-3309}:3306"
-    volumes:
-      - stock_mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p\${MYSQL_ROOT_PASSWORD}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  stock_mysql_data:
+      - "\${GRAFANA_PORT:-3100}:3000"
 EOF
             ;;
             
         math)
             cat > "$MATH_DIR/docker-compose.override.yml" <<EOF
-version: '3.8'
+# Mathematic Microservices Override
 
 services:
-  mathematics-solver-api:
+  traefik:
     ports:
-      - "\${MATH_API_PORT:-8003}:8001"
-    environment:
-      - ConnectionStrings__DefaultConnection=Server=mysql;Database=\${MATH_DB_NAME};User=\${MATH_DB_USER};Password=\${MATH_DB_PASSWORD};
-  
-  mysql:
+      - "\${MATH_API_PORT:-8003}:80"
+      - "\${TRAEFIK_DASHBOARD_PORT:-8083}:8080"
+
+  db:
     ports:
       - "\${MATH_DB_PORT:-3310}:3306"
     environment:
-      - MYSQL_ROOT_PASSWORD=\${MYSQL_ROOT_PASSWORD}
-      - MYSQL_DATABASE=\${MATH_DB_NAME}
-      - MYSQL_USER=\${MATH_DB_USER}
-      - MYSQL_PASSWORD=\${MATH_DB_PASSWORD}
-    volumes:
-      - ./scripts/init-multi-user.sql:/docker-entrypoint-initdb.d/00-init-multi-user.sql:ro
-  
+      MYSQL_ROOT_PASSWORD: \${MYSQL_ROOT_PASSWORD:-Mysql_2025}
+      MYSQL_DATABASE: \${DB_NAME:-MathematicsSolverDb}
+      MYSQL_USER: \${DB_USER:-mathematic_user}
+      MYSQL_PASSWORD: \${DB_PASSWORD:-Mysql_2025}
+
   redis:
     ports:
       - "\${MATH_REDIS_PORT:-6380}:6379"

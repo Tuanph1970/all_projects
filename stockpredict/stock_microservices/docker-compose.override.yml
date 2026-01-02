@@ -1,0 +1,12 @@
+# Stock Microservices Override
+
+services:
+  traefik:
+    ports:
+      - "8088:8088"
+      - "8444:443"
+      - "8089:8080"
+
+  grafana:
+    ports:
+      - "${GRAFANA_PORT:-3100}:3000"

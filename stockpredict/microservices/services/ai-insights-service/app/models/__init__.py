@@ -1,2 +1,0 @@
-# Models
-from .schemas import *
