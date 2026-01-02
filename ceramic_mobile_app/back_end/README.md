@@ -11,8 +11,9 @@ Complete guide for deploying and testing the Ceramic Marketplace backend API.
 3. [Production Deployment](#production-deployment)
 4. [API Testing](#api-testing)
 5. [Database Management](#database-management)
-6. [Troubleshooting](#troubleshooting)
-7. [Management Commands](#management-commands)
+6. [Docker Networking Concepts](#docker-networking-concepts)
+7. [Troubleshooting](#troubleshooting)
+8. [Management Commands](#management-commands)
 
 ---
 
@@ -337,6 +338,107 @@ docker volume rm back_end_mysql_data
 # Start services (database will be recreated)
 docker compose up -d
 ```
+
+---
+
+## Docker Networking Concepts
+
+Understanding how Docker networking works is crucial for troubleshooting connection issues.
+
+### Architecture Overview
+
+Your server may have **two separate MySQL instances**:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     YOUR SERVER (Host Machine)                       │
+│                                                                      │
+│  ┌────────────────────────────────────────┐                         │
+│  │         HOST MYSQL (Local)             │  ← Running directly     │
+│  │         Port: 3306                     │    on your server       │
+│  │         Users: root, other_users...    │    (NOT in Docker)      │
+│  │         NOT used by this app!          │                         │
+│  └────────────────────────────────────────┘                         │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │                    DOCKER ENVIRONMENT                         │   │
+│  │  ┌─────────────────────┐    ┌─────────────────────────────┐  │   │
+│  │  │  ceramic_mysql      │    │  ceramic_auth_service       │  │   │
+│  │  │  (Docker MySQL)     │◄───│  ceramic_product_service    │  │   │
+│  │  │  Port: 3306         │    │  ceramic_order_service      │  │   │
+│  │  │  HAS 'ceramic_user' │    │  ceramic_chat_service       │  │   │
+│  │  │  ✅ Used by app      │    │  ceramic_seller_service     │  │   │
+│  │  └─────────────────────┘    └─────────────────────────────┘  │   │
+│  │           ▲                                                   │   │
+│  │           │ Docker Internal Network (ceramic_network)         │   │
+│  │           │ Services use "db" to find ceramic_mysql           │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### DB_HOST Configuration
+
+| DB_HOST Value | Connects To | Use Case |
+|---------------|-------------|----------|
+| `db` | Docker container `ceramic_mysql` | ✅ **Correct for Docker deployment** |
+| `host.docker.internal` | Host machine's MySQL | ❌ Wrong - different database! |
+| `localhost` | Host machine's MySQL | ❌ Wrong - different database! |
+
+### How Docker DNS Works
+
+In `docker-compose.yml`, services are defined with names:
+
+```yaml
+services:
+  db:           # ← This name becomes a DNS hostname
+    image: mysql:8.0
+    container_name: ceramic_mysql
+```
+
+Inside Docker's network, containers find each other by **service name**:
+- `db` → resolves to ceramic_mysql container IP
+- `redis` → resolves to ceramic_redis container IP
+- `auth-service` → resolves to ceramic_auth_service container IP
+
+### Common Connection Issues
+
+#### Wrong DB_HOST Configuration
+
+```
+Problem:
+  .env: DB_HOST=host.docker.internal
+              ↓
+  Services connect to → Host machine MySQL (port 3306)
+              ↓
+  Host MySQL doesn't have 'ceramic_user' → Access Denied ❌
+
+Solution:
+  .env: DB_HOST=db
+              ↓
+  Services connect to → Docker MySQL container (ceramic_mysql)
+              ↓
+  Docker MySQL has 'ceramic_user' → Works ✅
+```
+
+#### How to Verify Connection Target
+
+```bash
+# Check what DB_HOST a service is using
+docker exec ceramic_auth_service env | grep DB_HOST
+
+# Should output: DB_HOST=db (correct)
+# If it shows: DB_HOST=host.docker.internal (wrong!)
+```
+
+### Port Mapping Reference
+
+| Service | Container Port | Host Port | Access From Host |
+|---------|---------------|-----------|------------------|
+| Traefik API Gateway | 80 | 8002 | `http://localhost:8002` |
+| Traefik Dashboard | 8080 | 8080 | `http://localhost:8080` |
+| MySQL | 3306 | 3308 | `mysql -h localhost -P 3308` |
+| Redis | 6379 | 6381 | Internal only |
 
 ---
 
