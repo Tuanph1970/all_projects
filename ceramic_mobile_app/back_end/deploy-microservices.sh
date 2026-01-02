@@ -1,14 +1,14 @@
 #!/bin/bash
 # =============================================================================
-# Ceramic Marketplace - Deployment Script
+# Ceramic Marketplace - Microservices Deployment Script
 # =============================================================================
-# Usage: ./scripts/deploy.sh [command] [options]
+# Usage: ./deploy-microservices.sh [command] [options]
 #
 # Commands:
-#   start       Start all services
-#   stop        Stop all services
-#   restart     Restart all services
-#   build       Build all services
+#   start       Start all microservices
+#   stop        Stop all microservices
+#   restart     Restart all microservices
+#   build       Build all microservices
 #   status      Show service status
 #   logs        View service logs
 #   health      Run health check
@@ -26,8 +26,8 @@ set -e
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-COMPOSE_FILE="docker-compose.microservices.yml"
+PROJECT_DIR="$SCRIPT_DIR"
+COMPOSE_FILE="docker-compose.yml"
 MONITORING_FILE="docker-compose.monitoring.yml"
 
 # Colors
@@ -53,15 +53,15 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 show_help() {
     cat << EOF
-Ceramic Marketplace - Deployment Script
+Ceramic Marketplace - Microservices Deployment Script
 
 Usage: $0 [command] [options]
 
 Commands:
-  start       Start all services
-  stop        Stop all services
-  restart     Restart all services
-  build       Build all services
+  start       Start all microservices
+  stop        Stop all microservices
+  restart     Restart all microservices
+  build       Build all microservices
   status      Show service status
   logs        View service logs
   health      Run health check
@@ -69,14 +69,24 @@ Commands:
   clean       Clean unused Docker resources
 
 Options:
-  -s, --service NAME    Target specific service
-  -m, --monitoring      Include monitoring stack
+  -s, --service NAME    Target specific service (auth-service, product-service, order-service, chat-service, seller-service)
+  -m, --monitoring      Include monitoring stack (Prometheus, Grafana, etc.)
   -f, --force           Force rebuild (no cache)
   -h, --help            Show help
 
+Services:
+  - traefik         API Gateway (port 8002)
+  - auth-service    Authentication & User Management
+  - product-service Product Catalog & Search
+  - order-service   Cart & Orders
+  - chat-service    Real-time Messaging
+  - seller-service  Seller Dashboard & Analytics
+  - db              MySQL Database
+  - redis           Redis Cache
+
 Examples:
-  $0 start                    # Start all services
-  $0 start -m                 # Start with monitoring
+  $0 start                    # Start all microservices
+  $0 start -m                 # Start with monitoring stack
   $0 restart -s auth-service  # Restart auth service only
   $0 logs -s product-service  # View product service logs
   $0 build -f                 # Force rebuild all services
@@ -94,17 +104,40 @@ get_compose_files() {
 check_env() {
     if [ ! -f "$PROJECT_DIR/.env" ]; then
         log_warning ".env file not found!"
-        log_info "Creating from .env.microservices..."
-        cp "$PROJECT_DIR/.env.microservices" "$PROJECT_DIR/.env"
+        if [ -f "$PROJECT_DIR/.env.microservices" ]; then
+            log_info "Creating from .env.microservices..."
+            cp "$PROJECT_DIR/.env.microservices" "$PROJECT_DIR/.env"
+        elif [ -f "$PROJECT_DIR/.env.example" ]; then
+            log_info "Creating from .env.example..."
+            cp "$PROJECT_DIR/.env.example" "$PROJECT_DIR/.env"
+        fi
         log_warning "Please update .env with your settings before deploying!"
         exit 1
     fi
 }
 
+check_docker() {
+    if ! command -v docker &> /dev/null; then
+        log_error "Docker is not installed"
+        exit 1
+    fi
+
+    if ! command -v docker-compose &> /dev/null; then
+        log_error "Docker Compose is not installed"
+        exit 1
+    fi
+
+    if ! docker info &> /dev/null; then
+        log_error "Docker daemon is not running"
+        exit 1
+    fi
+}
+
 do_start() {
-    log_info "Starting services..."
+    log_info "Starting microservices..."
     cd "$PROJECT_DIR"
     check_env
+    check_docker
 
     local compose_files=$(get_compose_files)
 
@@ -137,18 +170,30 @@ do_start() {
         fi
 
         # Start all services
-        log_info "Starting all services..."
+        log_info "Starting all microservices..."
         docker-compose $compose_files up -d
 
-        log_success "All services started!"
+        log_success "All microservices started!"
     fi
 
     # Show status
+    echo ""
     docker-compose $compose_files ps
+
+    # Show access URLs
+    echo ""
+    log_info "Access URLs:"
+    echo "  API Gateway:    http://localhost:8002"
+    echo "  Traefik Dashboard: http://localhost:8080"
+    echo "  Auth API:       http://localhost:8002/api/v1/auth"
+    echo "  Products API:   http://localhost:8002/api/v1/products"
+    echo "  Orders API:     http://localhost:8002/api/v1/orders"
+    echo "  Chat API:       http://localhost:8002/api/v1/chat"
+    echo "  Seller API:     http://localhost:8002/api/v1/seller"
 }
 
 do_stop() {
-    log_info "Stopping services..."
+    log_info "Stopping microservices..."
     cd "$PROJECT_DIR"
 
     local compose_files=$(get_compose_files)
@@ -158,12 +203,12 @@ do_stop() {
         log_success "Stopped $SERVICE"
     else
         docker-compose $compose_files down
-        log_success "All services stopped!"
+        log_success "All microservices stopped!"
     fi
 }
 
 do_restart() {
-    log_info "Restarting services..."
+    log_info "Restarting microservices..."
     cd "$PROJECT_DIR"
 
     local compose_files=$(get_compose_files)
@@ -173,14 +218,15 @@ do_restart() {
         log_success "Restarted $SERVICE"
     else
         docker-compose $compose_files restart
-        log_success "All services restarted!"
+        log_success "All microservices restarted!"
     fi
 }
 
 do_build() {
-    log_info "Building services..."
+    log_info "Building microservices..."
     cd "$PROJECT_DIR"
     check_env
+    check_docker
 
     local compose_files=$(get_compose_files)
     local build_args=""
@@ -195,7 +241,7 @@ do_build() {
         log_success "Built $SERVICE"
     else
         docker-compose $compose_files build $build_args
-        log_success "All services built!"
+        log_success "All microservices built!"
     fi
 }
 
@@ -204,14 +250,14 @@ do_status() {
     local compose_files=$(get_compose_files)
 
     echo ""
-    log_info "Service Status:"
+    log_info "Microservice Status:"
     echo "============================================="
     docker-compose $compose_files ps
     echo ""
 
-    # Run detailed status script if available
-    if [ -x "$SCRIPT_DIR/service_status.sh" ]; then
-        "$SCRIPT_DIR/service_status.sh"
+    # Run health check script if available
+    if [ -x "$PROJECT_DIR/scripts/health_check.sh" ]; then
+        "$PROJECT_DIR/scripts/health_check.sh"
     fi
 }
 
@@ -229,11 +275,26 @@ do_logs() {
 do_health() {
     log_info "Running health check..."
 
-    if [ -x "$SCRIPT_DIR/health_check.sh" ]; then
-        "$SCRIPT_DIR/health_check.sh" -v
+    if [ -x "$PROJECT_DIR/scripts/health_check.sh" ]; then
+        "$PROJECT_DIR/scripts/health_check.sh" -v
     else
-        log_error "Health check script not found!"
-        exit 1
+        # Basic health check
+        echo ""
+        log_info "Checking service health..."
+
+        services=("auth-service:8001" "product-service:8002" "order-service:8003" "chat-service:8004" "seller-service:8005")
+
+        for service_port in "${services[@]}"; do
+            service="${service_port%%:*}"
+            port="${service_port##*:}"
+
+            container_name="ceramic_${service//-/_}"
+            if docker exec "$container_name" curl -sf "http://localhost:$port/health" > /dev/null 2>&1; then
+                echo -e "  ${GREEN}✓${NC} $service is healthy"
+            else
+                echo -e "  ${RED}✗${NC} $service is not responding"
+            fi
+        done
     fi
 }
 
@@ -250,10 +311,10 @@ do_update() {
     fi
 
     # Rebuild and restart
-    log_info "Rebuilding services..."
+    log_info "Rebuilding microservices..."
     docker-compose $compose_files build
 
-    log_info "Restarting services..."
+    log_info "Restarting microservices..."
     docker-compose $compose_files up -d
 
     log_success "Update complete!"
