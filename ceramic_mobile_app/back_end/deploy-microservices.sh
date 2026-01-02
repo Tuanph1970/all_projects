@@ -41,6 +41,7 @@ NC='\033[0m'
 SERVICE=""
 WITH_MONITORING=false
 FORCE_BUILD=false
+DOCKER_COMPOSE=""  # Set by check_docker()
 
 # =============================================================================
 # Functions
@@ -122,7 +123,12 @@ check_docker() {
         exit 1
     fi
 
-    if ! command -v docker-compose &> /dev/null; then
+    # Check for Docker Compose (v2 plugin or legacy standalone)
+    if docker compose version &> /dev/null; then
+        DOCKER_COMPOSE="docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        DOCKER_COMPOSE="docker-compose"
+    else
         log_error "Docker Compose is not installed"
         exit 1
     fi
@@ -142,12 +148,12 @@ do_start() {
     local compose_files=$(get_compose_files)
 
     if [ -n "$SERVICE" ]; then
-        docker-compose $compose_files up -d "$SERVICE"
+        $DOCKER_COMPOSE $compose_files up -d "$SERVICE"
         log_success "Started $SERVICE"
     else
         # Start infrastructure first
         log_info "Starting infrastructure (db, redis)..."
-        docker-compose $compose_files up -d db redis
+        $DOCKER_COMPOSE $compose_files up -d db redis
 
         log_info "Waiting for database to be ready..."
         sleep 10
@@ -156,7 +162,7 @@ do_start() {
         local max_attempts=30
         local attempt=0
         while [ $attempt -lt $max_attempts ]; do
-            if docker-compose $compose_files exec -T db mysqladmin ping -h localhost --silent 2>/dev/null; then
+            if $DOCKER_COMPOSE $compose_files exec -T db mysqladmin ping -h localhost --silent 2>/dev/null; then
                 log_success "Database is ready!"
                 break
             fi
@@ -171,14 +177,14 @@ do_start() {
 
         # Start all services
         log_info "Starting all microservices..."
-        docker-compose $compose_files up -d
+        $DOCKER_COMPOSE $compose_files up -d
 
         log_success "All microservices started!"
     fi
 
     # Show status
     echo ""
-    docker-compose $compose_files ps
+    $DOCKER_COMPOSE $compose_files ps
 
     # Show access URLs
     echo ""
@@ -195,14 +201,15 @@ do_start() {
 do_stop() {
     log_info "Stopping microservices..."
     cd "$PROJECT_DIR"
+    check_docker
 
     local compose_files=$(get_compose_files)
 
     if [ -n "$SERVICE" ]; then
-        docker-compose $compose_files stop "$SERVICE"
+        $DOCKER_COMPOSE $compose_files stop "$SERVICE"
         log_success "Stopped $SERVICE"
     else
-        docker-compose $compose_files down
+        $DOCKER_COMPOSE $compose_files down
         log_success "All microservices stopped!"
     fi
 }
@@ -210,14 +217,15 @@ do_stop() {
 do_restart() {
     log_info "Restarting microservices..."
     cd "$PROJECT_DIR"
+    check_docker
 
     local compose_files=$(get_compose_files)
 
     if [ -n "$SERVICE" ]; then
-        docker-compose $compose_files restart "$SERVICE"
+        $DOCKER_COMPOSE $compose_files restart "$SERVICE"
         log_success "Restarted $SERVICE"
     else
-        docker-compose $compose_files restart
+        $DOCKER_COMPOSE $compose_files restart
         log_success "All microservices restarted!"
     fi
 }
@@ -237,22 +245,23 @@ do_build() {
     fi
 
     if [ -n "$SERVICE" ]; then
-        docker-compose $compose_files build $build_args "$SERVICE"
+        $DOCKER_COMPOSE $compose_files build $build_args "$SERVICE"
         log_success "Built $SERVICE"
     else
-        docker-compose $compose_files build $build_args
+        $DOCKER_COMPOSE $compose_files build $build_args
         log_success "All microservices built!"
     fi
 }
 
 do_status() {
     cd "$PROJECT_DIR"
+    check_docker
     local compose_files=$(get_compose_files)
 
     echo ""
     log_info "Microservice Status:"
     echo "============================================="
-    docker-compose $compose_files ps
+    $DOCKER_COMPOSE $compose_files ps
     echo ""
 
     # Run health check script if available
@@ -263,12 +272,13 @@ do_status() {
 
 do_logs() {
     cd "$PROJECT_DIR"
+    check_docker
     local compose_files=$(get_compose_files)
 
     if [ -n "$SERVICE" ]; then
-        docker-compose $compose_files logs -f --tail=100 "$SERVICE"
+        $DOCKER_COMPOSE $compose_files logs -f --tail=100 "$SERVICE"
     else
-        docker-compose $compose_files logs -f --tail=100
+        $DOCKER_COMPOSE $compose_files logs -f --tail=100
     fi
 }
 
@@ -301,6 +311,7 @@ do_health() {
 do_update() {
     log_info "Updating deployment..."
     cd "$PROJECT_DIR"
+    check_docker
 
     local compose_files=$(get_compose_files)
 
@@ -312,10 +323,10 @@ do_update() {
 
     # Rebuild and restart
     log_info "Rebuilding microservices..."
-    docker-compose $compose_files build
+    $DOCKER_COMPOSE $compose_files build
 
     log_info "Restarting microservices..."
-    docker-compose $compose_files up -d
+    $DOCKER_COMPOSE $compose_files up -d
 
     log_success "Update complete!"
     do_health
