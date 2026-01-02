@@ -17,6 +17,7 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--providers.docker.network=backend_ceramic_network"
+      - "--providers.docker.constraints=Label(`traefik.project`,`ceramic`)"
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--providers.file.watch=true"
       - "--entrypoints.web.address=:80"
@@ -122,6 +123,7 @@ services:
       - ceramic_network
     labels:
       - "traefik.enable=true"
+      - "traefik.project=ceramic"
       - "traefik.http.routers.ceramic-auth.rule=PathPrefix(`/api/v1/auth`) || PathPrefix(`/api/v1/users`)"
       - "traefik.http.routers.ceramic-auth.entrypoints=web"
       - "traefik.http.services.ceramic-auth.loadbalancer.server.port=8001"
@@ -166,6 +168,7 @@ services:
       - ceramic_network
     labels:
       - "traefik.enable=true"
+      - "traefik.project=ceramic"
       - "traefik.http.routers.ceramic-product.rule=PathPrefix(`/api/v1/products`) || PathPrefix(`/api/v1/reviews`)"
       - "traefik.http.routers.ceramic-product.entrypoints=web"
       - "traefik.http.services.ceramic-product.loadbalancer.server.port=8002"
@@ -209,6 +212,7 @@ services:
       - ceramic_network
     labels:
       - "traefik.enable=true"
+      - "traefik.project=ceramic"
       - "traefik.http.routers.ceramic-order.rule=PathPrefix(`/api/v1/orders`) || PathPrefix(`/api/v1/cart`)"
       - "traefik.http.routers.ceramic-order.entrypoints=web"
       - "traefik.http.services.ceramic-order.loadbalancer.server.port=8003"
@@ -251,6 +255,7 @@ services:
       - ceramic_network
     labels:
       - "traefik.enable=true"
+      - "traefik.project=ceramic"
       - "traefik.http.routers.ceramic-chat.rule=PathPrefix(`/api/v1/chat`)"
       - "traefik.http.routers.ceramic-chat.entrypoints=web"
       - "traefik.http.services.ceramic-chat.loadbalancer.server.port=8004"
@@ -296,6 +301,7 @@ services:
       - ceramic_network
     labels:
       - "traefik.enable=true"
+      - "traefik.project=ceramic"
       - "traefik.http.routers.ceramic-seller.rule=PathPrefix(`/api/v1/seller`)"
       - "traefik.http.routers.ceramic-seller.entrypoints=web"
       - "traefik.http.services.ceramic-seller.loadbalancer.server.port=8005"

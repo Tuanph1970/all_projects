@@ -27,7 +27,7 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--providers.docker.network=backend_math_network"
-      - "--providers.docker.constraints=Label(`com.docker.compose.project`,`backend`)"
+      - "--providers.docker.constraints=Label(`traefik.project`,`math`)"
       - "--entrypoints.web.address=:80"
       - "--log.level=INFO"
       - "--accesslog=true"
@@ -126,6 +126,7 @@ services:
       - math_network
     labels:
       - "traefik.enable=true"
+      - "traefik.project=math"
       - "traefik.http.routers.math-auth.rule=PathPrefix(`/api/v1/auth`) || PathPrefix(`/api/v1/users`)"
       - "traefik.http.routers.math-auth.entrypoints=web"
       - "traefik.http.services.math-auth.loadbalancer.server.port=8001"
@@ -169,6 +170,7 @@ services:
       - math_network
     labels:
       - "traefik.enable=true"
+      - "traefik.project=math"
       - "traefik.http.routers.math-problem.rule=PathPrefix(`/api/v1/problems`)"
       - "traefik.http.routers.math-problem.entrypoints=web"
       - "traefik.http.services.math-problem.loadbalancer.server.port=8002"
@@ -218,6 +220,7 @@ services:
       - math_network
     labels:
       - "traefik.enable=true"
+      - "traefik.project=math"
       - "traefik.http.routers.math-solution.rule=PathPrefix(`/api/v1/solutions`)"
       - "traefik.http.routers.math-solution.entrypoints=web"
       - "traefik.http.services.math-solution.loadbalancer.server.port=8003"
