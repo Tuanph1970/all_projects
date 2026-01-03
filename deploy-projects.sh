@@ -24,11 +24,12 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Project directories
-# BASE_DIR="/home/tuanph/all_projects"
-BASE_DIR="/home/home/all_projects"
+# Dynamic BASE_DIR detection - automatically detect the script's directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$SCRIPT_DIR"
+
+# Project directories (relative to BASE_DIR)
 CERAMIC_DIR="$BASE_DIR/ceramic_mobile_app/back_end"
-# STOCK_DIR="$BASE_DIR/stockpredict/webapi"
 STOCK_DIR="$BASE_DIR/stockpredict/stock_microservices"
 MATH_DIR="$BASE_DIR/mathematic-mobile/backend"
 
@@ -116,27 +117,38 @@ load_env() {
     fi
 }
 
+# Function to detect docker compose command
+get_compose_cmd() {
+    if docker compose version &> /dev/null; then
+        echo "docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        echo "docker-compose"
+    else
+        print_color $RED "Error: Docker Compose is not installed"
+        exit 1
+    fi
+}
+
+COMPOSE_CMD=""
+
 # Function to start a project
 start_project() {
     local project=$1
     local project_dir=""
-    local compose_file=""
     local project_name=""
-    
+    local build_args=""
+
     case $project in
         ceramic)
             project_dir="$CERAMIC_DIR"
-            compose_file="docker-compose.yml"
             project_name="ceramic"
             ;;
         stock)
             project_dir="$STOCK_DIR"
-            compose_file="docker-compose.yml"
             project_name="stockpredict"
             ;;
         math)
             project_dir="$MATH_DIR"
-            compose_file="docker-compose.yml"
             project_name="mathematic"
             ;;
         *)
@@ -144,22 +156,39 @@ start_project() {
             return 1
             ;;
     esac
-    
+
     print_color $BLUE "Starting $project_name..."
-    
-    cd "$project_dir"
-    
-    # Create custom docker compose override
-    create_compose_override "$project"
-    
-    # Build if requested
-    if [ -n "$BUILD_FLAG" ]; then
-        docker compose -f "$compose_file" -f docker-compose.override.yml -p "$project_name" build $CACHE_FLAG
+
+    if [ ! -d "$project_dir" ]; then
+        print_color $RED "Project directory not found: $project_dir"
+        return 1
     fi
-    
-    # Start services
-    docker compose -f "$compose_file" -f docker-compose.override.yml -p "$project_name" up -d
-    
+
+    cd "$project_dir"
+
+    # Build args if requested
+    if [ -n "$BUILD_FLAG" ]; then
+        build_args="--build $CACHE_FLAG"
+    fi
+
+    # Start services based on project type
+    case $project in
+        stock)
+            # Stock uses local compose file
+            if [ -f "docker-compose.yml" ] && [ -f "docker-compose.local.yml" ]; then
+                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.local.yml -p "$project_name" up -d $build_args
+            elif [ -f "docker-compose.yml" ]; then
+                $COMPOSE_CMD -f docker-compose.yml -p "$project_name" up -d $build_args
+            fi
+            ;;
+        *)
+            # Ceramic and Math use standard compose
+            if [ -f "docker-compose.yml" ]; then
+                $COMPOSE_CMD -f docker-compose.yml -p "$project_name" up -d $build_args
+            fi
+            ;;
+    esac
+
     print_color $GREEN "$project_name started successfully!"
 }
 
@@ -167,23 +196,19 @@ start_project() {
 stop_project() {
     local project=$1
     local project_dir=""
-    local compose_file=""
     local project_name=""
-    
+
     case $project in
         ceramic)
             project_dir="$CERAMIC_DIR"
-            compose_file="docker-compose.yml"
             project_name="ceramic"
             ;;
         stock)
             project_dir="$STOCK_DIR"
-            compose_file="docker-compose.yml"
             project_name="stockpredict"
             ;;
         math)
             project_dir="$MATH_DIR"
-            compose_file="docker-compose.yml"
             project_name="mathematic"
             ;;
         *)
@@ -191,17 +216,32 @@ stop_project() {
             return 1
             ;;
     esac
-    
+
     print_color $BLUE "Stopping $project_name..."
-    
-    cd "$project_dir"
-    
-    if [ -f "docker-compose.override.yml" ]; then
-        docker compose -f "$compose_file" -f docker-compose.override.yml -p "$project_name" down
-    else
-        docker compose -f "$compose_file" -p "$project_name" down
+
+    if [ ! -d "$project_dir" ]; then
+        print_color $YELLOW "Project directory not found: $project_dir (may not be deployed)"
+        return 0
     fi
-    
+
+    cd "$project_dir"
+
+    # Stop services based on project type
+    case $project in
+        stock)
+            if [ -f "docker-compose.yml" ] && [ -f "docker-compose.local.yml" ]; then
+                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.local.yml -p "$project_name" down 2>/dev/null || true
+            elif [ -f "docker-compose.yml" ]; then
+                $COMPOSE_CMD -f docker-compose.yml -p "$project_name" down 2>/dev/null || true
+            fi
+            ;;
+        *)
+            if [ -f "docker-compose.yml" ]; then
+                $COMPOSE_CMD -f docker-compose.yml -p "$project_name" down 2>/dev/null || true
+            fi
+            ;;
+    esac
+
     print_color $GREEN "$project_name stopped successfully!"
 }
 
@@ -253,81 +293,6 @@ show_project_logs() {
     
     print_color $BLUE "Logs for $project_name (last 100 lines):"
     docker compose -p "$project_name" logs --tail 100 -f
-}
-
-# Function to create docker compose override file
-create_compose_override() {
-    local project=$1
-    
-    case $project in
-        ceramic)
-            cat > "$CERAMIC_DIR/docker-compose.override.yml" <<EOF
-# Ceramic Microservices Override
-
-services:
-  traefik:
-    ports:
-      - "\${CERAMIC_API_PORT:-8002}:80"
-      - "8443:443"
-      - "8080:8080"
-
-  db:
-    ports:
-      - "\${CERAMIC_DB_PORT:-3308}:3306"
-    environment:
-      MYSQL_ROOT_PASSWORD: \${MYSQL_ROOT_PASSWORD:-Mysql_2025}
-      MYSQL_DATABASE: \${CERAMIC_DB_NAME:-ceramic_db}
-      MYSQL_USER: \${CERAMIC_DB_USER:-ceramic_user}
-      MYSQL_PASSWORD: \${CERAMIC_DB_PASSWORD:-Mysql_2025}
-
-  redis:
-    ports:
-      - "\${CERAMIC_REDIS_PORT:-6379}:6379"
-EOF
-            ;;
-            
-        stock)
-            cat > "$STOCK_DIR/docker-compose.override.yml" <<EOF
-# Stock Microservices Override
-
-services:
-  traefik:
-    ports:
-      - "8088:8088"
-      - "8444:443"
-      - "8089:8080"
-
-  grafana:
-    ports:
-      - "\${GRAFANA_PORT:-3100}:3000"
-EOF
-            ;;
-            
-        math)
-            cat > "$MATH_DIR/docker-compose.override.yml" <<EOF
-# Mathematic Microservices Override
-
-services:
-  traefik:
-    ports:
-      - "\${MATH_API_PORT:-8003}:80"
-      - "\${TRAEFIK_DASHBOARD_PORT:-8083}:8080"
-
-  db:
-    ports:
-      - "\${MATH_DB_PORT:-3310}:3306"
-    environment:
-      MYSQL_ROOT_PASSWORD: \${MYSQL_ROOT_PASSWORD:-Mysql_2025}
-      MYSQL_DATABASE: \${DB_NAME:-MathematicsSolverDb}
-      MYSQL_USER: \${DB_USER:-mathematic_user}
-      MYSQL_PASSWORD: \${DB_PASSWORD:-Mysql_2025}
-
-  redis:
-    ports:
-      - "\${MATH_REDIS_PORT:-6380}:6379"
-EOF
-            ;;
-    esac
 }
 
 # Function to parse command line arguments
@@ -414,13 +379,16 @@ EOF
 # Main execution
 main() {
     print_header "Multi-Project Deployment Manager"
-    
+
     # Parse arguments
     parse_args "$@"
-    
+
     # Check Docker
     check_docker
-    
+
+    # Initialize compose command
+    COMPOSE_CMD=$(get_compose_cmd)
+
     # Create and load environment
     create_env_file
     load_env

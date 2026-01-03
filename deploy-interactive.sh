@@ -4,9 +4,9 @@
 # Interactive Multi-Project Deployment Script
 # ============================================================================
 # This script provides an interactive dialog-based deployment for:
-#   - Ceramic Mobile App Backend
-#   - Stock Predict Backend
-#   - Mathematic Mobile Backend
+#   - Ceramic Mobile App Backend (Port 8002)
+#   - Stock Predict Backend (Port 8004)
+#   - Mathematic Mobile Backend (Port 8003)
 #
 # Usage: ./deploy-interactive.sh
 # ============================================================================
@@ -20,13 +20,15 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
+WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 
-# Project directories
-# BASE_DIR="/home/tuanph/all_projects"
-BASE_DIR="/home/home/all_projects"
+# Dynamic BASE_DIR detection - automatically detect the script's directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$SCRIPT_DIR"
+
+# Project directories (relative to BASE_DIR)
 CERAMIC_DIR="$BASE_DIR/ceramic_mobile_app/back_end"
-# STOCK_DIR="$BASE_DIR/stockpredict/webapi"
 STOCK_DIR="$BASE_DIR/stockpredict/stock_microservices"
 MATH_DIR="$BASE_DIR/mathematic-mobile/backend"
 
@@ -155,7 +157,7 @@ show_project_info() {
             ;;
         stock)
             print_box "Stock Predict Backend" \
-                     "API Port: 8080 | DB Port: 3309"
+                     "API Port: 8004 | Dashboard: 8084 | Grafana: 3100"
             ;;
         math)
             print_box "Mathematics Mobile Backend" \
@@ -180,123 +182,113 @@ get_project_status() {
     fi
 }
 
-# Function to create docker compose override file
-create_compose_override() {
+# Function to check if project directory exists
+check_project_dir() {
     local project=$1
-    
+    local dir=""
+
     case $project in
-        ceramic)
-            cat > "$CERAMIC_DIR/docker-compose.override.yml" <<EOF
-# Ceramic Microservices Override
-
-services:
-  traefik:
-    ports:
-      - "\${CERAMIC_API_PORT:-8002}:80"
-      - "8443:443"
-      - "8080:8080"
-
-  db:
-    ports:
-      - "\${CERAMIC_DB_PORT:-3308}:3306"
-    environment:
-      MYSQL_ROOT_PASSWORD: \${MYSQL_ROOT_PASSWORD:-Mysql_2025}
-      MYSQL_DATABASE: \${CERAMIC_DB_NAME:-ceramic_db}
-      MYSQL_USER: \${CERAMIC_DB_USER:-ceramic_user}
-      MYSQL_PASSWORD: \${CERAMIC_DB_PASSWORD:-Mysql_2025}
-
-  redis:
-    ports:
-      - "\${CERAMIC_REDIS_PORT:-6379}:6379"
-EOF
-            ;;
-            
-        stock)
-            cat > "$STOCK_DIR/docker-compose.override.yml" <<EOF
-# Stock Microservices Override
-
-services:
-  traefik:
-    ports:
-      - "8088:8088"
-      - "8444:443"
-      - "8089:8080"
-
-  grafana:
-    ports:
-      - "\${GRAFANA_PORT:-3100}:3000"
-EOF
-            ;;
-            
-        math)
-            cat > "$MATH_DIR/docker-compose.override.yml" <<EOF
-# Mathematic Microservices Override
-
-services:
-  traefik:
-    ports:
-      - "\${MATH_API_PORT:-8003}:80"
-      - "\${TRAEFIK_DASHBOARD_PORT:-8083}:8080"
-
-  db:
-    ports:
-      - "\${MATH_DB_PORT:-3310}:3306"
-    environment:
-      MYSQL_ROOT_PASSWORD: \${MYSQL_ROOT_PASSWORD:-Mysql_2025}
-      MYSQL_DATABASE: \${DB_NAME:-MathematicsSolverDb}
-      MYSQL_USER: \${DB_USER:-mathematic_user}
-      MYSQL_PASSWORD: \${DB_PASSWORD:-Mysql_2025}
-
-  redis:
-    ports:
-      - "\${MATH_REDIS_PORT:-6380}:6379"
-EOF
-            ;;
+        ceramic) dir="$CERAMIC_DIR" ;;
+        stock) dir="$STOCK_DIR" ;;
+        math) dir="$MATH_DIR" ;;
     esac
+
+    if [ ! -d "$dir" ]; then
+        print_color $RED "Error: Project directory not found: $dir"
+        return 1
+    fi
+    return 0
 }
+
+# Function to detect docker compose command
+get_compose_cmd() {
+    if docker compose version &> /dev/null; then
+        echo "docker compose"
+    elif command -v docker-compose &> /dev/null; then
+        echo "docker-compose"
+    else
+        print_color $RED "Error: Docker Compose is not installed"
+        exit 1
+    fi
+}
+
+COMPOSE_CMD=""
 
 # Function to deploy a project
 deploy_project() {
     local project=$1
     local project_dir=""
-    local compose_file=""
     local project_name=""
-    
+    local build_args=""
+
+    # Check if project directory exists
+    if ! check_project_dir "$project"; then
+        print_color $RED "Skipping $project - directory not found"
+        return 1
+    fi
+
     case $project in
         ceramic)
             project_dir="$CERAMIC_DIR"
-            compose_file="docker-compose.yml"
             project_name="ceramic"
             ;;
         stock)
             project_dir="$STOCK_DIR"
-            compose_file="docker-compose.yml"
             project_name="stockpredict"
             ;;
         math)
             project_dir="$MATH_DIR"
-            compose_file="docker-compose.yml"
             project_name="mathematic"
             ;;
     esac
-    
+
     print_color $BLUE "📦 Deploying $project_name..."
-    
+
     cd "$project_dir"
-    
-    # Create custom docker compose override
-    create_compose_override "$project"
-    
-    # Build if requested
+
+    # Build args based on BUILD_FLAG
     if [ -n "$BUILD_FLAG" ]; then
+        build_args="--build"
         print_color $YELLOW "🔨 Building images..."
-        docker compose -f "$compose_file" -f docker-compose.override.yml -p "$project_name" build
     fi
-    
-    # Start services
-    print_color $YELLOW "🚀 Starting services..."
-    docker compose -f "$compose_file" -f docker-compose.override.yml -p "$project_name" up -d
-    
+
+    # Deploy based on project type
+    case $project in
+        ceramic)
+            # Ceramic uses its own deploy script or docker-compose
+            if [ -f "docker-compose.yml" ]; then
+                print_color $YELLOW "🚀 Starting Ceramic services..."
+                $COMPOSE_CMD -f docker-compose.yml -p "$project_name" up -d $build_args
+            else
+                print_color $RED "docker-compose.yml not found in $project_dir"
+                return 1
+            fi
+            ;;
+        stock)
+            # Stock has its own deploy script with local compose files
+            if [ -f "docker-compose.yml" ] && [ -f "docker-compose.local.yml" ]; then
+                print_color $YELLOW "🚀 Starting Stock services..."
+                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.local.yml -p "$project_name" up -d $build_args
+            elif [ -f "docker-compose.yml" ]; then
+                print_color $YELLOW "🚀 Starting Stock services (base only)..."
+                $COMPOSE_CMD -f docker-compose.yml -p "$project_name" up -d $build_args
+            else
+                print_color $RED "docker-compose.yml not found in $project_dir"
+                return 1
+            fi
+            ;;
+        math)
+            # Math uses docker-compose.yml
+            if [ -f "docker-compose.yml" ]; then
+                print_color $YELLOW "🚀 Starting Math services..."
+                $COMPOSE_CMD -f docker-compose.yml -p "$project_name" up -d $build_args
+            else
+                print_color $RED "docker-compose.yml not found in $project_dir"
+                return 1
+            fi
+            ;;
+    esac
+
     print_color $GREEN "✓ $project_name deployed successfully!"
 }
 
@@ -338,15 +330,23 @@ show_deployment_summary() {
 main() {
     clear
     print_header "Interactive Multi-Project Deployment"
-    
+
     print_color $MAGENTA "Welcome to the Multi-Project Deployment Tool!"
     print_color $MAGENTA "This tool will help you deploy your backend services."
     echo
-    
+
+    # Show detected base directory
+    print_color $CYAN "📂 Base directory: $BASE_DIR"
+    echo
+
     # Check Docker
     print_color $BLUE "🔍 Checking Docker..."
     check_docker
     print_color $GREEN "✓ Docker is running"
+
+    # Initialize compose command
+    COMPOSE_CMD=$(get_compose_cmd)
+    print_color $GREEN "✓ Docker Compose detected: $COMPOSE_CMD"
     
     # Create and load environment
     create_env_file
@@ -431,28 +431,48 @@ main() {
         print_color $GREEN "All selected projects have been deployed successfully!"
         echo
         print_color $CYAN "Access your services at:"
-        
+
         if [[ " ${SELECTED_PROJECTS[@]} " =~ " ceramic " ]]; then
-            print_color $YELLOW "  • Ceramic API: http://localhost:8002"
-            print_color $YELLOW "    Documentation: http://localhost:8002/docs"
+            echo
+            print_color $WHITE "  ┌─ Ceramic Mobile App ─────────────────────────────────┐"
+            print_color $YELLOW "  │ API Gateway:        http://localhost:8002"
+            print_color $YELLOW "  │ Traefik Dashboard:  http://localhost:8080"
+            print_color $YELLOW "  │ Auth API:           http://localhost:8002/api/v1/auth"
+            print_color $YELLOW "  │ Products API:       http://localhost:8002/api/v1/products"
+            print_color $WHITE "  └─────────────────────────────────────────────────────┘"
         fi
-        
+
         if [[ " ${SELECTED_PROJECTS[@]} " =~ " stock " ]]; then
-            print_color $YELLOW "  • Stock API: http://localhost:8080"
-            print_color $YELLOW "    API Endpoint: http://localhost:8080/stock/api/"
+            echo
+            print_color $WHITE "  ┌─ Stock Predict ──────────────────────────────────────┐"
+            print_color $YELLOW "  │ API Gateway:        http://localhost:8004"
+            print_color $YELLOW "  │ Traefik Dashboard:  http://localhost:8084"
+            print_color $YELLOW "  │ Stock API:          http://localhost:8004/stock_helper/api/v2/"
+            print_color $YELLOW "  │ Grafana:            http://localhost:3100"
+            print_color $YELLOW "  │ RabbitMQ:           http://localhost:15672"
+            print_color $WHITE "  └─────────────────────────────────────────────────────┘"
         fi
-        
+
         if [[ " ${SELECTED_PROJECTS[@]} " =~ " math " ]]; then
-            print_color $YELLOW "  • Mathematics API: http://localhost:8003"
-            print_color $YELLOW "    Swagger: http://localhost:8003/swagger"
+            echo
+            print_color $WHITE "  ┌─ Mathematics Mobile ─────────────────────────────────┐"
+            print_color $YELLOW "  │ API Gateway:        http://localhost:8003"
+            print_color $YELLOW "  │ Traefik Dashboard:  http://localhost:8083"
+            print_color $YELLOW "  │ Auth API:           http://localhost:8003/api/v1/auth"
+            print_color $YELLOW "  │ Problems API:       http://localhost:8003/api/v1/problems"
+            print_color $YELLOW "  │ Solutions API:      http://localhost:8003/api/v1/solutions"
+            print_color $WHITE "  └─────────────────────────────────────────────────────┘"
         fi
-        
+
+        echo
+        print_color $CYAN "Port Allocation Summary:"
+        print_color $WHITE "  Ceramic: 8002 | Math: 8003 | Stock: 8004"
         echo
         print_color $CYAN "To check the status of your services, run:"
-        print_color $WHITE "  ./deploy-projects.sh status"
+        print_color $WHITE "  $SCRIPT_DIR/deploy-projects.sh status"
         echo
         print_color $CYAN "To view logs, run:"
-        print_color $WHITE "  ./deploy-projects.sh logs [project_name]"
+        print_color $WHITE "  $SCRIPT_DIR/deploy-projects.sh logs [project_name]"
         echo
     else
         print_color $YELLOW "Deployment cancelled."
