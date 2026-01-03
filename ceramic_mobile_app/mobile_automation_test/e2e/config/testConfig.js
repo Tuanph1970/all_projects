@@ -1,7 +1,9 @@
 module.exports = {
   // API Configuration
   api: {
-    baseUrl: process.env.API_BASE_URL || 'http://112.213.91.103:8002',
+    // Use localhost for local testing, remote server for CI/CD
+    baseUrl: process.env.API_BASE_URL || 'http://localhost:8002',
+    remoteUrl: 'http://112.213.91.103:8002',
     timeout: 10000,
   },
 
