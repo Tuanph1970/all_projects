@@ -1,0 +1,121 @@
+appId: com.ceramicmarketplace.app
+name: "Add to Cart Flow"
+tags:
+  - cart
+  - product
+  - smoke
+  
+---
+
+# Launch the app and login
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: allow
+
+# Login as customer
+- runFlow: flows/login-flow.yaml
+
+# Navigate to search/browse to find products
+- tapOn:
+    id: "tab-search"
+    
+# Wait for products to load
+- waitForAnimationToEnd
+- assertVisible:
+    anyOf:
+      - id: "search-screen"
+      - id: "product-list"
+    timeout: 10000
+    
+# Tap on first product
+- tapOn:
+    id: "product-item-0"
+    index: 0
+    optional: true
+    
+# Alternative: tap any product card
+- tapOn:
+    text: ".*[Pp]roduct.*"
+    regex: true
+    index: 0
+    optional: true
+    
+# Wait for product details
+- waitForAnimationToEnd
+- assertVisible:
+    anyOf:
+      - id: "product-details-screen"
+      - text: "Add to Cart"
+    timeout: 5000
+    
+# Check initial cart state (should be empty or show count)
+- takeScreenshot: "before-add-to-cart"
+
+# Select quantity if available
+- tapOn:
+    id: "quantitySelector"
+    optional: true
+- tapOn:
+    text: "2"
+    optional: true
+    
+# Add to cart
+- tapOn:
+    anyOf:
+      - id: "add-to-cart-button"
+      - text: "Add to Cart"
+    
+# Wait for add to cart animation/confirmation
+- waitForAnimationToEnd
+
+# Verify cart updated - look for badge, toast, or confirmation
+- assertVisible:
+    anyOf:
+      - text: "Added to cart"
+      - text: "Cart (1)"
+      - id: "cartBadge"
+    timeout: 5000
+    
+- takeScreenshot: "after-add-to-cart"
+
+# Navigate to cart
+- tapOn:
+    id: "tab-cart"
+    
+# Wait for cart screen
+- waitForAnimationToEnd
+- assertVisible:
+    text: "Cart|Shopping Cart|My Cart"
+    
+# Verify product in cart
+- assertVisible:
+    id: "cartItem-0"
+    
+# Verify cart actions available
+- assertVisible:
+    id: "checkoutButton"
+    
+- takeScreenshot: "cart-with-items"
+
+# Test quantity update
+- tapOn:
+    id: "increaseQuantity-0"
+    optional: true
+    
+# Test remove from cart
+- tapOn:
+    id: "removeItem-0"
+    optional: true
+    
+# Confirm removal if dialog appears
+- tapOn:
+    text: "Remove|Yes|Confirm"
+    optional: true
+    
+# Verify empty cart state
+- assertVisible:
+    text: "Cart is empty|No items|Continue shopping"
+    optional: true
+    
+- takeScreenshot: "empty-cart"

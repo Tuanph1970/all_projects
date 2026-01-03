@@ -1,0 +1,50 @@
+appId: com.ceramicmarketplace.app
+name: "Login Flow - Successful Login"
+tags:
+  - auth
+  - login
+  - smoke
+  
+---
+
+# Launch the app fresh
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: allow
+
+# Wait for login screen to appear
+- waitForAnimationToEnd
+- assertVisible:
+    id: "login-username-input"
+    
+# Take screenshot of login screen
+- takeScreenshot: "login-screen"
+
+# Enter username
+- tapOn:
+    id: "login-username-input"
+- inputText: ${TEST_CUSTOMER_USERNAME}
+
+# Enter password  
+- tapOn:
+    id: "login-password-input"
+- inputText: ${TEST_PASSWORD}
+
+# Take screenshot before submitting
+- takeScreenshot: "login-filled"
+
+# Tap login button
+- tapOn:
+    id: "login-submit-button"
+    
+# Wait for login to complete
+- waitForAnimationToEnd
+
+# Verify successful login - look for home tab
+- assertVisible:
+    id: "tab-home"
+    timeout: 10000
+    
+# Take screenshot of home screen
+- takeScreenshot: "login-success-home"

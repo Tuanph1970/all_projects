@@ -1,0 +1,79 @@
+appId: com.ceramicmarketplace.app
+name: "Registration Flow - New User"
+tags:
+  - auth
+  - register
+  - smoke
+  
+env:
+  RANDOM_USERNAME: "user_${MAESTRO_TIMESTAMP}"
+  RANDOM_EMAIL: "user_${MAESTRO_TIMESTAMP}@test.com"
+  
+---
+
+# Launch the app fresh
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: allow
+
+# Wait for login screen to appear
+- waitForAnimationToEnd
+- assertVisible:
+    id: "login-username-input"
+    
+# Navigate to registration
+- tapOn:
+    id: "login-register-link"
+    
+# Wait for registration screen
+- waitForAnimationToEnd
+- assertVisible:
+    id: "register-submit-button"
+    
+# Fill registration form
+- tapOn:
+    id: "register-firstname-input"
+- inputText: "Test"
+
+- tapOn:
+    id: "register-lastname-input"
+- inputText: "User"
+
+- tapOn:
+    id: "register-username-input"
+- inputText: ${RANDOM_USERNAME}
+
+- tapOn:
+    id: "register-email-input"
+- inputText: ${RANDOM_EMAIL}
+
+- tapOn:
+    id: "register-password-input"
+- inputText: "Test@12345678"
+
+- tapOn:
+    id: "register-confirm-password-input"
+- inputText: "Test@12345678"
+
+# Select role (customer by default)
+- tapOn:
+    id: "register-role-customer"
+    
+# Take screenshot before submitting
+- takeScreenshot: "register-filled"
+
+# Submit registration
+- tapOn:
+    id: "register-submit-button"
+    
+# Wait for registration to complete
+- waitForAnimationToEnd
+
+# Verify successful registration - should auto-login
+- assertVisible:
+    id: "tab-home"
+    timeout: 15000
+    
+# Take screenshot of success
+- takeScreenshot: "register-success"

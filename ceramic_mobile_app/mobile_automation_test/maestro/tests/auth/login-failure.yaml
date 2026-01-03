@@ -1,0 +1,86 @@
+appId: com.ceramicmarketplace.app
+name: "Login Flow - Invalid Credentials"
+tags:
+  - auth
+  - login
+  - negative
+  
+---
+
+# Launch the app fresh
+- launchApp:
+    clearState: true
+
+# Wait for login screen to appear
+- waitForAnimationToEnd
+- assertVisible:
+    id: "login-username-input"
+    
+# Test 1: Invalid password
+- tapOn:
+    id: "login-username-input"
+- inputText: "test_customer"
+
+- tapOn:
+    id: "login-password-input"
+- inputText: "WrongPassword123"
+
+- tapOn:
+    id: "login-submit-button"
+    
+# Verify error message
+- assertVisible:
+    anyOf:
+      - text: "Invalid credentials"
+      - text: "Invalid username or password"
+      - text: "Login failed"
+    timeout: 5000
+    
+- takeScreenshot: "login-invalid-password"
+
+# Clear fields for next test
+- clearText:
+    id: "login-username-input"
+- clearText:
+    id: "login-password-input"
+
+# Test 2: Non-existent user
+- tapOn:
+    id: "login-username-input"
+- inputText: "nonexistent_user"
+
+- tapOn:
+    id: "login-password-input"
+- inputText: "Test@12345678"
+
+- tapOn:
+    id: "login-submit-button"
+    
+# Verify error message
+- assertVisible:
+    anyOf:
+      - text: "User not found"
+      - text: "Invalid credentials"
+      - text: "Login failed"
+    timeout: 5000
+    
+- takeScreenshot: "login-nonexistent-user"
+
+# Test 3: Empty fields
+- clearText:
+    id: "login-username-input"
+- clearText:
+    id: "login-password-input"
+
+- tapOn:
+    id: "login-submit-button"
+    
+# Verify error message
+- assertVisible:
+    anyOf:
+      - text: "Username is required"
+      - text: "Please enter username"
+      - text: "Required field"
+    timeout: 5000
+    
+- takeScreenshot: "login-empty-fields"

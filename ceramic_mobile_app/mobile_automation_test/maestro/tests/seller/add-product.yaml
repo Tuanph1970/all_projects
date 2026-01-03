@@ -1,0 +1,96 @@
+appId: com.ceramicmarketplace.app
+name: "Seller - Add Product"
+tags:
+  - seller
+  - product
+  - create
+  
+env:
+  PRODUCT_TITLE: "Test Product ${MAESTRO_TIMESTAMP}"
+  PRODUCT_DESCRIPTION: "This is a test product created by automated test"
+  PRODUCT_PRICE: "99.99"
+  PRODUCT_STOCK: "50"
+  
+---
+
+# Launch the app and login as seller
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: allow
+      photos: allow  # For product images
+
+# Login as seller
+- runFlow: flows/seller-login-flow.yaml
+
+# Navigate to add product via FAB
+- waitForAnimationToEnd
+- tapOn:
+    id: "seller-dashboard-fab-add"
+    
+# Wait for add product screen
+- waitForAnimationToEnd
+- assertVisible:
+    id: "add-product-screen"
+    
+# Scroll to ensure form is visible
+- assertVisible:
+    id: "add-product-scroll"
+    
+# Fill in product details
+- tapOn:
+    id: "add-product-title-input"
+- inputText: ${PRODUCT_TITLE}
+
+- tapOn:
+    id: "add-product-description-input"
+- inputText: ${PRODUCT_DESCRIPTION}
+
+- tapOn:
+    id: "add-product-price-input"
+- inputText: ${PRODUCT_PRICE}
+
+# Scroll to show more fields
+- scroll:
+    direction: DOWN
+    duration: 500
+
+- tapOn:
+    id: "add-product-category-input"
+- inputText: "Ceramics"
+
+- tapOn:
+    id: "add-product-stock-input"
+- inputText: ${PRODUCT_STOCK}
+
+# Add tags (optional)
+- tapOn:
+    id: "add-product-tags-input"
+    optional: true
+- inputText: "handmade, ceramic, pottery"
+    optional: true
+
+# Take screenshot of filled form
+- takeScreenshot: "add-product-filled"
+
+# Note: Image upload would require additional setup
+# For now, we'll skip image upload in this test
+
+# Submit the product
+- tapOn:
+    id: "add-product-submit-button"
+    
+# Wait for submission
+- waitForAnimationToEnd
+
+# Verify success - should navigate back or show success message
+- assertVisible:
+    anyOf:
+      - text: "Product added successfully"
+      - text: "Product created"
+      - id: "seller-dashboard-screen"  # Back to dashboard
+      - id: "tab-products"  # Or to products tab
+    timeout: 10000
+    
+# Take screenshot of success
+- takeScreenshot: "add-product-success"

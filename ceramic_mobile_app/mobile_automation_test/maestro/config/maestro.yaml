@@ -1,0 +1,59 @@
+# Maestro Configuration for Ceramic Mobile App
+name: "Ceramic Mobile App Tests"
+
+# App configuration
+appId: com.ceramicmarketplace.app
+workspace: /home/tuanph/all_projects/ceramic_mobile_app/mobile_automation_test/maestro
+
+# Environment variables for testing
+env:
+  API_BASE_URL: "http://localhost:8002"
+  AUTH_SERVICE_URL: "http://localhost:8002/api/auth"
+  PRODUCT_SERVICE_URL: "http://localhost:8002/api/products"
+  ORDER_SERVICE_URL: "http://localhost:8002/api/orders"
+  SELLER_SERVICE_URL: "http://localhost:8002/api/sellers"
+  CHAT_SERVICE_URL: "http://localhost:8002/api/chat"
+  TEST_EMAIL: "test_customer@example.com"
+  TEST_PASSWORD: "Test@12345678"
+  TEST_CUSTOMER_USERNAME: "test_customer"
+  TEST_SELLER_USERNAME: "test_seller"
+  TEST_SELLER_EMAIL: "test_seller@example.com"
+  
+# Test configuration
+config:
+  # Timeouts
+  defaultTimeout: 30000  # 30 seconds
+  networkTimeout: 60000  # 60 seconds for API calls
+  
+  # Retry configuration
+  maxRetries: 3
+  retryDelay: 2000  # 2 seconds
+  
+  # Screenshots
+  screenshots:
+    enabled: true
+    onFailure: true
+    onSuccess: false
+    
+  # Video recording
+  video:
+    enabled: false  # Enable for debugging
+    
+  # Test data
+  testData:
+    users:
+      - email: "buyer1@test.com"
+        password: "Test123!"
+        role: "buyer"
+      - email: "seller1@test.com"
+        password: "Test123!"
+        role: "seller"
+        
+# Device preferences
+devices:
+  android:
+    preferredAPI: 30
+    preferredDevice: "Pixel_4"
+  ios:
+    preferredVersion: "16.0"
+    preferredDevice: "iPhone 14"

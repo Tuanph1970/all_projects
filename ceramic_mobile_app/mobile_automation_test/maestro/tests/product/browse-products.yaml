@@ -1,0 +1,133 @@
+appId: com.ceramicmarketplace.app
+name: "Product Browsing Flow"
+tags:
+  - product
+  - browse
+  - smoke
+  
+---
+
+# Launch the app and login first
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: allow
+
+# Login as customer
+- runFlow: flows/login-flow.yaml
+
+# Home screen should be visible after login
+- assertVisible:
+    id: "tab-home"
+    timeout: 10000
+
+# Navigate to search/browse tab
+- tapOn:
+    id: "tab-search"
+    
+# Wait for search/browse screen to load
+- waitForAnimationToEnd
+- assertVisible:
+    anyOf:
+      - id: "search-screen"
+      - id: "product-list"
+      - id: "browse-screen"
+    timeout: 10000
+    
+# Take screenshot of browse screen
+- takeScreenshot: "browse-screen"
+
+# Search for a product
+- tapOn:
+    id: "search-input"
+    optional: true
+- inputText: "Ceramic"
+
+# Trigger search (may auto-search on type)
+- tapOn:
+    id: "search-button"
+    optional: true
+- pressKey: enter
+    optional: true
+    
+# Wait for search results
+- waitForAnimationToEnd
+- takeScreenshot: "search-results"
+
+# Clear search to see all products
+- clearText:
+    id: "search-input"
+    optional: true
+
+# Scroll to load more products
+- scroll:
+    direction: DOWN
+    duration: 1000
+    
+# Tap on first product
+- tapOn:
+    id: "product-item-0"
+    index: 0
+    optional: true
+    
+# If no indexed ID, try tapping by product card
+- tapOn:
+    text: ".*[Pp]roduct.*"
+    regex: true
+    index: 0
+    optional: true
+    
+# Wait for product details
+- waitForAnimationToEnd
+
+# Verify we're on product details
+- assertVisible:
+    anyOf:
+      - id: "product-details-screen"
+      - id: "product-details-container"
+      - text: "Add to Cart"
+    timeout: 5000
+    
+# Verify product details elements
+- assertVisible:
+    anyOf:
+      - id: "product-image"
+      - id: "product-photo"
+    optional: true
+    
+- assertVisible:
+    anyOf:
+      - id: "product-price"
+      - text: "$"
+    optional: true
+    
+- assertVisible:
+    anyOf:
+      - id: "add-to-cart-button"
+      - text: "Add to Cart"
+    optional: true
+    
+# Take screenshot of product details
+- takeScreenshot: "product-details"
+
+# Test image gallery if available
+- tapOn:
+    anyOf:
+      - id: "product-image"
+      - id: "product-photo"
+    optional: true
+    
+- swipe:
+    direction: LEFT
+    duration: 500
+    optional: true
+    
+# Go back to product list
+- pressKey: back
+
+# Verify back on browse/search screen
+- assertVisible:
+    anyOf:
+      - id: "tab-search"
+      - id: "search-screen"
+      - id: "product-list"

@@ -1,0 +1,118 @@
+appId: com.ceramicmarketplace.app
+name: "Seller - Product Management"
+tags:
+  - seller
+  - product
+  - management
+  
+---
+
+# Launch the app and login as seller
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: allow
+
+# Login as seller
+- runFlow: flows/seller-login-flow.yaml
+
+# Navigate to products tab
+- waitForAnimationToEnd
+- tapOn:
+    id: "tab-products"
+    
+# Wait for product management screen
+- waitForAnimationToEnd
+- assertVisible:
+    id: "product-management-screen"
+    timeout: 10000
+    
+# Check if products are loaded
+- assertVisible:
+    anyOf:
+      - id: "product-management-list"
+      - id: "product-management-empty"
+    timeout: 10000
+    
+# Take screenshot of product list
+- takeScreenshot: "product-management-list"
+
+# Test search functionality
+- tapOn:
+    id: "product-management-search"
+    optional: true
+- inputText: "ceramic"
+    optional: true
+    
+# Wait for search results
+- waitForAnimationToEnd
+
+# Take screenshot of search results
+- takeScreenshot: "product-management-search"
+
+# Clear search
+- clearText:
+    id: "product-management-search"
+    optional: true
+
+# Test filter button (if available)
+- tapOn:
+    id: "product-management-filter-button"
+    optional: true
+    
+# Close filter if it opened
+- pressKey: back
+    optional: true
+
+# Test product selection (if list has items)
+- tapOn:
+    id: "product-item-0"
+    index: 0
+    optional: true
+    
+# Wait for product details or edit screen
+- waitForAnimationToEnd
+
+# If product details opened, go back
+- pressKey: back
+    optional: true
+    
+# Test FAB add button
+- assertVisible:
+    id: "product-management-fab-add"
+    
+- tapOn:
+    id: "product-management-fab-add"
+    
+# Wait for add product screen
+- waitForAnimationToEnd
+- assertVisible:
+    id: "add-product-screen"
+    timeout: 5000
+    
+# Go back to product management
+- pressKey: back
+
+# Verify back on product management
+- assertVisible:
+    id: "product-management-screen"
+
+# Test bulk selection (if available and products exist)
+- longPress:
+    id: "product-item-0"
+    duration: 1000
+    optional: true
+    
+# Check if selection mode activated
+- assertVisible:
+    id: "product-management-selection-bar"
+    optional: true
+    timeout: 3000
+    
+# Clear selection if active
+- tapOn:
+    id: "product-management-clear-selection"
+    optional: true
+    
+# Take final screenshot
+- takeScreenshot: "product-management-final"

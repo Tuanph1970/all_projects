@@ -1,0 +1,103 @@
+appId: com.ceramicmarketplace.app
+name: "Seller Dashboard - Overview"
+tags:
+  - seller
+  - dashboard
+  - smoke
+  
+---
+
+# Launch the app and login as seller
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: allow
+
+# Login as seller
+- runFlow: flows/seller-login-flow.yaml
+
+# Wait for dashboard to load
+- waitForAnimationToEnd
+- assertVisible:
+    id: "seller-dashboard-screen"
+    timeout: 10000
+    
+# Verify dashboard elements are visible
+- assertVisible:
+    id: "seller-dashboard-scroll"
+    
+# Check total sales widget
+- assertVisible:
+    id: "seller-dashboard-total-sales"
+    
+# Check total orders widget  
+- assertVisible:
+    id: "seller-dashboard-total-orders"
+    
+# Take screenshot of dashboard top
+- takeScreenshot: "dashboard-overview-top"
+
+# Scroll down to see more widgets
+- scroll:
+    direction: DOWN
+    duration: 1000
+    
+# Check alerts section
+- assertVisible:
+    id: "seller-dashboard-alerts"
+    optional: true
+    
+# Check for out of stock alert
+- assertVisible:
+    id: "seller-dashboard-out-of-stock"
+    optional: true
+    
+# Check for low stock alert
+- assertVisible:
+    id: "seller-dashboard-low-stock"
+    optional: true
+    
+# Check sales chart
+- assertVisible:
+    id: "seller-dashboard-sales-chart"
+    optional: true
+    
+# Take screenshot of dashboard middle
+- takeScreenshot: "dashboard-overview-middle"
+
+# Scroll to bottom
+- scroll:
+    direction: DOWN
+    duration: 1000
+    
+# Check top products section
+- assertVisible:
+    id: "seller-dashboard-top-products"
+    optional: true
+    
+# Take screenshot of dashboard bottom
+- takeScreenshot: "dashboard-overview-bottom"
+
+# Test FAB add button
+- assertVisible:
+    id: "seller-dashboard-fab-add"
+    
+# Tap FAB to verify navigation
+- tapOn:
+    id: "seller-dashboard-fab-add"
+    
+# Wait for add product screen
+- waitForAnimationToEnd
+- assertVisible:
+    id: "add-product-screen"
+    timeout: 5000
+    
+# Take screenshot of add product screen
+- takeScreenshot: "dashboard-fab-navigation"
+
+# Go back to dashboard
+- pressKey: back
+
+# Verify back on dashboard
+- assertVisible:
+    id: "seller-dashboard-screen"
