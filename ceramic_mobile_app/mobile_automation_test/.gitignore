@@ -2,9 +2,8 @@
 node_modules/
 package-lock.json
 
-# Detox
-artifacts/
-.detox/
+# Maestro
+.maestro/
 
 # IDE
 .vscode/

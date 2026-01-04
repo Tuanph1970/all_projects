@@ -6,8 +6,7 @@ module.exports = {
     '<rootDir>/__tests__/api/**/*.api.test.js'
   ],
   testPathIgnorePatterns: [
-    '/node_modules/',
-    '/e2e/' // Ignore Detox E2E tests
+    '/node_modules/'
   ],
   testEnvironment: 'node',
   testTimeout: 30000, // 30 seconds for API calls

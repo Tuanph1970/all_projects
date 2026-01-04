@@ -1,76 +1,107 @@
 # Mobile Automation Test
 
-End-to-End (E2E) automated testing for the Ceramic Mobile App using Detox.
+End-to-End (E2E) automated testing for the Ceramic Mobile App using **Maestro**.
 
 ## Quick Start
 
-### First Time Setup
+### Prerequisites
+
+1. **Java 17+** (Required by Maestro)
+   ```bash
+   java -version  # Check current version
+   # If needed, install Java 17:
+   sudo apt install openjdk-17-jdk
+   ```
+
+2. **Android SDK** with environment variables set:
+   ```bash
+   export ANDROID_HOME=~/Android/Sdk
+   export PATH=$PATH:$ANDROID_HOME/emulator
+   export PATH=$PATH:$ANDROID_HOME/platform-tools
+   ```
+
+3. **Android Emulator** or physical device
+
+### Installation
 
 ```bash
-# 1. Clone repository
-git clone <repository-url>
-cd ceramic_mobile_app/mobile_automation_test
+# 1. Install dependencies
+npm install
 
-# 2. Run automated setup
-chmod +x setup.sh
-./setup.sh
+# 2. Install Maestro CLI
+npm run maestro:setup
+# or manually:
+curl -Ls "https://get.maestro.mobile.dev" | bash
+export PATH="$HOME/.maestro/bin:$PATH"
 
-# 3. Start backend server (in separate terminal)
-cd ../back_end
-gunicorn app.main:app --workers 4 --bind 0.0.0.0:8002
-
-# 4. Run tests
-./run-tests.sh
+# 3. Verify installation
+maestro --version
 ```
 
-## Usage
+## Running Tests
 
-### Run All Tests
+### Quick Start (Emulator already running)
 
 ```bash
-./run-tests.sh
+# Run smoke tests
+npm run maestro:smoke
+
+# Run auth tests
+npm run maestro:auth
+
+# Run all tests
+npm run maestro:test
 ```
 
-### Run Specific Tests
+### Available Test Suites
+
+| Command | Description | Duration |
+|---------|-------------|----------|
+| `npm run maestro:smoke` | Critical path tests | ~5 min |
+| `npm run maestro:auth` | Authentication tests | ~15 min |
+| `npm run maestro:seller` | Seller features | ~20 min |
+| `npm run maestro:customer` | Customer features | ~15 min |
+| `npm run maestro:regression` | Full test suite | ~45 min |
+| `npm run maestro:quick` | Essential tests | ~5 min |
+| `npm run maestro:debug` | Debug mode | Varies |
+
+### Running Single Test
 
 ```bash
-# Login tests only
-./run-tests.sh --file e2e/auth/login.test.js
+# Run specific test file
+maestro test maestro/tests/auth/login.yaml
 
-# Registration tests only
-./run-tests.sh --file e2e/auth/register.test.js
+# Run with verbose output
+maestro test --debug maestro/tests/auth/login.yaml
 
-# Specific test by name
-./run-tests.sh --pattern "should login successfully"
+# Interactive mode for inspection
+maestro studio
 ```
 
-### Debug Mode
+## Project Structure
 
-```bash
-# Run with console logs (slower)
-./run-tests.sh --debug
-
-# Debug specific test
-./run-tests.sh --debug --file e2e/auth/login.test.js
 ```
-
-### Advanced Options
-
-```bash
-# Start backend automatically
-./run-tests.sh --backend
-
-# Clean artifacts before running
-./run-tests.sh --cleanup
-
-# Combine options
-./run-tests.sh --debug --backend --cleanup --file e2e/auth/login.test.js
-```
-
-### Get Help
-
-```bash
-./run-tests.sh --help
+mobile_automation_test/
+├── maestro/                     # Maestro test files
+│   ├── .maestro/
+│   │   └── config.yaml          # Workspace config
+│   ├── config/
+│   │   └── maestro.yaml         # Global configuration
+│   ├── flows/                   # Reusable flows
+│   │   ├── login-flow.yaml
+│   │   └── seller-login-flow.yaml
+│   ├── tests/                   # Test files
+│   │   ├── auth/               # Authentication tests
+│   │   ├── seller/             # Seller feature tests
+│   │   ├── product/            # Product browsing
+│   │   └── cart/               # Shopping cart
+│   └── test-suites.yaml        # Test suite definitions
+├── scripts/                     # Helper scripts
+│   ├── setup-maestro.sh
+│   └── run-maestro-tests.sh
+├── __tests__/                   # Unit tests (Jest)
+├── api-tests/                   # API tests (Jest)
+└── package.json
 ```
 
 ## Test Users
@@ -81,115 +112,127 @@ gunicorn app.main:app --workers 4 --bind 0.0.0.0:8002
 | test_seller | 12345678 | SELLER |
 | test_dual | 12345678 | DUAL |
 
-## Project Structure
+## Writing Tests
 
+### Basic Test Structure
+
+```yaml
+appId: com.ceramicmarketplace.app
+name: "Test Name"
+tags:
+  - smoke
+  - auth
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    id: "elementId"
+- inputText: "text to type"
+- assertVisible:
+    text: "Expected text"
 ```
-mobile_automation_test/
-├── e2e/                          # Test files
-│   ├── auth/                     # Authentication tests
-│   │   ├── login.test.js        # Login flow tests
-│   │   └── register.test.js     # Registration tests
-│   ├── config/                   # Test configuration
-│   │   └── testConfig.js        # Test settings & users
-│   └── helpers/                  # Test utilities
-│       └── testHelpers.js       # Helper functions
-├── artifacts/                    # Test outputs (auto-generated)
-│   ├── *.png                    # Screenshots
-│   └── *.log                    # Test logs
-├── setup.sh                     # Automated setup script
-├── run-tests.sh                 # Test runner script
-├── SETUP_GUIDE.md              # Detailed setup instructions
-└── README.md                    # This file
+
+### Common Commands
+
+```yaml
+# Tap element
+- tapOn:
+    id: "buttonId"
+
+# Type text
+- inputText: "text"
+
+# Assert visible
+- assertVisible:
+    text: "Expected"
+
+# Take screenshot
+- takeScreenshot: "step-name"
 ```
 
-## Prerequisites
+## Debugging
 
-- **Node.js**: 18.x or 20.x
-- **JDK**: OpenJDK 11 (required - NOT 17+)
-- **Android SDK**: Command line tools
-- **System**: Ubuntu 20.04+ or macOS
-- **RAM**: 8GB minimum (16GB recommended)
-
-## Manual Commands
-
-If you prefer not to use the scripts:
+### Using Maestro Studio
 
 ```bash
-# Build app
-cd ../front_end/android
-./gradlew assembleRelease assembleAndroidTest -DtestBuildType=release
-
-# Run tests
-cd ../../mobile_automation_test
-npx detox test --configuration android.emu.release
-
-# Run specific test file
-npx detox test --configuration android.emu.release e2e/auth/login.test.js
-
-# Run with pattern
-npx detox test --configuration android.emu.release --testNamePattern="should login"
+maestro studio
 ```
+Interactive tool to inspect app and test commands.
 
-## Common Issues
-
-### "JAVA_HOME is set to an invalid directory"
+### Debug Mode
 
 ```bash
-# Install JDK 11
-sudo apt install openjdk-11-jdk
-
-# Set JAVA_HOME
-export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+npm run maestro:debug
 ```
 
-### "Emulator not found"
+### Taking Screenshots
+
+Add screenshots at key points:
+```yaml
+- takeScreenshot: "before-action"
+- tapOn:
+    id: "submitButton"
+- takeScreenshot: "after-action"
+```
+
+## Troubleshooting
+
+### "Java 17 or higher is required"
 
 ```bash
-# List emulators
-emulator -list-avds
-
-# Create if missing
-./setup.sh
+sudo apt install openjdk-17-jdk
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 ```
 
-### "Connection refused"
+### "No connected devices"
 
 ```bash
-# Check backend is running
-curl http://localhost:8002/api/v1/health
+# Check emulator is running
+adb devices
 
-# Start backend if needed
-cd ../back_end
-gunicorn app.main:app --workers 4 --bind 0.0.0.0:8002
+# Start emulator
+emulator -avd <avd-name>
 ```
 
-### Tests timing out
+### "Element not found"
+
+1. Use Maestro Studio: `maestro studio`
+2. Verify testID in app code
+3. Try different selectors (text, id, index)
+
+## CI/CD Integration
+
+### GitHub Actions Example
+
+```yaml
+- name: Install Maestro
+  run: |
+    curl -Ls "https://get.maestro.mobile.dev" | bash
+    echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+
+- name: Run Tests
+  run: |
+    maestro test --format junit --output results.xml maestro/tests/
+```
+
+## Additional Commands
 
 ```bash
-# Use release build (faster)
-./run-tests.sh
+# Unit tests
+npm run test:unit
 
-# Or explicitly
-npx detox test --configuration android.emu.release
+# API tests
+npm run test:api
+
+# Lint
+npm run lint
 ```
-
-## Test Results
-
-After running tests, check:
-
-- **Console output**: Pass/fail status
-- **Screenshots**: `artifacts/*.png`
-- **Logs**: `artifacts/*.log`
 
 ## Documentation
 
-- [SETUP_GUIDE.md](SETUP_GUIDE.md) - Detailed setup instructions
-- [Detox Documentation](https://wix.github.io/Detox/) - Official Detox docs
-
-## Support
-
-For detailed troubleshooting, see [SETUP_GUIDE.md](SETUP_GUIDE.md#troubleshooting)
+- [MAESTRO_GUIDE.md](MAESTRO_GUIDE.md) - Detailed Maestro guide
+- [Maestro Documentation](https://maestro.mobile.dev/docs)
 
 ---
 
-**Note**: Always ensure the backend server is running before executing tests.
+**Note**: Ensure the Android emulator is running and the mobile app is installed before running tests.

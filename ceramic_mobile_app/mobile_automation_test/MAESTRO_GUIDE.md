@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide documents the Maestro setup for mobile automation testing, replacing the previous Detox implementation. Maestro provides a simpler, more maintainable approach to mobile testing with better support for online emulators.
+This guide documents the Maestro setup for mobile automation testing. Maestro provides a simple, maintainable approach to mobile testing with excellent support for emulators and real devices.
 
 ## Why Maestro?
 
@@ -315,34 +315,6 @@ emulator -avd Pixel_4_API_30
 
 4. **Use Assertions**
    Add assertions to verify app state at each step
-
-## Migrating from Detox
-
-### Key Differences
-
-| Detox | Maestro |
-|-------|---------|
-| JavaScript/TypeScript | YAML |
-| `by.id()` | `id:` |
-| `element().tap()` | `tapOn:` |
-| `expect().toBeVisible()` | `assertVisible:` |
-| `typeText()` | `inputText:` |
-
-### Migration Example
-
-**Detox:**
-```javascript
-await element(by.id('loginButton')).tap();
-await expect(element(by.text('Welcome'))).toBeVisible();
-```
-
-**Maestro:**
-```yaml
-- tapOn:
-    id: "loginButton"
-- assertVisible:
-    text: "Welcome"
-```
 
 ## Best Practices
 
