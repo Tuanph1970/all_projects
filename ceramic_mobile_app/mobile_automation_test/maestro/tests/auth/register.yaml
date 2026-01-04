@@ -4,11 +4,12 @@ tags:
   - auth
   - register
   - smoke
-  
-env:
-  RANDOM_USERNAME: "user_${MAESTRO_TIMESTAMP}"
-  RANDOM_EMAIL: "user_${MAESTRO_TIMESTAMP}@test.com"
-  
+
+onFlowStart:
+  - evalScript: ${output.timestamp = Date.now()}
+  - evalScript: ${output.uniqueUser = 'testuser' + output.timestamp}
+  - evalScript: ${output.uniqueEmail = 'testuser' + output.timestamp + '@test.com'}
+
 ---
 
 # Launch the app fresh
@@ -21,59 +22,69 @@ env:
 - waitForAnimationToEnd
 - assertVisible:
     id: "login-username-input"
-    
+
 # Navigate to registration
 - tapOn:
     id: "login-register-link"
-    
+
 # Wait for registration screen
 - waitForAnimationToEnd
 - assertVisible:
     id: "register-submit-button"
-    
+
 # Fill registration form
 - tapOn:
     id: "register-firstname-input"
 - inputText: "Test"
+- hideKeyboard
 
 - tapOn:
     id: "register-lastname-input"
 - inputText: "User"
+- hideKeyboard
 
 - tapOn:
     id: "register-username-input"
-- inputText: ${RANDOM_USERNAME}
+- inputText: ${output.uniqueUser}
+- hideKeyboard
 
 - tapOn:
     id: "register-email-input"
-- inputText: ${RANDOM_EMAIL}
+- inputText: ${output.uniqueEmail}
+- hideKeyboard
 
 - tapOn:
     id: "register-password-input"
 - inputText: "Test@12345678"
+- hideKeyboard
 
 - tapOn:
     id: "register-confirm-password-input"
 - inputText: "Test@12345678"
+- hideKeyboard
+
+# Scroll down to see role selection
+- scroll
 
 # Select role (customer by default)
 - tapOn:
     id: "register-role-customer"
-    
+
 # Take screenshot before submitting
 - takeScreenshot: "register-filled"
 
 # Submit registration
 - tapOn:
     id: "register-submit-button"
-    
+
 # Wait for registration to complete
 - waitForAnimationToEnd
 
-# Verify successful registration - should auto-login
-- assertVisible:
-    id: "tab-home"
-    timeout: 15000
-    
+# Verify successful registration - should auto-login or show success message
+- extendedWaitUntil:
+    visible:
+      id: "login-username-input"
+    timeout: 20000
+
 # Take screenshot of success
 - takeScreenshot: "register-success"

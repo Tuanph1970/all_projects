@@ -1,11 +1,16 @@
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text } from 'react-native';
+import { View, Text, LogBox } from 'react-native';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { PaperProvider } from 'react-native-paper';
 import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 import * as SplashScreen from 'expo-splash-screen';
+
+// Disable LogBox warnings/errors to prevent them from blocking UI during E2E tests
+if (__DEV__) {
+  LogBox.ignoreAllLogs(true);
+}
 
 import { store, persistor } from '@store/index';
 import { AppNavigator } from '@navigation/AppNavigator';

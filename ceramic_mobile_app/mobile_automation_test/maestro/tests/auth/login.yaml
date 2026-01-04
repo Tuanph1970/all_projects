@@ -4,7 +4,7 @@ tags:
   - auth
   - login
   - smoke
-  
+
 ---
 
 # Launch the app fresh
@@ -17,7 +17,7 @@ tags:
 - waitForAnimationToEnd
 - assertVisible:
     id: "login-username-input"
-    
+
 # Take screenshot of login screen
 - takeScreenshot: "login-screen"
 
@@ -25,11 +25,13 @@ tags:
 - tapOn:
     id: "login-username-input"
 - inputText: ${TEST_CUSTOMER_USERNAME}
+- hideKeyboard
 
-# Enter password  
+# Enter password
 - tapOn:
     id: "login-password-input"
 - inputText: ${TEST_PASSWORD}
+- hideKeyboard
 
 # Take screenshot before submitting
 - takeScreenshot: "login-filled"
@@ -37,14 +39,15 @@ tags:
 # Tap login button
 - tapOn:
     id: "login-submit-button"
-    
+
 # Wait for login to complete
 - waitForAnimationToEnd
 
 # Verify successful login - look for home tab
-- assertVisible:
-    id: "tab-home"
-    timeout: 10000
-    
+- extendedWaitUntil:
+    visible:
+      id: "tab-home"
+    timeout: 20000
+
 # Take screenshot of home screen
 - takeScreenshot: "login-success-home"

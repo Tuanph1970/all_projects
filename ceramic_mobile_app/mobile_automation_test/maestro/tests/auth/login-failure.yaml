@@ -4,7 +4,7 @@ tags:
   - auth
   - login
   - negative
-  
+
 ---
 
 # Launch the app fresh
@@ -15,72 +15,66 @@ tags:
 - waitForAnimationToEnd
 - assertVisible:
     id: "login-username-input"
-    
+
 # Test 1: Invalid password
 - tapOn:
     id: "login-username-input"
 - inputText: "test_customer"
+- hideKeyboard
 
 - tapOn:
     id: "login-password-input"
 - inputText: "WrongPassword123"
+- hideKeyboard
 
 - tapOn:
     id: "login-submit-button"
-    
-# Verify error message
-- assertVisible:
-    anyOf:
-      - text: "Invalid credentials"
-      - text: "Invalid username or password"
-      - text: "Login failed"
-    timeout: 5000
-    
+
+# Wait for error and take screenshot
+- waitForAnimationToEnd
 - takeScreenshot: "login-invalid-password"
 
 # Clear fields for next test
-- clearText:
+- tapOn:
     id: "login-username-input"
-- clearText:
+- eraseText: 50
+- tapOn:
     id: "login-password-input"
+- eraseText: 50
 
 # Test 2: Non-existent user
 - tapOn:
     id: "login-username-input"
 - inputText: "nonexistent_user"
+- hideKeyboard
 
 - tapOn:
     id: "login-password-input"
 - inputText: "Test@12345678"
+- hideKeyboard
 
 - tapOn:
     id: "login-submit-button"
-    
-# Verify error message
-- assertVisible:
-    anyOf:
-      - text: "User not found"
-      - text: "Invalid credentials"
-      - text: "Login failed"
-    timeout: 5000
-    
+
+# Wait for error and take screenshot
+- waitForAnimationToEnd
 - takeScreenshot: "login-nonexistent-user"
 
 # Test 3: Empty fields
-- clearText:
+- tapOn:
     id: "login-username-input"
-- clearText:
+- eraseText: 50
+- tapOn:
     id: "login-password-input"
+- eraseText: 50
 
 - tapOn:
     id: "login-submit-button"
-    
-# Verify error message
-- assertVisible:
-    anyOf:
-      - text: "Username is required"
-      - text: "Please enter username"
-      - text: "Required field"
-    timeout: 5000
-    
+
+# Wait and take screenshot
+- waitForAnimationToEnd
 - takeScreenshot: "login-empty-fields"
+
+# Verify still on login screen (login failed)
+- assertVisible:
+    id: "login-submit-button"

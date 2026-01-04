@@ -104,7 +104,7 @@ export const HomeScreen = () => {
         </Card>
 
         {/* Loading State */}
-        {isLoading && !featuredProducts.length && !popularProducts.length && (
+        {isLoading && !featuredProducts?.length && !popularProducts?.length && (
           <View style={styles.loadingContainer}>
             <Card style={styles.loadingCard}>
               <Card.Content style={styles.loadingContent}>
@@ -133,7 +133,7 @@ export const HomeScreen = () => {
         )}
 
         {/* Categories Grid */}
-        {mainCategories.length > 0 && (
+        {mainCategories?.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
               {t('home.categories')}
@@ -147,7 +147,7 @@ export const HomeScreen = () => {
               contentContainerStyle={styles.categoriesGrid}
               columnWrapperStyle={styles.categoryRow}
             />
-            {mainCategories.length > 6 && (
+            {mainCategories?.length > 6 && (
               <Button
                 mode="outlined"
                 onPress={() => {/* TODO to all categories */}}
@@ -160,7 +160,7 @@ export const HomeScreen = () => {
         )}
 
         {/* Popular Products */}
-        {popularProducts.length > 0 && (
+        {popularProducts?.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>
@@ -187,7 +187,7 @@ export const HomeScreen = () => {
         )}
 
         {/* New Arrivals */}
-        {newArrivals.length > 0 && (
+        {newArrivals?.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>
@@ -233,9 +233,9 @@ export const HomeScreen = () => {
 
         {/* Empty State - When no products are available */}
         {!isLoading && !error &&
-         featuredProducts.length === 0 &&
-         popularProducts.length === 0 &&
-         newArrivals.length === 0 && (
+         (featuredProducts?.length ?? 0) === 0 &&
+         (popularProducts?.length ?? 0) === 0 &&
+         (newArrivals?.length ?? 0) === 0 && (
           <View style={styles.emptyStateContainer}>
             <Card style={styles.emptyStateCard}>
               <Card.Content style={styles.emptyStateContent}>

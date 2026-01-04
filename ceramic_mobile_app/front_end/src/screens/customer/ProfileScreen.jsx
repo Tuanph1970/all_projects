@@ -132,6 +132,7 @@ export const ProfileScreen = () => {
 
         {/* Logout Button */}
         <Button
+          testID="profile-logout-button"
           mode="outlined"
           style={styles.logoutButton}
           textColor={colors.error}

@@ -42,7 +42,7 @@ const interpolate = (str, params) => {
 };
 
 export const LanguageProvider = ({ children }) => {
-  const [language, setLanguage] = useState(LANGUAGES.VI);
+  const [language, setLanguage] = useState(LANGUAGES.EN);
   const [isLoading, setIsLoading] = useState(true);
 
   // Load saved language preference on mount
