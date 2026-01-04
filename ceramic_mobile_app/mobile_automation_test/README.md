@@ -40,7 +40,57 @@ maestro --version
 
 ## Running Tests
 
-### Quick Start (Emulator already running)
+### Before Running Tests
+
+**1. Start Android Emulator:**
+```bash
+# List available emulators
+emulator -list-avds
+
+# Start emulator
+emulator -avd <avd-name> &
+
+# Verify device is connected
+adb devices
+```
+
+**2. Start Metro Bundler (React Native):**
+```bash
+# In a separate terminal, navigate to frontend and start Metro
+cd ../front_end
+npx expo start --clear
+
+# Or use react-native directly
+npx react-native start --reset-cache
+```
+
+**3. Set up Port Forwarding:**
+```bash
+# Forward Metro port (8081) and Backend API port (8002)
+adb reverse tcp:8081 tcp:8081
+adb reverse tcp:8002 tcp:8002
+```
+
+**4. Install/Launch the App:**
+```bash
+# If app is not installed, build and install it
+cd ../front_end
+npx expo run:android
+
+# Or if already installed, just launch it
+adb shell am start -n com.ceramicmarketplace.app/.MainActivity
+```
+
+**5. Ensure Backend is Running:**
+```bash
+# Check backend health
+curl http://localhost:8002/api/v1/auth/health
+
+# Backend should be running via Docker
+docker ps | grep ceramic
+```
+
+### Quick Start (Everything already running)
 
 ```bash
 # Run smoke tests
