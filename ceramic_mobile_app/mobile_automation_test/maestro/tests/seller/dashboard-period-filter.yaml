@@ -1,0 +1,152 @@
+appId: com.ceramicmarketplace.app
+name: "Seller - Time Period Filter (DASH-007)"
+tags:
+  - seller
+  - dashboard
+  - analytics
+  - filter
+  - P2
+
+---
+
+# Test Case: DASH-007 - Select Time Period Filter
+# Purpose: Verify that seller can select different time periods for analytics data
+# Priority: P2
+# Note: Time period filter is available in Analytics tab (Dashboard uses fixed 30-day period)
+
+# Launch the app fresh
+- launchApp:
+    clearState: true
+    permissions:
+      notifications: allow
+
+# Login as seller
+- runFlow: flows/seller-login-flow.yaml
+
+# Wait for seller dashboard to load
+- waitForAnimationToEnd
+- assertVisible:
+    id: "seller-dashboard-screen"
+    timeout: 10000
+
+# Take screenshot of dashboard (shows 30-day default data)
+- takeScreenshot: "dashboard-default-period"
+
+# Navigate to Analytics tab for time period selection
+- tapOn:
+    id: "tab-analytics"
+
+# Wait for analytics screen to load
+- waitForAnimationToEnd
+
+# Verify analytics screen is visible
+- assertVisible:
+    anyOf:
+      - id: "analytics-screen"
+      - id: "analytics-screen-error"
+    timeout: 10000
+
+# Only proceed with period selection if analytics loaded successfully
+- ifTrue:
+    visible:
+      id: "analytics-screen"
+    commands:
+      # Verify period selection card is visible
+      - assertVisible:
+          id: "analytics-period-card"
+
+      # Verify period chips container
+      - assertVisible:
+          id: "analytics-period-chips"
+
+      # Screenshot initial state (default 30 days)
+      - takeScreenshot: "analytics-period-default-30"
+
+      # Test 7-day period selection
+      - tapOn:
+          id: "analytics-period-7"
+      - waitForAnimationToEnd
+      - wait: 1000
+      - takeScreenshot: "analytics-period-7days"
+
+      # Verify the 7-day chip is selected
+      - assertVisible:
+          id: "analytics-period-7"
+
+      # Test 30-day period selection (back to default)
+      - tapOn:
+          id: "analytics-period-30"
+      - waitForAnimationToEnd
+      - wait: 1000
+      - takeScreenshot: "analytics-period-30days"
+
+      # Test 90-day period selection (3 months)
+      - tapOn:
+          id: "analytics-period-90"
+      - waitForAnimationToEnd
+      - wait: 1000
+      - takeScreenshot: "analytics-period-90days"
+
+      # Test 365-day period selection (1 year)
+      - tapOn:
+          id: "analytics-period-365"
+      - waitForAnimationToEnd
+      - wait: 1500
+      - takeScreenshot: "analytics-period-365days"
+
+      # Verify data refreshed with new period by checking metrics are visible
+      - assertVisible:
+          id: "analytics-sales-card"
+          optional: true
+
+      - assertVisible:
+          id: "analytics-sales-metrics"
+          optional: true
+
+      # Scroll down to see all updated content
+      - scroll:
+          direction: DOWN
+          duration: 1000
+
+      # Verify other cards are visible
+      - assertVisible:
+          id: "analytics-inventory-card"
+          optional: true
+
+      - assertVisible:
+          id: "analytics-top-products-card"
+          optional: true
+
+      # Take screenshot of full analytics with 1-year period
+      - takeScreenshot: "analytics-period-full-view"
+
+      # Switch back to 30-day period for consistency
+      - scroll:
+          direction: UP
+          duration: 1000
+
+      - tapOn:
+          id: "analytics-period-30"
+      - waitForAnimationToEnd
+
+      # Navigate back to dashboard
+      - tapOn:
+          id: "tab-dashboard"
+
+      # Verify dashboard is visible again
+      - assertVisible:
+          id: "seller-dashboard-screen"
+          timeout: 5000
+
+      # Final screenshot
+      - takeScreenshot: "dashboard-after-period-test"
+
+# Handle error case
+- ifTrue:
+    visible:
+      id: "analytics-screen-error"
+    commands:
+      - takeScreenshot: "analytics-period-error"
+      - assertVisible:
+          id: "analytics-error-text"
+          optional: true

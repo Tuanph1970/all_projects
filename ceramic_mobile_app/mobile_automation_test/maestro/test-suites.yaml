@@ -32,6 +32,8 @@ seller:
   timeout: 1500  # 25 minutes
   tests:
     - tests/seller/dashboard.yaml
+    - tests/seller/dashboard-refresh.yaml
+    - tests/seller/dashboard-period-filter.yaml
     - tests/seller/add-product.yaml
     - tests/seller/product-management.yaml
     - tests/seller/analytics.yaml
@@ -57,8 +59,11 @@ regression:
     - tests/product/browse-products.yaml
     - tests/cart/add-to-cart.yaml
     - tests/seller/dashboard.yaml
+    - tests/seller/dashboard-refresh.yaml
+    - tests/seller/dashboard-period-filter.yaml
     - tests/seller/add-product.yaml
     - tests/seller/product-management.yaml
+    - tests/seller/analytics.yaml
 
 # Quick Tests
 quick:

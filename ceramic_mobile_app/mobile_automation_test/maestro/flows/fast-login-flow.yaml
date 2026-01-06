@@ -1,0 +1,51 @@
+# Fast login flow using ADB direct input (much faster than inputText)
+# Usage: - runFlow: flows/fast-login-flow.yaml
+
+appId: com.ceramicmarketplace.app
+env:
+  USERNAME: ${USERNAME:-test_customer}
+  PASSWORD: ${PASSWORD:-Test@12345678}
+
+---
+
+# Check if already logged in
+- assertNotVisible:
+    id: "login-username-input"
+    optional: true
+
+- runFlow:
+    when:
+      notVisible:
+        id: "login-username-input"
+    commands:
+      - stopFlow
+
+# Tap username field to focus
+- tapOn:
+    id: "login-username-input"
+
+# Use ADB to input text directly (much faster - pastes entire string at once)
+- runScript:
+    file: scripts/adb-input.js
+    env:
+      TEXT: ${USERNAME}
+
+# Tap password field
+- tapOn:
+    id: "login-password-input"
+
+# Fast password input
+- runScript:
+    file: scripts/adb-input.js
+    env:
+      TEXT: ${PASSWORD}
+
+# Submit login
+- tapOn:
+    id: "login-submit-button"
+
+# Wait for login to complete
+- waitForAnimationToEnd
+- assertVisible:
+    id: "tab-home"
+    timeout: 10000

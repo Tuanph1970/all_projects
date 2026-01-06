@@ -52,6 +52,9 @@ export const SellerDashboardScreen = () => {
   };
 
   const formatCurrency = (value) => {
+    if (value === undefined || value === null) {
+      return '$0.00';
+    }
     return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
@@ -90,7 +93,7 @@ export const SellerDashboardScreen = () => {
               <PerformanceWidget
                 testID="seller-dashboard-total-orders"
                 title={t('seller.orders')}
-                value={overview.total_orders.toString()}
+                value={(overview.total_orders ?? 0).toString()}
                 style={styles.widgetHalf}
               />
             </View>
