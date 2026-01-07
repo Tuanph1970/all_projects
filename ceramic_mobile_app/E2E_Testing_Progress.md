@@ -1,7 +1,7 @@
 # E2E Testing Progress - Ceramic Marketplace Mobile App
 
-**Testing Framework:** Maestro
-**Last Updated:** January 2026
+**Testing Framework:** Maestro + ADB Hybrid
+**Last Updated:** January 7, 2026
 **Status:** Active Development
 
 ---
@@ -9,6 +9,43 @@
 ## Overview
 
 This document tracks the E2E test cases for the Ceramic Marketplace mobile application using Maestro testing framework. Tests are organized by user role and feature domain.
+
+---
+
+## Hybrid Testing Approach (ADB + Maestro)
+
+Due to Maestro 2.x having extremely slow text input (5 seconds per character), we implemented a **hybrid testing approach** that combines:
+
+- **Maestro**: App launching, element detection, tapping, scrolling, screenshots, assertions
+- **ADB (Android Debug Bridge)**: Fast text input using `adb shell input text`
+
+### Fast Seller Test Scripts
+
+Located in `mobile_automation_test/maestro/scripts/`:
+
+| Script | Description | Status |
+|--------|-------------|--------|
+| `fast-seller-login-test.sh` | Seller login with fast ADB input | ✅ Passing |
+| `fast-seller-analytics-test.sh` | Analytics dashboard testing | ✅ Passing |
+| `fast-seller-product-management-test.sh` | Product list & management | ✅ Passing |
+| `fast-seller-add-product-test.sh` | Add new product with form filling | ✅ Passing |
+| `run-all-seller-tests.sh` | Run entire seller test suite | ✅ Available |
+
+### Running Fast Tests
+
+```bash
+# Navigate to maestro directory
+cd mobile_automation_test/maestro
+
+# Run individual fast test
+./scripts/fast-seller-login-test.sh
+./scripts/fast-seller-analytics-test.sh
+./scripts/fast-seller-product-management-test.sh
+./scripts/fast-seller-add-product-test.sh
+
+# Run all seller tests
+./scripts/run-all-seller-tests.sh
+```
 
 ---
 
@@ -222,17 +259,27 @@ The application supports three user roles:
 | Status | Count | Percentage |
 |--------|-------|------------|
 | ✅ Implemented | 26 | 27% |
-| 📋 Planned | 70 | 73% |
+| ✅ Fast Scripts (Hybrid) | 4 | 4% |
+| 📋 Planned | 66 | 69% |
 | 🔄 In Progress | 0 | 0% |
 | ⚠️ Blocked | 0 | 0% |
 | **Total** | **96** | **100%** |
+
+### Fast Seller Test Scripts (Hybrid ADB + Maestro)
+
+| Test Script | Tests Covered | Status |
+|-------------|---------------|--------|
+| `fast-seller-login-test.sh` | AUTH-002 | ✅ Passing |
+| `fast-seller-analytics-test.sh` | ANA-001 to ANA-005 | ✅ Passing |
+| `fast-seller-product-management-test.sh` | SPM-003, SPM-004, SPM-010 | ✅ Passing |
+| `fast-seller-add-product-test.sh` | SPM-001, SPM-002 | ✅ Passing |
 
 ### By Role Coverage
 
 | Role | Implemented | Planned | Total |
 |------|-------------|---------|-------|
 | Customer | 10 | 38 | 48 |
-| Seller | 12 | 26 | 38 |
+| Seller | 16 | 22 | 38 |
 | Dual | 0 | 6 | 6 |
 | All (Auth) | 10 | 7 | 17 |
 
@@ -240,9 +287,9 @@ The application supports three user roles:
 
 | Priority | Implemented | Planned | Total |
 |----------|-------------|---------|-------|
-| P0 (Critical) | 11 | 4 | 15 |
-| P1 (High) | 10 | 16 | 26 |
-| P2 (Medium) | 5 | 35 | 40 |
+| P0 (Critical) | 12 | 3 | 15 |
+| P1 (High) | 12 | 14 | 26 |
+| P2 (Medium) | 6 | 34 | 40 |
 | P3 (Low) | 0 | 15 | 15 |
 
 ---
@@ -303,6 +350,17 @@ The following test suites are configured in `test-suites.yaml`:
 **Tests:**
 - Login
 - Seller Dashboard
+
+### Fast Seller Test Suite (Hybrid)
+**Purpose:** Complete seller flow validation with fast ADB input
+**Timeout:** 15 minutes
+**Scripts:**
+- `fast-seller-login-test.sh` - Seller authentication
+- `fast-seller-analytics-test.sh` - Analytics dashboard & metrics
+- `fast-seller-product-management-test.sh` - Product list & management
+- `fast-seller-add-product-test.sh` - Product creation flow
+
+**Run Command:** `./scripts/run-all-seller-tests.sh`
 
 ---
 
@@ -377,10 +435,12 @@ SELLER_SERVICE_URL: "http://localhost:8002/api/sellers"
 - [ ] Checkout flow
 - [ ] Order management
 
-### Phase 3: Seller Operations (In Progress)
+### Phase 3: Seller Operations (Completed - Using Hybrid Approach)
 - [x] Dashboard
 - [x] Product management
 - [x] Analytics
+- [x] Add Product
+- [x] Seller Login (Fast ADB)
 - [ ] Order fulfillment
 
 ### Phase 4: Advanced Features (Planned)
@@ -401,7 +461,8 @@ SELLER_SERVICE_URL: "http://localhost:8002/api/sellers"
 
 | Issue | Impact | Status | Resolution |
 |-------|--------|--------|------------|
-| None currently | - | - | - |
+| Maestro 2.x slow `inputText` | High - 5 sec/char text input | ✅ Resolved | Use hybrid ADB approach for text input |
+| Maestro 2.x syntax changes | Medium - Some YAML commands incompatible | ⚠️ Workaround | Use shell scripts with dynamic YAML generation |
 
 ---
 
