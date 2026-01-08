@@ -20,7 +20,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { colors, spacing, typography } from '../../constants/theme.js';
-import productService from '../../services/productService.js';
+import sellerService from '../../services/sellerService.js';
 
 export const AddProductScreen = () => {
   const navigation = useNavigation();
@@ -171,21 +171,31 @@ export const AddProductScreen = () => {
     setIsLoading(true);
 
     try {
-      // Prepare form data
+      // Map category names to IDs
+      const categoryMap = {
+        'vases': 1, 'bowls': 2, 'plates': 3, 'mugs': 4, 'art': 5
+      };
+      const categoryId = parseInt(formData.category) ||
+        categoryMap[formData.category.toLowerCase()] || 1;
+
+      // Prepare form data - map form fields to API expected fields
       const productData = {
-        ...formData,
+        name: formData.title,
+        description: formData.description,
         price: parseFloat(formData.price),
-        stock_quantity: parseInt(formData.stock_quantity),
-        tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+        category_id: categoryId,
+        quantity_available: parseInt(formData.stock_quantity),
+        tags: formData.tags ? formData.tags.trim() : null,
       };
 
       // Create product
-      const product = await productService.createProduct(productData);
+      const product = await sellerService.createProduct(productData);
 
       // Upload images if any
       if (images.length > 0) {
         setIsUploading(true);
-        await productService.uploadProductImages(product.id, images);
+        // TODO: Implement image upload with sellerService
+        // await sellerService.uploadImage(formData);
       }
 
       Alert.alert(
