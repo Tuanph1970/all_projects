@@ -7,7 +7,12 @@ class ProductService {
 
   // Get featured products for home screen
   async getFeaturedProducts() {
-    return apiClient.get(`${this.baseUrl}/featured`);
+    const products = await apiClient.get(`${this.baseUrl}/featured`);
+    // Wrap array response in expected format for Redux slice
+    return {
+      products: Array.isArray(products) ? products : [],
+      categories: []
+    };
   }
 
   // Get product list with pagination and filters

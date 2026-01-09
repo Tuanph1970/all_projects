@@ -76,7 +76,7 @@ export const HomeScreen = () => {
     <Card style={styles.productCard} onPress={() => handleProductPress(item)}>
       <Card.Content>
         <Text style={styles.productName}>{item.name}</Text>
-        <Text style={styles.productPrice}>${item.price?.toFixed(2)}</Text>
+        <Text style={styles.productPrice}>${parseFloat(item.price || 0).toFixed(2)}</Text>
       </Card.Content>
     </Card>
   );
