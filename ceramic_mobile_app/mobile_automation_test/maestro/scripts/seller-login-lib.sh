@@ -260,11 +260,40 @@ EOF
     return $result
 }
 
+# =============================================================================
+# Helper function to navigate to Orders tab
+# =============================================================================
+navigate_to_orders() {
+    _log_step "Navigating to Orders tab..."
+    local temp_flow=$(mktemp /tmp/nav-orders-XXXXXX.yaml)
+    cat > "$temp_flow" << 'EOF'
+appId: com.ceramicmarketplace.app
+---
+- tapOn:
+    id: "tab-orders"
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible:
+      id: "order-management-screen"
+    timeout: 15000
+- takeScreenshot: "orders-tab"
+EOF
+    local result
+    maestro test "$temp_flow" 2>&1 | tail -3
+    result=$?
+    rm -f "$temp_flow"
+    if [[ $result -eq 0 ]]; then
+        _log_success "Orders tab loaded"
+    fi
+    return $result
+}
+
 # Export functions for use in other scripts
 export -f seller_login
 export -f navigate_to_products
 export -f navigate_to_analytics
 export -f navigate_to_dashboard
+export -f navigate_to_orders
 export -f _adb_input
 export -f _adb_tap
 export -f _adb_back

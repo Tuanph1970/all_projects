@@ -29,6 +29,7 @@ Located in `mobile_automation_test/maestro/scripts/`:
 | `fast-seller-analytics-test.sh` | Analytics dashboard testing | ✅ Passing |
 | `fast-seller-product-management-test.sh` | Product list & management | ✅ Passing |
 | `fast-seller-add-product-test.sh` | Add new product with form filling | ✅ Passing |
+| `fast-seller-order-fulfillment-test.sh` | Order management and fulfillment | ✅ Passing |
 | `run-all-seller-tests.sh` | Run entire seller test suite | ✅ Available |
 
 ### Running Fast Tests
@@ -42,6 +43,7 @@ cd mobile_automation_test/maestro
 ./scripts/fast-seller-analytics-test.sh
 ./scripts/fast-seller-product-management-test.sh
 ./scripts/fast-seller-add-product-test.sh
+./scripts/fast-seller-order-fulfillment-test.sh
 
 # Run all seller tests
 ./scripts/run-all-seller-tests.sh
@@ -219,14 +221,14 @@ The application supports three user roles:
 
 | # | Test Case | Role | Status | File | Priority |
 |---|-----------|------|--------|------|----------|
-| FUL-001 | View Incoming Orders | Seller | 📋 | - | P0 |
-| FUL-002 | Accept Order | Seller | 📋 | - | P0 |
+| FUL-001 | View Incoming Orders | Seller | ✅ | `scripts/fast-seller-order-fulfillment-test.sh` | P0 |
+| FUL-002 | Accept Order | Seller | ✅ | `scripts/fast-seller-order-fulfillment-test.sh` | P0 |
 | FUL-003 | Reject Order | Seller | 📋 | - | P1 |
-| FUL-004 | Mark Order as Shipped | Seller | 📋 | - | P0 |
+| FUL-004 | Mark Order as Shipped | Seller | ✅ | `scripts/fast-seller-order-fulfillment-test.sh` | P0 |
 | FUL-005 | Add Tracking Information | Seller | 📋 | - | P1 |
 | FUL-006 | Mark Order as Delivered | Seller | 📋 | - | P1 |
 | FUL-007 | View Order History | Seller | 📋 | - | P2 |
-| FUL-008 | Filter Orders by Status | Seller | 📋 | - | P2 |
+| FUL-008 | Filter Orders by Status | Seller | ✅ | `scripts/fast-seller-order-fulfillment-test.sh` | P2 |
 
 #### Seller Profile
 
@@ -259,8 +261,8 @@ The application supports three user roles:
 | Status | Count | Percentage |
 |--------|-------|------------|
 | ✅ Implemented | 26 | 27% |
-| ✅ Fast Scripts (Hybrid) | 4 | 4% |
-| 📋 Planned | 66 | 69% |
+| ✅ Fast Scripts (Hybrid) | 5 | 5% |
+| 📋 Planned | 62 | 65% |
 | 🔄 In Progress | 0 | 0% |
 | ⚠️ Blocked | 0 | 0% |
 | **Total** | **96** | **100%** |
@@ -273,13 +275,14 @@ The application supports three user roles:
 | `fast-seller-analytics-test.sh` | ANA-001 to ANA-005 | ✅ Passing |
 | `fast-seller-product-management-test.sh` | SPM-003, SPM-004, SPM-010 | ✅ Passing |
 | `fast-seller-add-product-test.sh` | SPM-001, SPM-002 | ✅ Passing |
+| `fast-seller-order-fulfillment-test.sh` | FUL-001, FUL-002, FUL-004, FUL-008 | ✅ Passing |
 
 ### By Role Coverage
 
 | Role | Implemented | Planned | Total |
 |------|-------------|---------|-------|
 | Customer | 10 | 38 | 48 |
-| Seller | 16 | 22 | 38 |
+| Seller | 20 | 18 | 38 |
 | Dual | 0 | 6 | 6 |
 | All (Auth) | 10 | 7 | 17 |
 
@@ -287,9 +290,9 @@ The application supports three user roles:
 
 | Priority | Implemented | Planned | Total |
 |----------|-------------|---------|-------|
-| P0 (Critical) | 12 | 3 | 15 |
+| P0 (Critical) | 15 | 0 | 15 |
 | P1 (High) | 12 | 14 | 26 |
-| P2 (Medium) | 6 | 34 | 40 |
+| P2 (Medium) | 7 | 33 | 40 |
 | P3 (Low) | 0 | 15 | 15 |
 
 ---
@@ -353,12 +356,13 @@ The following test suites are configured in `test-suites.yaml`:
 
 ### Fast Seller Test Suite (Hybrid)
 **Purpose:** Complete seller flow validation with fast ADB input
-**Timeout:** 15 minutes
+**Timeout:** 20 minutes
 **Scripts:**
 - `fast-seller-login-test.sh` - Seller authentication
 - `fast-seller-analytics-test.sh` - Analytics dashboard & metrics
 - `fast-seller-product-management-test.sh` - Product list & management
 - `fast-seller-add-product-test.sh` - Product creation flow
+- `fast-seller-order-fulfillment-test.sh` - Order management & fulfillment
 
 **Run Command:** `./scripts/run-all-seller-tests.sh`
 
@@ -441,7 +445,7 @@ SELLER_SERVICE_URL: "http://localhost:8002/api/sellers"
 - [x] Analytics
 - [x] Add Product
 - [x] Seller Login (Fast ADB)
-- [ ] Order fulfillment
+- [x] Order fulfillment (FUL-001, FUL-002, FUL-004, FUL-008)
 
 ### Phase 4: Advanced Features (Planned)
 - [ ] Chat functionality

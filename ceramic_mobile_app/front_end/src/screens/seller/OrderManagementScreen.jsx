@@ -40,37 +40,38 @@ const OrderStatus = {
 
 // OrderCard component
 const OrderCard = ({ order, onPress, onQuickAction, t }) => (
-  <Card style={styles.orderCard} onPress={() => onPress(order)}>
+  <Card style={styles.orderCard} onPress={() => onPress(order)} testID={`order-card-${order.id}`}>
     <Card.Content>
       <View style={styles.orderHeader}>
-        <Text style={styles.orderNumber}>#{order.order_number}</Text>
+        <Text style={styles.orderNumber} testID={`order-number-${order.id}`}>#{order.order_number}</Text>
         <Chip
           mode="flat"
           style={[styles.statusChip, { backgroundColor: getStatusColor(order.status) }]}
           textStyle={styles.statusText}
+          testID={`order-status-${order.id}`}
         >
           {order.status}
         </Chip>
       </View>
-      <Text style={styles.customerName}>{order.customer_name}</Text>
-      <Text style={styles.orderTotal}>${order.total_amount.toFixed(2)}</Text>
-      <Text style={styles.orderDate}>
+      <Text style={styles.customerName} testID={`order-customer-${order.id}`}>{order.customer_name}</Text>
+      <Text style={styles.orderTotal} testID={`order-total-${order.id}`}>${order.total_amount.toFixed(2)}</Text>
+      <Text style={styles.orderDate} testID={`order-date-${order.id}`}>
         {new Date(order.created_at).toLocaleDateString()}
       </Text>
     </Card.Content>
     <Card.Actions>
       {order.status === 'PENDING' && (
-        <Button mode="text" onPress={() => onQuickAction(order, 'confirm')}>
+        <Button mode="text" onPress={() => onQuickAction(order, 'confirm')} testID={`order-confirm-btn-${order.id}`}>
           {t('orderManagement.confirm')}
         </Button>
       )}
       {order.status === 'CONFIRMED' && (
-        <Button mode="text" onPress={() => onQuickAction(order, 'process')}>
+        <Button mode="text" onPress={() => onQuickAction(order, 'process')} testID={`order-process-btn-${order.id}`}>
           {t('orderManagement.process')}
         </Button>
       )}
       {order.status === 'PROCESSING' && (
-        <Button mode="text" onPress={() => onQuickAction(order, 'ship')}>
+        <Button mode="text" onPress={() => onQuickAction(order, 'ship')} testID={`order-ship-btn-${order.id}`}>
           {t('orderManagement.ship')}
         </Button>
       )}
@@ -302,9 +303,9 @@ export const OrderManagementScreen = () => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="order-management-screen">
       <Appbar.Header>
-        <Appbar.BackAction onPress={() => navigation.goBack()} />
+        <Appbar.BackAction onPress={() => navigation.goBack()} testID="order-management-back" />
         <Appbar.Content title={t('orderManagement.title')} />
       </Appbar.Header>
 
@@ -345,12 +346,13 @@ export const OrderManagementScreen = () => {
       )}
 
       {/* Search and Filters */}
-      <View style={styles.searchContainer}>
+      <View style={styles.searchContainer} testID="order-search-container">
         <Searchbar
           placeholder={t('orderManagement.searchPlaceholder')}
           value={searchQuery}
           onChangeText={handleSearch}
           style={styles.searchbar}
+          testID="order-search-bar"
         />
         <Menu
           visible={statusMenuVisible}
@@ -361,6 +363,7 @@ export const OrderManagementScreen = () => {
               onPress={() => setStatusMenuVisible(true)}
               style={styles.filterButton}
               contentStyle={styles.filterButtonContent}
+              testID="order-filter-button"
             >
               {getStatusFilterText()}
             </Button>
@@ -394,7 +397,7 @@ export const OrderManagementScreen = () => {
         onEndReached={loadMoreOrders}
         onEndReachedThreshold={0.1}
         ListEmptyComponent={() => (
-          <View style={styles.emptyContainer}>
+          <View style={styles.emptyContainer} testID="order-list-empty">
             <Text style={styles.emptyText}>{t('orderManagement.noOrdersFound')}</Text>
             <Text style={styles.emptySubtext}>
               {statusFilter || searchQuery
@@ -405,6 +408,7 @@ export const OrderManagementScreen = () => {
           </View>
         )}
         showsVerticalScrollIndicator={false}
+        testID="order-list"
       />
 
       {/* Floating Action Button */}
