@@ -1,24 +1,22 @@
 #!/bin/bash
+# =============================================================================
 # Seller Add 5 Products - Fast ADB input with app focus control
+# =============================================================================
+# Uses the reusable login library for seller authentication
+# =============================================================================
 
 set -e
 
-USERNAME="test_seller_user"
-PASSWORD="Test@12345678"
+# Get script directory
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+
+# Ensure Metro is running
+source "$SCRIPT_DIR/ensure-metro.sh"
+
+# Source the login library
+source "$SCRIPT_DIR/seller-login-lib.sh"
+
 APP_ID="com.ceramicmarketplace.app"
-
-export PATH="$PATH:$HOME/.maestro/bin"
-
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-print_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
-print_success() { echo -e "${GREEN}[PASS]${NC} $1"; }
-print_error() { echo -e "${RED}[FAIL]${NC} $1"; }
-print_info() { echo -e "${YELLOW}[INFO]${NC} $1"; }
 
 # Function to ensure app is in focus before typing
 ensure_app_focus() {
@@ -30,8 +28,7 @@ ensure_app_focus() {
 fast_input() {
     local text="$1"
     ensure_app_focus
-    adb shell input text "$text"
-    sleep 0.3
+    _adb_input "$text"
 }
 
 echo "=============================================="
@@ -43,57 +40,17 @@ TIMESTAMP=$(date +%s)
 PRODUCTS_ADDED=0
 
 # ===== LOGIN =====
-print_step "Logging in..."
+_log_step "Logging in..."
 
-cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- launchApp:
-    clearState: true
-    permissions:
-      notifications: allow
-      photos: allow
-- waitForAnimationToEnd
-- assertVisible:
-    id: "login-username-input"
-- tapOn:
-    id: "login-username-input"
-EOF
-maestro test "$TEMP_FLOW" 2>&1 | tail -3
-
-fast_input "$USERNAME"
-
-cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- hideKeyboard
-- tapOn:
-    id: "login-password-input"
-EOF
-maestro test "$TEMP_FLOW" 2>&1 | tail -2
-
-# Password with escaped @
-ESCAPED_PWD=$(echo "$PASSWORD" | sed 's/@/\\@/g')
-fast_input "$ESCAPED_PWD"
-
-cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- hideKeyboard
-- tapOn:
-    id: "login-submit-button"
-- waitForAnimationToEnd
-- extendedWaitUntil:
-    visible:
-      id: "tab-dashboard"
-    timeout: 20000
-- takeScreenshot: "fast-add5-01-login"
-EOF
-maestro test "$TEMP_FLOW" 2>&1 | tail -5
-print_success "Login done"
+if ! seller_login; then
+    _log_error "Login failed"
+    rm -f "$TEMP_FLOW"
+    exit 1
+fi
+_log_success "Login done"
 
 # ===== GO TO PRODUCTS TAB =====
-print_step "Going to Products tab..."
+_log_step "Going to Products tab..."
 
 cat > "$TEMP_FLOW" << 'EOF'
 appId: com.ceramicmarketplace.app
@@ -112,7 +69,7 @@ add_one_product() {
     local DESC=$3
     local PRICE=$4
 
-    print_info "Adding product $NUM: $TITLE"
+    _log_info "Adding product $NUM: $TITLE"
 
     # Click FAB to add
     cat > "$TEMP_FLOW" << 'EOF'
@@ -189,7 +146,7 @@ EOF
 
     if maestro test "$TEMP_FLOW" 2>&1 | tail -3; then
         PRODUCTS_ADDED=$((PRODUCTS_ADDED + 1))
-        print_success "Product $NUM added"
+        _log_success "Product $NUM added"
     fi
 
     # Go back to products list
@@ -232,9 +189,9 @@ echo ""
 echo "=============================================="
 echo "Products added: $PRODUCTS_ADDED / 5"
 if [ $PRODUCTS_ADDED -ge 3 ]; then
-    print_success "TEST PASSED!"
+    _log_success "TEST PASSED!"
     exit 0
 else
-    print_error "TEST NEEDS REVIEW"
+    _log_error "TEST NEEDS REVIEW"
     exit 1
 fi

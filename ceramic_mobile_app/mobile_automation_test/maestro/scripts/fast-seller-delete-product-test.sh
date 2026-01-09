@@ -1,112 +1,38 @@
 #!/bin/bash
-# Fast Seller Delete 1 Product Test - Hybrid approach
-# Deletes 1 product to test product deletion functionality
+# =============================================================================
+# Fast Seller Delete Product Test
+# =============================================================================
+# Tests product deletion using the reusable login library
+# =============================================================================
 
 set -e
 
-# Configuration
-USERNAME="${TEST_SELLER_USERNAME:-test_seller_user}"
-PASSWORD="${TEST_PASSWORD:-Test@12345678}"
-APP_ID="com.ceramicmarketplace.app"
+# Get script directory
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 
-# Colors
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+# Ensure Metro is running
+source "$SCRIPT_DIR/ensure-metro.sh"
 
-print_step() {
-    echo -e "${BLUE}[STEP]${NC} $1"
-}
+# Source the login library
+source "$SCRIPT_DIR/seller-login-lib.sh"
 
-print_success() {
-    echo -e "${GREEN}[PASS]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[FAIL]${NC} $1"
-}
-
-print_info() {
-    echo -e "${YELLOW}[INFO]${NC} $1"
-}
-
-# Add Maestro to PATH
-export PATH="$PATH:$HOME/.maestro/bin"
-
+echo ""
 echo "=============================================="
-echo "  Fast Seller Delete 1 Product Test (Hybrid)"
+echo "  Fast Seller Delete Product Test"
 echo "=============================================="
-echo "Username: $USERNAME"
 echo "Time: $(date)"
 echo ""
 
-# Check device
-if ! adb devices | grep -q "device$"; then
-    print_error "No Android device connected"
+# ===== STEP 1: Login =====
+if ! seller_login; then
+    _log_error "Login failed - cannot proceed with test"
     exit 1
 fi
-print_success "Device connected"
 
+# Create temporary Maestro flow
 TEMP_FLOW=$(mktemp /tmp/seller-delete-product-XXXXXX.yaml)
 
-# ===== PHASE 1: Fast Login =====
-cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- launchApp:
-    clearState: true
-    permissions:
-      notifications: allow
-
-- waitForAnimationToEnd
-- assertVisible:
-    id: "login-username-input"
-
-- tapOn:
-    id: "login-username-input"
-EOF
-
-print_step "Launching app..."
-maestro test "$TEMP_FLOW" 2>&1 | tail -3
-print_success "Login screen ready"
-
-print_step "Entering credentials (fast ADB input)..."
-adb shell input text "$USERNAME"
-sleep 0.3
-
-cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- hideKeyboard
-- tapOn:
-    id: "login-password-input"
-EOF
-maestro test "$TEMP_FLOW" 2>&1 | tail -2
-
-ESCAPED_PASSWORD=$(echo "$PASSWORD" | sed 's/@/\\@/g')
-adb shell input text "$ESCAPED_PASSWORD"
-sleep 0.3
-
-cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- hideKeyboard
-- tapOn:
-    id: "login-submit-button"
-
-- waitForAnimationToEnd
-- extendedWaitUntil:
-    visible:
-      id: "tab-dashboard"
-    timeout: 20000
-EOF
-
-maestro test "$TEMP_FLOW" 2>&1 | tail -3
-print_success "Login successful"
-
-# ===== PHASE 2: Navigate to Products =====
+# ===== STEP 2: Navigate to Products =====
 cat > "$TEMP_FLOW" << 'EOF'
 appId: com.ceramicmarketplace.app
 ---
@@ -118,17 +44,17 @@ appId: com.ceramicmarketplace.app
 - takeScreenshot: "delete-01-product-list-before"
 EOF
 
-print_step "Navigating to products..."
+_log_step "Navigating to products..."
 maestro test "$TEMP_FLOW" 2>&1 | tail -3
-print_success "Products screen loaded"
+_log_success "Products screen loaded"
 
-# ===== PHASE 3: Select Product to Delete =====
-print_info "Selecting product to delete..."
+# ===== STEP 3: Select Product to Delete =====
+_log_info "Selecting product to delete..."
 
 cat > "$TEMP_FLOW" << 'EOF'
 appId: com.ceramicmarketplace.app
 ---
-# Tap on a product (choosing the last one to delete)
+# Tap on a product (choosing the first one to delete)
 - tapOn:
     id: "product-item-0"
     optional: true
@@ -139,8 +65,8 @@ EOF
 
 maestro test "$TEMP_FLOW" 2>&1 | tail -3
 
-# ===== PHASE 4: Delete Product =====
-print_step "Deleting product..."
+# ===== STEP 4: Delete Product =====
+_log_step "Deleting product..."
 
 # Try delete button in product details
 cat > "$TEMP_FLOW" << 'EOF'
@@ -181,8 +107,8 @@ appId: com.ceramicmarketplace.app
 EOF
 maestro test "$TEMP_FLOW" 2>&1 | tail -3
 
-# ===== PHASE 5: Confirm Delete =====
-print_step "Confirming deletion..."
+# ===== STEP 5: Confirm Delete =====
+_log_step "Confirming deletion..."
 
 cat > "$TEMP_FLOW" << 'EOF'
 appId: com.ceramicmarketplace.app
@@ -209,12 +135,12 @@ appId: com.ceramicmarketplace.app
 EOF
 
 if maestro test "$TEMP_FLOW" 2>&1 | tail -3; then
-    print_success "Delete confirmation completed"
+    _log_success "Delete confirmation completed"
 else
-    print_info "Delete confirmation attempted"
+    _log_info "Delete confirmation attempted"
 fi
 
-# ===== PHASE 6: Verify Deletion =====
+# ===== STEP 6: Verify Deletion =====
 cat > "$TEMP_FLOW" << 'EOF'
 appId: com.ceramicmarketplace.app
 ---
@@ -233,6 +159,6 @@ rm -f "$TEMP_FLOW"
 
 echo ""
 echo "=============================================="
-print_success "SELLER DELETE PRODUCT TEST COMPLETED!"
+_log_success "SELLER DELETE PRODUCT TEST COMPLETED!"
 echo "=============================================="
 exit 0

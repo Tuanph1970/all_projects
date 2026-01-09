@@ -4,6 +4,10 @@
 
 set -e
 
+# Ensure Metro is running
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+source "$SCRIPT_DIR/ensure-metro.sh"
+
 # Configuration
 USERNAME="${TEST_CUSTOMER_USERNAME:-test_customer}"
 PASSWORD="${TEST_PASSWORD:-Test@12345678}"

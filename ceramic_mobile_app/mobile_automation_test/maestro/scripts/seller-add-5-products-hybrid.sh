@@ -1,30 +1,23 @@
 #!/bin/bash
+# =============================================================================
 # Seller Add 5 Products - Hybrid (Maestro UI + ADB text input)
+# =============================================================================
+# Uses the reusable login library for seller authentication
+# =============================================================================
 
 set -e
 
-export PATH="$PATH:$HOME/.maestro/bin"
+# Get script directory
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+
+# Ensure Metro is running
+source "$SCRIPT_DIR/ensure-metro.sh"
+
+# Source the login library
+source "$SCRIPT_DIR/seller-login-lib.sh"
 
 TIMESTAMP=$(date +%s)
 TEMP_FLOW=$(mktemp /tmp/add5-hybrid-XXXXXX.yaml)
-
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-APP_PACKAGE="com.ceramicmarketplace.app"
-
-print_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
-print_success() { echo -e "${GREEN}[PASS]${NC} $1"; }
-print_error() { echo -e "${RED}[FAIL]${NC} $1"; }
-
-# Safe ADB input - just input text directly (app focus maintained by Maestro)
-safe_input() {
-    local text="$1"
-    adb shell input text "$text"
-    sleep 0.3
-}
 
 echo "=============================================="
 echo "  Add 5 Products (Hybrid: Maestro + ADB)"
@@ -33,54 +26,13 @@ echo "Timestamp: $TIMESTAMP"
 echo ""
 
 # ===== LOGIN =====
-print_step "Login..."
-
-cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- launchApp:
-    clearState: true
-    permissions:
-      notifications: allow
-      photos: allow
-- waitForAnimationToEnd
-- assertVisible:
-    id: "login-username-input"
-- tapOn:
-    id: "login-username-input"
-EOF
-maestro test "$TEMP_FLOW" 2>&1 | tail -3
-
-safe_input "test_seller_user"
-
-cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- hideKeyboard
-- tapOn:
-    id: "login-password-input"
-EOF
-maestro test "$TEMP_FLOW" 2>&1 | tail -2
-
-safe_input "Test\\@12345678"
-
-cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- hideKeyboard
-- tapOn:
-    id: "login-submit-button"
-- extendedWaitUntil:
-    visible:
-      id: "tab-dashboard"
-    timeout: 20000
-- takeScreenshot: "add5-01-logged-in"
-EOF
-maestro test "$TEMP_FLOW" 2>&1 | tail -3
-print_success "Login done"
+if ! seller_login; then
+    _log_error "Login failed - cannot proceed with test"
+    exit 1
+fi
 
 # ===== GO TO PRODUCTS TAB =====
-print_step "Going to Products tab..."
+_log_step "Going to Products tab..."
 
 cat > "$TEMP_FLOW" << 'EOF'
 appId: com.ceramicmarketplace.app
@@ -101,7 +53,7 @@ add_product() {
     local CATEGORY=$5
     local QUANTITY=$6
 
-    print_step "Adding product $NUM: $TITLE"
+    _log_step "Adding product $NUM: $TITLE"
 
     # Tap FAB to add product
     cat > "$TEMP_FLOW" << 'EOF'
@@ -116,7 +68,7 @@ EOF
     maestro test "$TEMP_FLOW" 2>&1 | tail -2
 
     # Enter title via ADB
-    safe_input "$TITLE"
+    _adb_input "$TITLE"
 
     # Tap description field
     cat > "$TEMP_FLOW" << 'EOF'
@@ -129,7 +81,7 @@ EOF
     maestro test "$TEMP_FLOW" 2>&1 | tail -2
 
     # Enter description via ADB
-    safe_input "$DESC"
+    _adb_input "$DESC"
 
     # Tap price field
     cat > "$TEMP_FLOW" << 'EOF'
@@ -142,7 +94,7 @@ EOF
     maestro test "$TEMP_FLOW" 2>&1 | tail -2
 
     # Enter price via ADB
-    safe_input "$PRICE"
+    _adb_input "$PRICE"
 
     # Tap category field
     cat > "$TEMP_FLOW" << 'EOF'
@@ -155,7 +107,7 @@ EOF
     maestro test "$TEMP_FLOW" 2>&1 | tail -2
 
     # Enter category via ADB
-    safe_input "$CATEGORY"
+    _adb_input "$CATEGORY"
 
     # Tap stock quantity field
     cat > "$TEMP_FLOW" << 'EOF'
@@ -168,7 +120,7 @@ EOF
     maestro test "$TEMP_FLOW" 2>&1 | tail -2
 
     # Enter quantity via ADB
-    safe_input "$QUANTITY"
+    _adb_input "$QUANTITY"
 
     # Save product
     cat > "$TEMP_FLOW" << EOF
@@ -183,7 +135,7 @@ appId: com.ceramicmarketplace.app
 - takeScreenshot: "add5-product${NUM}-done"
 EOF
     maestro test "$TEMP_FLOW" 2>&1 | tail -3
-    print_success "Product $NUM saved"
+    _log_success "Product $NUM saved"
 
     # Go back to products list
     cat > "$TEMP_FLOW" << 'EOF'
@@ -220,5 +172,5 @@ rm -f "$TEMP_FLOW"
 
 echo ""
 echo "=============================================="
-print_success "ALL 5 PRODUCTS ADDED SUCCESSFULLY!"
+_log_success "ALL 5 PRODUCTS ADDED SUCCESSFULLY!"
 echo "=============================================="

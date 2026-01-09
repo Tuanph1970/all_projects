@@ -1,8 +1,21 @@
 #!/bin/bash
-# Seller Add 5 Products Test - Pure Maestro + ADB hybrid
+# =============================================================================
+# Seller Add 5 Products Test - Pure Maestro + ADB hybrid v2
+# =============================================================================
 # Uses Maestro for taps/navigation, ADB for fast text input
+# Uses the reusable login library for seller authentication
+# =============================================================================
 
 set -e
+
+# Get script directory
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+
+# Ensure Metro is running
+source "$SCRIPT_DIR/ensure-metro.sh"
+
+# Source the login library
+source "$SCRIPT_DIR/seller-login-lib.sh"
 
 MAESTRO=~/.maestro/bin/maestro
 TIMESTAMP=$(date +%s)
@@ -21,87 +34,27 @@ run_flow() {
     $MAESTRO test "$flow_file" 2>&1 | tail -5
 }
 
-# Helper: ADB text input (fast)
-adb_input() {
-    local text="$1"
-    # Replace spaces with %s for ADB
-    local escaped=$(echo "$text" | sed 's/ /%s/g')
-    adb shell input text "$escaped"
-    sleep 0.3
-}
-
 # Helper: Take screenshot
 screenshot() {
     local name="$1"
     adb shell screencap -p /sdcard/screen.png
     adb pull /sdcard/screen.png "$SCREENSHOTS_DIR/${name}.png" 2>/dev/null
-    echo "  📸 Screenshot: $name"
+    echo "  Screenshot: $name"
 }
 
 # ============================================
 # STEP 1: Login as seller
 # ============================================
-echo "STEP 1: Logging in as test_seller..."
+echo "STEP 1: Logging in as seller..."
 
-cat > /tmp/step1-launch.yaml << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- launchApp:
-    clearState: true
-- waitForAnimationToEnd
-EOF
-run_flow /tmp/step1-launch.yaml
-
-sleep 2
-
-cat > /tmp/step1-tap-login.yaml << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- tapOn:
-    text: "Login"
-    optional: true
-- waitForAnimationToEnd
-EOF
-run_flow /tmp/step1-tap-login.yaml
-
-sleep 1
-
-# Tap username and enter via ADB
-cat > /tmp/step1-tap-username.yaml << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- tapOn:
-    id: "login-username-input"
-EOF
-run_flow /tmp/step1-tap-username.yaml
-sleep 0.5
-adb_input "test_seller"
-echo "  ✓ Entered username"
-
-# Tap password and enter via ADB
-cat > /tmp/step1-tap-password.yaml << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- tapOn:
-    id: "login-password-input"
-EOF
-run_flow /tmp/step1-tap-password.yaml
-sleep 0.5
-adb_input "12345678"
-echo "  ✓ Entered password"
-
-# Tap login button
-cat > /tmp/step1-login.yaml << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- tapOn:
-    id: "login-button"
-- waitForAnimationToEnd
-EOF
-run_flow /tmp/step1-login.yaml
+if ! seller_login; then
+    _log_error "Login failed"
+    exit 1
+fi
+_log_success "Login successful"
 
 echo "  Waiting for dashboard..."
-sleep 5
+sleep 2
 screenshot "step1-after-login"
 
 # ============================================
@@ -155,8 +108,8 @@ appId: com.ceramicmarketplace.app
 EOF
     run_flow /tmp/add-tap-title.yaml
     sleep 0.3
-    adb_input "$TITLE"
-    echo "  ✓ Title: $TITLE"
+    _adb_input "$TITLE"
+    echo "  Title: $TITLE"
 
     # Fill Description
     cat > /tmp/add-tap-desc.yaml << 'EOF'
@@ -167,8 +120,8 @@ appId: com.ceramicmarketplace.app
 EOF
     run_flow /tmp/add-tap-desc.yaml
     sleep 0.3
-    adb_input "$DESC"
-    echo "  ✓ Description: $DESC"
+    _adb_input "$DESC"
+    echo "  Description: $DESC"
 
     # Fill Price
     cat > /tmp/add-tap-price.yaml << 'EOF'
@@ -179,8 +132,8 @@ appId: com.ceramicmarketplace.app
 EOF
     run_flow /tmp/add-tap-price.yaml
     sleep 0.3
-    adb_input "$PRICE"
-    echo "  ✓ Price: $PRICE"
+    _adb_input "$PRICE"
+    echo "  Price: $PRICE"
 
     # Fill Category
     cat > /tmp/add-tap-category.yaml << 'EOF'
@@ -191,8 +144,8 @@ appId: com.ceramicmarketplace.app
 EOF
     run_flow /tmp/add-tap-category.yaml
     sleep 0.3
-    adb_input "$CATEGORY"
-    echo "  ✓ Category: $CATEGORY"
+    _adb_input "$CATEGORY"
+    echo "  Category: $CATEGORY"
 
     # Fill Stock Quantity
     cat > /tmp/add-tap-stock.yaml << 'EOF'
@@ -203,8 +156,8 @@ appId: com.ceramicmarketplace.app
 EOF
     run_flow /tmp/add-tap-stock.yaml
     sleep 0.3
-    adb_input "$QUANTITY"
-    echo "  ✓ Stock: $QUANTITY"
+    _adb_input "$QUANTITY"
+    echo "  Stock: $QUANTITY"
 
     # Dismiss keyboard and scroll to submit
     cat > /tmp/add-submit.yaml << 'EOF'
@@ -222,7 +175,7 @@ EOF
     run_flow /tmp/add-submit.yaml
     sleep 2
     screenshot "product-${NUM}-submitted"
-    echo "  ✓ Product $NUM submitted!"
+    _log_success "Product $NUM submitted!"
 }
 
 # ============================================
@@ -246,6 +199,6 @@ screenshot "final-products-list"
 
 echo ""
 echo "=========================================="
-echo "✅ TEST COMPLETED"
+_log_success "TEST COMPLETED"
 echo "Screenshots saved to: $SCREENSHOTS_DIR"
 echo "=========================================="

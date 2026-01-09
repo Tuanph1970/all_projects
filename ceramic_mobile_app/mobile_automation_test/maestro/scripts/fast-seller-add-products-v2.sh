@@ -1,100 +1,41 @@
 #!/bin/bash
-# Fast Seller Add Products Test v2 - Step by step with verification
-# Adds 5 products with clear verification at each step
+# =============================================================================
+# Fast Seller Add Products Test v2
+# =============================================================================
+# Step by step product addition with verification
+# Uses the reusable login library for seller authentication
+# =============================================================================
 
 set -e
 
-# Configuration
-USERNAME="${TEST_SELLER_USERNAME:-test_seller_user}"
-PASSWORD="${TEST_PASSWORD:-Test@12345678}"
-APP_ID="com.ceramicmarketplace.app"
+# Get script directory
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 
-# Colors
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+# Ensure Metro is running
+source "$SCRIPT_DIR/ensure-metro.sh"
 
-print_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
-print_success() { echo -e "${GREEN}[PASS]${NC} $1"; }
-print_error() { echo -e "${RED}[FAIL]${NC} $1"; }
-print_info() { echo -e "${YELLOW}[INFO]${NC} $1"; }
-
-export PATH="$PATH:$HOME/.maestro/bin"
-
-echo "=============================================="
-echo "  Seller Add 5 Products Test v2"
-echo "=============================================="
-echo "Username: $USERNAME"
-echo ""
-
-# Check device
-if ! adb devices | grep -q "device$"; then
-    print_error "No Android device connected"
-    exit 1
-fi
-print_success "Device connected"
+# Source the login library
+source "$SCRIPT_DIR/seller-login-lib.sh"
 
 TEMP_FLOW=$(mktemp /tmp/add-products-XXXXXX.yaml)
 TIMESTAMP=$(date +%s)
 PRODUCTS_ADDED=0
 
+echo ""
+echo "=============================================="
+echo "  Seller Add 5 Products Test v2"
+echo "=============================================="
+echo ""
+
 # ===== LOGIN =====
-print_step "Phase 1: Login"
+_log_step "Phase 1: Login"
 
-cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- launchApp:
-    clearState: true
-    permissions:
-      notifications: allow
-      photos: allow
-- waitForAnimationToEnd
-- assertVisible:
-    id: "login-username-input"
-- tapOn:
-    id: "login-username-input"
-EOF
-
-maestro test "$TEMP_FLOW" 2>&1 | tail -3
-adb shell input text "$USERNAME"
-sleep 0.5
-
-cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- hideKeyboard
-- tapOn:
-    id: "login-password-input"
-EOF
-maestro test "$TEMP_FLOW" 2>&1 | tail -2
-
-ESCAPED_PASSWORD=$(echo "$PASSWORD" | sed 's/@/\\@/g')
-adb shell input text "$ESCAPED_PASSWORD"
-sleep 0.5
-
-cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- hideKeyboard
-- tapOn:
-    id: "login-submit-button"
-- waitForAnimationToEnd
-- extendedWaitUntil:
-    visible:
-      id: "tab-dashboard"
-    timeout: 20000
-- takeScreenshot: "add5-00-login-success"
-EOF
-
-if ! maestro test "$TEMP_FLOW" 2>&1 | tail -5; then
-    print_error "Login failed"
+if ! seller_login; then
+    _log_error "Login failed"
     rm -f "$TEMP_FLOW"
     exit 1
 fi
-print_success "Login successful"
+_log_success "Login successful"
 
 # Function to add one product
 add_product() {
@@ -103,7 +44,7 @@ add_product() {
     local DESC=$3
     local PRICE=$4
 
-    print_info "Adding product $NUM: $TITLE"
+    _log_info "Adding product $NUM: $TITLE"
 
     # Navigate to add product screen
     cat > "$TEMP_FLOW" << 'EOF'
@@ -120,7 +61,7 @@ appId: com.ceramicmarketplace.app
 EOF
 
     if ! maestro test "$TEMP_FLOW" 2>&1 | tail -3; then
-        print_error "Failed to open add product screen"
+        _log_error "Failed to open add product screen"
         return 1
     fi
 
@@ -135,8 +76,7 @@ EOF
     maestro test "$TEMP_FLOW" 2>&1 | tail -2
 
     # Enter title
-    adb shell input text "$TITLE"
-    sleep 0.3
+    _adb_input "$TITLE"
 
     # Enter description
     cat > "$TEMP_FLOW" << 'EOF'
@@ -147,8 +87,7 @@ appId: com.ceramicmarketplace.app
     id: "add-product-description-input"
 EOF
     maestro test "$TEMP_FLOW" 2>&1 | tail -2
-    adb shell input text "$DESC"
-    sleep 0.3
+    _adb_input "$DESC"
 
     # Enter price
     cat > "$TEMP_FLOW" << 'EOF'
@@ -159,8 +98,7 @@ appId: com.ceramicmarketplace.app
     id: "add-product-price-input"
 EOF
     maestro test "$TEMP_FLOW" 2>&1 | tail -2
-    adb shell input text "$PRICE"
-    sleep 0.3
+    _adb_input "$PRICE"
 
     # Take screenshot of filled form and submit
     cat > "$TEMP_FLOW" << EOF
@@ -175,10 +113,10 @@ appId: com.ceramicmarketplace.app
 EOF
 
     if maestro test "$TEMP_FLOW" 2>&1 | tail -5; then
-        print_success "Product $NUM added: $TITLE"
+        _log_success "Product $NUM added: $TITLE"
         PRODUCTS_ADDED=$((PRODUCTS_ADDED + 1))
     else
-        print_error "Failed to add product $NUM"
+        _log_error "Failed to add product $NUM"
         return 1
     fi
 
@@ -220,9 +158,9 @@ echo ""
 echo "=============================================="
 echo "Products added: $PRODUCTS_ADDED of 5"
 if [ $PRODUCTS_ADDED -ge 3 ]; then
-    print_success "ADD PRODUCTS TEST PASSED!"
+    _log_success "ADD PRODUCTS TEST PASSED!"
     exit 0
 else
-    print_error "ADD PRODUCTS TEST FAILED!"
+    _log_error "ADD PRODUCTS TEST FAILED!"
     exit 1
 fi

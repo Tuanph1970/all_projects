@@ -1,55 +1,21 @@
 #!/bin/bash
-# Fast Seller Add 5 Products Test - Hybrid approach
-# Adds 5 products to test bulk product creation
+# =============================================================================
+# Fast Seller Add 5 Products Test
+# =============================================================================
+# Tests bulk product creation using the reusable login library
+# =============================================================================
 
 set -e
 
-# Configuration
-USERNAME="${TEST_SELLER_USERNAME:-test_seller_user}"
-PASSWORD="${TEST_PASSWORD:-Test@12345678}"
-APP_ID="com.ceramicmarketplace.app"
+# Get script directory
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 
-# Colors
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+# Ensure Metro is running
+source "$SCRIPT_DIR/ensure-metro.sh"
 
-print_step() {
-    echo -e "${BLUE}[STEP]${NC} $1"
-}
+# Source the login library
+source "$SCRIPT_DIR/seller-login-lib.sh"
 
-print_success() {
-    echo -e "${GREEN}[PASS]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[FAIL]${NC} $1"
-}
-
-print_info() {
-    echo -e "${YELLOW}[INFO]${NC} $1"
-}
-
-# Add Maestro to PATH
-export PATH="$PATH:$HOME/.maestro/bin"
-
-echo "=============================================="
-echo "  Fast Seller Add 5 Products Test (Hybrid)"
-echo "=============================================="
-echo "Username: $USERNAME"
-echo "Time: $(date)"
-echo ""
-
-# Check device
-if ! adb devices | grep -q "device$"; then
-    print_error "No Android device connected"
-    exit 1
-fi
-print_success "Device connected"
-
-TEMP_FLOW=$(mktemp /tmp/seller-add-5-products-XXXXXX.yaml)
 TIMESTAMP=$(date +%s)
 
 # Product data
@@ -61,63 +27,23 @@ declare -a PRODUCTS=(
     "Art_Sculpture_${TIMESTAMP}|Unique_ceramic_art_sculpture|99.99|10"
 )
 
-# ===== PHASE 1: Fast Login =====
-cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- launchApp:
-    clearState: true
-    permissions:
-      notifications: allow
-      photos: allow
+echo ""
+echo "=============================================="
+echo "  Fast Seller Add 5 Products Test"
+echo "=============================================="
+echo "Time: $(date)"
+echo ""
 
-- waitForAnimationToEnd
-- assertVisible:
-    id: "login-username-input"
+# ===== STEP 1: Login =====
+if ! seller_login; then
+    _log_error "Login failed - cannot proceed with test"
+    exit 1
+fi
 
-- tapOn:
-    id: "login-username-input"
-EOF
+# Create temporary Maestro flow
+TEMP_FLOW=$(mktemp /tmp/seller-add-5-products-XXXXXX.yaml)
 
-print_step "Launching app..."
-maestro test "$TEMP_FLOW" 2>&1 | tail -3
-print_success "Login screen ready"
-
-print_step "Entering credentials (fast ADB input)..."
-adb shell input text "$USERNAME"
-sleep 0.3
-
-cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- hideKeyboard
-- tapOn:
-    id: "login-password-input"
-EOF
-maestro test "$TEMP_FLOW" 2>&1 | tail -2
-
-ESCAPED_PASSWORD=$(echo "$PASSWORD" | sed 's/@/\\@/g')
-adb shell input text "$ESCAPED_PASSWORD"
-sleep 0.3
-
-cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- hideKeyboard
-- tapOn:
-    id: "login-submit-button"
-
-- waitForAnimationToEnd
-- extendedWaitUntil:
-    visible:
-      id: "tab-dashboard"
-    timeout: 20000
-EOF
-
-maestro test "$TEMP_FLOW" 2>&1 | tail -3
-print_success "Login successful"
-
-# ===== PHASE 2: Add 5 Products =====
+# ===== STEP 2: Add 5 Products =====
 PRODUCTS_ADDED=0
 
 for i in {0..4}; do
@@ -125,7 +51,7 @@ for i in {0..4}; do
     IFS='|' read -r TITLE DESC PRICE STOCK <<< "$PRODUCT_DATA"
 
     PRODUCT_NUM=$((i + 1))
-    print_info "Adding product $PRODUCT_NUM of 5: $TITLE"
+    _log_info "Adding product $PRODUCT_NUM of 5: $TITLE"
 
     # Navigate to Add Product
     cat > "$TEMP_FLOW" << 'EOF'
@@ -165,8 +91,7 @@ appId: com.ceramicmarketplace.app
     optional: true
 EOF
     maestro test "$TEMP_FLOW" 2>&1 | tail -2
-    adb shell input text "$TITLE"
-    sleep 0.3
+    _adb_input "$TITLE"
 
     # Fill description
     cat > "$TEMP_FLOW" << 'EOF'
@@ -178,8 +103,7 @@ appId: com.ceramicmarketplace.app
     optional: true
 EOF
     maestro test "$TEMP_FLOW" 2>&1 | tail -2
-    adb shell input text "$DESC"
-    sleep 0.3
+    _adb_input "$DESC"
 
     # Fill price
     cat > "$TEMP_FLOW" << 'EOF'
@@ -191,8 +115,7 @@ appId: com.ceramicmarketplace.app
     optional: true
 EOF
     maestro test "$TEMP_FLOW" 2>&1 | tail -2
-    adb shell input text "$PRICE"
-    sleep 0.3
+    _adb_input "$PRICE"
 
     # Scroll and fill stock
     cat > "$TEMP_FLOW" << 'EOF'
@@ -205,8 +128,7 @@ appId: com.ceramicmarketplace.app
     optional: true
 EOF
     maestro test "$TEMP_FLOW" 2>&1 | tail -2
-    adb shell input text "$STOCK"
-    sleep 0.3
+    _adb_input "$STOCK"
 
     # Submit product
     cat > "$TEMP_FLOW" << 'EOF'
@@ -222,9 +144,9 @@ EOF
 
     if maestro test "$TEMP_FLOW" 2>&1 | tail -3; then
         PRODUCTS_ADDED=$((PRODUCTS_ADDED + 1))
-        print_success "Product $PRODUCT_NUM added: $TITLE"
+        _log_success "Product $PRODUCT_NUM added: $TITLE"
     else
-        print_error "Failed to add product $PRODUCT_NUM"
+        _log_error "Failed to add product $PRODUCT_NUM"
     fi
 
     # Small delay between products
@@ -261,11 +183,11 @@ rm -f "$TEMP_FLOW"
 echo ""
 echo "=============================================="
 if [ $PRODUCTS_ADDED -eq 5 ]; then
-    print_success "ALL 5 PRODUCTS ADDED SUCCESSFULLY!"
+    _log_success "ALL 5 PRODUCTS ADDED SUCCESSFULLY!"
     echo "=============================================="
     exit 0
 else
-    print_info "Products added: $PRODUCTS_ADDED of 5"
+    _log_info "Products added: $PRODUCTS_ADDED of 5"
     echo "=============================================="
     exit 1
 fi
