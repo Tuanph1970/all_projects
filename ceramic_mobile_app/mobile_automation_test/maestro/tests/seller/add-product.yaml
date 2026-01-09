@@ -23,11 +23,21 @@ env:
 # Login as seller
 - runFlow: flows/seller-login-flow.yaml
 
-# Navigate to add product via FAB
+# Navigate to Products tab first
 - waitForAnimationToEnd
 - tapOn:
-    id: "seller-dashboard-fab-add"
-    
+    id: "tab-products"
+
+# Wait for product management screen
+- waitForAnimationToEnd
+- assertVisible:
+    id: "product-management-screen"
+    timeout: 10000
+
+# Navigate to add product via FAB
+- tapOn:
+    id: "product-management-fab-add"
+
 # Wait for add product screen
 - waitForAnimationToEnd
 - assertVisible:

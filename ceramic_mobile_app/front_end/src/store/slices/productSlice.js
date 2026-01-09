@@ -97,7 +97,7 @@ export const fetchProduct = createAsyncThunk(
   'products/fetchProduct',
   async (productId, { rejectWithValue }) => {
     try {
-      const product = await productService.getProduct(productId);
+      const product = await productService.getProductById(productId);
       const relatedProducts = await productService.getRelatedProducts(productId);
       return { product, relatedProducts };
     } catch (error) {

@@ -1,7 +1,7 @@
 # E2E Testing Progress - Ceramic Marketplace Mobile App
 
 **Testing Framework:** Maestro + ADB Hybrid
-**Last Updated:** January 7, 2026
+**Last Updated:** January 9, 2026
 **Status:** Active Development
 
 ---
@@ -457,12 +457,46 @@ SELLER_SERVICE_URL: "http://localhost:8002/api/sellers"
 
 ---
 
+## Recent Bug Fixes (January 9, 2026)
+
+### Bug Fix Summary
+
+During E2E testing of the Add Product flow, several bugs were discovered and fixed:
+
+| Bug | File | Root Cause | Fix Applied |
+|-----|------|------------|-------------|
+| **"Product Not Found" error** | `front_end/src/store/slices/productSlice.js:100` | Method `productService.getProduct()` doesn't exist | Changed to `productService.getProductById()` |
+| **Tags rendering crash** | `front_end/src/screens/product/ProductDetailsScreen.jsx:167-197` | `product.tags.map()` fails when tags is a string instead of array | Added string-to-array conversion with `Array.isArray()` check |
+| **Navigation flow issue** | `mobile_automation_test/maestro/scripts/fast-seller-add-product-test.sh` | Test tried to tap FAB on Dashboard instead of Products tab | Added navigation to Products tab before tapping `product-management-fab-add` |
+| **Keyboard popup blocking** | Same test script | Keyboard tutorial popup blocked form submission | Added popup dismissal step with "Done" button tap |
+
+### Test Script Improvements
+
+**`fast-seller-add-product-test.sh`** was updated with:
+1. **Step 2**: Navigate to Products tab (`tab-products`) before adding product
+2. **Step 3**: Tap correct FAB (`product-management-fab-add` instead of `seller-dashboard-fab-add`)
+3. **Step 11**: Dismiss keyboard tutorial popup
+4. **Step 12**: Multiple submit button tap strategies (by ID and by text)
+5. **Step 13**: Handle success dialog and press back
+6. **Step 14**: Verify product appears in list
+
+### Verification
+
+All fixes verified with successful test run:
+- Product creation: ✅ Working
+- Success dialog: ✅ Displayed correctly
+- "VIEW PRODUCT" button: ✅ Now loads product details (no more "Product Not Found")
+- Tags display: ✅ Renders as chips (handmade, ceramic, pottery)
+
+---
+
 ## Known Issues & Blockers
 
 | Issue | Impact | Status | Resolution |
 |-------|--------|--------|------------|
 | Maestro 2.x slow `inputText` | High - 5 sec/char text input | ✅ Resolved | Use hybrid ADB approach for text input |
 | Maestro 2.x syntax changes | Medium - Some YAML commands incompatible | ⚠️ Workaround | Use shell scripts with dynamic YAML generation |
+| Minor i18n issue on reviews | Low - Shows `{count}` placeholder | ⚠️ Known | Translation interpolation needs fix |
 
 ---
 

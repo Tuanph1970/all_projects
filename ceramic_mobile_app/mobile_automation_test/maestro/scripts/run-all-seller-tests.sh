@@ -2,7 +2,12 @@
 # Run All Seller Tests - Master script
 # Runs all seller-related tests sequentially
 
+set -e
+
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+
+# Ensure Metro is running before starting tests
+source "$SCRIPT_DIR/ensure-metro.sh"
 
 # Colors
 GREEN='\033[0;32m'

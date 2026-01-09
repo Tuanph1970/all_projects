@@ -165,7 +165,20 @@ export const ProductDetailsScreen = () => {
   };
 
   const renderTags = () => {
-    if (!product?.tags || product.tags.length === 0) {
+    // Handle tags as string (comma-separated) or array
+    let tagsArray = product?.tags;
+
+    if (!tagsArray) {
+      return null;
+    }
+
+    // If tags is a string, split it into an array
+    if (typeof tagsArray === 'string') {
+      tagsArray = tagsArray.split(',').map(tag => tag.trim()).filter(tag => tag);
+    }
+
+    // Ensure it's an array
+    if (!Array.isArray(tagsArray) || tagsArray.length === 0) {
       return null;
     }
 
@@ -173,7 +186,7 @@ export const ProductDetailsScreen = () => {
       <View style={styles.tagsContainer}>
         <Text style={styles.tagsLabel}>{t('product.tags')}:</Text>
         <View style={styles.tagsRow}>
-          {product.tags.map((tag, index) => (
+          {tagsArray.map((tag, index) => (
             <Chip key={index} style={styles.tag}>
               <Text style={styles.tagText}>{tag}</Text>
             </Chip>
