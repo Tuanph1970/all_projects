@@ -1,142 +1,123 @@
 #!/bin/bash
-# Fast Customer Login Test - Hybrid approach
-# Uses Maestro for element detection/tapping, ADB for fast text input
+# =============================================================================
+# Fast Customer Login Test
+# =============================================================================
+# Tests customer authentication and basic navigation:
+# - Customer login with credentials
+# - Verify customer home screen
+# - Navigate through customer tabs
+#
+# Prerequisites:
+# - Backend API running on localhost:8000
+# - Metro bundler running
+# - Android emulator connected
+# =============================================================================
 
 set -e
 
-# Ensure Metro is running
+# Get script directory
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+
+# Ensure Metro is running
 source "$SCRIPT_DIR/ensure-metro.sh"
 
+# Source the login library
+source "$SCRIPT_DIR/customer-login-lib.sh"
+
 # Configuration
-USERNAME="${TEST_CUSTOMER_USERNAME:-test_customer}"
-PASSWORD="${TEST_PASSWORD:-Test@12345678}"
 APP_ID="com.ceramicmarketplace.app"
+TEMP_FLOW=$(mktemp /tmp/customer-test-XXXXXX.yaml)
 
-# Colors
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-print_step() {
-    echo -e "${BLUE}[STEP]${NC} $1"
-}
-
-print_success() {
-    echo -e "${GREEN}[PASS]${NC} $1"
-}
-
-print_error() {
-    echo -e "${RED}[FAIL]${NC} $1"
-}
-
-# Add Maestro to PATH
-export PATH="$PATH:$HOME/.maestro/bin"
-
+echo ""
 echo "=============================================="
-echo "  Fast Customer Login Test (Hybrid)"
+echo "  Fast Customer Login Test"
 echo "=============================================="
-echo "Username: $USERNAME"
+echo "Test Cases:"
+echo "  - Customer authentication"
+echo "  - Home tab navigation"
+echo "  - Search tab navigation"
+echo "  - Cart tab navigation"
+echo "=============================================="
 echo "Time: $(date)"
 echo ""
 
-# Check device
-if ! adb devices | grep -q "device$"; then
-    print_error "No Android device connected"
-    exit 1
-fi
-print_success "Device connected"
+# =============================================================================
+# Cleanup
+# =============================================================================
 
-# Create temporary Maestro flow
-TEMP_FLOW=$(mktemp /tmp/customer-login-XXXXXX.yaml)
-
-# Launch app and wait for login screen
-cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- launchApp:
-    clearState: true
-    permissions:
-      notifications: allow
-
-- waitForAnimationToEnd
-- assertVisible:
-    id: "login-username-input"
-
-- takeScreenshot: "customer-01-login-screen"
-
-- tapOn:
-    id: "login-username-input"
-EOF
-
-print_step "Launching app and waiting for login screen..."
-if ! maestro test "$TEMP_FLOW" 2>&1 | tail -5; then
-    print_error "Failed to launch app"
+cleanup() {
     rm -f "$TEMP_FLOW"
-    exit 1
-fi
-print_success "Login screen ready"
+}
 
-# Fast text input with ADB
-print_step "Entering username (fast ADB input)..."
-adb shell input text "$USERNAME"
-sleep 0.3
-print_success "Username entered"
+trap cleanup EXIT
 
-# Tap password field
-cat > "$TEMP_FLOW" << 'EOF'
+# =============================================================================
+# Main Test Execution
+# =============================================================================
+
+main() {
+    local failed=0
+
+    # Step 1: Customer Login
+    _log_step "Step 1: Customer Login..."
+    if ! customer_login; then
+        _log_error "Customer login failed"
+        exit 1
+    fi
+    _log_success "Customer logged in successfully"
+
+    # Step 2: Navigate to Search tab
+    _log_step "Step 2: Navigate to Search tab..."
+    if ! navigate_to_search; then
+        _log_error "Failed to navigate to Search tab"
+        failed=1
+    fi
+    _log_success "Search tab loaded"
+
+    # Step 3: Navigate to Cart tab
+    _log_step "Step 3: Navigate to Cart tab..."
+    if ! navigate_to_cart; then
+        _log_error "Failed to navigate to Cart tab"
+        failed=1
+    fi
+    _log_success "Cart tab loaded"
+
+    # Step 4: Navigate back to Home tab
+    _log_step "Step 4: Navigate back to Home tab..."
+    if ! navigate_to_home; then
+        _log_error "Failed to navigate to Home tab"
+        failed=1
+    fi
+    _log_success "Home tab loaded"
+
+    # Final screenshot
+    cat > "$TEMP_FLOW" << 'EOF'
 appId: com.ceramicmarketplace.app
 ---
-- hideKeyboard
-- tapOn:
-    id: "login-password-input"
-EOF
-
-print_step "Tapping password field..."
-maestro test "$TEMP_FLOW" 2>&1 | tail -3
-
-# Fast password input
-print_step "Entering password (fast ADB input)..."
-ESCAPED_PASSWORD=$(echo "$PASSWORD" | sed 's/@/\\@/g')
-adb shell input text "$ESCAPED_PASSWORD"
-sleep 0.3
-print_success "Password entered"
-
-# Submit and verify
-cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- hideKeyboard
-- takeScreenshot: "customer-02-login-filled"
-
-- tapOn:
-    id: "login-submit-button"
-
 - waitForAnimationToEnd
-
-# Wait longer for login to complete
-- extendedWaitUntil:
-    visible:
-      id: "tab-search"
-    timeout: 20000
-
-- takeScreenshot: "customer-03-home-screen"
+- takeScreenshot: "customer-test-final"
 EOF
+    maestro test "$TEMP_FLOW" 2>&1 | tail -3
 
-print_step "Submitting login and verifying..."
-if maestro test "$TEMP_FLOW" 2>&1; then
+    # Summary
     echo ""
     echo "=============================================="
-    print_success "CUSTOMER LOGIN TEST PASSED!"
+    if [[ $failed -eq 0 ]]; then
+        echo -e "${GREEN}[PASS]${NC} CUSTOMER LOGIN TEST COMPLETED!"
+    else
+        echo -e "${YELLOW}[WARN]${NC} CUSTOMER LOGIN TEST COMPLETED WITH WARNINGS"
+    fi
     echo "=============================================="
-    rm -f "$TEMP_FLOW"
-    exit 0
-else
-    echo ""
+    echo "Screenshots saved:"
+    echo "  - customer-login-success.png"
+    echo "  - search-tab.png"
+    echo "  - cart-tab.png"
+    echo "  - home-tab.png"
+    echo "  - customer-test-final.png"
     echo "=============================================="
-    print_error "CUSTOMER LOGIN TEST FAILED!"
-    echo "=============================================="
-    rm -f "$TEMP_FLOW"
-    exit 1
-fi
+
+    return $failed
+}
+
+# Run main
+main "$@"

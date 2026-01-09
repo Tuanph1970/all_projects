@@ -32,7 +32,7 @@ import { useTranslation } from '@i18n';
 
 // Simple ProductCard component since the imported one doesn't exist
 const ProductCard = ({ product, onPress, onFavoritePress, isFavorite }) => (
-  <Card style={styles.productCard} onPress={() => onPress(product)}>
+  <Card style={styles.productCard} onPress={() => onPress(product)} testID={`search-product-card-${product.id}`}>
     <Card.Content>
       <Text style={styles.productName}>{product.name}</Text>
       <Text style={styles.productPrice}>${product.price?.toFixed(2)}</Text>
@@ -332,9 +332,9 @@ export const SearchScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="search-screen">
       <Appbar.Header style={styles.header}>
-        <Appbar.BackAction onPress={() => navigation.goBack()} />
+        <Appbar.BackAction onPress={() => navigation.goBack()} testID="search-back-button" />
         <Appbar.Content title={t('search.title')} />
       </Appbar.Header>
 
@@ -351,6 +351,7 @@ export const SearchScreen = () => {
             setShowSuggestions(true);
           }}
           style={styles.searchBar}
+          testID="search-input"
         />
       </View>
 

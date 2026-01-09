@@ -147,12 +147,12 @@ export const CartScreen = () => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="cart-screen">
       <Appbar.Header style={styles.header}>
-        <Appbar.BackAction onPress={() => navigation.goBack()} />
+        <Appbar.BackAction onPress={() => navigation.goBack()} testID="cart-back-button" />
         <Appbar.Content title={t('cart.title')} />
         {cart && cart.items.length > 0 && (
-          <Appbar.Action icon="delete-sweep" onPress={handleClearCart} />
+          <Appbar.Action icon="delete-sweep" onPress={handleClearCart} testID="cart-clear-button" />
         )}
       </Appbar.Header>
 
@@ -167,7 +167,7 @@ export const CartScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         {!cart || cart.items.length === 0 ? (
-          <View style={styles.emptyContainer}>
+          <View style={styles.emptyContainer} testID="cart-empty">
             <Text style={styles.emptyTitle}>{t('cart.empty')}</Text>
             <Text style={styles.emptySubtitle}>
               {t('cart.emptyMessage')}
@@ -176,6 +176,7 @@ export const CartScreen = () => {
               mode="contained"
               style={styles.shopButton}
               onPress={() => navigation.navigate('Home')}
+              testID="cart-continue-shopping-button"
             >
               {t('cart.continueShopping')}
             </Button>
@@ -227,6 +228,7 @@ export const CartScreen = () => {
                 style={styles.checkoutButton}
                 onPress={handleCheckout}
                 contentStyle={{ height: 48 }}
+                testID="cart-checkout-button"
               >
                 {t('cart.proceedToCheckout')}
               </Button>

@@ -240,12 +240,12 @@ export const ProductDetailsScreen = () => {
   const isOutOfStock = product.stock === 0;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="product-details-screen">
       {/* Header */}
       <Appbar.Header style={styles.header}>
-        <Appbar.BackAction onPress={() => navigation.goBack()} />
+        <Appbar.BackAction onPress={() => navigation.goBack()} testID="product-details-back-button" />
         <Appbar.Content title={product.title} />
-        <Appbar.Action icon={isFavorite ? "heart" : "heart-outline"} onPress={handleFavoriteToggle} />
+        <Appbar.Action icon={isFavorite ? "heart" : "heart-outline"} onPress={handleFavoriteToggle} testID="product-favorite-button" />
         <Appbar.Action icon="share" onPress={handleShare} />
       </Appbar.Header>
 
@@ -384,16 +384,18 @@ export const ProductDetailsScreen = () => {
                 disabled={quantity <= 1}
                 style={styles.quantityButton}
                 contentStyle={styles.quantityButtonContent}
+                testID="product-quantity-minus"
               >
                 -
               </Button>
-              <Text style={styles.quantityText}>{quantity}</Text>
+              <Text style={styles.quantityText} testID="product-quantity-text">{quantity}</Text>
               <Button
                 mode="outlined"
                 onPress={() => handleQuantityChange(1)}
                 disabled={quantity >= product.stock}
                 style={styles.quantityButton}
                 contentStyle={styles.quantityButtonContent}
+                testID="product-quantity-plus"
               >
                 +
               </Button>
@@ -409,6 +411,7 @@ export const ProductDetailsScreen = () => {
             disabled={isOutOfStock || cartLoading}
             style={[styles.actionButton, styles.addToCartButton]}
             contentStyle={styles.actionButtonContent}
+            testID="product-add-to-cart-button"
           >
             {t('product.addToCart')}
           </Button>
@@ -418,6 +421,7 @@ export const ProductDetailsScreen = () => {
             disabled={isOutOfStock}
             style={[styles.actionButton, styles.buyNowButton]}
             contentStyle={styles.actionButtonContent}
+            testID="product-buy-now-button"
           >
             {t('product.buyNow')}
           </Button>

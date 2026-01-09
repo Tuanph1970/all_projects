@@ -136,9 +136,9 @@ export const CheckoutScreen = () => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="checkout-screen">
       <Appbar.Header style={styles.header}>
-        <Appbar.BackAction onPress={handleGoBack} />
+        <Appbar.BackAction onPress={handleGoBack} testID="checkout-back-button" />
         <Appbar.Content title="Checkout" />
       </Appbar.Header>
 
@@ -197,6 +197,7 @@ export const CheckoutScreen = () => {
             style={styles.input}
             error={!!formErrors.address_line1}
             mode="outlined"
+            testID="checkout-address-line1"
           />
           {formErrors.address_line1 && (
             <Text style={styles.errorText}>{formErrors.address_line1}</Text>
@@ -218,6 +219,7 @@ export const CheckoutScreen = () => {
               style={[styles.input, styles.halfInput]}
               error={!!formErrors.city}
               mode="outlined"
+              testID="checkout-city"
             />
             <TextInput
               label="State*"
@@ -226,6 +228,7 @@ export const CheckoutScreen = () => {
               style={[styles.input, styles.halfInput]}
               error={!!formErrors.state}
               mode="outlined"
+              testID="checkout-state"
             />
           </View>
 
@@ -246,6 +249,7 @@ export const CheckoutScreen = () => {
               style={[styles.input, styles.halfInput]}
               error={!!formErrors.postal_code}
               mode="outlined"
+              testID="checkout-postal-code"
             />
             <TextInput
               label="Country*"
@@ -254,6 +258,7 @@ export const CheckoutScreen = () => {
               style={[styles.input, styles.halfInput]}
               error={!!formErrors.country}
               mode="outlined"
+              testID="checkout-country"
             />
           </View>
 
@@ -286,6 +291,7 @@ export const CheckoutScreen = () => {
             disabled={checkingOut}
             style={styles.placeOrderButton}
             contentStyle={{ height: 48 }}
+            testID="checkout-place-order-button"
           >
             {checkingOut ? 'Placing Order...' : `Place Order - $${cart.summary.total_amount.toFixed(2)}`}
           </Button>
