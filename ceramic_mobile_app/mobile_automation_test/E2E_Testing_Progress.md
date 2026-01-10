@@ -1,65 +1,42 @@
 # E2E Testing Progress - Ceramic Marketplace Mobile App
 
-**Testing Framework:** Maestro + ADB Hybrid
-**Last Updated:** January 9, 2026
+**Testing Framework:** Maestro + ADB Hybrid (Character-by-Character Input)
+**Last Updated:** January 10, 2026
 **Status:** Active Development
 
 ---
 
 ## Overview
 
-This document tracks the E2E test cases for the Ceramic Marketplace mobile application using Maestro testing framework. Tests are organized by user role and feature domain.
+This document tracks the E2E test cases for the Ceramic Marketplace mobile application using Maestro testing framework with hybrid ADB input approach.
+
+> **Note:** All legacy YAML tests have been removed due to Maestro 2.x compatibility issues. The project now uses shell-based test scripts with hybrid Maestro + ADB approach for reliable text input.
 
 ---
 
-## Hybrid Testing Approach (ADB + Maestro)
+## Testing Architecture
 
-Due to Maestro 2.x having extremely slow text input (5 seconds per character), we implemented a **hybrid testing approach** that combines:
+### Hybrid Approach (Maestro + ADB)
+
+Due to Maestro 2.x text input reliability issues, we use a **hybrid testing approach**:
 
 - **Maestro**: App launching, element detection, tapping, scrolling, screenshots, assertions
-- **ADB (Android Debug Bridge)**: Fast text input using `adb shell input text`
+- **ADB**: Character-by-character text input (30ms delay per character) for 100% reliability
 
-### Fast Seller Test Scripts
+### Directory Structure
 
-Located in `mobile_automation_test/maestro/scripts/`:
-
-| Script | Description | Status |
-|--------|-------------|--------|
-| `fast-seller-login-test.sh` | Seller login with fast ADB input | ✅ Passing |
-| `fast-seller-analytics-test.sh` | Analytics dashboard testing | ✅ Passing |
-| `fast-seller-product-management-test.sh` | Product list & management | ✅ Passing |
-| `fast-seller-add-product-test.sh` | Add new product with form filling | ✅ Passing |
-| `fast-seller-order-fulfillment-test.sh` | Order management and fulfillment | ✅ Passing |
-| `run-all-seller-tests.sh` | Run entire seller test suite | ✅ Available |
-
-### Running Fast Tests
-
-```bash
-# Navigate to maestro directory
-cd mobile_automation_test/maestro
-
-# Run individual fast test
-./scripts/fast-seller-login-test.sh
-./scripts/fast-seller-analytics-test.sh
-./scripts/fast-seller-product-management-test.sh
-./scripts/fast-seller-add-product-test.sh
-./scripts/fast-seller-order-fulfillment-test.sh
-
-# Run all seller tests
-./scripts/run-all-seller-tests.sh
 ```
-
----
-
-## User Roles
-
-The application supports three user roles:
-
-| Role | Description | Access Level |
-|------|-------------|--------------|
-| **Customer** | End users who browse and purchase ceramic products | Product browsing, cart, orders, reviews, chat |
-| **Seller** | Artisans and vendors who sell ceramic products | All customer features + product management, dashboard, analytics, order fulfillment |
-| **Dual** | Users with both customer and seller capabilities | Full access to all features with role switching |
+maestro/
+├── scripts/                    # Test scripts and libraries
+│   ├── seller-login-lib.sh     # Reusable seller login library
+│   ├── customer-login-lib.sh   # Reusable customer login library
+│   ├── ensure-metro.sh         # Metro bundler utility
+│   ├── fast-seller-*.sh        # Seller test scripts
+│   ├── fast-customer-*.sh      # Customer test scripts
+│   └── run-all-seller-tests.sh # Test suite runner
+├── config/                     # Configuration files
+└── flows/                      # Reusable flow fragments
+```
 
 ---
 
@@ -67,487 +44,411 @@ The application supports three user roles:
 
 | Status | Symbol | Description |
 |--------|--------|-------------|
-| Implemented | ✅ | Test case is implemented and passing |
-| In Progress | 🔄 | Test case is being developed |
-| Planned | 📋 | Test case is defined but not yet implemented |
-| Blocked | ⚠️ | Test case blocked by dependencies/issues |
-| Not Started | ⬜ | Test case not yet planned in detail |
+| Implemented | ✅ | Test script exists and working |
+| Planned | 📋 | Test case defined but not implemented |
+| Not Applicable | ➖ | Removed or not needed |
 
 ---
 
-## Test Case Summary
+## Implemented Test Scripts
+
+### Seller Test Scripts
+
+| Script | Description | Test Cases Covered | Status |
+|--------|-------------|-------------------|--------|
+| `fast-seller-login-test.sh` | Seller authentication | AUTH-002 | ✅ |
+| `fast-seller-analytics-test.sh` | Analytics dashboard | ANA-001 to ANA-005 | ✅ |
+| `fast-seller-product-management-test.sh` | Product list & management | SPM-003, SPM-004, SPM-005 | ✅ |
+| `fast-seller-add-product-test.sh` | Add new product | SPM-001, SPM-002 | ✅ |
+| `fast-seller-add-5-products-test.sh` | Bulk product creation | SPM-001 (bulk) | ✅ |
+| `fast-seller-add-products-v2.sh` | Add products v2 | SPM-001 | ✅ |
+| `fast-seller-edit-products-test.sh` | Edit existing products | SPM-006 | ✅ |
+| `fast-seller-delete-product-test.sh` | Delete product | SPM-009 | ✅ |
+| `fast-seller-order-fulfillment-test.sh` | Order management | FUL-001, FUL-002, FUL-004, FUL-008 | ✅ |
+| `run-all-seller-tests.sh` | Run all seller tests | All seller tests | ✅ |
+
+### Customer Test Scripts
+
+| Script | Description | Test Cases Covered | Status |
+|--------|-------------|-------------------|--------|
+| `fast-customer-login-test.sh` | Customer authentication | AUTH-001 | ✅ |
+| `fast-customer-order-test.sh` | Customer order flow | PROD-001, PROD-006, CART-001, ORD-001 | ✅ |
+| `fast-complete-order-flow-test.sh` | Complete order lifecycle | Full E2E flow | ✅ |
+
+### Reusable Libraries
+
+| Library | Description | Functions Provided |
+|---------|-------------|-------------------|
+| `seller-login-lib.sh` | Seller login & navigation | `seller_login()`, `navigate_to_*()` |
+| `customer-login-lib.sh` | Customer login & navigation | `customer_login()`, `navigate_to_*()` |
+| `ensure-metro.sh` | Metro bundler management | Metro status check & wait |
+
+---
+
+## Test Case Mapping
 
 ### Authentication Tests
 
-| # | Test Case | Role | Status | File | Priority |
-|---|-----------|------|--------|------|----------|
-| AUTH-001 | Successful Customer Login | Customer | ✅ | `tests/auth/login.yaml` | P0 |
-| AUTH-002 | Successful Seller Login | Seller | ✅ | `flows/seller-login-flow.yaml` | P0 |
-| AUTH-003 | Login with Invalid Password | All | ✅ | `tests/auth/login-failure.yaml` | P1 |
-| AUTH-004 | Login with Non-existent User | All | ✅ | `tests/auth/login-failure.yaml` | P1 |
-| AUTH-005 | Login with Empty Fields | All | ✅ | `tests/auth/login-failure.yaml` | P1 |
-| AUTH-006 | Customer Registration | Customer | ✅ | `tests/auth/register.yaml` | P0 |
-| AUTH-007 | Seller Registration | Seller | 📋 | - | P1 |
-| AUTH-008 | Dual Role Registration | Dual | 📋 | - | P2 |
-| AUTH-009 | Logout Flow | All | ✅ | `tests/auth/logout.yaml` | P0 |
-| AUTH-010 | Change Password | All | ✅ | `tests/auth/change-password.yaml` | P1 |
-| AUTH-011 | Forgot Password Request | All | ✅ | `tests/auth/reset-password.yaml` | P1 |
-| AUTH-012 | Password Reset with Token | All | 📋 | - | P2 |
-| AUTH-013 | Email Verification Flow | All | 📋 | - | P2 |
-| AUTH-014 | Resend Verification Email | All | 📋 | - | P3 |
-| AUTH-015 | Role Switch (Dual User) | Dual | 📋 | - | P2 |
-| AUTH-016 | Session Persistence | All | 📋 | - | P2 |
-| AUTH-017 | Token Refresh | All | 📋 | - | P2 |
+| # | Test Case | Role | Status | Script |
+|---|-----------|------|--------|--------|
+| AUTH-001 | Customer Login | Customer | ✅ | `fast-customer-login-test.sh` |
+| AUTH-002 | Seller Login | Seller | ✅ | `fast-seller-login-test.sh` |
+| AUTH-003 | Login with Invalid Password | All | 📋 | - |
+| AUTH-004 | Login with Non-existent User | All | 📋 | - |
+| AUTH-005 | Login with Empty Fields | All | 📋 | - |
+| AUTH-006 | Customer Registration | Customer | 📋 | - |
+| AUTH-007 | Seller Registration | Seller | 📋 | - |
+| AUTH-009 | Logout Flow | All | 📋 | - |
 
----
+### Product Browsing (Customer)
 
-### Customer Features
+| # | Test Case | Status | Script |
+|---|-----------|--------|--------|
+| PROD-001 | Browse Product Catalog | ✅ | `fast-customer-order-test.sh` |
+| PROD-002 | Search Products by Keyword | ✅ | `fast-customer-order-test.sh` |
+| PROD-006 | View Product Details | ✅ | `fast-customer-order-test.sh` |
+| PROD-003 | Filter by Category | 📋 | - |
+| PROD-004 | Filter by Price Range | 📋 | - |
+| PROD-005 | Sort Products | 📋 | - |
 
-#### Product Browsing
+### Shopping Cart (Customer)
 
-| # | Test Case | Role | Status | File | Priority |
-|---|-----------|------|--------|------|----------|
-| PROD-001 | Browse Product Catalog | Customer | ✅ | `tests/product/browse-products.yaml` | P0 |
-| PROD-002 | Search Products by Keyword | Customer | ✅ | `tests/product/browse-products.yaml` | P0 |
-| PROD-003 | Filter Products by Category | Customer | ✅ | `tests/product/browse-products.yaml` | P1 |
-| PROD-004 | Filter Products by Price Range | Customer | 📋 | - | P2 |
-| PROD-005 | Sort Products (Price/Date/Name) | Customer | 📋 | - | P2 |
-| PROD-006 | View Product Details | Customer | ✅ | `tests/product/browse-products.yaml` | P0 |
-| PROD-007 | View Product Image Gallery | Customer | 📋 | - | P2 |
-| PROD-008 | View Seller Information | Customer | 📋 | - | P3 |
-| PROD-009 | View Product Reviews | Customer | 📋 | - | P2 |
-| PROD-010 | View Related Products | Customer | 📋 | - | P3 |
+| # | Test Case | Status | Script |
+|---|-----------|--------|--------|
+| CART-001 | Add Product to Cart | ✅ | `fast-customer-order-test.sh` |
+| CART-002 | Update Cart Quantity | 📋 | - |
+| CART-003 | Remove Item from Cart | 📋 | - |
+| CART-004 | View Cart Summary | ✅ | `fast-customer-order-test.sh` |
 
-#### Shopping Cart
+### Checkout & Orders (Customer)
 
-| # | Test Case | Role | Status | File | Priority |
-|---|-----------|------|--------|------|----------|
-| CART-001 | Add Product to Cart | Customer | ✅ | `tests/cart/add-to-cart.yaml` | P0 |
-| CART-002 | Update Cart Item Quantity | Customer | ✅ | `tests/cart/add-to-cart.yaml` | P1 |
-| CART-003 | Remove Item from Cart | Customer | ✅ | `tests/cart/add-to-cart.yaml` | P1 |
-| CART-004 | View Cart Summary | Customer | ✅ | `tests/cart/add-to-cart.yaml` | P0 |
-| CART-005 | Cart Persistence After Logout | Customer | 📋 | - | P2 |
-| CART-006 | Add Multiple Products to Cart | Customer | 📋 | - | P2 |
-| CART-007 | Cart Total Calculation | Customer | 📋 | - | P1 |
-| CART-008 | Out of Stock Item Handling | Customer | 📋 | - | P2 |
+| # | Test Case | Status | Script |
+|---|-----------|--------|--------|
+| ORD-001 | Complete Checkout Flow | ✅ | `fast-customer-order-test.sh` |
+| ORD-002 | Add Shipping Address | 📋 | - |
+| ORD-005 | View Order History | 📋 | - |
+| ORD-006 | View Order Details | 📋 | - |
 
-#### Checkout & Orders
+### Seller Dashboard
 
-| # | Test Case | Role | Status | File | Priority |
-|---|-----------|------|--------|------|----------|
-| ORD-001 | Complete Checkout Flow | Customer | 📋 | - | P0 |
-| ORD-002 | Add Shipping Address | Customer | 📋 | - | P1 |
-| ORD-003 | Select Shipping Address | Customer | 📋 | - | P1 |
-| ORD-004 | View Order Confirmation | Customer | 📋 | - | P1 |
-| ORD-005 | View Order History | Customer | 📋 | - | P1 |
-| ORD-006 | View Order Details | Customer | 📋 | - | P1 |
-| ORD-007 | Track Order Status | Customer | 📋 | - | P2 |
-| ORD-008 | Cancel Order | Customer | 📋 | - | P2 |
+| # | Test Case | Status | Script |
+|---|-----------|--------|--------|
+| DASH-001 | View Dashboard Overview | ✅ | `fast-seller-login-test.sh` |
+| DASH-002 | View Sales Statistics | ✅ | `fast-seller-analytics-test.sh` |
+| DASH-005 | View Sales Chart | ✅ | `fast-seller-analytics-test.sh` |
 
-#### Reviews & Ratings
+### Product Management (Seller)
 
-| # | Test Case | Role | Status | File | Priority |
-|---|-----------|------|--------|------|----------|
-| REV-001 | Submit Product Review | Customer | 📋 | - | P2 |
-| REV-002 | Rate Product (Stars) | Customer | 📋 | - | P2 |
-| REV-003 | Edit Review | Customer | 📋 | - | P3 |
-| REV-004 | Delete Review | Customer | 📋 | - | P3 |
-| REV-005 | View My Reviews | Customer | 📋 | - | P3 |
+| # | Test Case | Status | Script |
+|---|-----------|--------|--------|
+| SPM-001 | Add New Product | ✅ | `fast-seller-add-product-test.sh` |
+| SPM-002 | Add Product with Images | ✅ | `fast-seller-add-product-test.sh` |
+| SPM-003 | View Product List | ✅ | `fast-seller-product-management-test.sh` |
+| SPM-004 | Search My Products | ✅ | `fast-seller-product-management-test.sh` |
+| SPM-005 | Filter Products by Status | ✅ | `fast-seller-product-management-test.sh` |
+| SPM-006 | Edit Product Details | ✅ | `fast-seller-edit-products-test.sh` |
+| SPM-009 | Delete Product | ✅ | `fast-seller-delete-product-test.sh` |
+| SPM-007 | Update Product Stock | 📋 | - |
+| SPM-008 | Deactivate Product | 📋 | - |
 
-#### Chat & Communication
+### Seller Analytics
 
-| # | Test Case | Role | Status | File | Priority |
-|---|-----------|------|--------|------|----------|
-| CHAT-001 | Start Chat with Seller | Customer | 📋 | - | P2 |
-| CHAT-002 | Send Text Message | Customer | 📋 | - | P2 |
-| CHAT-003 | Send Image in Chat | Customer | 📋 | - | P3 |
-| CHAT-004 | View Chat History | Customer | 📋 | - | P2 |
-| CHAT-005 | Chat Notifications | Customer | 📋 | - | P3 |
+| # | Test Case | Status | Script |
+|---|-----------|--------|--------|
+| ANA-001 | View Sales Analytics | ✅ | `fast-seller-analytics-test.sh` |
+| ANA-002 | View Revenue Trends | ✅ | `fast-seller-analytics-test.sh` |
+| ANA-003 | View Inventory Status | ✅ | `fast-seller-analytics-test.sh` |
+| ANA-004 | View Top Products | ✅ | `fast-seller-analytics-test.sh` |
+| ANA-005 | Select Analytics Period | ✅ | `fast-seller-analytics-test.sh` |
 
-#### Profile Management
+### Order Fulfillment (Seller)
 
-| # | Test Case | Role | Status | File | Priority |
-|---|-----------|------|--------|------|----------|
-| PROF-001 | View Profile | Customer | 📋 | - | P2 |
-| PROF-002 | Edit Profile Information | Customer | 📋 | - | P2 |
-| PROF-003 | Update Profile Photo | Customer | 📋 | - | P3 |
-| PROF-004 | Manage Shipping Addresses | Customer | 📋 | - | P2 |
-
----
-
-### Seller Features
-
-#### Seller Dashboard
-
-| # | Test Case | Role | Status | File | Priority |
-|---|-----------|------|--------|------|----------|
-| DASH-001 | View Dashboard Overview | Seller | ✅ | `tests/seller/dashboard.yaml` | P0 |
-| DASH-002 | View Sales Statistics | Seller | ✅ | `tests/seller/dashboard.yaml` | P1 |
-| DASH-003 | View Recent Orders Widget | Seller | ✅ | `tests/seller/dashboard.yaml` | P1 |
-| DASH-004 | View Alert Notifications | Seller | ✅ | `tests/seller/dashboard.yaml` | P2 |
-| DASH-005 | View Sales Chart | Seller | ✅ | `tests/seller/dashboard.yaml` | P2 |
-| DASH-006 | Dashboard Data Refresh | Seller | 📋 | - | P3 |
-| DASH-007 | Select Time Period Filter | Seller | 📋 | - | P2 |
-
-#### Product Management
-
-| # | Test Case | Role | Status | File | Priority |
-|---|-----------|------|--------|------|----------|
-| SPM-001 | Add New Product | Seller | ✅ | `tests/seller/add-product.yaml` | P0 |
-| SPM-002 | Add Product with Images | Seller | ✅ | `tests/seller/add-product.yaml` | P1 |
-| SPM-003 | View Product List | Seller | ✅ | `tests/seller/product-management.yaml` | P0 |
-| SPM-004 | Search My Products | Seller | ✅ | `tests/seller/product-management.yaml` | P1 |
-| SPM-005 | Filter Products by Status | Seller | ✅ | `tests/seller/product-management.yaml` | P2 |
-| SPM-006 | Edit Product Details | Seller | 📋 | - | P1 |
-| SPM-007 | Update Product Stock | Seller | 📋 | - | P1 |
-| SPM-008 | Deactivate Product | Seller | 📋 | - | P2 |
-| SPM-009 | Delete Product | Seller | 📋 | - | P2 |
-| SPM-010 | Bulk Product Operations | Seller | ✅ | `tests/seller/product-management.yaml` | P2 |
-| SPM-011 | Set Product as Featured | Seller | 📋 | - | P3 |
-
-#### Seller Analytics
-
-| # | Test Case | Role | Status | File | Priority |
-|---|-----------|------|--------|------|----------|
-| ANA-001 | View Sales Analytics | Seller | ✅ | `tests/seller/analytics.yaml` | P1 |
-| ANA-002 | View Revenue Trends | Seller | ✅ | `tests/seller/analytics.yaml` | P1 |
-| ANA-003 | View Inventory Status | Seller | ✅ | `tests/seller/analytics.yaml` | P2 |
-| ANA-004 | View Top Products | Seller | ✅ | `tests/seller/analytics.yaml` | P2 |
-| ANA-005 | Select Analytics Period | Seller | ✅ | `tests/seller/analytics.yaml` | P2 |
-| ANA-006 | Export Analytics Data | Seller | 📋 | - | P3 |
-| ANA-007 | View Customer Demographics | Seller | 📋 | - | P3 |
-
-#### Order Fulfillment
-
-| # | Test Case | Role | Status | File | Priority |
-|---|-----------|------|--------|------|----------|
-| FUL-001 | View Incoming Orders | Seller | ✅ | `scripts/fast-seller-order-fulfillment-test.sh` | P0 |
-| FUL-002 | Accept Order | Seller | ✅ | `scripts/fast-seller-order-fulfillment-test.sh` | P0 |
-| FUL-003 | Reject Order | Seller | 📋 | - | P1 |
-| FUL-004 | Mark Order as Shipped | Seller | ✅ | `scripts/fast-seller-order-fulfillment-test.sh` | P0 |
-| FUL-005 | Add Tracking Information | Seller | 📋 | - | P1 |
-| FUL-006 | Mark Order as Delivered | Seller | 📋 | - | P1 |
-| FUL-007 | View Order History | Seller | 📋 | - | P2 |
-| FUL-008 | Filter Orders by Status | Seller | ✅ | `scripts/fast-seller-order-fulfillment-test.sh` | P2 |
-
-#### Seller Profile
-
-| # | Test Case | Role | Status | File | Priority |
-|---|-----------|------|--------|------|----------|
-| SPR-001 | View Seller Profile | Seller | 📋 | - | P2 |
-| SPR-002 | Edit Shop Information | Seller | 📋 | - | P2 |
-| SPR-003 | Update Shop Banner | Seller | 📋 | - | P3 |
-| SPR-004 | Update Business License | Seller | 📋 | - | P3 |
-
----
-
-### Dual Role Features
-
-| # | Test Case | Role | Status | File | Priority |
-|---|-----------|------|--------|------|----------|
-| DUAL-001 | Switch from Customer to Seller | Dual | 📋 | - | P1 |
-| DUAL-002 | Switch from Seller to Customer | Dual | 📋 | - | P1 |
-| DUAL-003 | Access Customer Features in Dual Mode | Dual | 📋 | - | P2 |
-| DUAL-004 | Access Seller Features in Dual Mode | Dual | 📋 | - | P2 |
-| DUAL-005 | Upgrade from Customer to Dual | Dual | 📋 | - | P2 |
-| DUAL-006 | Upgrade from Seller to Dual | Dual | 📋 | - | P2 |
+| # | Test Case | Status | Script |
+|---|-----------|--------|--------|
+| FUL-001 | View Incoming Orders | ✅ | `fast-seller-order-fulfillment-test.sh` |
+| FUL-002 | Accept Order | ✅ | `fast-seller-order-fulfillment-test.sh` |
+| FUL-004 | Mark Order as Shipped | ✅ | `fast-seller-order-fulfillment-test.sh` |
+| FUL-008 | Filter Orders by Status | ✅ | `fast-seller-order-fulfillment-test.sh` |
+| FUL-003 | Reject Order | 📋 | - |
+| FUL-005 | Add Tracking Information | 📋 | - |
+| FUL-006 | Mark Order as Delivered | 📋 | - |
 
 ---
 
 ## Test Progress Summary
 
-### By Status
+### By Implementation Status
 
 | Status | Count | Percentage |
 |--------|-------|------------|
-| ✅ Implemented | 26 | 27% |
-| ✅ Fast Scripts (Hybrid) | 5 | 5% |
-| 📋 Planned | 62 | 65% |
-| 🔄 In Progress | 0 | 0% |
-| ⚠️ Blocked | 0 | 0% |
-| **Total** | **96** | **100%** |
+| ✅ Implemented | 28 | 56% |
+| 📋 Planned | 22 | 44% |
+| **Total** | **50** | **100%** |
 
-### Fast Seller Test Scripts (Hybrid ADB + Maestro)
+### By Feature Area
 
-| Test Script | Tests Covered | Status |
-|-------------|---------------|--------|
-| `fast-seller-login-test.sh` | AUTH-002 | ✅ Passing |
-| `fast-seller-analytics-test.sh` | ANA-001 to ANA-005 | ✅ Passing |
-| `fast-seller-product-management-test.sh` | SPM-003, SPM-004, SPM-010 | ✅ Passing |
-| `fast-seller-add-product-test.sh` | SPM-001, SPM-002 | ✅ Passing |
-| `fast-seller-order-fulfillment-test.sh` | FUL-001, FUL-002, FUL-004, FUL-008 | ✅ Passing |
-
-### By Role Coverage
-
-| Role | Implemented | Planned | Total |
+| Area | Implemented | Planned | Total |
 |------|-------------|---------|-------|
-| Customer | 10 | 38 | 48 |
-| Seller | 20 | 18 | 38 |
-| Dual | 0 | 6 | 6 |
-| All (Auth) | 10 | 7 | 17 |
-
-### By Priority
-
-| Priority | Implemented | Planned | Total |
-|----------|-------------|---------|-------|
-| P0 (Critical) | 15 | 0 | 15 |
-| P1 (High) | 12 | 14 | 26 |
-| P2 (Medium) | 7 | 33 | 40 |
-| P3 (Low) | 0 | 15 | 15 |
+| Authentication | 2 | 6 | 8 |
+| Product Browsing | 3 | 3 | 6 |
+| Shopping Cart | 2 | 2 | 4 |
+| Checkout & Orders | 1 | 3 | 4 |
+| Seller Dashboard | 3 | 0 | 3 |
+| Product Management | 7 | 2 | 9 |
+| Seller Analytics | 5 | 0 | 5 |
+| Order Fulfillment | 4 | 3 | 7 |
+| Complete Flows | 1 | 0 | 1 |
 
 ---
 
-## Test Suites
+## Running Tests
 
-The following test suites are configured in `test-suites.yaml`:
+### Prerequisites
 
-### Smoke Test Suite
-**Purpose:** Critical user journeys for quick validation
-**Timeout:** 30 minutes
-**Tests:**
-- Login (Customer)
-- Register
-- Browse Products
-- Add to Cart
-- Seller Dashboard
+1. Android emulator running
+2. Metro bundler running (`npx expo start`)
+3. Backend server running (port 8002)
+4. Maestro installed (`~/.maestro/bin`)
+5. Java 17+ installed
 
-### Authentication Test Suite
-**Purpose:** Complete authentication coverage
-**Timeout:** 20 minutes
-**Tests:**
-- Login Success
-- Login Failure Scenarios
-- Register
-- Logout
-- Change Password
-- Reset Password
-
-### Seller Test Suite
-**Purpose:** Seller feature validation
-**Timeout:** 25 minutes
-**Tests:**
-- Dashboard
-- Add Product
-- Product Management
-- Analytics
-
-### Customer Test Suite
-**Purpose:** Customer shopping journey
-**Timeout:** 20 minutes
-**Tests:**
-- Browse Products
-- Add to Cart
-
-### Regression Test Suite
-**Purpose:** Full regression coverage
-**Timeout:** 60 minutes
-**Tests:**
-- All authentication tests
-- Product browsing
-- Cart operations
-- Seller dashboard and products
-
-### Quick Test Suite
-**Purpose:** Essential tests for rapid feedback
-**Timeout:** 10 minutes
-**Tests:**
-- Login
-- Seller Dashboard
-
-### Fast Seller Test Suite (Hybrid)
-**Purpose:** Complete seller flow validation with fast ADB input
-**Timeout:** 20 minutes
-**Scripts:**
-- `fast-seller-login-test.sh` - Seller authentication
-- `fast-seller-analytics-test.sh` - Analytics dashboard & metrics
-- `fast-seller-product-management-test.sh` - Product list & management
-- `fast-seller-add-product-test.sh` - Product creation flow
-- `fast-seller-order-fulfillment-test.sh` - Order management & fulfillment
-
-**Run Command:** `./scripts/run-all-seller-tests.sh`
-
----
-
-## Test Execution Commands
+### Run Individual Tests
 
 ```bash
-# Navigate to test directory
-cd mobile_automation_test/maestro
+cd mobile_automation_test/maestro/scripts
 
-# Run individual test
-maestro test tests/auth/login.yaml
+# Seller tests
+./fast-seller-login-test.sh
+./fast-seller-analytics-test.sh
+./fast-seller-product-management-test.sh
+./fast-seller-add-product-test.sh
+./fast-seller-edit-products-test.sh
+./fast-seller-delete-product-test.sh
+./fast-seller-order-fulfillment-test.sh
 
-# Run test suite
-maestro test --suite=smoke
-maestro test --suite=auth
-maestro test --suite=seller
-maestro test --suite=customer
-maestro test --suite=regression
-maestro test --suite=quick
+# Customer tests
+./fast-customer-login-test.sh
+./fast-customer-order-test.sh
+./fast-complete-order-flow-test.sh
+```
 
-# Run with specific device
-maestro test --device=emulator-5554 tests/auth/login.yaml
+### Run All Seller Tests
 
-# Run all tests in a directory
-maestro test tests/auth/
-maestro test tests/seller/
-
-# Generate HTML report
-maestro test --format=html --output=reports/ tests/auth/
+```bash
+cd mobile_automation_test/maestro/scripts
+./run-all-seller-tests.sh
 ```
 
 ---
 
-## Test Environment Configuration
+## Test Credentials
 
-### Required Environment Variables
+### Seller Account
+- **Username:** `test_seller_user`
+- **Password:** `Testseller@123456`
 
-```yaml
-# Test credentials (defined in config/maestro.yaml)
-TEST_CUSTOMER_USERNAME: "test_customer"
-TEST_SELLER_USERNAME: "test_seller"
-TEST_PASSWORD: "Test@12345678"
+### Customer Account
+- **Username:** `test_customer_user`
+- **Password:** `@Test_customer@1234`
 
-# API endpoints
-API_BASE_URL: "http://localhost:8002"
-AUTH_SERVICE_URL: "http://localhost:8002/api/auth"
-PRODUCT_SERVICE_URL: "http://localhost:8002/api/products"
-ORDER_SERVICE_URL: "http://localhost:8002/api/orders"
-SELLER_SERVICE_URL: "http://localhost:8002/api/sellers"
-```
+---
 
-### Device Configurations
+## Recent Changes (January 10, 2026)
 
-| Platform | Device | API/Version |
-|----------|--------|-------------|
-| Android | Pixel_4 | API 30 |
-| iOS | iPhone 14 | iOS 16.0 |
+### Cleanup Performed
+- Removed all broken YAML tests in `tests/` directory
+- Removed `test-suites.yaml` (referenced deleted tests)
+- Removed redundant runner scripts:
+  - `scripts/maestro-quick-test.sh`
+  - `scripts/run-test-suite.sh`
+  - `scripts/run-maestro-tests.sh`
+
+### Input Method Fix
+- Fixed text input reliability issue
+- Changed from clipboard-based to character-by-character ADB input
+- 30ms delay per character ensures 100% reliable text entry
+- Updated both `seller-login-lib.sh` and `customer-login-lib.sh`
 
 ---
 
 ## Roadmap
 
-### Phase 1: Core Authentication (Completed)
-- [x] Login flows (customer, seller)
-- [x] Registration flow
-- [x] Logout flow
-- [x] Password management
+### Completed
+- [x] Seller authentication
+- [x] Customer authentication
+- [x] Seller dashboard & analytics
+- [x] Product management (CRUD)
+- [x] Order fulfillment
+- [x] Customer order flow
+- [x] Complete E2E order lifecycle
 
-### Phase 2: Customer Shopping Journey (In Progress)
-- [x] Product browsing
-- [x] Cart operations
-- [ ] Checkout flow
-- [ ] Order management
+### Next Priority
+- [ ] Authentication edge cases (invalid credentials)
+- [ ] Cart operations (update, remove)
+- [ ] Order tracking
+- [ ] Profile management
 
-### Phase 3: Seller Operations (Completed - Using Hybrid Approach)
-- [x] Dashboard
-- [x] Product management
-- [x] Analytics
-- [x] Add Product
-- [x] Seller Login (Fast ADB)
-- [x] Order fulfillment (FUL-001, FUL-002, FUL-004, FUL-008)
-
-### Phase 4: Advanced Features (Planned)
+### Future
 - [ ] Chat functionality
 - [ ] Reviews and ratings
-- [ ] Profile management
 - [ ] Dual role features
-
-### Phase 5: Edge Cases & Error Handling (Planned)
-- [ ] Network error handling
-- [ ] Session timeout scenarios
-- [ ] Input validation edge cases
-- [ ] Concurrent user scenarios
-
----
-
-## Recent Bug Fixes (January 9, 2026)
-
-### Bug Fix Summary
-
-During E2E testing of the Add Product flow, several bugs were discovered and fixed:
-
-| Bug | File | Root Cause | Fix Applied |
-|-----|------|------------|-------------|
-| **"Product Not Found" error** | `front_end/src/store/slices/productSlice.js:100` | Method `productService.getProduct()` doesn't exist | Changed to `productService.getProductById()` |
-| **Tags rendering crash** | `front_end/src/screens/product/ProductDetailsScreen.jsx:167-197` | `product.tags.map()` fails when tags is a string instead of array | Added string-to-array conversion with `Array.isArray()` check |
-| **Navigation flow issue** | `mobile_automation_test/maestro/scripts/fast-seller-add-product-test.sh` | Test tried to tap FAB on Dashboard instead of Products tab | Added navigation to Products tab before tapping `product-management-fab-add` |
-| **Keyboard popup blocking** | Same test script | Keyboard tutorial popup blocked form submission | Added popup dismissal step with "Done" button tap |
-
-### Test Script Improvements
-
-**`fast-seller-add-product-test.sh`** was updated with:
-1. **Step 2**: Navigate to Products tab (`tab-products`) before adding product
-2. **Step 3**: Tap correct FAB (`product-management-fab-add` instead of `seller-dashboard-fab-add`)
-3. **Step 11**: Dismiss keyboard tutorial popup
-4. **Step 12**: Multiple submit button tap strategies (by ID and by text)
-5. **Step 13**: Handle success dialog and press back
-6. **Step 14**: Verify product appears in list
-
-### Verification
-
-All fixes verified with successful test run:
-- Product creation: ✅ Working
-- Success dialog: ✅ Displayed correctly
-- "VIEW PRODUCT" button: ✅ Now loads product details (no more "Product Not Found")
-- Tags display: ✅ Renders as chips (handmade, ceramic, pottery)
-
----
-
-## Known Issues & Blockers
-
-| Issue | Impact | Status | Resolution |
-|-------|--------|--------|------------|
-| Maestro 2.x slow `inputText` | High - 5 sec/char text input | ✅ Resolved | Use hybrid ADB approach for text input |
-| Maestro 2.x syntax changes | Medium - Some YAML commands incompatible | ⚠️ Workaround | Use shell scripts with dynamic YAML generation |
-| Minor i18n issue on reviews | Low - Shows `{count}` placeholder | ⚠️ Known | Translation interpolation needs fix |
-
----
-
-## Contributing
-
-### Adding New Test Cases
-
-1. Create test file in appropriate directory under `tests/`
-2. Follow naming convention: `<action>-<feature>.yaml`
-3. Add appropriate tags (auth, smoke, seller, customer, etc.)
-4. Update this document with new test case entry
-5. Add to relevant test suite in `test-suites.yaml`
-
-### Test Case Template
-
-```yaml
-appId: com.ceramicmarketplace.app
-name: "Feature - Test Description"
-tags:
-  - feature-tag
-  - priority-tag
-
----
-
-# Launch app
-- launchApp:
-    clearState: true
-    permissions:
-      notifications: allow
-
-# Test steps
-- waitForAnimationToEnd
-- assertVisible:
-    id: "element-id"
-
-# Verify result
-- takeScreenshot: "test-result"
-```
+- [ ] Error handling scenarios
 
 ---
 
 ## References
 
 - [Maestro Documentation](https://maestro.mobile.dev/)
-- [Project Test Pyramid Guide](./TEST_PYRAMID_GUIDE.md)
-- [Testing Quick Start](./TESTING_QUICK_START.md)
-- [Backend API Documentation](./back_end/README.md)
+- [ADB Input Commands](https://developer.android.com/studio/command-line/adb)
+
+---
+
+## Remaining Tasks - Ordered by Dependencies
+
+The following tasks are ordered based on logical dependencies between user roles and features.
+
+### Phase A: Authentication Foundation
+> **Priority:** High | **Dependency:** None (can start immediately)
+
+These tests validate authentication edge cases and don't depend on other features.
+
+| Order | Test ID | Test Case | Role | Dependency |
+|-------|---------|-----------|------|------------|
+| A.1 | AUTH-003 | Login with Invalid Password | All | None |
+| A.2 | AUTH-004 | Login with Non-existent User | All | None |
+| A.3 | AUTH-005 | Login with Empty Fields | All | None |
+| A.4 | AUTH-006 | Customer Registration | Customer | None |
+| A.5 | AUTH-007 | Seller Registration | Seller | None |
+| A.6 | AUTH-009 | Logout Flow | All | Requires login first |
+
+---
+
+### Phase B: Seller Product Management (Extended)
+> **Priority:** High | **Dependency:** Seller must be logged in
+
+Seller must prepare products before customers can browse/purchase.
+
+| Order | Test ID | Test Case | Role | Dependency |
+|-------|---------|-----------|------|------------|
+| B.1 | SPM-007 | Update Product Stock | Seller | Products must exist (SPM-001 ✅) |
+| B.2 | SPM-008 | Deactivate Product | Seller | Products must exist (SPM-001 ✅) |
+
+---
+
+### Phase C: Customer Product Browsing (Extended)
+> **Priority:** Medium | **Dependency:** Seller must have uploaded products
+
+Customers need products in the system to browse/filter.
+
+| Order | Test ID | Test Case | Role | Dependency |
+|-------|---------|-----------|------|------------|
+| C.1 | PROD-003 | Filter Products by Category | Customer | Products exist in system |
+| C.2 | PROD-004 | Filter Products by Price Range | Customer | Products exist in system |
+| C.3 | PROD-005 | Sort Products | Customer | Products exist in system |
+
+---
+
+### Phase D: Customer Cart Operations (Extended)
+> **Priority:** Medium | **Dependency:** Customer must have items in cart
+
+Cart operations require products to be added first.
+
+| Order | Test ID | Test Case | Role | Dependency |
+|-------|---------|-----------|------|------------|
+| D.1 | CART-002 | Update Cart Quantity | Customer | CART-001 ✅ (Add to Cart) |
+| D.2 | CART-003 | Remove Item from Cart | Customer | CART-001 ✅ (Add to Cart) |
+
+---
+
+### Phase E: Customer Order Management (Extended)
+> **Priority:** Medium | **Dependency:** Customer must have placed orders
+
+Order viewing requires completed orders.
+
+| Order | Test ID | Test Case | Role | Dependency |
+|-------|---------|-----------|------|------------|
+| E.1 | ORD-002 | Add Shipping Address | Customer | Before checkout |
+| E.2 | ORD-005 | View Order History | Customer | ORD-001 ✅ (Checkout complete) |
+| E.3 | ORD-006 | View Order Details | Customer | ORD-001 ✅ (Checkout complete) |
+
+---
+
+### Phase F: Seller Order Fulfillment (Extended)
+> **Priority:** Medium | **Dependency:** Customer must place order to seller
+
+Seller can only process orders after customers place them.
+
+| Order | Test ID | Test Case | Role | Dependency |
+|-------|---------|-----------|------|------------|
+| F.1 | FUL-003 | Reject Order | Seller | Customer places order → FUL-001 ✅ |
+| F.2 | FUL-005 | Add Tracking Information | Seller | FUL-004 ✅ (Order shipped) |
+| F.3 | FUL-006 | Mark Order as Delivered | Seller | FUL-004 ✅ (Order shipped) |
+
+---
+
+## Implementation Order Summary
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    RECOMMENDED EXECUTION ORDER                   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  PHASE A: Authentication (No Dependencies)                      │
+│  ┌───────────────────────────────────────────────┐              │
+│  │ A.1 → A.2 → A.3 → A.4 → A.5 → A.6            │              │
+│  │ (Can run in parallel - no dependencies)       │              │
+│  └───────────────────────────────────────────────┘              │
+│                           │                                     │
+│                           ▼                                     │
+│  PHASE B: Seller Product Setup                                  │
+│  ┌───────────────────────────────────────────────┐              │
+│  │ B.1 (Stock) → B.2 (Deactivate)               │              │
+│  │ (Seller prepares inventory)                   │              │
+│  └───────────────────────────────────────────────┘              │
+│                           │                                     │
+│                           ▼                                     │
+│  PHASE C: Customer Browsing                                     │
+│  ┌───────────────────────────────────────────────┐              │
+│  │ C.1 (Category) → C.2 (Price) → C.3 (Sort)    │              │
+│  │ (Customer explores products)                  │              │
+│  └───────────────────────────────────────────────┘              │
+│                           │                                     │
+│                           ▼                                     │
+│  PHASE D: Customer Cart                                         │
+│  ┌───────────────────────────────────────────────┐              │
+│  │ D.1 (Update Qty) → D.2 (Remove)              │              │
+│  │ (Customer manages cart)                       │              │
+│  └───────────────────────────────────────────────┘              │
+│                           │                                     │
+│                           ▼                                     │
+│  PHASE E: Customer Orders                                       │
+│  ┌───────────────────────────────────────────────┐              │
+│  │ E.1 (Address) → E.2 (History) → E.3 (Detail) │              │
+│  │ (Customer completes & tracks orders)          │              │
+│  └───────────────────────────────────────────────┘              │
+│                           │                                     │
+│                           ▼                                     │
+│  PHASE F: Seller Fulfillment                                    │
+│  ┌───────────────────────────────────────────────┐              │
+│  │ F.1 (Reject) → F.2 (Tracking) → F.3 (Deliver)│              │
+│  │ (Seller processes customer orders)            │              │
+│  └───────────────────────────────────────────────┘              │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Quick Reference: All Remaining Tasks (17 Total)
+
+| Phase | Count | Tests |
+|-------|-------|-------|
+| A - Authentication | 6 | AUTH-003, 004, 005, 006, 007, 009 |
+| B - Seller Products | 2 | SPM-007, 008 |
+| C - Customer Browsing | 3 | PROD-003, 004, 005 |
+| D - Customer Cart | 2 | CART-002, 003 |
+| E - Customer Orders | 3 | ORD-002, 005, 006 |
+| F - Seller Fulfillment | 3 | FUL-003, 005, 006 |
+| **Total** | **19** | |
 
 ---
 

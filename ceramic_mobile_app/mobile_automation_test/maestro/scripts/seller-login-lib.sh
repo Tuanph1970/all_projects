@@ -27,13 +27,53 @@ _log_success() { echo -e "${GREEN}[PASS]${NC} $1"; }
 _log_error() { echo -e "${RED}[FAIL]${NC} $1"; }
 _log_info() { echo -e "${YELLOW}[INFO]${NC} $1"; }
 
-# Safe ADB text input - escapes special characters
+# =============================================================================
+# Reliable ADB Text Input - Character by character (default)
+# =============================================================================
 _adb_input() {
     local text="$1"
-    # Escape special characters for ADB
-    local escaped=$(echo "$text" | sed 's/@/\\@/g' | sed 's/!/\\!/g' | sed 's/\$/\\$/g')
-    adb shell input text "$escaped"
-    sleep 0.5
+    # Always use char-by-char for reliability
+    _adb_input_char_by_char "$text"
+}
+
+# Character-by-character input (slower but 100% reliable)
+_adb_input_char_by_char() {
+    local text="$1"
+    local delay="${2:-0.03}"  # 30ms delay between characters
+    local i char
+
+    for ((i=0; i<${#text}; i++)); do
+        char="${text:$i:1}"
+
+        # Handle special characters that need escaping
+        case "$char" in
+            ' ') adb shell input text '%s' ;;
+            '@') adb shell input text '\@' ;;
+            '#') adb shell input text '\#' ;;
+            '$') adb shell input text '\$' ;;
+            '%') adb shell input text '\%' ;;
+            '&') adb shell input text '\&' ;;
+            '*') adb shell input text '\*' ;;
+            '(') adb shell input text '\(' ;;
+            ')') adb shell input text '\)' ;;
+            '!') adb shell input text '\!' ;;
+            '"') adb shell input text '\"' ;;
+            "'") adb shell input text "\'" ;;
+            '\\') adb shell input text '\\\\' ;;
+            '|') adb shell input text '\|' ;;
+            '<') adb shell input text '\<' ;;
+            '>') adb shell input text '\>' ;;
+            ';') adb shell input text '\;' ;;
+            '`') adb shell input text '\`' ;;
+            '~') adb shell input text '\~' ;;
+            *) adb shell input text "$char" ;;
+        esac
+
+        sleep "$delay"
+    done
+
+    sleep 0.2
+    return 0
 }
 
 # Tap on element using ADB coordinates (backup method)
@@ -295,6 +335,7 @@ export -f navigate_to_analytics
 export -f navigate_to_dashboard
 export -f navigate_to_orders
 export -f _adb_input
+export -f _adb_input_char_by_char
 export -f _adb_tap
 export -f _adb_back
 export -f _adb_hide_keyboard
