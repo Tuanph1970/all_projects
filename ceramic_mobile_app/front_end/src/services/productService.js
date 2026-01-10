@@ -44,6 +44,7 @@ class ProductService {
     return apiClient.get(`${this.baseUrl}/${id}`);
   }
 
+  // TODO: Backend endpoint not implemented - /slug/{slug} does not exist
   // Get product by slug (for SEO-friendly URLs)
   async getProductBySlug(slug) {
     return apiClient.get(`${this.baseUrl}/slug/${slug}`);
@@ -88,11 +89,13 @@ class ProductService {
     return apiClient.get(this.categoriesUrl);
   }
 
+  // TODO: Backend endpoint not implemented - /categories/{id} does not exist
   // Get category by ID
   async getCategoryById(id) {
     return apiClient.get(`${this.categoriesUrl}/${id}`);
   }
 
+  // TODO: Backend has /recommendations/{user_id} (user-based), not /{product_id}/recommendations
   // Get product recommendations based on a product ID
   async getRecommendations(productId, limit = 10) {
     return apiClient.get(`${this.baseUrl}/${productId}/recommendations?limit=${limit}`);
@@ -100,14 +103,16 @@ class ProductService {
 
   // Get popular products
   async getPopularProducts(limit = 10) {
-    return apiClient.get(`${this.baseUrl}/popular?limit=${limit}`);
+    return apiClient.get(`${this.baseUrl}/analytics/popular?limit=${limit}`);
   }
 
+  // TODO: Backend endpoint not implemented - /new does not exist
   // Get new products
   async getNewProducts(limit = 10) {
     return apiClient.get(`${this.baseUrl}/new?limit=${limit}`);
   }
 
+  // TODO: Backend endpoint not implemented - /discounted does not exist
   // Get discounted products
   async getDiscountedProducts(limit = 10) {
     return apiClient.get(`${this.baseUrl}/discounted?limit=${limit}`);
@@ -115,7 +120,7 @@ class ProductService {
 
   // Get product reviews
   async getProductReviews(productId, page = 1, limit = 20) {
-    return apiClient.get(`${this.baseUrl}/${productId}/reviews?page=${page}&limit=${limit}`);
+    return apiClient.get(`${API_CONFIG.ENDPOINTS.REVIEWS}/product/${productId}?page=${page}&limit=${limit}`);
   }
 
   // Get product images
@@ -123,40 +128,46 @@ class ProductService {
     return apiClient.get(`${this.baseUrl}/${productId}/images`);
   }
 
+  // TODO: Backend endpoint not implemented - /{product_id}/variants does not exist
   // Get product variants
   async getProductVariants(productId) {
     return apiClient.get(`${this.baseUrl}/${productId}/variants`);
   }
 
+  // TODO: Backend endpoint not implemented - /{product_id}/availability does not exist
   // Check product availability
   async checkAvailability(productId, variantId = null) {
-    const url = variantId ? 
+    const url = variantId ?
       `${this.baseUrl}/${productId}/variants/${variantId}/availability` :
       `${this.baseUrl}/${productId}/availability`;
     return apiClient.get(url);
   }
 
+  // TODO: Backend endpoint not implemented - /{product_id}/price-history does not exist
   // Get price history for a product
   async getPriceHistory(productId, days = 30) {
     return apiClient.get(`${this.baseUrl}/${productId}/price-history?days=${days}`);
   }
 
+  // TODO: Backend endpoint not implemented - /{product_id}/specifications does not exist
   // Get product specifications
   async getProductSpecifications(productId) {
     return apiClient.get(`${this.baseUrl}/${productId}/specifications`);
   }
 
+  // TODO: Backend endpoint not implemented - /compare does not exist
   // Compare products
   async compareProducts(productIds) {
     const params = productIds.map(id => `ids=${id}`).join('&');
     return apiClient.get(`${this.baseUrl}/compare?${params}`);
   }
 
-  // Get category hierarchy
+  // Get category hierarchy (tree structure)
   async getCategoryHierarchy() {
-    return apiClient.get(`${this.categoriesUrl}/hierarchy`);
+    return apiClient.get(`${this.baseUrl}/categories/tree`);
   }
 
+  // TODO: Backend endpoint not implemented - /brands does not exist (also missing /api/v1/products prefix)
   // Get brands
   async getBrands() {
     return apiClient.get('/brands');
@@ -180,6 +191,7 @@ class ProductService {
     return apiClient.get(`${this.baseUrl}?${queryParams.toString()}`);
   }
 
+  // TODO: Backend endpoint not implemented - /{product_id}/tags does not exist
   // Get product tags
   async getProductTags(productId) {
     return apiClient.get(`${this.baseUrl}/${productId}/tags`);
@@ -190,6 +202,7 @@ class ProductService {
     return apiClient.get(`${this.baseUrl}/${productId}/related?limit=${limit}`);
   }
 
+  // TODO: Backend endpoint not implemented - /{product_id}/attributes does not exist
   // Get product attributes
   async getProductAttributes(productId) {
     return apiClient.get(`${this.baseUrl}/${productId}/attributes`);

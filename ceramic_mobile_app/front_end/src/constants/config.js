@@ -75,13 +75,14 @@ export const API_CONFIG = {
     CART: '/api/v1/cart',
     
     // Chat endpoints
-    CONVERSATIONS: '/api/v1/chat/conversations',
-    MESSAGES: '/api/v1/chat/messages',
+    CHAT_ROOMS: '/api/v1/chat/rooms',
+    CHAT_MESSAGES: '/api/v1/chat/rooms', // Use: ${CHAT_MESSAGES}/${roomId}/messages
     
     // Review endpoints
     REVIEWS: '/api/v1/reviews',
 
     // Seller endpoints
+    SELLER: '/api/v1/seller', // Base seller path for upload-image, bulk-operations
     SELLER_DASHBOARD: '/api/v1/seller/dashboard',
     SELLER_PRODUCTS: '/api/v1/seller/products',
     SELLER_ANALYTICS: '/api/v1/seller/analytics',

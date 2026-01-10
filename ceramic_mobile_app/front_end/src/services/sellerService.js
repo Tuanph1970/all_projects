@@ -71,7 +71,7 @@ class SellerService {
 
   // Image Upload
   async uploadImage(formData) {
-    return await apiClient.upload(`${API_CONFIG.ENDPOINTS.SELLER_PRODUCTS}/upload-image`, formData);
+    return await apiClient.upload(`${API_CONFIG.ENDPOINTS.SELLER}/upload-image`, formData);
   }
 
   // Bulk Operations
@@ -79,14 +79,14 @@ class SellerService {
     productIds,
     isActive
   ) {
-    return await apiClient.post(`${API_CONFIG.ENDPOINTS.SELLER_PRODUCTS}/bulk-operations/update-status`, {
+    return await apiClient.post(`${API_CONFIG.ENDPOINTS.SELLER}/bulk-operations/update-status`, {
       product_ids: productIds,
       is_active: isActive
     });
   }
 
   async bulkUpdatePrices(updates) {
-    return await apiClient.post(`${API_CONFIG.ENDPOINTS.SELLER_PRODUCTS}/bulk-operations/update-prices`, {
+    return await apiClient.post(`${API_CONFIG.ENDPOINTS.SELLER}/bulk-operations/update-prices`, {
       updates
     });
   }

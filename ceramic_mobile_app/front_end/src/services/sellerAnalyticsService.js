@@ -5,7 +5,7 @@ import { API_CONFIG } from '../constants/config.js';
 class SellerAnalyticsService {
   // Get comprehensive dashboard analytics
   async getDashboardAnalytics(days = 30) {
-    return await apiClient.get(`${API_CONFIG.ENDPOINTS.SELLER_ANALYTICS}/dashboard`, {
+    return await apiClient.get(`${API_CONFIG.ENDPOINTS.SELLER_ANALYTICS}/analytics/dashboard`, {
       params: { days }
     });
   }
@@ -15,28 +15,28 @@ class SellerAnalyticsService {
     days = 90,
     granularity = 'day'
   ) {
-    return await apiClient.get(`${API_CONFIG.ENDPOINTS.SELLER_ANALYTICS}/revenue-trends`, {
+    return await apiClient.get(`${API_CONFIG.ENDPOINTS.SELLER_ANALYTICS}/analytics/revenue-trends`, {
       params: { days, granularity }
     });
   }
 
   // Get category performance analytics
   async getCategoryPerformance(days = 90) {
-    return await apiClient.get(`${API_CONFIG.ENDPOINTS.SELLER_ANALYTICS}/category-performance`, {
+    return await apiClient.get(`${API_CONFIG.ENDPOINTS.SELLER_ANALYTICS}/analytics/category-performance`, {
       params: { days }
     });
   }
 
   // Get customer demographics and behavior
   async getCustomerDemographics(days = 90) {
-    return await apiClient.get(`${API_CONFIG.ENDPOINTS.SELLER_ANALYTICS}/customer-demographics`, {
+    return await apiClient.get(`${API_CONFIG.ENDPOINTS.SELLER_ANALYTICS}/analytics/customer-demographics`, {
       params: { days }
     });
   }
 
   // Get detailed performance metrics
   async getPerformanceMetrics(days = 30) {
-    return await apiClient.get(`${API_CONFIG.ENDPOINTS.SELLER_ANALYTICS}/performance-metrics`, {
+    return await apiClient.get(`${API_CONFIG.ENDPOINTS.SELLER_ANALYTICS}/analytics/performance-metrics`, {
       params: { days }
     });
   }
@@ -47,7 +47,7 @@ class SellerAnalyticsService {
     metric = 'revenue',
     limit = 10
   ) {
-    return await apiClient.get(`${API_CONFIG.ENDPOINTS.SELLER_ANALYTICS}/top-products`, {
+    return await apiClient.get(`${API_CONFIG.ENDPOINTS.SELLER_ANALYTICS}/analytics/top-products`, {
       params: { days, metric, limit }
     });
   }
@@ -57,7 +57,7 @@ class SellerAnalyticsService {
     period1Days = 30,
     period2Days = 30
   ) {
-    return await apiClient.get(`${API_CONFIG.ENDPOINTS.SELLER_ANALYTICS}/comparison`, {
+    return await apiClient.get(`${API_CONFIG.ENDPOINTS.SELLER_ANALYTICS}/analytics/comparison`, {
       params: {
         period1_days: period1Days,
         period2_days: period2Days
@@ -204,6 +204,7 @@ class SellerAnalyticsService {
     return recommendations.length > 0 ? recommendations : ['✨ Your performance metrics look good! Keep up the excellent work.'];
   }
 
+  // TODO: Backend endpoint not implemented - /analytics/export does not exist
   // Generate export URL for analytics data
   generateExportUrl(
     type = 'comprehensive',
@@ -211,16 +212,17 @@ class SellerAnalyticsService {
   ) {
     // In a real implementation, this would generate and return a download URL
     // For now, return a mock URL
-    return `/api/v1/seller/analytics/export?type=${type}&period=${period}`;
+    return `/api/v1/seller/analytics/analytics/export?type=${type}&period=${period}`;
   }
 
+  // TODO: Backend endpoint not implemented - /analytics/schedule-report does not exist
   // Schedule analytics reports
   async scheduleReport(
     frequency,
     email,
     reportTypes
   ) {
-    return await apiClient.post(`${API_CONFIG.ENDPOINTS.SELLER_ANALYTICS}/schedule-report`, {
+    return await apiClient.post(`${API_CONFIG.ENDPOINTS.SELLER_ANALYTICS}/analytics/schedule-report`, {
       frequency,
       email,
       report_types: reportTypes
