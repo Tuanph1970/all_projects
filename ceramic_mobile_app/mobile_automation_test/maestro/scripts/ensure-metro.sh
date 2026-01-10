@@ -15,7 +15,7 @@
 # =============================================================================
 
 # Configuration - can be overridden via environment variables
-FRONT_END_DIR="${FRONT_END_DIR:-/home/tuanph/TuanPH/all_projects/ceramic_mobile_app/front_end}"
+FRONT_END_DIR="${FRONT_END_DIR:-/home/home/all_projects/ceramic_mobile_app/front_end}"
 METRO_PORT="${METRO_PORT:-8081}"
 METRO_TIMEOUT="${METRO_TIMEOUT:-90}"
 METRO_LOG="${METRO_LOG:-/tmp/metro-bundler.log}"

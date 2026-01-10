@@ -1,7 +1,7 @@
 # E2E Testing Progress - Ceramic Marketplace Mobile App
 
 **Testing Framework:** Maestro + ADB Hybrid (Character-by-Character Input)
-**Last Updated:** January 10, 2026
+**Last Updated:** January 10, 2026 (Phase A Authentication Tests Implemented)
 **Status:** Active Development
 
 ---
@@ -67,6 +67,18 @@ maestro/
 | `fast-seller-order-fulfillment-test.sh` | Order management | FUL-001, FUL-002, FUL-004, FUL-008 | ✅ |
 | `run-all-seller-tests.sh` | Run all seller tests | All seller tests | ✅ |
 
+### Authentication Edge Case Test Scripts
+
+| Script | Description | Test Cases Covered | Status |
+|--------|-------------|-------------------|--------|
+| `fast-auth-invalid-password-test.sh` | Invalid password validation | AUTH-003 | ✅ |
+| `fast-auth-nonexistent-user-test.sh` | Non-existent user validation | AUTH-004 | ✅ |
+| `fast-auth-empty-fields-test.sh` | Empty fields validation | AUTH-005 | ✅ |
+| `fast-auth-customer-registration-test.sh` | Customer registration | AUTH-006 | ✅ |
+| `fast-auth-seller-registration-test.sh` | Seller registration | AUTH-007 | ✅ |
+| `fast-auth-logout-test.sh` | Logout flow (customer & seller) | AUTH-009 | ✅ |
+| `run-all-auth-tests.sh` | Run all auth tests | All auth tests | ✅ |
+
 ### Customer Test Scripts
 
 | Script | Description | Test Cases Covered | Status |
@@ -93,12 +105,12 @@ maestro/
 |---|-----------|------|--------|--------|
 | AUTH-001 | Customer Login | Customer | ✅ | `fast-customer-login-test.sh` |
 | AUTH-002 | Seller Login | Seller | ✅ | `fast-seller-login-test.sh` |
-| AUTH-003 | Login with Invalid Password | All | 📋 | - |
-| AUTH-004 | Login with Non-existent User | All | 📋 | - |
-| AUTH-005 | Login with Empty Fields | All | 📋 | - |
-| AUTH-006 | Customer Registration | Customer | 📋 | - |
-| AUTH-007 | Seller Registration | Seller | 📋 | - |
-| AUTH-009 | Logout Flow | All | 📋 | - |
+| AUTH-003 | Login with Invalid Password | All | ✅ | `fast-auth-invalid-password-test.sh` |
+| AUTH-004 | Login with Non-existent User | All | ✅ | `fast-auth-nonexistent-user-test.sh` |
+| AUTH-005 | Login with Empty Fields | All | ✅ | `fast-auth-empty-fields-test.sh` |
+| AUTH-006 | Customer Registration | Customer | ✅ | `fast-auth-customer-registration-test.sh` |
+| AUTH-007 | Seller Registration | Seller | ✅ | `fast-auth-seller-registration-test.sh` |
+| AUTH-009 | Logout Flow | All | ✅ | `fast-auth-logout-test.sh` |
 
 ### Product Browsing (Customer)
 
@@ -181,15 +193,15 @@ maestro/
 
 | Status | Count | Percentage |
 |--------|-------|------------|
-| ✅ Implemented | 28 | 56% |
-| 📋 Planned | 22 | 44% |
+| ✅ Implemented | 34 | 68% |
+| 📋 Planned | 16 | 32% |
 | **Total** | **50** | **100%** |
 
 ### By Feature Area
 
 | Area | Implemented | Planned | Total |
 |------|-------------|---------|-------|
-| Authentication | 2 | 6 | 8 |
+| Authentication | 8 | 0 | 8 |
 | Product Browsing | 3 | 3 | 6 |
 | Shopping Cart | 2 | 2 | 4 |
 | Checkout & Orders | 1 | 3 | 4 |
@@ -238,6 +250,32 @@ cd mobile_automation_test/maestro/scripts
 ./run-all-seller-tests.sh
 ```
 
+### Run All Authentication Tests
+
+```bash
+cd mobile_automation_test/maestro/scripts
+./run-all-auth-tests.sh           # Run all auth tests
+./run-all-auth-tests.sh --quick   # Run only edge case tests (003-005)
+```
+
+### Run Individual Authentication Tests
+
+```bash
+cd mobile_automation_test/maestro/scripts
+
+# Edge case tests
+./fast-auth-invalid-password-test.sh    # AUTH-003
+./fast-auth-nonexistent-user-test.sh    # AUTH-004
+./fast-auth-empty-fields-test.sh        # AUTH-005
+
+# Registration tests
+./fast-auth-customer-registration-test.sh  # AUTH-006
+./fast-auth-seller-registration-test.sh    # AUTH-007
+
+# Logout test
+./fast-auth-logout-test.sh              # AUTH-009
+```
+
 ---
 
 ## Test Credentials
@@ -254,7 +292,24 @@ cd mobile_automation_test/maestro/scripts
 
 ## Recent Changes (January 10, 2026)
 
-### Cleanup Performed
+### Phase A Authentication Tests Implemented ✅
+
+All Phase A authentication edge case tests have been implemented:
+
+| Test ID | Script | Description |
+|---------|--------|-------------|
+| AUTH-003 | `fast-auth-invalid-password-test.sh` | Tests login rejection with wrong password |
+| AUTH-004 | `fast-auth-nonexistent-user-test.sh` | Tests login rejection for non-existent users |
+| AUTH-005 | `fast-auth-empty-fields-test.sh` | Tests validation for empty form fields |
+| AUTH-006 | `fast-auth-customer-registration-test.sh` | Tests customer account registration flow |
+| AUTH-007 | `fast-auth-seller-registration-test.sh` | Tests seller account registration flow |
+| AUTH-009 | `fast-auth-logout-test.sh` | Tests logout for both customer and seller |
+
+**Test Runner Added:**
+- `run-all-auth-tests.sh` - Runs all authentication tests with summary
+- Supports `--quick` flag for running only edge case tests
+
+### Previous Cleanup
 - Removed all broken YAML tests in `tests/` directory
 - Removed `test-suites.yaml` (referenced deleted tests)
 - Removed redundant runner scripts:
@@ -280,12 +335,19 @@ cd mobile_automation_test/maestro/scripts
 - [x] Order fulfillment
 - [x] Customer order flow
 - [x] Complete E2E order lifecycle
+- [x] **Authentication edge cases (Phase A complete!)**
+  - [x] Invalid password validation (AUTH-003)
+  - [x] Non-existent user validation (AUTH-004)
+  - [x] Empty fields validation (AUTH-005)
+  - [x] Customer registration (AUTH-006)
+  - [x] Seller registration (AUTH-007)
+  - [x] Logout flow (AUTH-009)
 
 ### Next Priority
-- [ ] Authentication edge cases (invalid credentials)
 - [ ] Cart operations (update, remove)
 - [ ] Order tracking
 - [ ] Profile management
+- [ ] Product filtering (category, price, sort)
 
 ### Future
 - [ ] Chat functionality
@@ -306,19 +368,19 @@ cd mobile_automation_test/maestro/scripts
 
 The following tasks are ordered based on logical dependencies between user roles and features.
 
-### Phase A: Authentication Foundation
-> **Priority:** High | **Dependency:** None (can start immediately)
+### Phase A: Authentication Foundation ✅ COMPLETED
+> **Priority:** High | **Status:** All tests implemented!
 
 These tests validate authentication edge cases and don't depend on other features.
 
-| Order | Test ID | Test Case | Role | Dependency |
-|-------|---------|-----------|------|------------|
-| A.1 | AUTH-003 | Login with Invalid Password | All | None |
-| A.2 | AUTH-004 | Login with Non-existent User | All | None |
-| A.3 | AUTH-005 | Login with Empty Fields | All | None |
-| A.4 | AUTH-006 | Customer Registration | Customer | None |
-| A.5 | AUTH-007 | Seller Registration | Seller | None |
-| A.6 | AUTH-009 | Logout Flow | All | Requires login first |
+| Order | Test ID | Test Case | Role | Status | Script |
+|-------|---------|-----------|------|--------|--------|
+| A.1 | AUTH-003 | Login with Invalid Password | All | ✅ | `fast-auth-invalid-password-test.sh` |
+| A.2 | AUTH-004 | Login with Non-existent User | All | ✅ | `fast-auth-nonexistent-user-test.sh` |
+| A.3 | AUTH-005 | Login with Empty Fields | All | ✅ | `fast-auth-empty-fields-test.sh` |
+| A.4 | AUTH-006 | Customer Registration | Customer | ✅ | `fast-auth-customer-registration-test.sh` |
+| A.5 | AUTH-007 | Seller Registration | Seller | ✅ | `fast-auth-seller-registration-test.sh` |
+| A.6 | AUTH-009 | Logout Flow | All | ✅ | `fast-auth-logout-test.sh` |
 
 ---
 
@@ -438,17 +500,17 @@ Seller can only process orders after customers place them.
 
 ---
 
-## Quick Reference: All Remaining Tasks (17 Total)
+## Quick Reference: Remaining Tasks (13 Total)
 
-| Phase | Count | Tests |
-|-------|-------|-------|
-| A - Authentication | 6 | AUTH-003, 004, 005, 006, 007, 009 |
-| B - Seller Products | 2 | SPM-007, 008 |
-| C - Customer Browsing | 3 | PROD-003, 004, 005 |
-| D - Customer Cart | 2 | CART-002, 003 |
-| E - Customer Orders | 3 | ORD-002, 005, 006 |
-| F - Seller Fulfillment | 3 | FUL-003, 005, 006 |
-| **Total** | **19** | |
+| Phase | Count | Tests | Status |
+|-------|-------|-------|--------|
+| A - Authentication | 0 | ~~AUTH-003, 004, 005, 006, 007, 009~~ | ✅ COMPLETE |
+| B - Seller Products | 2 | SPM-007, 008 | 📋 Pending |
+| C - Customer Browsing | 3 | PROD-003, 004, 005 | 📋 Pending |
+| D - Customer Cart | 2 | CART-002, 003 | 📋 Pending |
+| E - Customer Orders | 3 | ORD-002, 005, 006 | 📋 Pending |
+| F - Seller Fulfillment | 3 | FUL-003, 005, 006 | 📋 Pending |
+| **Total Remaining** | **13** | | |
 
 ---
 
