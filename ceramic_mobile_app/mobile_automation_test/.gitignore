@@ -23,6 +23,10 @@ npm-debug.log*
 coverage/
 .nyc_output/
 
+# Test screenshots (Maestro)
+maestro/**/*.png
+maestro/*.png
+
 # Environment
 .env
 .env.local
