@@ -2,14 +2,29 @@
 # =============================================================================
 # ensure-metro.sh - Ensures Metro bundler is running before tests
 # =============================================================================
-# Source this script at the beginning of test scripts:
-#   source "$(dirname "$0")/ensure-metro.sh"
+# Usage:
+#   Source this script at the beginning of test scripts:
+#     source "$(dirname "$0")/ensure-metro.sh"
+#
+#   Or run directly with options:
+#     ./ensure-metro.sh                  # Ensure Metro (start if needed)
+#     ./ensure-metro.sh --wait-only      # Only wait, don't start
+#     ./ensure-metro.sh --check          # Just check status, exit 0/1
+#     ./ensure-metro.sh --kill           # Kill existing Metro processes
+#     ./ensure-metro.sh --restart        # Kill and restart Metro
 # =============================================================================
 
-FRONT_END_DIR="/home/tuanph/TuanPH/all_projects/ceramic_mobile_app/front_end"
-METRO_PORT=8081
-METRO_TIMEOUT=90
-METRO_LOG="/tmp/metro-bundler.log"
+# Configuration - can be overridden via environment variables
+FRONT_END_DIR="${FRONT_END_DIR:-/home/tuanph/TuanPH/all_projects/ceramic_mobile_app/front_end}"
+METRO_PORT="${METRO_PORT:-8081}"
+METRO_TIMEOUT="${METRO_TIMEOUT:-90}"
+METRO_LOG="${METRO_LOG:-/tmp/metro-bundler.log}"
+
+# Mode flags
+WAIT_ONLY_MODE=false
+CHECK_ONLY_MODE=false
+KILL_MODE=false
+RESTART_MODE=false
 
 # Colors
 GREEN='\033[0;32m'
@@ -95,6 +110,25 @@ start_metro() {
     return 1
 }
 
+# Wait for Metro to become ready (without starting it)
+wait_for_metro() {
+    echo -e "${BLUE}[METRO]${NC} Waiting for Metro bundler to start..."
+    local count=0
+    while [ $count -lt $METRO_TIMEOUT ]; do
+        if check_metro; then
+            echo -e "${GREEN}[METRO]${NC} Metro is ready!"
+            return 0
+        fi
+        sleep 2
+        count=$((count + 2))
+        if [ $((count % 10)) -eq 0 ] && [ $count -gt 0 ]; then
+            echo -e "${YELLOW}[METRO]${NC} Still waiting... (${count}s/${METRO_TIMEOUT}s)"
+        fi
+    done
+    echo -e "${RED}[METRO]${NC} Metro failed to start within ${METRO_TIMEOUT}s"
+    return 1
+}
+
 # Main function to ensure Metro is running
 ensure_metro() {
     echo -e "${BLUE}[METRO]${NC} Checking Metro status..."
@@ -102,6 +136,13 @@ ensure_metro() {
     if check_metro; then
         echo -e "${GREEN}[METRO]${NC} Metro is already running and responsive"
         return 0
+    fi
+
+    # In wait-only mode, don't start Metro
+    if [ "$WAIT_ONLY_MODE" = true ]; then
+        echo -e "${YELLOW}[METRO]${NC} Wait-only mode: Metro not running, waiting..."
+        wait_for_metro
+        return $?
     fi
 
     # Metro not responding, check if process exists
@@ -115,5 +156,89 @@ ensure_metro() {
     return $?
 }
 
-# Auto-run when sourced
-ensure_metro
+# Parse command line arguments when run directly
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --wait-only)
+                WAIT_ONLY_MODE=true
+                shift
+                ;;
+            --check)
+                CHECK_ONLY_MODE=true
+                shift
+                ;;
+            --kill)
+                KILL_MODE=true
+                shift
+                ;;
+            --restart)
+                RESTART_MODE=true
+                shift
+                ;;
+            --timeout)
+                METRO_TIMEOUT="$2"
+                shift 2
+                ;;
+            --port)
+                METRO_PORT="$2"
+                shift 2
+                ;;
+            --help|-h)
+                echo "Usage: $0 [OPTIONS]"
+                echo ""
+                echo "Options:"
+                echo "  --wait-only    Only wait for Metro, don't start it"
+                echo "  --check        Just check if Metro is running (exit 0/1)"
+                echo "  --kill         Kill existing Metro processes"
+                echo "  --restart      Kill and restart Metro"
+                echo "  --timeout N    Set timeout in seconds (default: 90)"
+                echo "  --port N       Set Metro port (default: 8081)"
+                echo "  --help, -h     Show this help"
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}[METRO]${NC} Unknown option: $1"
+                exit 1
+                ;;
+        esac
+    done
+}
+
+# Main execution when run directly (not sourced)
+main() {
+    parse_args "$@"
+
+    if [ "$CHECK_ONLY_MODE" = true ]; then
+        if check_metro; then
+            echo -e "${GREEN}[METRO]${NC} Metro is running"
+            exit 0
+        else
+            echo -e "${RED}[METRO]${NC} Metro is not running"
+            exit 1
+        fi
+    fi
+
+    if [ "$KILL_MODE" = true ]; then
+        kill_metro
+        exit 0
+    fi
+
+    if [ "$RESTART_MODE" = true ]; then
+        kill_metro
+        start_metro
+        exit $?
+    fi
+
+    ensure_metro
+    exit $?
+}
+
+# Detect if script is being sourced or run directly
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    # Script is being run directly
+    main "$@"
+else
+    # Script is being sourced - auto-run ensure_metro
+    ensure_metro
+fi

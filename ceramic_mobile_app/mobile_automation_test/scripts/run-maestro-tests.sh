@@ -92,7 +92,7 @@ start_backend() {
 
 start_metro() {
     print_header "Starting Metro Bundler"
-    
+
     if lsof -i:8081 > /dev/null 2>&1; then
         echo "Metro bundler already running on port 8081"
     else
@@ -101,10 +101,10 @@ start_metro() {
         npx expo start --clear &
         METRO_PID=$!
         echo "Metro PID: $METRO_PID"
-        
-        # Wait for Metro to be ready
+
+        # Wait for Metro to be ready (using consolidated bash script)
         echo "Waiting for Metro to start..."
-        node "$PROJECT_DIR/scripts/wait-for-metro.js"
+        "$PROJECT_DIR/scripts/wait-for-metro.sh" --timeout 120
     fi
 }
 
