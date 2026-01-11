@@ -109,8 +109,9 @@ EOF
     cat > "$TEMP_FLOW" << 'EOF'
 appId: com.ceramicmarketplace.app
 ---
-- assertVisible:
-    id: "login-username-input"
+- extendedWaitUntil:
+    visible:
+      id: "login-username-input"
     timeout: 3000
 EOF
 
@@ -139,7 +140,7 @@ EOF
 
     # Enter username
     _adb_input "test_user"
-    _adb_hide_keyboard
+    _adb_dismiss_keyboard
     sleep 0.3
 
     # Submit without password
@@ -165,8 +166,9 @@ EOF
     cat > "$TEMP_FLOW" << 'EOF'
 appId: com.ceramicmarketplace.app
 ---
-- assertVisible:
-    id: "login-username-input"
+- extendedWaitUntil:
+    visible:
+      id: "login-username-input"
     timeout: 3000
 EOF
 
@@ -207,7 +209,7 @@ EOF
 
     # Enter password only
     _adb_input "SomePassword123"
-    _adb_hide_keyboard
+    _adb_dismiss_keyboard
     sleep 0.3
 
     # Submit without username
@@ -233,8 +235,9 @@ EOF
     cat > "$TEMP_FLOW" << 'EOF'
 appId: com.ceramicmarketplace.app
 ---
-- assertVisible:
-    id: "login-username-input"
+- extendedWaitUntil:
+    visible:
+      id: "login-username-input"
     timeout: 3000
 EOF
 

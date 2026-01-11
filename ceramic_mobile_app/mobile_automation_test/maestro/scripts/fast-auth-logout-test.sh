@@ -295,7 +295,7 @@ EOF
     # Enter username
     sleep 0.5
     _adb_input "$username"
-    _adb_hide_keyboard
+    _adb_dismiss_keyboard
     sleep 0.3
 
     # Tap password field
@@ -310,7 +310,7 @@ EOF
     # Enter password
     sleep 0.5
     _adb_input "$password"
-    _adb_hide_keyboard
+    _adb_dismiss_keyboard
     sleep 0.3
 
     # Submit login

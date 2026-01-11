@@ -176,8 +176,8 @@ EOF
 
     # ===== STEP 3: Hide keyboard and tap password field =====
     _log_step "Tapping password field..."
-    # Use ADB to hide keyboard first
-    _adb_hide_keyboard
+    # Use ADB to dismiss keyboard first (safer than ESCAPE key)
+    _adb_dismiss_keyboard
     sleep 0.3
 
     # Now use Maestro to tap password field
@@ -197,8 +197,8 @@ EOF
 
     # ===== STEP 5: Submit login and verify customer home screen =====
     _log_step "Submitting login..."
-    # Hide keyboard first
-    _adb_hide_keyboard
+    # Dismiss keyboard first (safer than ESCAPE key)
+    _adb_dismiss_keyboard
     sleep 0.3
 
     cat > "$temp_flow" << 'EOF'

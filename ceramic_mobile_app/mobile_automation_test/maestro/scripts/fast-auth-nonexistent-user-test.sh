@@ -89,7 +89,7 @@ EOF
 
     # Step 3: Tap password field
     _log_step "Step 3: Tapping password field..."
-    _adb_hide_keyboard
+    _adb_dismiss_keyboard
     sleep 0.3
 
     cat > "$TEMP_FLOW" << 'EOF'
@@ -108,7 +108,7 @@ EOF
 
     # Step 5: Submit login
     _log_step "Step 5: Submitting login..."
-    _adb_hide_keyboard
+    _adb_dismiss_keyboard
     sleep 0.3
 
     cat > "$TEMP_FLOW" << 'EOF'
@@ -140,8 +140,9 @@ EOF
     cat > "$TEMP_FLOW" << 'EOF'
 appId: com.ceramicmarketplace.app
 ---
-- assertVisible:
-    id: "login-username-input"
+- extendedWaitUntil:
+    visible:
+      id: "login-username-input"
     timeout: 5000
 EOF
 
@@ -162,8 +163,9 @@ verify_error_message() {
     cat > "$TEMP_FLOW" << 'EOF'
 appId: com.ceramicmarketplace.app
 ---
-- assertVisible:
-    text: ".*[Uu]ser.*not.*found.*|.*[Ii]nvalid.*|.*[Ee]rror.*|.*[Dd]oes.*not.*exist.*|.*[Ff]ailed.*"
+- extendedWaitUntil:
+    visible:
+      text: ".*[Uu]ser.*not.*found.*|.*[Ii]nvalid.*|.*[Ee]rror.*|.*[Dd]oes.*not.*exist.*|.*[Ff]ailed.*"
     timeout: 3000
 EOF
 

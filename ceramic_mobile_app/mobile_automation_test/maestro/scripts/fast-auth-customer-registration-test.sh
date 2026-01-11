@@ -92,27 +92,26 @@ EOF
     fi
     _log_success "Login screen loaded"
 
-    # Look for registration link/button
-    # Try common patterns: "Register", "Sign Up", "Create Account"
+    # Look for registration link/button - testID is "login-register-link"
     _log_step "Looking for registration link..."
 
     cat > "$TEMP_FLOW" << 'EOF'
 appId: com.ceramicmarketplace.app
 ---
 - tapOn:
-    id: "register-link"
+    id: "login-register-link"
 - waitForAnimationToEnd
 EOF
 
     if maestro test "$TEMP_FLOW" 2>&1 | tail -3; then
-        _log_success "Found register-link, tapped it"
+        _log_success "Found login-register-link, tapped it"
     else
         # Try alternative: tap on text
         cat > "$TEMP_FLOW" << 'EOF'
 appId: com.ceramicmarketplace.app
 ---
 - tapOn:
-    text: ".*[Rr]egister.*|.*[Ss]ign [Uu]p.*|.*[Cc]reate [Aa]ccount.*"
+    text: ".*[Ss]ign [Uu]p.*|.*[Rr]egister.*|.*[Cc]reate [Aa]ccount.*"
 - waitForAnimationToEnd
 EOF
         if maestro test "$TEMP_FLOW" 2>&1 | tail -3; then
@@ -159,7 +158,7 @@ EOF
 
     sleep 0.5
     _adb_input "$TEST_FIRST_NAME"
-    _adb_hide_keyboard
+    _adb_dismiss_keyboard
     _log_success "First name entered"
 }
 
@@ -186,7 +185,7 @@ EOF
 
     sleep 0.5
     _adb_input "$TEST_LAST_NAME"
-    _adb_hide_keyboard
+    _adb_dismiss_keyboard
     _log_success "Last name entered"
 }
 
@@ -213,7 +212,7 @@ EOF
 
     sleep 0.5
     _adb_input "$TEST_USERNAME"
-    _adb_hide_keyboard
+    _adb_dismiss_keyboard
     _log_success "Username entered"
 }
 
@@ -240,7 +239,7 @@ EOF
 
     sleep 0.5
     _adb_input "$TEST_EMAIL"
-    _adb_hide_keyboard
+    _adb_dismiss_keyboard
     _log_success "Email entered"
 }
 
@@ -267,7 +266,7 @@ EOF
 
     sleep 0.5
     _adb_input "$TEST_PASSWORD"
-    _adb_hide_keyboard
+    _adb_dismiss_keyboard
     _log_success "Password entered"
 
     # Fill confirm password
@@ -292,7 +291,7 @@ EOF
 
     sleep 0.5
     _adb_input "$TEST_PASSWORD"
-    _adb_hide_keyboard
+    _adb_dismiss_keyboard
     _log_success "Confirm password entered"
 }
 
@@ -310,7 +309,7 @@ EOF
     if maestro test "$TEMP_FLOW" 2>&1 | tail -2; then
         sleep 0.5
         _adb_input "$TEST_PHONE"
-        _adb_hide_keyboard
+        _adb_dismiss_keyboard
         _log_success "Phone number entered"
     else
         _log_info "Phone field not found (may be optional or named differently)"
@@ -326,7 +325,7 @@ select_customer_role() {
 appId: com.ceramicmarketplace.app
 ---
 - tapOn:
-    id: "role-customer"
+    id: "register-role-customer"
 EOF
 
     if maestro test "$TEMP_FLOW" 2>&1 | tail -2; then
@@ -351,45 +350,75 @@ EOF
 scroll_to_submit() {
     _log_step "Scrolling to submit button..."
 
-    cat > "$TEMP_FLOW" << 'EOF'
+    # Scroll multiple times to ensure button is visible
+    for i in 1 2 3; do
+        cat > "$TEMP_FLOW" << 'EOF'
 appId: com.ceramicmarketplace.app
 ---
 - scroll:
     direction: DOWN
 - waitForAnimationToEnd
 EOF
-    maestro test "$TEMP_FLOW" 2>&1 | tail -2
+        maestro test "$TEMP_FLOW" 2>&1 | tail -2
+        sleep 0.3
+    done
 }
 
 # Submit registration
 submit_registration() {
     _log_step "Submitting registration..."
-    _adb_hide_keyboard
+    _adb_dismiss_keyboard
     sleep 0.5
 
+    # Take screenshot before submit
     cat > "$TEMP_FLOW" << 'EOF'
 appId: com.ceramicmarketplace.app
 ---
 - takeScreenshot: "customer-register-before-submit"
+EOF
+    maestro test "$TEMP_FLOW" 2>&1 | tail -2
+
+    # Try scrolling until submit button is visible and tap it
+    cat > "$TEMP_FLOW" << 'EOF'
+appId: com.ceramicmarketplace.app
+---
+- scrollUntilVisible:
+    element:
+      id: "register-submit-button"
+    direction: DOWN
+    timeout: 10000
 - tapOn:
     id: "register-submit-button"
 - waitForAnimationToEnd
 EOF
 
-    if ! maestro test "$TEMP_FLOW" 2>&1 | tail -3; then
-        # Try alternative: Sign Up button text
-        cat > "$TEMP_FLOW" << 'EOF'
-appId: com.ceramicmarketplace.app
----
-- tapOn:
-    text: ".*[Rr]egister.*|.*[Ss]ign [Uu]p.*|.*[Cc]reate [Aa]ccount.*"
-- waitForAnimationToEnd
-EOF
-        maestro test "$TEMP_FLOW" 2>&1 | tail -3
+    if maestro test "$TEMP_FLOW" 2>&1 | tail -3; then
+        _log_success "Registration submitted"
+        return 0
     fi
 
-    _log_success "Registration submitted"
-    return 0
+    # Fallback: Try text-based tap with scroll
+    _log_info "Trying text-based submit button..."
+    cat > "$TEMP_FLOW" << 'EOF'
+appId: com.ceramicmarketplace.app
+---
+- scrollUntilVisible:
+    element:
+      text: ".*[Ss]ign [Uu]p.*|.*[Rr]egister.*|.*[Cc]reate.*"
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    text: ".*[Ss]ign [Uu]p.*|.*[Rr]egister.*|.*[Cc]reate.*"
+- waitForAnimationToEnd
+EOF
+
+    if maestro test "$TEMP_FLOW" 2>&1 | tail -3; then
+        _log_success "Registration submitted via text"
+        return 0
+    fi
+
+    _log_error "Could not tap submit button"
+    return 1
 }
 
 # Verify registration success

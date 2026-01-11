@@ -89,7 +89,7 @@ EOF
 
     # Step 3: Tap password field
     _log_step "Step 3: Tapping password field..."
-    _adb_hide_keyboard
+    _adb_dismiss_keyboard
     sleep 0.3
 
     cat > "$TEMP_FLOW" << 'EOF'
@@ -108,7 +108,7 @@ EOF
 
     # Step 5: Submit login
     _log_step "Step 5: Submitting login..."
-    _adb_hide_keyboard
+    _adb_dismiss_keyboard
     sleep 0.3
 
     cat > "$TEMP_FLOW" << 'EOF'
