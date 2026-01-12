@@ -266,23 +266,23 @@ main() {
 
     # Test 1: Both fields empty
     if test_both_empty; then
-        ((tests_passed++))
+        tests_passed=$((tests_passed + 1))
     else
-        ((tests_failed++))
+        tests_failed=$((tests_failed + 1))
     fi
 
     # Test 2: Password empty
     if test_password_empty; then
-        ((tests_passed++))
+        tests_passed=$((tests_passed + 1))
     else
-        ((tests_failed++))
+        tests_failed=$((tests_failed + 1))
     fi
 
     # Test 3: Username empty
     if test_username_empty; then
-        ((tests_passed++))
+        tests_passed=$((tests_passed + 1))
     else
-        ((tests_failed++))
+        tests_failed=$((tests_failed + 1))
     fi
 
     # Final screenshot
