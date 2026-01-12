@@ -34,24 +34,34 @@ import {
 } from '../../store/slices/productSlice.js';
 import { colors, spacing, typography } from '../../constants/theme.js';
 
-const ProductCard = ({ product, onPress, onFavoritePress, isFavorite }) => (
-  <Card style={styles.productCard} onPress={() => onPress(product)}>
-    <Card.Content>
-      <Text style={styles.productName}>{product.name}</Text>
-      <Text style={styles.productPrice}>${product.price?.toFixed(2)}</Text>
-      {product.category && (
-        <Text style={styles.productCategory}>{product.category}</Text>
-      )}
-    </Card.Content>
-    <Card.Actions>
-      <IconButton
-        icon={isFavorite ? 'heart' : 'heart-outline'}
-        iconColor={isFavorite ? colors.error : colors.outline}
-        onPress={() => onFavoritePress(product)}
-      />
-    </Card.Actions>
-  </Card>
-);
+const ProductCard = ({ product, onPress, onFavoritePress, isFavorite }) => {
+  // Format price - handle both number and string values from API
+  const formatPrice = (price) => {
+    if (price === null || price === undefined) return '0.00';
+    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+    return isNaN(numPrice) ? '0.00' : numPrice.toFixed(2);
+  };
+
+  return (
+    <Card style={styles.productCard} onPress={() => onPress(product)} testID={`product-card-${product.id}`}>
+      <Card.Content>
+        <Text style={styles.productName} testID={`product-name-${product.id}`}>{product.name}</Text>
+        <Text style={styles.productPrice} testID={`product-price-${product.id}`}>${formatPrice(product.price)}</Text>
+        {product.category && (
+          <Text style={styles.productCategory} testID={`product-category-${product.id}`}>{product.category}</Text>
+        )}
+      </Card.Content>
+      <Card.Actions>
+        <IconButton
+          icon={isFavorite ? 'heart' : 'heart-outline'}
+          iconColor={isFavorite ? colors.error : colors.outline}
+          onPress={() => onFavoritePress(product)}
+          testID={`product-favorite-${product.id}`}
+        />
+      </Card.Actions>
+    </Card>
+  );
+};
 
 export const ProductListScreen = () => {
   const navigation = useNavigation();
@@ -314,10 +324,10 @@ export const ProductListScreen = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} testID="product-list-screen">
       {/* Header */}
       <Appbar.Header style={styles.header}>
-        <Appbar.BackAction onPress={() => navigation.goBack()} />
+        <Appbar.BackAction onPress={() => navigation.goBack()} testID="product-list-back-button" />
         <Appbar.Content title={getScreenTitle()} />
         <Menu
           visible={sortMenuVisible}
@@ -326,6 +336,7 @@ export const ProductListScreen = () => {
             <IconButton
               icon="sort"
               onPress={() => setSortMenuVisible(true)}
+              testID="product-sort-button"
             />
           }
         >
@@ -333,31 +344,37 @@ export const ProductListScreen = () => {
             onPress={() => handleSort('newest', 'desc')}
             title="Newest"
             leadingIcon="clock-outline"
+            testID="sort-newest"
           />
           <Menu.Item
             onPress={() => handleSort('popular', 'desc')}
             title="Popular"
             leadingIcon="trending-up"
+            testID="sort-popular"
           />
           <Menu.Item
             onPress={() => handleSort('price', 'asc')}
             title="Price: Low to High"
             leadingIcon="arrow-up"
+            testID="sort-price-low-high"
           />
           <Menu.Item
             onPress={() => handleSort('price', 'desc')}
             title="Price: High to Low"
             leadingIcon="arrow-down"
+            testID="sort-price-high-low"
           />
           <Menu.Item
             onPress={() => handleSort('rating', 'desc')}
             title="Highest Rated"
             leadingIcon="star"
+            testID="sort-rating"
           />
         </Menu>
         <IconButton
           icon={viewType === 'grid' ? 'view-list' : 'view-grid'}
           onPress={handleViewToggle}
+          testID="product-view-toggle"
         />
       </Appbar.Header>
 
@@ -373,20 +390,23 @@ export const ProductListScreen = () => {
             handleSearch('');
           }}
           style={styles.searchBar}
+          testID="product-list-search-bar"
         />
       </View>
 
       {/* Category Filter Chips */}
-      <ScrollView 
-        horizontal 
+      <ScrollView
+        horizontal
         showsHorizontalScrollIndicator={false}
         style={styles.categoryChips}
+        testID="category-filter-container"
       >
         <Chip
           selected={!selectedCategory}
           onPress={() => handleCategorySelect(null)}
           style={styles.categoryChip}
           textStyle={styles.chipText}
+          testID="category-all"
         >
           All
         </Chip>
@@ -397,6 +417,7 @@ export const ProductListScreen = () => {
             onPress={() => handleCategorySelect(category)}
             style={styles.categoryChip}
             textStyle={styles.chipText}
+            testID={`category-${category.name.toLowerCase().replace(/\s+/g, '-')}`}
           >
             {category.name}
           </Chip>
@@ -404,11 +425,11 @@ export const ProductListScreen = () => {
       </ScrollView>
 
       {/* Sort & Filter Info */}
-      <View style={styles.filtersInfo}>
-        <Text style={styles.resultsCount}>
+      <View style={styles.filtersInfo} testID="filter-info-container">
+        <Text style={styles.resultsCount} testID="results-count">
           {products.length} products
         </Text>
-        <Text style={styles.sortInfo}>
+        <Text style={styles.sortInfo} testID="sort-info">
           Sorted by: {getSortLabel()}
         </Text>
       </View>
@@ -432,6 +453,7 @@ export const ProductListScreen = () => {
         ListFooterComponent={renderFooter}
         ListEmptyComponent={!isLoading ? renderEmpty : null}
         showsVerticalScrollIndicator={false}
+        testID="product-list"
       />
 
       {/* Filter FAB - TODO: Implement filter modal */}

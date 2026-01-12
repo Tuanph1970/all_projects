@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, FlatList } from 'react-native';
 import { Text, Title, Appbar, Button, Card } from 'react-native-paper';
 import { useSelector, useDispatch } from 'react-redux';
+import { useNavigation } from '@react-navigation/native';
 import {
   fetchFeaturedProducts,
   fetchPopularProducts,
@@ -13,6 +14,7 @@ import { useTranslation } from '@i18n';
 
 export const HomeScreen = () => {
   const dispatch = useDispatch();
+  const navigation = useNavigation();
   const t = useTranslation();
   const { user } = useSelector((state) => state.auth);
   const {
@@ -48,11 +50,15 @@ export const HomeScreen = () => {
   };
 
   const handleProductPress = (product) => {
-    // TODO, product.title);
+    navigation.navigate('ProductDetails', { productId: product.id });
   };
 
   const handleCategoryPress = (category) => {
-    // TODO, category.name);
+    navigation.navigate('ProductList', { categoryId: category.id, categoryName: category.name });
+  };
+
+  const handleViewAllProducts = () => {
+    navigation.navigate('ProductList');
   };
 
   const handleFavoritePress = (product) => {
@@ -84,6 +90,7 @@ export const HomeScreen = () => {
   return (
     <ScrollView
       style={styles.container}
+      testID="home-screen"
       refreshControl={
         <RefreshControl
           refreshing={isLoading}
@@ -92,7 +99,7 @@ export const HomeScreen = () => {
       }
     >
         {/* Welcome Section - Always visible */}
-        <Card style={styles.welcomeCard}>
+        <Card style={styles.welcomeCard} testID="home-welcome-card">
           <Card.Content>
             <Text style={styles.welcomeTitle}>
               {t('home.greeting', { name: user?.fullName || t('home.greetingGuest').replace(t('home.greeting', { name: '' }).split('{name}')[0], '').replace('!', '') })}
@@ -102,6 +109,18 @@ export const HomeScreen = () => {
             </Text>
           </Card.Content>
         </Card>
+
+        {/* View All Products Button */}
+        <View style={styles.viewAllProductsContainer}>
+          <Button
+            mode="contained"
+            onPress={handleViewAllProducts}
+            style={styles.viewAllProductsButton}
+            testID="home-view-all-products-button"
+          >
+            Browse All Products
+          </Button>
+        </View>
 
         {/* Loading State */}
         {isLoading && !featuredProducts?.length && !popularProducts?.length && (
@@ -218,7 +237,7 @@ export const HomeScreen = () => {
           <Card style={styles.errorCard}>
             <Card.Content style={styles.errorContent}>
               <Text style={styles.errorText}>
-                {error}
+                {typeof error === 'string' ? error : (error.msg || JSON.stringify(error))}
               </Text>
               <Button
                 mode="contained"
@@ -275,7 +294,14 @@ const styles = StyleSheet.create({
   },
   welcomeCard: {
     margin: spacing.medium,
+    marginBottom: spacing.medium,
+  },
+  viewAllProductsContainer: {
+    marginHorizontal: spacing.medium,
     marginBottom: spacing.large,
+  },
+  viewAllProductsButton: {
+    paddingVertical: spacing.small,
   },
   welcomeTitle: {
     fontSize: typography.sizes.large,

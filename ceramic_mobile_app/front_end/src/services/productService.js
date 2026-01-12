@@ -18,25 +18,37 @@ class ProductService {
   // Get product list with pagination and filters
   async getProducts(params = {}) {
     const queryParams = new URLSearchParams();
-    
-    // Add pagination parameters
-    queryParams.append('page', (params.page || 1).toString());
-    queryParams.append('limit', (params.limit || 20).toString());
-    
-    // Add filter parameters
-    if (params.categoryId) queryParams.append('categoryId', params.categoryId);
-    if (params.search) queryParams.append('search', params.search);
-    if (params.minPrice !== undefined) queryParams.append('minPrice', params.minPrice.toString());
-    if (params.maxPrice !== undefined) queryParams.append('maxPrice', params.maxPrice.toString());
-    if (params.sortBy) queryParams.append('sortBy', params.sortBy);
-    if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
-    if (params.isActive !== undefined) queryParams.append('isActive', params.isActive.toString());
 
-    const url = queryParams.toString() ? 
-      `${this.baseUrl}?${queryParams.toString()}` : 
-      this.baseUrl;
-    
-    return apiClient.get(url);
+    const page = params.page || 1;
+    const limit = params.limit || 20;
+
+    // Add pagination parameters - backend uses skip/limit
+    queryParams.append('skip', ((page - 1) * limit).toString());
+    queryParams.append('limit', limit.toString());
+
+    // Add filter parameters
+    if (params.categoryId) queryParams.append('category_id', params.categoryId);
+    if (params.search) queryParams.append('search', params.search);
+    if (params.minPrice !== undefined) queryParams.append('min_price', params.minPrice.toString());
+    if (params.maxPrice !== undefined) queryParams.append('max_price', params.maxPrice.toString());
+    if (params.sortBy) queryParams.append('sort_by', params.sortBy === 'newest' ? 'created_at' : params.sortBy);
+    if (params.sortOrder) queryParams.append('sort_order', params.sortOrder);
+
+    const url = queryParams.toString() ?
+      `${this.baseUrl}/?${queryParams.toString()}` :
+      `${this.baseUrl}/`;
+
+    const products = await apiClient.get(url);
+
+    // Wrap array response in expected format for Redux slice
+    const productList = Array.isArray(products) ? products : [];
+    return {
+      products: productList,
+      page: page,
+      totalPages: Math.ceil(productList.length / limit) || 1,
+      hasMore: productList.length >= limit,
+      total: productList.length
+    };
   }
 
   // Get single product by ID
@@ -53,40 +65,76 @@ class ProductService {
   // Get products by category
   async getProductsByCategory(categoryId, params = {}) {
     const queryParams = new URLSearchParams();
-    
-    queryParams.append('categoryId', categoryId);
-    queryParams.append('page', (params.page || 1).toString());
-    queryParams.append('limit', (params.limit || 20).toString());
-    
-    if (params.search) queryParams.append('search', params.search);
-    if (params.minPrice !== undefined) queryParams.append('minPrice', params.minPrice.toString());
-    if (params.maxPrice !== undefined) queryParams.append('maxPrice', params.maxPrice.toString());
-    if (params.sortBy) queryParams.append('sortBy', params.sortBy);
-    if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
 
-    return apiClient.get(`${this.baseUrl}?${queryParams.toString()}`);
+    const page = params.page || 1;
+    const limit = params.limit || 20;
+
+    queryParams.append('category_id', categoryId);
+    queryParams.append('skip', ((page - 1) * limit).toString());
+    queryParams.append('limit', limit.toString());
+
+    if (params.search) queryParams.append('search', params.search);
+    if (params.minPrice !== undefined) queryParams.append('min_price', params.minPrice.toString());
+    if (params.maxPrice !== undefined) queryParams.append('max_price', params.maxPrice.toString());
+    if (params.sortBy) queryParams.append('sort_by', params.sortBy === 'newest' ? 'created_at' : params.sortBy);
+    if (params.sortOrder) queryParams.append('sort_order', params.sortOrder);
+
+    const products = await apiClient.get(`${this.baseUrl}/?${queryParams.toString()}`);
+
+    // Wrap array response in expected format for Redux slice
+    const productList = Array.isArray(products) ? products : [];
+    return {
+      products: productList,
+      page: page,
+      totalPages: Math.ceil(productList.length / limit) || 1,
+      hasMore: productList.length >= limit,
+      total: productList.length
+    };
   }
 
   // Search products
   async searchProducts(searchTerm, params = {}) {
     const queryParams = new URLSearchParams();
-    
-    queryParams.append('search', searchTerm);
-    queryParams.append('page', (params.page || 1).toString());
-    queryParams.append('limit', (params.limit || 20).toString());
-    
-    if (params.categoryId) queryParams.append('categoryId', params.categoryId);
-    if (params.minPrice !== undefined) queryParams.append('minPrice', params.minPrice.toString());
-    if (params.maxPrice !== undefined) queryParams.append('maxPrice', params.maxPrice.toString());
-    if (params.sortBy) queryParams.append('sortBy', params.sortBy);
-    if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
 
-    return apiClient.get(`${this.baseUrl}?${queryParams.toString()}`);
+    const page = params.page || 1;
+    const limit = params.limit || 20;
+
+    queryParams.append('search', searchTerm);
+    queryParams.append('skip', ((page - 1) * limit).toString());
+    queryParams.append('limit', limit.toString());
+
+    if (params.categoryId) queryParams.append('category_id', params.categoryId);
+    if (params.minPrice !== undefined) queryParams.append('min_price', params.minPrice.toString());
+    if (params.maxPrice !== undefined) queryParams.append('max_price', params.maxPrice.toString());
+    if (params.sortBy) queryParams.append('sort_by', params.sortBy === 'newest' ? 'created_at' : params.sortBy);
+    if (params.sortOrder) queryParams.append('sort_order', params.sortOrder);
+
+    const products = await apiClient.get(`${this.baseUrl}/?${queryParams.toString()}`);
+
+    // Wrap array response in expected format for Redux slice
+    const productList = Array.isArray(products) ? products : [];
+    return {
+      products: productList,
+      page: page,
+      totalPages: Math.ceil(productList.length / limit) || 1,
+      hasMore: productList.length >= limit,
+      total: productList.length
+    };
   }
 
   // Get all categories
   async getCategories() {
     return apiClient.get(this.categoriesUrl);
+  }
+
+  // Get main (parent) categories for navigation
+  async getMainCategories() {
+    const categories = await apiClient.get(this.categoriesUrl);
+    // Filter to get only parent categories (no parent_id)
+    const mainCategories = Array.isArray(categories)
+      ? categories.filter(c => !c.parent_id)
+      : [];
+    return mainCategories;
   }
 
   // TODO: Backend endpoint not implemented - /categories/{id} does not exist

@@ -1,6 +1,33 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { productService } from '../../services/productService.js';
 
+// Helper function to extract error message from various error formats
+const extractErrorMessage = (error, defaultMessage) => {
+  const detail = error.response?.data?.detail;
+
+  if (!detail) {
+    return error.message || defaultMessage;
+  }
+
+  // If detail is a string, return it directly
+  if (typeof detail === 'string') {
+    return detail;
+  }
+
+  // If detail is an array (Pydantic validation errors), extract messages
+  if (Array.isArray(detail)) {
+    return detail.map(err => err.msg || JSON.stringify(err)).join(', ');
+  }
+
+  // If detail is an object with a msg property
+  if (typeof detail === 'object' && detail.msg) {
+    return detail.msg;
+  }
+
+  // Fallback: stringify the detail
+  return JSON.stringify(detail);
+};
+
 const initialState = {
   // Product lists
   featuredProducts: [],
@@ -52,7 +79,7 @@ export const fetchFeaturedProducts = createAsyncThunk(
       const response = await productService.getFeaturedProducts();
       return response;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.detail || 'Failed to fetch featured products');
+      return rejectWithValue(extractErrorMessage(error, 'Failed to fetch featured products'));
     }
   }
 );
@@ -64,7 +91,7 @@ export const fetchProducts = createAsyncThunk(
       const response = await productService.getProducts(params);
       return { response, isLoadMore: params.page > 1 };
     } catch (error) {
-      return rejectWithValue(error.response?.data?.detail || 'Failed to fetch products');
+      return rejectWithValue(extractErrorMessage(error, 'Failed to fetch products'));
     }
   }
 );
@@ -76,7 +103,7 @@ export const fetchProductsByCategory = createAsyncThunk(
       const response = await productService.getProductsByCategory(categoryId, params);
       return { response, isLoadMore: params.page > 1 };
     } catch (error) {
-      return rejectWithValue(error.response?.data?.detail || 'Failed to fetch products by category');
+      return rejectWithValue(extractErrorMessage(error, 'Failed to fetch products by category'));
     }
   }
 );
@@ -88,7 +115,7 @@ export const searchProducts = createAsyncThunk(
       const response = await productService.searchProducts(query, params);
       return { response, query, isLoadMore: params.page > 1 };
     } catch (error) {
-      return rejectWithValue(error.response?.data?.detail || 'Failed to search products');
+      return rejectWithValue(extractErrorMessage(error, 'Failed to search products'));
     }
   }
 );
@@ -101,7 +128,7 @@ export const fetchProduct = createAsyncThunk(
       const relatedProducts = await productService.getRelatedProducts(productId);
       return { product, relatedProducts };
     } catch (error) {
-      return rejectWithValue(error.response?.data?.detail || 'Failed to fetch product');
+      return rejectWithValue(extractErrorMessage(error, 'Failed to fetch product'));
     }
   }
 );
@@ -113,7 +140,7 @@ export const fetchPopularProducts = createAsyncThunk(
       const products = await productService.getPopularProducts(limit);
       return products;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.detail || 'Failed to fetch popular products');
+      return rejectWithValue(extractErrorMessage(error, 'Failed to fetch popular products'));
     }
   }
 );
@@ -125,7 +152,7 @@ export const fetchNewArrivals = createAsyncThunk(
       const products = await productService.getNewArrivals(limit);
       return products;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.detail || 'Failed to fetch new arrivals');
+      return rejectWithValue(extractErrorMessage(error, 'Failed to fetch new arrivals'));
     }
   }
 );
@@ -137,7 +164,7 @@ export const fetchSaleProducts = createAsyncThunk(
       const products = await productService.getSaleProducts(limit);
       return products;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.detail || 'Failed to fetch sale products');
+      return rejectWithValue(extractErrorMessage(error, 'Failed to fetch sale products'));
     }
   }
 );
@@ -150,7 +177,7 @@ export const fetchCategories = createAsyncThunk(
       const mainCategories = await productService.getMainCategories();
       return { categories, mainCategories };
     } catch (error) {
-      return rejectWithValue(error.response?.data?.detail || 'Failed to fetch categories');
+      return rejectWithValue(extractErrorMessage(error, 'Failed to fetch categories'));
     }
   }
 );
@@ -162,7 +189,7 @@ export const fetchFavorites = createAsyncThunk(
       const favorites = await productService.getFavorites();
       return favorites;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.detail || 'Failed to fetch favorites');
+      return rejectWithValue(extractErrorMessage(error, 'Failed to fetch favorites'));
     }
   }
 );
@@ -182,7 +209,7 @@ export const toggleFavorite = createAsyncThunk(
       
       return { productId, isFavorite: !isFavorite };
     } catch (error) {
-      return rejectWithValue(error.response?.data?.detail || 'Failed to toggle favorite');
+      return rejectWithValue(extractErrorMessage(error, 'Failed to toggle favorite'));
     }
   }
 );
@@ -194,7 +221,7 @@ export const advancedSearch = createAsyncThunk(
       const response = await productService.advancedSearch(params);
       return { response, isLoadMore: params.page > 1 };
     } catch (error) {
-      return rejectWithValue(error.response?.data?.detail || 'Failed to perform advanced search');
+      return rejectWithValue(extractErrorMessage(error, 'Failed to perform advanced search'));
     }
   }
 );
