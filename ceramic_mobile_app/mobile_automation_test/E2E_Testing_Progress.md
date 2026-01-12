@@ -1,7 +1,7 @@
 # E2E Testing Progress - Ceramic Marketplace Mobile App
 
 **Testing Framework:** Maestro + ADB Hybrid (Character-by-Character Input)
-**Last Updated:** January 10, 2026 (Phase A Authentication Tests Implemented)
+**Last Updated:** January 12, 2026 (Phase B Seller Product Management Implemented)
 **Status:** Active Development
 
 ---
@@ -64,6 +64,8 @@ maestro/
 | `fast-seller-add-products-v2.sh` | Add products v2 | SPM-001 | ✅ |
 | `fast-seller-edit-products-test.sh` | Edit existing products | SPM-006 | ✅ |
 | `fast-seller-delete-product-test.sh` | Delete product | SPM-009 | ✅ |
+| `fast-seller-update-stock-test.sh` | Update product stock | SPM-007 | ✅ |
+| `fast-seller-deactivate-product-test.sh` | Deactivate product | SPM-008 | ✅ |
 | `fast-seller-order-fulfillment-test.sh` | Order management | FUL-001, FUL-002, FUL-004, FUL-008 | ✅ |
 | `run-all-seller-tests.sh` | Run all seller tests | All seller tests | ✅ |
 
@@ -159,9 +161,9 @@ maestro/
 | SPM-004 | Search My Products | ✅ | `fast-seller-product-management-test.sh` |
 | SPM-005 | Filter Products by Status | ✅ | `fast-seller-product-management-test.sh` |
 | SPM-006 | Edit Product Details | ✅ | `fast-seller-edit-products-test.sh` |
+| SPM-007 | Update Product Stock | ✅ | `fast-seller-update-stock-test.sh` |
+| SPM-008 | Deactivate Product | ✅ | `fast-seller-deactivate-product-test.sh` |
 | SPM-009 | Delete Product | ✅ | `fast-seller-delete-product-test.sh` |
-| SPM-007 | Update Product Stock | 📋 | - |
-| SPM-008 | Deactivate Product | 📋 | - |
 
 ### Seller Analytics
 
@@ -193,8 +195,8 @@ maestro/
 
 | Status | Count | Percentage |
 |--------|-------|------------|
-| ✅ Implemented | 34 | 68% |
-| 📋 Planned | 16 | 32% |
+| ✅ Implemented | 36 | 72% |
+| 📋 Planned | 14 | 28% |
 | **Total** | **50** | **100%** |
 
 ### By Feature Area
@@ -206,7 +208,7 @@ maestro/
 | Shopping Cart | 2 | 2 | 4 |
 | Checkout & Orders | 1 | 3 | 4 |
 | Seller Dashboard | 3 | 0 | 3 |
-| Product Management | 7 | 2 | 9 |
+| Product Management | 9 | 0 | 9 |
 | Seller Analytics | 5 | 0 | 5 |
 | Order Fulfillment | 4 | 3 | 7 |
 | Complete Flows | 1 | 0 | 1 |
@@ -235,6 +237,8 @@ cd mobile_automation_test/maestro/scripts
 ./fast-seller-add-product-test.sh
 ./fast-seller-edit-products-test.sh
 ./fast-seller-delete-product-test.sh
+./fast-seller-update-stock-test.sh
+./fast-seller-deactivate-product-test.sh
 ./fast-seller-order-fulfillment-test.sh
 
 # Customer tests
@@ -290,7 +294,24 @@ cd mobile_automation_test/maestro/scripts
 
 ---
 
-## Recent Changes (January 10, 2026)
+## Recent Changes (January 12, 2026)
+
+### Phase B Seller Product Management Tests Implemented ✅
+
+All Phase B seller product management tests have been implemented:
+
+| Test ID | Script | Description |
+|---------|--------|-------------|
+| SPM-007 | `fast-seller-update-stock-test.sh` | Tests updating product stock/inventory |
+| SPM-008 | `fast-seller-deactivate-product-test.sh` | Tests deactivating/disabling a product |
+
+**Bug Fixes:**
+- Fixed `ensure-metro.sh` - Corrected FRONT_END_DIR path
+- Fixed `fast-auth-empty-fields-test.sh` - Fixed bash arithmetic with `set -e`
+
+---
+
+## Previous Changes (January 10, 2026)
 
 ### Phase A Authentication Tests Implemented ✅
 
@@ -342,12 +363,15 @@ All Phase A authentication edge case tests have been implemented:
   - [x] Customer registration (AUTH-006)
   - [x] Seller registration (AUTH-007)
   - [x] Logout flow (AUTH-009)
+- [x] **Seller Product Management Extended (Phase B complete!)**
+  - [x] Update Product Stock (SPM-007)
+  - [x] Deactivate Product (SPM-008)
 
 ### Next Priority
+- [ ] Product filtering (category, price, sort)
 - [ ] Cart operations (update, remove)
 - [ ] Order tracking
 - [ ] Profile management
-- [ ] Product filtering (category, price, sort)
 
 ### Future
 - [ ] Chat functionality
@@ -384,15 +408,15 @@ These tests validate authentication edge cases and don't depend on other feature
 
 ---
 
-### Phase B: Seller Product Management (Extended)
-> **Priority:** High | **Dependency:** Seller must be logged in
+### Phase B: Seller Product Management (Extended) ✅ COMPLETED
+> **Priority:** High | **Status:** All tests implemented!
 
 Seller must prepare products before customers can browse/purchase.
 
-| Order | Test ID | Test Case | Role | Dependency |
-|-------|---------|-----------|------|------------|
-| B.1 | SPM-007 | Update Product Stock | Seller | Products must exist (SPM-001 ✅) |
-| B.2 | SPM-008 | Deactivate Product | Seller | Products must exist (SPM-001 ✅) |
+| Order | Test ID | Test Case | Role | Status | Script |
+|-------|---------|-----------|------|--------|--------|
+| B.1 | SPM-007 | Update Product Stock | Seller | ✅ | `fast-seller-update-stock-test.sh` |
+| B.2 | SPM-008 | Deactivate Product | Seller | ✅ | `fast-seller-deactivate-product-test.sh` |
 
 ---
 
@@ -500,17 +524,17 @@ Seller can only process orders after customers place them.
 
 ---
 
-## Quick Reference: Remaining Tasks (13 Total)
+## Quick Reference: Remaining Tasks (11 Total)
 
 | Phase | Count | Tests | Status |
 |-------|-------|-------|--------|
 | A - Authentication | 0 | ~~AUTH-003, 004, 005, 006, 007, 009~~ | ✅ COMPLETE |
-| B - Seller Products | 2 | SPM-007, 008 | 📋 Pending |
+| B - Seller Products | 0 | ~~SPM-007, 008~~ | ✅ COMPLETE |
 | C - Customer Browsing | 3 | PROD-003, 004, 005 | 📋 Pending |
 | D - Customer Cart | 2 | CART-002, 003 | 📋 Pending |
 | E - Customer Orders | 3 | ORD-002, 005, 006 | 📋 Pending |
 | F - Seller Fulfillment | 3 | FUL-003, 005, 006 | 📋 Pending |
-| **Total Remaining** | **13** | | |
+| **Total Remaining** | **11** | | |
 
 ---
 
