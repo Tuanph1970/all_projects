@@ -13,7 +13,10 @@ import {
   Divider,
   Card,
   ActivityIndicator,
-  Appbar
+  Appbar,
+  TextInput,
+  Portal,
+  Modal
 } from 'react-native-paper';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import orderFulfillmentService from '../../services/orderFulfillmentService.js';
@@ -29,6 +32,11 @@ export const OrderDetailsScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [trackingModalVisible, setTrackingModalVisible] = useState(false);
+  const [trackingNumber, setTrackingNumber] = useState('');
+  const [carrier, setCarrier] = useState('');
+  const [rejectModalVisible, setRejectModalVisible] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
     if (orderId) {
@@ -68,6 +76,46 @@ export const OrderDetailsScreen = () => {
     } catch (error) {
       console.error('Error updating order status:', error);
       Alert.alert('Error', 'Failed to update order status. Please try again.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectOrder = async () => {
+    try {
+      setActionLoading(true);
+      await orderFulfillmentService.updateOrderStatus(orderId, 'CANCELLED', { reason: rejectReason });
+      setRejectModalVisible(false);
+      setRejectReason('');
+      await loadOrderDetails();
+      Alert.alert('Success', 'Order has been rejected');
+    } catch (error) {
+      console.error('Error rejecting order:', error);
+      Alert.alert('Error', 'Failed to reject order. Please try again.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleShipWithTracking = async () => {
+    if (!trackingNumber.trim()) {
+      Alert.alert('Error', 'Please enter a tracking number');
+      return;
+    }
+    try {
+      setActionLoading(true);
+      await orderFulfillmentService.updateOrderStatus(orderId, 'SHIPPED', {
+        tracking_number: trackingNumber,
+        carrier: carrier
+      });
+      setTrackingModalVisible(false);
+      setTrackingNumber('');
+      setCarrier('');
+      await loadOrderDetails();
+      Alert.alert('Success', 'Order has been shipped with tracking information');
+    } catch (error) {
+      console.error('Error shipping order:', error);
+      Alert.alert('Error', 'Failed to ship order. Please try again.');
     } finally {
       setActionLoading(false);
     }
@@ -130,9 +178,9 @@ export const OrderDetailsScreen = () => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="seller-order-details-screen">
       <Appbar.Header style={styles.header}>
-        <Appbar.BackAction onPress={() => navigation.goBack()} />
+        <Appbar.BackAction onPress={() => navigation.goBack()} testID="order-details-back" />
         <Appbar.Content title={`Order #${order.order_number}`} />
       </Appbar.Header>
 
@@ -147,17 +195,18 @@ export const OrderDetailsScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* Order Status */}
-        <Card style={styles.card}>
+        <Card style={styles.card} testID="order-details-status-card">
           <Text style={styles.sectionTitle}>Order Status</Text>
           <View style={styles.statusContainer}>
             <Chip
               mode="flat"
               style={[styles.statusChip, { backgroundColor: getStatusColor(order.status) }]}
               textStyle={styles.statusText}
+              testID="order-details-status"
             >
               {order.status}
             </Chip>
-            <Text style={styles.orderDate}>
+            <Text style={styles.orderDate} testID="order-details-date">
               Created: {formatDate(order.created_at)}
             </Text>
           </View>
@@ -202,46 +251,202 @@ export const OrderDetailsScreen = () => {
           </Card>
         )}
 
+        {/* Tracking Information (if shipped) */}
+        {order.tracking_number && (
+          <Card style={styles.card} testID="order-details-tracking-card">
+            <Text style={styles.sectionTitle}>Tracking Information</Text>
+            <Text style={styles.trackingText} testID="order-details-tracking-number">
+              Tracking #: {order.tracking_number}
+            </Text>
+            {order.carrier && (
+              <Text style={styles.trackingText} testID="order-details-carrier">
+                Carrier: {order.carrier}
+              </Text>
+            )}
+          </Card>
+        )}
+
         {/* Actions */}
-        <Card style={styles.card}>
+        <Card style={styles.card} testID="order-details-actions-card">
           <Text style={styles.sectionTitle}>Actions</Text>
           <View style={styles.actionsContainer}>
             {order.status === 'PENDING' && (
-              <Button
-                mode="contained"
-                onPress={() => handleUpdateStatus('CONFIRMED')}
-                loading={actionLoading}
-                disabled={actionLoading}
-                style={styles.actionButton}
-              >
-                Confirm Order
-              </Button>
+              <>
+                <Button
+                  mode="contained"
+                  onPress={() => handleUpdateStatus('CONFIRMED')}
+                  loading={actionLoading}
+                  disabled={actionLoading}
+                  style={styles.actionButton}
+                  testID="order-details-confirm-btn"
+                >
+                  Confirm Order
+                </Button>
+                <Button
+                  mode="outlined"
+                  onPress={() => setRejectModalVisible(true)}
+                  disabled={actionLoading}
+                  style={styles.actionButton}
+                  textColor={colors.error}
+                  testID="order-details-reject-btn"
+                >
+                  Reject Order
+                </Button>
+              </>
             )}
             {order.status === 'CONFIRMED' && (
-              <Button
-                mode="contained"
-                onPress={() => handleUpdateStatus('PROCESSING')}
-                loading={actionLoading}
-                disabled={actionLoading}
-                style={styles.actionButton}
-              >
-                Start Processing
-              </Button>
+              <>
+                <Button
+                  mode="contained"
+                  onPress={() => handleUpdateStatus('PROCESSING')}
+                  loading={actionLoading}
+                  disabled={actionLoading}
+                  style={styles.actionButton}
+                  testID="order-details-process-btn"
+                >
+                  Start Processing
+                </Button>
+                <Button
+                  mode="outlined"
+                  onPress={() => setRejectModalVisible(true)}
+                  disabled={actionLoading}
+                  style={styles.actionButton}
+                  textColor={colors.error}
+                  testID="order-details-reject-btn"
+                >
+                  Reject Order
+                </Button>
+              </>
             )}
             {order.status === 'PROCESSING' && (
+              <>
+                <Button
+                  mode="contained"
+                  onPress={() => setTrackingModalVisible(true)}
+                  disabled={actionLoading}
+                  style={styles.actionButton}
+                  testID="order-details-ship-btn"
+                >
+                  Ship with Tracking
+                </Button>
+                <Button
+                  mode="outlined"
+                  onPress={() => handleUpdateStatus('SHIPPED')}
+                  loading={actionLoading}
+                  disabled={actionLoading}
+                  style={styles.actionButton}
+                  testID="order-details-ship-simple-btn"
+                >
+                  Ship without Tracking
+                </Button>
+              </>
+            )}
+            {order.status === 'SHIPPED' && (
               <Button
                 mode="contained"
-                onPress={() => handleUpdateStatus('SHIPPED')}
+                onPress={() => handleUpdateStatus('DELIVERED')}
                 loading={actionLoading}
                 disabled={actionLoading}
                 style={styles.actionButton}
+                testID="order-details-deliver-btn"
               >
-                Mark as Shipped
+                Mark as Delivered
               </Button>
             )}
           </View>
         </Card>
       </ScrollView>
+
+      {/* Tracking Modal */}
+      <Portal>
+        <Modal
+          visible={trackingModalVisible}
+          onDismiss={() => setTrackingModalVisible(false)}
+          contentContainerStyle={styles.modalContainer}
+        >
+          <View testID="tracking-modal">
+            <Text style={styles.modalTitle}>Add Tracking Information</Text>
+            <TextInput
+              label="Tracking Number"
+              value={trackingNumber}
+              onChangeText={setTrackingNumber}
+              style={styles.modalInput}
+              testID="tracking-number-input"
+            />
+            <TextInput
+              label="Carrier (optional)"
+              value={carrier}
+              onChangeText={setCarrier}
+              style={styles.modalInput}
+              testID="tracking-carrier-input"
+            />
+            <View style={styles.modalActions}>
+              <Button
+                mode="outlined"
+                onPress={() => setTrackingModalVisible(false)}
+                style={styles.modalButton}
+                testID="tracking-cancel-btn"
+              >
+                Cancel
+              </Button>
+              <Button
+                mode="contained"
+                onPress={handleShipWithTracking}
+                loading={actionLoading}
+                disabled={actionLoading}
+                style={styles.modalButton}
+                testID="tracking-confirm-btn"
+              >
+                Ship Order
+              </Button>
+            </View>
+          </View>
+        </Modal>
+      </Portal>
+
+      {/* Reject Modal */}
+      <Portal>
+        <Modal
+          visible={rejectModalVisible}
+          onDismiss={() => setRejectModalVisible(false)}
+          contentContainerStyle={styles.modalContainer}
+        >
+          <View testID="reject-modal">
+            <Text style={styles.modalTitle}>Reject Order</Text>
+            <Text style={styles.modalSubtitle}>Are you sure you want to reject this order?</Text>
+            <TextInput
+              label="Reason (optional)"
+              value={rejectReason}
+              onChangeText={setRejectReason}
+              style={styles.modalInput}
+              multiline
+              numberOfLines={3}
+              testID="reject-reason-input"
+            />
+            <View style={styles.modalActions}>
+              <Button
+                mode="outlined"
+                onPress={() => setRejectModalVisible(false)}
+                style={styles.modalButton}
+                testID="reject-cancel-btn"
+              >
+                Cancel
+              </Button>
+              <Button
+                mode="contained"
+                onPress={handleRejectOrder}
+                loading={actionLoading}
+                disabled={actionLoading}
+                style={styles.modalButton}
+                buttonColor={colors.error}
+                testID="reject-confirm-btn"
+              >
+                Reject Order
+              </Button>
+            </View>
+          </View>
+        </Modal>
+      </Portal>
     </View>
   );
 };
@@ -368,5 +573,40 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     marginBottom: spacing.sm,
+  },
+  trackingText: {
+    fontSize: typography.sizes.md,
+    color: colors.onSurface,
+    marginBottom: spacing.xs,
+  },
+  modalContainer: {
+    backgroundColor: colors.surface,
+    margin: spacing.lg,
+    padding: spacing.lg,
+    borderRadius: 8,
+  },
+  modalTitle: {
+    fontSize: typography.sizes.lg,
+    fontWeight: typography.weights.semibold,
+    color: colors.onSurface,
+    marginBottom: spacing.md,
+  },
+  modalSubtitle: {
+    fontSize: typography.sizes.md,
+    color: colors.outline,
+    marginBottom: spacing.md,
+  },
+  modalInput: {
+    marginBottom: spacing.md,
+    backgroundColor: colors.surfaceVariant,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  modalButton: {
+    minWidth: 100,
   },
 });
