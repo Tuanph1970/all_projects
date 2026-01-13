@@ -35,8 +35,7 @@ export const ProfileScreen = () => {
   };
 
   const handleOrderHistory = () => {
-    // TODO: Navigate to order history screen
-    console.log('Navigate to order history');
+    navigation.navigate('OrderHistory');
   };
 
   const handleChangePassword = () => {
@@ -99,6 +98,7 @@ export const ProfileScreen = () => {
           <List.Item
             title={t('profile.orderHistory')}
             description={t('profile.viewOrders')}
+            testID="profile-order-history-button"
             left={props => <List.Icon {...props} icon="history" />}
             right={props => <List.Icon {...props} icon="chevron-right" />}
             onPress={handleOrderHistory}

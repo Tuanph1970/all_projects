@@ -1,7 +1,7 @@
 # E2E Testing Progress - Ceramic Marketplace Mobile App
 
 **Testing Framework:** Maestro + ADB Hybrid (Character-by-Character Input)
-**Last Updated:** January 13, 2026 (Phase D Cart Tests Implemented)
+**Last Updated:** January 13, 2026 (Phase E Order Tests Implemented)
 **Status:** Active Development
 
 ---
@@ -96,6 +96,10 @@ maestro/
 | `fast-customer-update-cart-quantity-test.sh` | Update cart item quantity | CART-002 | ✅ |
 | `fast-customer-remove-cart-item-test.sh` | Remove item from cart | CART-003 | ✅ |
 | `run-phase-d-tests.sh` | Run all Phase D cart tests | CART-002, CART-003 | ✅ |
+| `fast-customer-checkout-address-test.sh` | Add shipping address during checkout | ORD-002 | ✅ |
+| `fast-customer-order-history-test.sh` | View order history | ORD-005 | ✅ |
+| `fast-customer-order-details-test.sh` | View order details | ORD-006 | ✅ |
+| `run-phase-e-tests.sh` | Run all Phase E order tests | ORD-002, ORD-005, ORD-006 | ✅ |
 
 ### Reusable Libraries
 
@@ -147,9 +151,9 @@ maestro/
 | # | Test Case | Status | Script |
 |---|-----------|--------|--------|
 | ORD-001 | Complete Checkout Flow | ✅ | `fast-customer-order-test.sh` |
-| ORD-002 | Add Shipping Address | 📋 | - |
-| ORD-005 | View Order History | 📋 | - |
-| ORD-006 | View Order Details | 📋 | - |
+| ORD-002 | Add Shipping Address | ✅ | `fast-customer-checkout-address-test.sh` |
+| ORD-005 | View Order History | ✅ | `fast-customer-order-history-test.sh` |
+| ORD-006 | View Order Details | ✅ | `fast-customer-order-details-test.sh` |
 
 ### Seller Dashboard
 
@@ -203,8 +207,8 @@ maestro/
 
 | Status | Count | Percentage |
 |--------|-------|------------|
-| ✅ Implemented | 39 | 78% |
-| 📋 Planned | 11 | 22% |
+| ✅ Implemented | 42 | 84% |
+| 📋 Planned | 8 | 16% |
 | **Total** | **50** | **100%** |
 
 ### By Feature Area
@@ -213,8 +217,8 @@ maestro/
 |------|-------------|---------|-------|
 | Authentication | 8 | 0 | 8 |
 | Product Browsing | 6 | 0 | 6 |
-| Shopping Cart | 2 | 2 | 4 |
-| Checkout & Orders | 1 | 3 | 4 |
+| Shopping Cart | 4 | 0 | 4 |
+| Checkout & Orders | 4 | 0 | 4 |
 | Seller Dashboard | 3 | 0 | 3 |
 | Product Management | 9 | 0 | 9 |
 | Seller Analytics | 5 | 0 | 5 |
@@ -317,7 +321,37 @@ cd mobile_automation_test/maestro/scripts
 
 ---
 
-## Recent Changes (January 12, 2026)
+## Recent Changes (January 13, 2026)
+
+### Phase E Customer Order Tests Implemented ✅
+
+All Phase E customer order management tests have been implemented:
+
+| Test ID | Script | Description |
+|---------|--------|-------------|
+| ORD-002 | `fast-customer-checkout-address-test.sh` | Tests adding shipping address during checkout |
+| ORD-005 | `fast-customer-order-history-test.sh` | Tests viewing order history from Profile |
+| ORD-006 | `fast-customer-order-details-test.sh` | Tests viewing specific order details |
+
+**New Scripts Added:**
+- `fast-customer-checkout-address-test.sh` - ORD-002 shipping address test
+- `fast-customer-order-history-test.sh` - ORD-005 order history test
+- `fast-customer-order-details-test.sh` - ORD-006 order details test
+- `run-phase-e-tests.sh` - Runs all Phase E tests with summary
+
+**Frontend Components Created:**
+- `customerOrderService.js` - Customer order API service for fetching orders
+- `OrderHistoryScreen.jsx` - Order history list with testIDs (order-history-screen, order-history-card-{index}, etc.)
+- `CustomerOrderDetailsScreen.jsx` - Order details view with testIDs (customer-order-details-screen, order-details-status, etc.)
+
+**Frontend Updates:**
+- `MainNavigator.jsx` - Added OrderHistory and CustomerOrderDetails screens
+- `ProfileScreen.jsx` - Updated handleOrderHistory to navigate, added testID
+- `en.js` / `vi.js` - Added orderHistory and orderDetails translations
+
+---
+
+## Previous Changes (January 12, 2026)
 
 ### Bug Fixes Applied During Phase C Testing ✅
 
@@ -434,10 +468,16 @@ All Phase A authentication edge case tests have been implemented:
   - [x] Filter Products by Category (PROD-003)
   - [x] Filter Products by Price Range (PROD-004)
   - [x] Sort Products (PROD-005)
+- [x] **Customer Cart Operations (Phase D complete!)**
+  - [x] Update Cart Quantity (CART-002)
+  - [x] Remove Item from Cart (CART-003)
+- [x] **Customer Order Management (Phase E complete!)**
+  - [x] Add Shipping Address (ORD-002)
+  - [x] View Order History (ORD-005)
+  - [x] View Order Details (ORD-006)
 
 ### Next Priority
-- [ ] Cart operations (update, remove)
-- [ ] Order tracking
+- [ ] Seller order fulfillment extended (FUL-003, FUL-005, FUL-006)
 - [ ] Profile management
 
 ### Frontend UI TODO
@@ -526,16 +566,27 @@ Cart operations require products to be added first.
 
 ---
 
-### Phase E: Customer Order Management (Extended)
+### Phase E: Customer Order Management (Extended) ✅ COMPLETE
 > **Priority:** Medium | **Dependency:** Customer must have placed orders
+> **Status:** ✅ COMPLETED on January 13, 2026
 
 Order viewing requires completed orders.
 
-| Order | Test ID | Test Case | Role | Dependency |
-|-------|---------|-----------|------|------------|
-| E.1 | ORD-002 | Add Shipping Address | Customer | Before checkout |
-| E.2 | ORD-005 | View Order History | Customer | ORD-001 ✅ (Checkout complete) |
-| E.3 | ORD-006 | View Order Details | Customer | ORD-001 ✅ (Checkout complete) |
+| Order | Test ID | Test Case | Role | Status | Script |
+|-------|---------|-----------|------|--------|--------|
+| E.1 | ORD-002 | Add Shipping Address | Customer | ✅ | `fast-customer-checkout-address-test.sh` |
+| E.2 | ORD-005 | View Order History | Customer | ✅ | `fast-customer-order-history-test.sh` |
+| E.3 | ORD-006 | View Order Details | Customer | ✅ | `fast-customer-order-details-test.sh` |
+
+**Test Runner:** `run-phase-e-tests.sh`
+
+**Frontend Components Created:**
+- `customerOrderService.js` - Customer order API service
+- `OrderHistoryScreen.jsx` - Order history list screen with testIDs
+- `CustomerOrderDetailsScreen.jsx` - Order details view with testIDs
+- Updated `MainNavigator.jsx` - Added new screens to navigation
+- Updated `ProfileScreen.jsx` - Added navigation to Order History
+- Added translations in `en.js` and `vi.js` for orderHistory and orderDetails
 
 ---
 
@@ -580,14 +631,14 @@ Seller can only process orders after customers place them.
 │  └───────────────────────────────────────────────┘              │
 │                           │                                     │
 │                           ▼                                     │
-│  PHASE D: Customer Cart 📋 PENDING                              │
+│  PHASE D: Customer Cart ✅ COMPLETE                              │
 │  ┌───────────────────────────────────────────────┐              │
 │  │ D.1 (Update Qty) → D.2 (Remove)              │              │
 │  │ (Customer manages cart)                       │              │
 │  └───────────────────────────────────────────────┘              │
 │                           │                                     │
 │                           ▼                                     │
-│  PHASE E: Customer Orders 📋 PENDING                            │
+│  PHASE E: Customer Orders ✅ COMPLETE                            │
 │  ┌───────────────────────────────────────────────┐              │
 │  │ E.1 (Address) → E.2 (History) → E.3 (Detail) │              │
 │  │ (Customer completes & tracks orders)          │              │
@@ -605,17 +656,17 @@ Seller can only process orders after customers place them.
 
 ---
 
-## Quick Reference: Remaining Tasks (8 Total)
+## Quick Reference: Remaining Tasks (3 Total)
 
 | Phase | Count | Tests | Status |
 |-------|-------|-------|--------|
 | A - Authentication | 0 | ~~AUTH-003, 004, 005, 006, 007, 009~~ | ✅ COMPLETE |
 | B - Seller Products | 0 | ~~SPM-007, 008~~ | ✅ COMPLETE |
 | C - Customer Browsing | 0 | ~~PROD-003, 004, 005~~ | ✅ COMPLETE |
-| D - Customer Cart | ~~2~~ 0 | ~~CART-002, 003~~ | ✅ COMPLETE |
-| E - Customer Orders | 3 | ORD-002, 005, 006 | 📋 Pending |
+| D - Customer Cart | 0 | ~~CART-002, 003~~ | ✅ COMPLETE |
+| E - Customer Orders | 0 | ~~ORD-002, 005, 006~~ | ✅ COMPLETE |
 | F - Seller Fulfillment | 3 | FUL-003, 005, 006 | 📋 Pending |
-| **Total Remaining** | **6** | | |
+| **Total Remaining** | **3** | | |
 
 ---
 

@@ -15,6 +15,8 @@ import { HomeScreen } from '../screens/customer/HomeScreen.jsx';
 import { SearchScreen } from '../screens/customer/SearchScreen.jsx';
 import { CartScreen } from '../screens/customer/CartScreen.jsx';
 import { ProfileScreen } from '../screens/customer/ProfileScreen.jsx';
+import { OrderHistoryScreen } from '../screens/customer/OrderHistoryScreen.jsx';
+import { CustomerOrderDetailsScreen } from '../screens/customer/CustomerOrderDetailsScreen.jsx';
 
 // Seller Screens
 import { SellerDashboardScreen } from '../screens/seller/SellerDashboardScreen.jsx';
@@ -192,6 +194,8 @@ export const MainNavigator  = () => {
         <Stack.Screen name="ChatScreen" component={ChatScreen} />
         <Stack.Screen name="Checkout" component={CheckoutScreen} />
         <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+        <Stack.Screen name="OrderHistory" component={OrderHistoryScreen} />
+        <Stack.Screen name="CustomerOrderDetails" component={CustomerOrderDetailsScreen} />
         <Stack.Screen name="AddProduct" component={AddProductScreen} />
         <Stack.Screen
           name="ProductForm"
