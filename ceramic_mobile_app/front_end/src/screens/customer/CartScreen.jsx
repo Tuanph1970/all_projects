@@ -7,7 +7,7 @@ import { colors, spacing, typography } from '../../constants/theme.js';
 import { fetchCart, removeFromCart, updateCartItem, clearCart } from '../../store/slices/cartSlice.js';
 import { useTranslation } from '@i18n';
 
-const CartItemCard = ({ item, onUpdateQuantity, onRemove, t }) => {
+const CartItemCard = ({ item, onUpdateQuantity, onRemove, t, index }) => {
   const [quantity, setQuantity] = useState(item.quantity);
 
   const handleQuantityChange = (newQuantity) => {
@@ -27,41 +27,44 @@ const CartItemCard = ({ item, onUpdateQuantity, onRemove, t }) => {
   };
 
   return (
-    <Card style={styles.cartItem}>
+    <Card style={styles.cartItem} testID={`cart-item-${index}`}>
       <View style={styles.itemContent}>
         <View style={styles.itemInfo}>
-          <Text style={styles.productName}>{item.product_name}</Text>
+          <Text style={styles.productName} testID={`cart-item-name-${index}`}>{item.product_name}</Text>
           {item.product_category && (
-            <Text style={styles.productCategory}>{item.product_category}</Text>
+            <Text style={styles.productCategory} testID={`cart-item-category-${index}`}>{item.product_category}</Text>
           )}
-          <Text style={styles.productPrice}>${item.unit_price.toFixed(2)}</Text>
+          <Text style={styles.productPrice} testID={`cart-item-price-${index}`}>${parseFloat(item.unit_price).toFixed(2)}</Text>
         </View>
 
         <View style={styles.itemActions}>
-          <View style={styles.quantityControls}>
+          <View style={styles.quantityControls} testID={`cart-item-quantity-controls-${index}`}>
             <IconButton
               icon="minus"
               mode="outlined"
               size={20}
               onPress={() => handleQuantityChange(quantity - 1)}
               disabled={quantity <= 1}
+              testID={`cart-item-quantity-minus-${index}`}
             />
-            <Text style={styles.quantityText}>{quantity}</Text>
+            <Text style={styles.quantityText} testID={`cart-item-quantity-${index}`}>{quantity}</Text>
             <IconButton
               icon="plus"
               mode="outlined"
               size={20}
               onPress={() => handleQuantityChange(quantity + 1)}
+              testID={`cart-item-quantity-plus-${index}`}
             />
           </View>
 
           <View style={styles.itemTotal}>
-            <Text style={styles.totalPrice}>${item.total_price.toFixed(2)}</Text>
+            <Text style={styles.totalPrice} testID={`cart-item-total-${index}`}>${parseFloat(item.total_price).toFixed(2)}</Text>
             <IconButton
               icon="delete"
               iconColor={colors.error}
               size={20}
               onPress={() => onRemove(item.id)}
+              testID={`cart-item-remove-${index}`}
             />
           </View>
         </View>
@@ -107,7 +110,7 @@ export const CartScreen = () => {
   };
 
   const handleCheckout = () => {
-    if (!cart || cart.items.length === 0) {
+    if (!cart || !cart.items || cart.items.length === 0) {
       Alert.alert(t('cart.empty'), t('cart.emptyCheckout'));
       return;
     }
@@ -151,7 +154,7 @@ export const CartScreen = () => {
       <Appbar.Header style={styles.header}>
         <Appbar.BackAction onPress={() => navigation.goBack()} testID="cart-back-button" />
         <Appbar.Content title={t('cart.title')} />
-        {cart && cart.items.length > 0 && (
+        {cart && cart.items && cart.items.length > 0 && (
           <Appbar.Action icon="delete-sweep" onPress={handleClearCart} testID="cart-clear-button" />
         )}
       </Appbar.Header>
@@ -166,7 +169,7 @@ export const CartScreen = () => {
         }
         showsVerticalScrollIndicator={false}
       >
-        {!cart || cart.items.length === 0 ? (
+        {!cart || !cart.items || cart.items.length === 0 ? (
           <View style={styles.emptyContainer} testID="cart-empty">
             <Text style={styles.emptyTitle}>{t('cart.empty')}</Text>
             <Text style={styles.emptySubtitle}>
@@ -183,11 +186,12 @@ export const CartScreen = () => {
           </View>
         ) : (
           <>
-            <View style={styles.itemsList}>
-              {cart.items.map((item) => (
+            <View style={styles.itemsList} testID="cart-items-list">
+              {cart.items.map((item, index) => (
                 <CartItemCard
                   key={item.id}
                   item={item}
+                  index={index}
                   onUpdateQuantity={handleUpdateQuantity}
                   onRemove={handleRemoveItem}
                   t={t}
@@ -195,24 +199,24 @@ export const CartScreen = () => {
               ))}
             </View>
 
-            <Card style={styles.summaryCard}>
+            <Card style={styles.summaryCard} testID="cart-summary">
               <Text style={styles.summaryTitle}>{t('cart.orderSummary')}</Text>
               <Divider style={styles.divider} />
 
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>{t('cart.subtotal')} ({cart.summary.item_count} {t('cart.items')})</Text>
-                <Text style={styles.summaryValue}>${cart.summary.subtotal.toFixed(2)}</Text>
+                <Text style={styles.summaryValue} testID="cart-subtotal">${parseFloat(cart.summary.subtotal).toFixed(2)}</Text>
               </View>
 
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>{t('cart.tax')}</Text>
-                <Text style={styles.summaryValue}>${cart.summary.tax_amount.toFixed(2)}</Text>
+                <Text style={styles.summaryValue} testID="cart-tax">${parseFloat(cart.summary.tax_amount).toFixed(2)}</Text>
               </View>
 
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>{t('cart.shipping')}</Text>
-                <Text style={styles.summaryValue}>
-                  {cart.summary.shipping_amount === 0 ? t('cart.free') : `$${cart.summary.shipping_amount.toFixed(2)}`}
+                <Text style={styles.summaryValue} testID="cart-shipping">
+                  {parseFloat(cart.summary.shipping_amount) === 0 ? t('cart.free') : `$${parseFloat(cart.summary.shipping_amount).toFixed(2)}`}
                 </Text>
               </View>
 
@@ -220,7 +224,7 @@ export const CartScreen = () => {
 
               <View style={styles.summaryRow}>
                 <Text style={styles.totalLabel}>{t('cart.total')}</Text>
-                <Text style={styles.totalValue}>${cart.summary.total_amount.toFixed(2)}</Text>
+                <Text style={styles.totalValue} testID="cart-total">${parseFloat(cart.summary.total_amount).toFixed(2)}</Text>
               </View>
 
               <Button

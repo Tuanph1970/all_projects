@@ -1,7 +1,7 @@
 # E2E Testing Progress - Ceramic Marketplace Mobile App
 
 **Testing Framework:** Maestro + ADB Hybrid (Character-by-Character Input)
-**Last Updated:** January 12, 2026 (Phase C Tests Verified - Bug Fixes Applied)
+**Last Updated:** January 13, 2026 (Phase D Cart Tests Implemented)
 **Status:** Active Development
 
 ---
@@ -93,6 +93,9 @@ maestro/
 | `fast-customer-sort-products-test.sh` | Sort products | PROD-005 | ✅ |
 | `setup-phase-c-test-data.sh` | Setup test data via API | Prerequisite data | ✅ |
 | `run-phase-c-tests.sh` | Run all Phase C tests | PROD-003, 004, 005 | ✅ |
+| `fast-customer-update-cart-quantity-test.sh` | Update cart item quantity | CART-002 | ✅ |
+| `fast-customer-remove-cart-item-test.sh` | Remove item from cart | CART-003 | ✅ |
+| `run-phase-d-tests.sh` | Run all Phase D cart tests | CART-002, CART-003 | ✅ |
 
 ### Reusable Libraries
 
@@ -135,8 +138,8 @@ maestro/
 | # | Test Case | Status | Script |
 |---|-----------|--------|--------|
 | CART-001 | Add Product to Cart | ✅ | `fast-customer-order-test.sh` |
-| CART-002 | Update Cart Quantity | 📋 | - |
-| CART-003 | Remove Item from Cart | 📋 | - |
+| CART-002 | Update Cart Quantity | ✅ | `fast-customer-update-cart-quantity-test.sh` |
+| CART-003 | Remove Item from Cart | ✅ | `fast-customer-remove-cart-item-test.sh` |
 | CART-004 | View Cart Summary | ✅ | `fast-customer-order-test.sh` |
 
 ### Checkout & Orders (Customer)
@@ -503,15 +506,23 @@ Customers need products in the system to browse/filter.
 
 ---
 
-### Phase D: Customer Cart Operations (Extended)
+### Phase D: Customer Cart Operations (Extended) ✅ COMPLETE
 > **Priority:** Medium | **Dependency:** Customer must have items in cart
+> **Status:** ✅ COMPLETED on January 13, 2026
 
 Cart operations require products to be added first.
 
-| Order | Test ID | Test Case | Role | Dependency |
-|-------|---------|-----------|------|------------|
-| D.1 | CART-002 | Update Cart Quantity | Customer | CART-001 ✅ (Add to Cart) |
-| D.2 | CART-003 | Remove Item from Cart | Customer | CART-001 ✅ (Add to Cart) |
+| Order | Test ID | Test Case | Role | Status | Script |
+|-------|---------|-----------|------|--------|--------|
+| D.1 | CART-002 | Update Cart Quantity | Customer | ✅ | `fast-customer-update-cart-quantity-test.sh` |
+| D.2 | CART-003 | Remove Item from Cart | Customer | ✅ | `fast-customer-remove-cart-item-test.sh` |
+
+**Test Runner:** `run-phase-d-tests.sh`
+
+**Bug Fixes Applied:**
+- Fixed CartScreen.jsx `cart.items` undefined check
+- Fixed cart API trailing slash to avoid 307 redirect losing auth header
+- Fixed price parsing with `parseFloat()` for string values from API
 
 ---
 
@@ -601,10 +612,10 @@ Seller can only process orders after customers place them.
 | A - Authentication | 0 | ~~AUTH-003, 004, 005, 006, 007, 009~~ | ✅ COMPLETE |
 | B - Seller Products | 0 | ~~SPM-007, 008~~ | ✅ COMPLETE |
 | C - Customer Browsing | 0 | ~~PROD-003, 004, 005~~ | ✅ COMPLETE |
-| D - Customer Cart | 2 | CART-002, 003 | 📋 Pending |
+| D - Customer Cart | ~~2~~ 0 | ~~CART-002, 003~~ | ✅ COMPLETE |
 | E - Customer Orders | 3 | ORD-002, 005, 006 | 📋 Pending |
 | F - Seller Fulfillment | 3 | FUL-003, 005, 006 | 📋 Pending |
-| **Total Remaining** | **8** | | |
+| **Total Remaining** | **6** | | |
 
 ---
 

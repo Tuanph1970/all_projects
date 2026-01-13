@@ -9,7 +9,8 @@ class CartService {
    */
   async getCart() {
     try {
-      return await apiClient.get(this.baseURL);
+      // Use trailing slash to avoid 307 redirect which loses Authorization header
+      return await apiClient.get(`${this.baseURL}/`);
     } catch (error) {
       console.error('Error fetching cart:', error);
       throw error;
