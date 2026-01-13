@@ -6,6 +6,13 @@ import { useNavigation } from '@react-navigation/native';
 import { colors, spacing, typography } from '../../constants/theme.js';
 import { fetchCart, checkout } from '../../store/slices/cartSlice.js';
 
+// Helper function to safely format price values (handles strings, numbers, undefined)
+const formatPrice = (value, defaultValue = 0) => {
+  if (value === undefined || value === null) return defaultValue.toFixed(2);
+  const numValue = typeof value === 'string' ? parseFloat(value) : value;
+  return isNaN(numValue) ? defaultValue.toFixed(2) : numValue.toFixed(2);
+};
+
 export const CheckoutScreen = () => {
   const dispatch = useDispatch();
   const navigation = useNavigation();
@@ -85,14 +92,14 @@ export const CheckoutScreen = () => {
       
       Alert.alert(
         'Order Placed Successfully!',
-        `Your order #${order.order_number} has been placed. Total: $${order.total_amount.toFixed(2)}`,
+        `Your order #${order.order_number} has been placed. Total: $${formatPrice(order.total_amount)}`,
         [
           {
-            text: 'View Order',
-            onPress: () => navigation.navigate('OrderDetails', { orderId: order.id })
+            text: 'VIEW ORDER',
+            onPress: () => navigation.navigate('OrderHistory')
           },
           {
-            text: 'Continue Shopping',
+            text: 'CONTINUE SHOPPING',
             onPress: () => navigation.navigate('Home')
           }
         ]
@@ -154,7 +161,7 @@ export const CheckoutScreen = () => {
                 <Text style={styles.itemName}>{item.product_name}</Text>
                 <Text style={styles.itemDetails}>Qty: {item.quantity}</Text>
               </View>
-              <Text style={styles.itemTotal}>${item.total_price.toFixed(2)}</Text>
+              <Text style={styles.itemTotal}>${formatPrice(item.total_price)}</Text>
             </View>
           ))}
 
@@ -162,18 +169,18 @@ export const CheckoutScreen = () => {
           
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
-            <Text style={styles.summaryValue}>${cart.summary.subtotal.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>${formatPrice(cart.summary?.subtotal)}</Text>
           </View>
           
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Tax</Text>
-            <Text style={styles.summaryValue}>${cart.summary.tax_amount.toFixed(2)}</Text>
+            <Text style={styles.summaryValue}>${formatPrice(cart.summary?.tax_amount)}</Text>
           </View>
           
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Shipping</Text>
             <Text style={styles.summaryValue}>
-              {cart.summary.shipping_amount === 0 ? 'FREE' : `$${cart.summary.shipping_amount.toFixed(2)}`}
+              {(cart.summary?.shipping_amount === 0 || cart.summary?.shipping_amount === '0' || cart.summary?.shipping_amount === '0.00') ? 'FREE' : `$${formatPrice(cart.summary?.shipping_amount)}`}
             </Text>
           </View>
           
@@ -181,7 +188,7 @@ export const CheckoutScreen = () => {
           
           <View style={styles.summaryRow}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>${cart.summary.total_amount.toFixed(2)}</Text>
+            <Text style={styles.totalValue}>${formatPrice(cart.summary?.total_amount)}</Text>
           </View>
         </Card>
 
@@ -293,7 +300,7 @@ export const CheckoutScreen = () => {
             contentStyle={{ height: 48 }}
             testID="checkout-place-order-button"
           >
-            {checkingOut ? 'Placing Order...' : `Place Order - $${cart.summary.total_amount.toFixed(2)}`}
+            {checkingOut ? 'Placing Order...' : `Place Order - $${formatPrice(cart.summary?.total_amount)}`}
           </Button>
         </View>
       </ScrollView>
