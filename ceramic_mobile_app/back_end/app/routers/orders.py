@@ -1,16 +1,23 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from decimal import Decimal
+from datetime import datetime
 from app.core.database import get_db
 from app.routers.auth import get_current_user
 from app.models.user import User
-from app.models.order import Order, OrderItem
+from app.models.order import Order, OrderItem, OrderStatus, PaymentStatus
 from app.models.product import Product
 from app.models.cart import Cart, CartItem
-from app.schemas.order import OrderCreate, OrderResponse, OrderUpdate
+from app.schemas.order import (
+    OrderCreate, OrderResponse, OrderUpdate,
+    OrderCancelRequest, OrderCancelResponse
+)
 from app.schemas.address import ShippingAddressCreate
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -223,7 +230,100 @@ def checkout_from_cart(
     
     # Clear cart after successful order
     db.query(CartItem).filter(CartItem.cart_id == cart.id).delete()
-    
+
     db.commit()
     db.refresh(db_order)
     return db_order
+
+
+# ============================================
+# SECTION A.2: Order Cancellation Endpoint
+# ============================================
+
+@router.post("/{order_id}/cancel", response_model=OrderCancelResponse)
+def cancel_order(
+    order_id: int,
+    cancel_request: Optional[OrderCancelRequest] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Cancel an order (Customer endpoint)
+
+    Customers can only cancel orders in PENDING or CONFIRMED status.
+    This endpoint restores product inventory and optionally initiates refund.
+    """
+    # Get the order
+    order = db.query(Order).filter(Order.id == order_id).first()
+
+    if order is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # Verify the customer owns this order
+    if order.customer_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to cancel this order"
+        )
+
+    # Check if order can be cancelled
+    cancellable_statuses = [OrderStatus.PENDING, OrderStatus.CONFIRMED]
+    if order.status not in cancellable_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot cancel order with status '{order.status.value}'. "
+                   f"Only orders with status {[s.value for s in cancellable_statuses]} can be cancelled."
+        )
+
+    # Store previous status for response
+    previous_status = order.status
+
+    # Restore product inventory
+    order_items = db.query(OrderItem).filter(OrderItem.order_id == order_id).all()
+    for item in order_items:
+        product = db.query(Product).filter(Product.id == item.product_id).first()
+        if product:
+            product.quantity_available += item.quantity
+            logger.info(f"Restored {item.quantity} units to product {product.id}")
+
+    # Update order status
+    order.status = OrderStatus.CANCELLED
+    order.updated_at = datetime.utcnow()
+
+    # Add cancellation notes if provided
+    if cancel_request and cancel_request.reason:
+        cancellation_note = f"Cancelled by customer. Reason: {cancel_request.reason}"
+        if cancel_request.description:
+            cancellation_note += f" - {cancel_request.description}"
+        if order.customer_notes:
+            order.customer_notes = f"{order.customer_notes}\n\n[CANCELLATION] {cancellation_note}"
+        else:
+            order.customer_notes = f"[CANCELLATION] {cancellation_note}"
+
+    # Handle refund if payment was completed
+    refund_initiated = False
+    refund_amount = None
+
+    if order.payment_status == PaymentStatus.COMPLETED:
+        # Mark for refund processing
+        order.payment_status = PaymentStatus.REFUNDED
+        refund_initiated = True
+        refund_amount = order.total_amount
+        logger.info(f"Initiated refund of {refund_amount} for order {order.order_number}")
+
+    db.commit()
+    db.refresh(order)
+
+    logger.info(f"Order {order.order_number} cancelled by customer {current_user.id}")
+
+    return OrderCancelResponse(
+        success=True,
+        message="Order cancelled successfully",
+        order_id=order.id,
+        order_number=order.order_number,
+        previous_status=previous_status,
+        new_status=order.status,
+        cancelled_at=order.updated_at or datetime.utcnow(),
+        refund_initiated=refund_initiated,
+        refund_amount=refund_amount
+    )

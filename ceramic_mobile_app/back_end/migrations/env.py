@@ -20,6 +20,25 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# Override sqlalchemy.url with environment variables if available
+def get_url():
+    """Build database URL from environment variables or use default from alembic.ini"""
+    db_host = os.getenv("DB_HOST")
+    db_port = os.getenv("DB_PORT", "3306")
+    db_name = os.getenv("DB_NAME")
+    db_user = os.getenv("DB_USER")
+    db_password = os.getenv("DB_PASSWORD")
+
+    if all([db_host, db_name, db_user, db_password]):
+        return f"mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+
+    # Fall back to alembic.ini configuration
+    return config.get_main_option("sqlalchemy.url")
+
+
+# Set the URL in config
+config.set_main_option("sqlalchemy.url", get_url())
+
 # add your model's MetaData object here
 # for 'autogenerate' support
 target_metadata = Base.metadata

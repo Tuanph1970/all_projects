@@ -629,3 +629,97 @@ def get_user_recommendations(
     return product_analytics.get_personalized_recommendations(
         db, user_id=user_id, limit=limit
     )
+
+
+# ============================================
+# Bulk Operations
+# ============================================
+
+@router.post("/bulk/update-featured")
+def bulk_update_featured(
+    product_ids: List[int],
+    is_featured: bool,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Bulk update featured status for products"""
+    if current_user.role not in [UserRole.SELLER, UserRole.DUAL]:
+        raise HTTPException(status_code=403, detail="Only sellers can update products")
+
+    # Verify all products belong to the user
+    products = db.query(Product).filter(
+        Product.id.in_(product_ids),
+        Product.seller_id == current_user.id
+    ).all()
+
+    if len(products) != len(product_ids):
+        raise HTTPException(status_code=404, detail="Some products not found or not owned")
+
+    # Update featured status
+    updated_count = db.query(Product).filter(
+        Product.id.in_(product_ids),
+        Product.seller_id == current_user.id
+    ).update({"is_featured": is_featured}, synchronize_session=False)
+
+    db.commit()
+
+    # Invalidate cache
+    try:
+        cache.invalidate(CacheKeys.product_detail("*"))
+        cache.invalidate(CacheKeys.PRODUCT_LIST)
+    except Exception as e:
+        logger.warning(f"Cache invalidation failed: {e}")
+
+    return {
+        "message": f"Updated {updated_count} products",
+        "is_featured": is_featured,
+        "product_ids": product_ids
+    }
+
+
+@router.post("/bulk/update-stock")
+def bulk_update_stock(
+    updates: List[dict],  # [{"product_id": 1, "quantity": 10}, ...]
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Bulk update stock quantities"""
+    if current_user.role not in [UserRole.SELLER, UserRole.DUAL]:
+        raise HTTPException(status_code=403, detail="Only sellers can update products")
+
+    product_ids = [update["product_id"] for update in updates]
+
+    # Verify all products belong to the user
+    products = db.query(Product).filter(
+        Product.id.in_(product_ids),
+        Product.seller_id == current_user.id
+    ).all()
+
+    if len(products) != len(product_ids):
+        raise HTTPException(status_code=404, detail="Some products not found or not owned")
+
+    # Update stock quantities
+    updated_count = 0
+    for update in updates:
+        result = db.query(Product).filter(
+            Product.id == update["product_id"],
+            Product.seller_id == current_user.id
+        ).update({"quantity_available": update["quantity"]})
+
+        if result:
+            updated_count += 1
+
+    db.commit()
+
+    # Invalidate cache
+    try:
+        for product_id in product_ids:
+            cache.invalidate(CacheKeys.product_detail(product_id))
+        cache.invalidate(CacheKeys.PRODUCT_LIST)
+    except Exception as e:
+        logger.warning(f"Cache invalidation failed: {e}")
+
+    return {
+        "message": f"Updated stock for {updated_count} products",
+        "updates": updates
+    }

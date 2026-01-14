@@ -81,13 +81,15 @@ export const API_CONFIG = {
     // Review endpoints
     REVIEWS: '/api/v1/reviews',
 
-    // Seller endpoints
+    // Seller endpoints (routes to seller-service via Traefik)
     SELLER: '/api/v1/seller', // Base seller path for upload-image, bulk-operations
     SELLER_DASHBOARD: '/api/v1/seller/dashboard',
     SELLER_PRODUCTS: '/api/v1/seller/products',
     SELLER_ANALYTICS: '/api/v1/seller/analytics',
     SELLER_PROFILE: '/api/v1/seller/profile',
-    SELLER_FULFILLMENT: '/api/v1/seller/fulfillment',
+
+    // Order fulfillment endpoint (seller order management via seller-service)
+    SELLER_FULFILLMENT: '/api/v1/seller/fulfillment/orders',
   },
 };
 

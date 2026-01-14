@@ -21,9 +21,9 @@ export const PaymentStatus = {
 };
 
 class OrderFulfillmentService {
-  // Use ORDERS endpoint instead of SELLER_FULFILLMENT (which doesn't exist in backend)
-  // The order-service handles both customer and seller order operations
-  ordersEndpoint = API_CONFIG.ENDPOINTS.ORDERS; // '/api/v1/orders'
+  // Use SELLER_FULFILLMENT endpoint for seller order management
+  // Routes to /api/v1/seller/fulfillment in backend (via seller-service)
+  ordersEndpoint = API_CONFIG.ENDPOINTS.SELLER_FULFILLMENT; // '/api/v1/seller/fulfillment'
 
   // Get paginated list of seller's orders
   async getOrders(params = {}) {
@@ -72,10 +72,10 @@ class OrderFulfillmentService {
     return await apiClient.get(`${this.ordersEndpoint}/${orderId}`);
   }
 
-  // Update order status (uses PUT /{order_id} as per backend API)
+  // Update order status (uses PATCH /{order_id}/status as per backend API)
   async updateOrderStatus(orderId, statusUpdate) {
-    return await apiClient.put(
-      `${this.ordersEndpoint}/${orderId}`,
+    return await apiClient.patch(
+      `${this.ordersEndpoint}/${orderId}/status`,
       statusUpdate
     );
   }
@@ -101,14 +101,15 @@ class OrderFulfillmentService {
     }
   }
 
-  // Ship an order (using PUT to update status with tracking info)
+  // Ship an order (using POST to /ship endpoint as per backend API)
   async shipOrder(orderId, shippingInfo) {
-    return await apiClient.put(
-      `${this.ordersEndpoint}/${orderId}`,
+    return await apiClient.post(
+      `${this.ordersEndpoint}/${orderId}/ship`,
       {
-        status: 'shipped',
         tracking_number: shippingInfo.tracking_number,
-        shipping_carrier: shippingInfo.carrier
+        carrier: shippingInfo.carrier,
+        estimated_delivery: shippingInfo.estimated_delivery,
+        notes: shippingInfo.notes
       }
     );
   }

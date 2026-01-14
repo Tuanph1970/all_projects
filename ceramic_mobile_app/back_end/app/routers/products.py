@@ -3,19 +3,35 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, asc, func, and_, or_
 from typing import List, Optional
 from decimal import Decimal
+from datetime import datetime, timedelta
 from app.core.database import get_db
 from app.core.cache import cache, CacheKeys, CacheInvalidation
 from app.core.config import settings
 from app.routers.auth import get_current_user, get_optional_current_user
 from app.models.user import User, UserRole
-from app.models.product import Product, Category, ProductImage
+from app.models.product import (
+    Product, Category, ProductImage, Brand,
+    ProductVariant, PriceHistory, ProductTag,
+    ProductTagAssociation, ProductAttribute, ProductSpecification
+)
 from app.models.review import Review
-from app.schemas.product import ProductCreate, ProductResponse, ProductUpdate, CategoryCreate, CategoryResponse
+from app.schemas.product import (
+    ProductCreate, ProductResponse, ProductUpdate,
+    CategoryCreate, CategoryResponse, CategoryDetailResponse,
+    BrandCreate, BrandResponse,
+    ProductVariantCreate, ProductVariantResponse, ProductVariantUpdate,
+    PriceHistoryResponse,
+    ProductTagResponse,
+    ProductAttributeResponse, ProductAttributeCreate,
+    ProductSpecificationResponse, ProductSpecificationCreate,
+    ProductAvailabilityResponse, ProductCompareResponse
+)
 from app.services.image_service import image_service
 from app.services.product_analytics import product_analytics
 import uuid
 import random
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -1305,8 +1321,722 @@ def bulk_update_stock(
             updated_count += 1
     
     db.commit()
-    
+
     return {
         "message": f"Updated stock for {updated_count} products",
         "updates": updates
     }
+
+
+# ============================================
+# SECTION A.1: Missing Frontend Endpoints
+# ============================================
+
+def generate_slug(name: str) -> str:
+    """Generate a URL-friendly slug from a product name"""
+    slug = name.lower()
+    slug = re.sub(r'[^\w\s-]', '', slug)
+    slug = re.sub(r'[\s_-]+', '-', slug)
+    slug = slug.strip('-')
+    return slug
+
+
+# A.1.1 - Get Product by Slug
+@router.get("/slug/{slug}", response_model=ProductResponse)
+def get_product_by_slug(
+    slug: str,
+    db: Session = Depends(get_db)
+):
+    """Get product by SEO-friendly slug"""
+    product = db.query(Product).options(
+        joinedload(Product.seller),
+        joinedload(Product.category),
+        joinedload(Product.images),
+        joinedload(Product.reviews)
+    ).filter(
+        Product.slug == slug,
+        Product.is_active == True
+    ).first()
+
+    if product is None:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    return product
+
+
+# A.1.2 - Get Category by ID
+@router.get("/categories/{category_id}", response_model=CategoryDetailResponse)
+def get_category_by_id(
+    category_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get single category by ID with product count and children"""
+    category = db.query(Category).filter(
+        Category.id == category_id,
+        Category.is_active == True
+    ).first()
+
+    if category is None:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    # Get product count for this category
+    product_count = db.query(Product).filter(
+        Product.category_id == category_id,
+        Product.is_active == True
+    ).count()
+
+    # Get child categories
+    children = db.query(Category).filter(
+        Category.parent_id == category_id,
+        Category.is_active == True
+    ).all()
+
+    children_with_counts = []
+    for child in children:
+        child_product_count = db.query(Product).filter(
+            Product.category_id == child.id,
+            Product.is_active == True
+        ).count()
+        children_with_counts.append({
+            **CategoryResponse.from_orm(child).model_dump(),
+            "product_count": child_product_count,
+            "children": []
+        })
+
+    return {
+        **CategoryResponse.from_orm(category).model_dump(),
+        "product_count": product_count,
+        "children": children_with_counts
+    }
+
+
+# A.1.3 - Get New Products
+@router.get("/new", response_model=List[ProductResponse])
+def get_new_products(
+    limit: int = Query(10, le=50),
+    category_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    """Get newest products sorted by creation date"""
+    query = db.query(Product).filter(
+        Product.is_active == True,
+        Product.quantity_available > 0
+    )
+
+    if category_id:
+        query = query.filter(Product.category_id == category_id)
+
+    products = query.order_by(desc(Product.created_at)).limit(limit).all()
+
+    return products
+
+
+# A.1.4 - Get Discounted Products
+@router.get("/discounted", response_model=List[ProductResponse])
+def get_discounted_products(
+    limit: int = Query(10, le=50),
+    min_discount: Optional[float] = None,
+    category_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    """Get products currently on sale/discount"""
+    query = db.query(Product).filter(
+        Product.is_active == True,
+        Product.quantity_available > 0,
+        Product.discount_percentage.isnot(None),
+        Product.discount_percentage > 0
+    )
+
+    if min_discount:
+        query = query.filter(Product.discount_percentage >= min_discount)
+
+    if category_id:
+        query = query.filter(Product.category_id == category_id)
+
+    # Order by discount percentage (highest first)
+    products = query.order_by(desc(Product.discount_percentage)).limit(limit).all()
+
+    return products
+
+
+# A.1.5 - Get Product Variants (HIGH PRIORITY)
+@router.get("/{product_id}/variants", response_model=List[ProductVariantResponse])
+def get_product_variants(
+    product_id: int,
+    include_inactive: bool = False,
+    db: Session = Depends(get_db)
+):
+    """Get all variants for a product"""
+    # Verify product exists
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    query = db.query(ProductVariant).filter(ProductVariant.product_id == product_id)
+
+    if not include_inactive:
+        query = query.filter(ProductVariant.is_active == True)
+
+    variants = query.order_by(
+        desc(ProductVariant.is_default),
+        asc(ProductVariant.name)
+    ).all()
+
+    return variants
+
+
+# A.1.6 - Check Product Availability
+@router.get("/{product_id}/availability", response_model=ProductAvailabilityResponse)
+def check_product_availability(
+    product_id: int,
+    variant_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    """Check real-time availability of a product or variant"""
+    LOW_STOCK_THRESHOLD = 5
+
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.is_active == True
+    ).first()
+
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    # Check if product has variants
+    variants = db.query(ProductVariant).filter(
+        ProductVariant.product_id == product_id,
+        ProductVariant.is_active == True
+    ).all()
+
+    has_variants = len(variants) > 0
+
+    if variant_id:
+        # Check specific variant availability
+        variant = db.query(ProductVariant).filter(
+            ProductVariant.id == variant_id,
+            ProductVariant.product_id == product_id,
+            ProductVariant.is_active == True
+        ).first()
+
+        if not variant:
+            raise HTTPException(status_code=404, detail="Variant not found")
+
+        return ProductAvailabilityResponse(
+            product_id=product_id,
+            is_available=variant.quantity_available > 0,
+            quantity_available=variant.quantity_available,
+            has_variants=True,
+            is_low_stock=variant.quantity_available <= LOW_STOCK_THRESHOLD and variant.quantity_available > 0
+        )
+
+    if has_variants:
+        # Calculate total availability across all variants
+        total_quantity = sum(v.quantity_available for v in variants)
+        variants_availability = [
+            {
+                "variant_id": v.id,
+                "name": v.name,
+                "is_available": v.quantity_available > 0,
+                "quantity_available": v.quantity_available,
+                "is_low_stock": v.quantity_available <= LOW_STOCK_THRESHOLD and v.quantity_available > 0
+            }
+            for v in variants
+        ]
+
+        return ProductAvailabilityResponse(
+            product_id=product_id,
+            is_available=total_quantity > 0,
+            quantity_available=total_quantity,
+            has_variants=True,
+            variants_availability=variants_availability,
+            is_low_stock=total_quantity <= LOW_STOCK_THRESHOLD and total_quantity > 0
+        )
+
+    # No variants - check base product availability
+    return ProductAvailabilityResponse(
+        product_id=product_id,
+        is_available=product.quantity_available > 0,
+        quantity_available=product.quantity_available,
+        has_variants=False,
+        is_low_stock=product.quantity_available <= LOW_STOCK_THRESHOLD and product.quantity_available > 0
+    )
+
+
+# A.1.7 - Get Price History
+@router.get("/{product_id}/price-history", response_model=List[PriceHistoryResponse])
+def get_price_history(
+    product_id: int,
+    days: int = Query(30, ge=1, le=365),
+    db: Session = Depends(get_db)
+):
+    """Get price change history for a product"""
+    # Verify product exists
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+    price_history = db.query(PriceHistory).filter(
+        PriceHistory.product_id == product_id,
+        PriceHistory.created_at >= cutoff_date
+    ).order_by(desc(PriceHistory.created_at)).all()
+
+    return price_history
+
+
+# A.1.8 - Get Product Specifications
+@router.get("/{product_id}/specifications", response_model=dict)
+def get_product_specifications(
+    product_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get detailed specifications for a product"""
+    # Verify product exists
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.is_active == True
+    ).first()
+
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    # Get specifications from dedicated table
+    specifications = db.query(ProductSpecification).filter(
+        ProductSpecification.product_id == product_id
+    ).order_by(
+        ProductSpecification.group_name,
+        ProductSpecification.display_order
+    ).all()
+
+    # Group specifications by group_name
+    grouped_specs = {}
+    for spec in specifications:
+        group = spec.group_name or "General"
+        if group not in grouped_specs:
+            grouped_specs[group] = []
+        grouped_specs[group].append({
+            "name": spec.spec_name,
+            "value": spec.spec_value
+        })
+
+    # Also include basic product attributes as specifications
+    basic_specs = {
+        "Physical": []
+    }
+
+    if product.dimensions:
+        basic_specs["Physical"].append({"name": "Dimensions", "value": product.dimensions})
+    if product.weight:
+        basic_specs["Physical"].append({"name": "Weight", "value": f"{product.weight} kg"})
+    if product.material:
+        basic_specs["Physical"].append({"name": "Material", "value": product.material})
+    if product.color:
+        basic_specs["Physical"].append({"name": "Color", "value": product.color})
+    if product.technique:
+        basic_specs["Physical"].append({"name": "Technique", "value": product.technique})
+
+    # Merge basic specs with custom specs
+    for group, specs in basic_specs.items():
+        if specs:
+            if group not in grouped_specs:
+                grouped_specs[group] = []
+            grouped_specs[group] = specs + grouped_specs.get(group, [])
+
+    return {
+        "product_id": product_id,
+        "specifications": grouped_specs,
+        "total_specs": sum(len(specs) for specs in grouped_specs.values())
+    }
+
+
+# A.1.9 - Compare Products
+@router.get("/compare")
+def compare_products(
+    ids: str = Query(..., description="Comma-separated product IDs"),
+    db: Session = Depends(get_db)
+):
+    """Compare multiple products side by side"""
+    try:
+        product_ids = [int(id.strip()) for id in ids.split(',')]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid product IDs format")
+
+    if len(product_ids) < 2:
+        raise HTTPException(status_code=400, detail="At least 2 products required for comparison")
+
+    if len(product_ids) > 5:
+        raise HTTPException(status_code=400, detail="Maximum 5 products can be compared")
+
+    products = db.query(Product).filter(
+        Product.id.in_(product_ids),
+        Product.is_active == True
+    ).all()
+
+    if len(products) != len(product_ids):
+        raise HTTPException(status_code=404, detail="Some products not found")
+
+    # Define comparison attributes
+    comparison_attributes = [
+        "price", "material", "color", "technique",
+        "dimensions", "weight", "quantity_available"
+    ]
+
+    # Build comparison data
+    comparison_data = {}
+    for attr in comparison_attributes:
+        comparison_data[attr] = {}
+        for product in products:
+            value = getattr(product, attr, None)
+            comparison_data[attr][product.id] = str(value) if value is not None else "N/A"
+
+    # Get category names
+    comparison_data["category"] = {}
+    for product in products:
+        category = db.query(Category).filter(Category.id == product.category_id).first()
+        comparison_data["category"][product.id] = category.name if category else "N/A"
+
+    # Get average ratings
+    comparison_data["average_rating"] = {}
+    for product in products:
+        avg_rating = db.query(func.avg(Review.rating)).filter(
+            Review.product_id == product.id
+        ).scalar()
+        comparison_data["average_rating"][product.id] = round(float(avg_rating), 1) if avg_rating else "N/A"
+
+    return {
+        "products": [ProductResponse.from_orm(p) for p in products],
+        "comparison_attributes": comparison_attributes + ["category", "average_rating"],
+        "comparison_data": comparison_data
+    }
+
+
+# A.1.10 - Get Brands
+@router.get("/brands", response_model=List[BrandResponse])
+def get_brands(
+    skip: int = 0,
+    limit: int = Query(100, le=200),
+    search: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Get all brands"""
+    query = db.query(Brand).filter(Brand.is_active == True)
+
+    if search:
+        query = query.filter(Brand.name.ilike(f"%{search}%"))
+
+    brands = query.order_by(asc(Brand.name)).offset(skip).limit(limit).all()
+
+    return brands
+
+
+@router.post("/brands", response_model=BrandResponse)
+def create_brand(
+    brand: BrandCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new brand (sellers only)"""
+    if current_user.role not in [UserRole.SELLER, UserRole.DUAL]:
+        raise HTTPException(status_code=403, detail="Only sellers can create brands")
+
+    # Generate slug if not provided
+    slug = brand.slug or generate_slug(brand.name)
+
+    # Check if brand name or slug already exists
+    existing = db.query(Brand).filter(
+        or_(Brand.name == brand.name, Brand.slug == slug)
+    ).first()
+
+    if existing:
+        raise HTTPException(status_code=400, detail="Brand name or slug already exists")
+
+    db_brand = Brand(
+        name=brand.name,
+        slug=slug,
+        description=brand.description,
+        logo_url=brand.logo_url,
+        website=brand.website
+    )
+    db.add(db_brand)
+    db.commit()
+    db.refresh(db_brand)
+
+    return db_brand
+
+
+@router.get("/brands/{brand_id}", response_model=BrandResponse)
+def get_brand_by_id(
+    brand_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get a single brand by ID"""
+    brand = db.query(Brand).filter(
+        Brand.id == brand_id,
+        Brand.is_active == True
+    ).first()
+
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    return brand
+
+
+# A.1.11 - Get Product Tags
+@router.get("/{product_id}/tags", response_model=List[ProductTagResponse])
+def get_product_tags(
+    product_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get tags associated with a product"""
+    # Verify product exists
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    # Get tags from association table
+    tag_associations = db.query(ProductTagAssociation).filter(
+        ProductTagAssociation.product_id == product_id
+    ).all()
+
+    tag_ids = [assoc.tag_id for assoc in tag_associations]
+
+    tags = db.query(ProductTag).filter(ProductTag.id.in_(tag_ids)).all() if tag_ids else []
+
+    # Also parse legacy comma-separated tags from product
+    legacy_tags = []
+    if product.tags:
+        for tag_name in product.tags.split(','):
+            tag_name = tag_name.strip()
+            if tag_name:
+                # Check if tag already exists in proper tags
+                existing = next((t for t in tags if t.name.lower() == tag_name.lower()), None)
+                if not existing:
+                    legacy_tags.append({
+                        "id": 0,  # Legacy tags don't have IDs
+                        "name": tag_name,
+                        "slug": generate_slug(tag_name),
+                        "description": None,
+                        "created_at": product.created_at
+                    })
+
+    # Combine proper tags with legacy tags
+    result = [ProductTagResponse.from_orm(t) for t in tags]
+    result.extend([ProductTagResponse(**lt) for lt in legacy_tags])
+
+    return result
+
+
+# A.1.12 - Get Product Attributes
+@router.get("/{product_id}/attributes", response_model=List[ProductAttributeResponse])
+def get_product_attributes(
+    product_id: int,
+    visible_only: bool = True,
+    db: Session = Depends(get_db)
+):
+    """Get custom attributes for a product"""
+    # Verify product exists
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    query = db.query(ProductAttribute).filter(
+        ProductAttribute.product_id == product_id
+    )
+
+    if visible_only:
+        query = query.filter(ProductAttribute.is_visible == True)
+
+    attributes = query.order_by(ProductAttribute.display_order).all()
+
+    return attributes
+
+
+# ============================================
+# Variant Management Endpoints
+# ============================================
+
+@router.post("/{product_id}/variants", response_model=ProductVariantResponse)
+def create_product_variant(
+    product_id: int,
+    variant: ProductVariantCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new variant for a product"""
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    if product.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Generate SKU if not provided
+    sku = variant.sku or f"{product.sku or 'P'}-V-{uuid.uuid4().hex[:6].upper()}"
+
+    # Check if SKU already exists
+    existing = db.query(ProductVariant).filter(ProductVariant.sku == sku).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="SKU already exists")
+
+    # If this is set as default, unset other defaults
+    if variant.is_default:
+        db.query(ProductVariant).filter(
+            ProductVariant.product_id == product_id
+        ).update({"is_default": False})
+
+    db_variant = ProductVariant(
+        product_id=product_id,
+        sku=sku,
+        name=variant.name,
+        size=variant.size,
+        color=variant.color,
+        material=variant.material,
+        weight=variant.weight,
+        dimensions=variant.dimensions,
+        price=variant.price,
+        price_adjustment=variant.price_adjustment,
+        quantity_available=variant.quantity_available,
+        is_default=variant.is_default,
+        image_url=variant.image_url
+    )
+    db.add(db_variant)
+    db.commit()
+    db.refresh(db_variant)
+
+    return db_variant
+
+
+@router.put("/{product_id}/variants/{variant_id}", response_model=ProductVariantResponse)
+def update_product_variant(
+    product_id: int,
+    variant_id: int,
+    variant_update: ProductVariantUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update a product variant"""
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    if product.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    variant = db.query(ProductVariant).filter(
+        ProductVariant.id == variant_id,
+        ProductVariant.product_id == product_id
+    ).first()
+
+    if not variant:
+        raise HTTPException(status_code=404, detail="Variant not found")
+
+    # If setting as default, unset other defaults
+    if variant_update.is_default:
+        db.query(ProductVariant).filter(
+            ProductVariant.product_id == product_id,
+            ProductVariant.id != variant_id
+        ).update({"is_default": False})
+
+    # Update variant fields
+    for field, value in variant_update.model_dump(exclude_unset=True).items():
+        setattr(variant, field, value)
+
+    db.commit()
+    db.refresh(variant)
+
+    return variant
+
+
+@router.delete("/{product_id}/variants/{variant_id}")
+def delete_product_variant(
+    product_id: int,
+    variant_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a product variant"""
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    if product.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    variant = db.query(ProductVariant).filter(
+        ProductVariant.id == variant_id,
+        ProductVariant.product_id == product_id
+    ).first()
+
+    if not variant:
+        raise HTTPException(status_code=404, detail="Variant not found")
+
+    # Soft delete
+    variant.is_active = False
+    db.commit()
+
+    return {"message": "Variant deleted successfully"}
+
+
+# ============================================
+# Attribute & Specification Management
+# ============================================
+
+@router.post("/{product_id}/attributes", response_model=ProductAttributeResponse)
+def create_product_attribute(
+    product_id: int,
+    attribute: ProductAttributeCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Add a custom attribute to a product"""
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    if product.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    db_attribute = ProductAttribute(
+        product_id=product_id,
+        name=attribute.name,
+        value=attribute.value,
+        unit=attribute.unit,
+        display_order=attribute.display_order,
+        is_visible=attribute.is_visible
+    )
+    db.add(db_attribute)
+    db.commit()
+    db.refresh(db_attribute)
+
+    return db_attribute
+
+
+@router.post("/{product_id}/specifications", response_model=ProductSpecificationResponse)
+def create_product_specification(
+    product_id: int,
+    spec: ProductSpecificationCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Add a specification to a product"""
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    if product.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    db_spec = ProductSpecification(
+        product_id=product_id,
+        group_name=spec.group_name,
+        spec_name=spec.spec_name,
+        spec_value=spec.spec_value,
+        display_order=spec.display_order
+    )
+    db.add(db_spec)
+    db.commit()
+    db.refresh(db_spec)
+
+    return db_spec

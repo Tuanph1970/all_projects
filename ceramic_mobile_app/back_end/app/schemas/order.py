@@ -169,3 +169,26 @@ class RefundRequest(BaseModel):
     amount: Decimal
     reason: str
     description: Optional[str] = None
+
+
+# ============================================
+# Order Cancellation Schemas (Section A.2)
+# ============================================
+
+class OrderCancelRequest(BaseModel):
+    """Request to cancel an order"""
+    reason: Optional[str] = None
+    description: Optional[str] = None
+
+
+class OrderCancelResponse(BaseModel):
+    """Response after cancelling an order"""
+    success: bool
+    message: str
+    order_id: int
+    order_number: str
+    previous_status: OrderStatus
+    new_status: OrderStatus
+    cancelled_at: datetime
+    refund_initiated: bool = False
+    refund_amount: Optional[Decimal] = None

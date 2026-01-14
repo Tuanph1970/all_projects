@@ -250,7 +250,7 @@ export const OrderManagementScreen = () => {
           return;
       }
 
-      await orderFulfillmentService.updateOrderStatus(order.id, newStatus);
+      await orderFulfillmentService.updateOrderStatus(order.id, { status: newStatus });
 
       // Update local state
       setOrders(prev => 

@@ -5,6 +5,7 @@ from typing import List, Optional, Dict
 from datetime import datetime, timedelta, date
 import os
 import shutil
+import uuid
 
 from shared.database import get_db
 from shared.security import get_current_user
@@ -650,3 +651,158 @@ def delete_seller_product(
     db.commit()
 
     return {"message": "Product deleted successfully", "product_id": product_id}
+
+
+@router.get("/dashboard/product-analytics/{product_id}")
+def get_product_dashboard_analytics(
+    product_id: int,
+    days: int = Query(30, ge=1, le=365),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get detailed analytics for a specific product"""
+    if current_user.role not in [UserRole.SELLER, UserRole.DUAL]:
+        raise HTTPException(status_code=403, detail="Only sellers can access dashboard")
+
+    # Verify product belongs to seller
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.seller_id == current_user.id
+    ).first()
+
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+    # Sales statistics
+    sales_stats = db.query(
+        func.count(OrderItem.id).label('total_orders'),
+        func.sum(OrderItem.quantity).label('total_quantity_sold'),
+        func.sum(OrderItem.total_price).label('total_revenue')
+    ).filter(
+        OrderItem.product_id == product_id,
+        OrderItem.created_at >= cutoff_date
+    ).first()
+
+    # Daily sales trend
+    daily_sales = db.query(
+        func.date(OrderItem.created_at).label('date'),
+        func.count(OrderItem.id).label('orders'),
+        func.sum(OrderItem.quantity).label('quantity'),
+        func.sum(OrderItem.total_price).label('revenue')
+    ).filter(
+        OrderItem.product_id == product_id,
+        OrderItem.created_at >= cutoff_date
+    ).group_by(func.date(OrderItem.created_at)).order_by(func.date(OrderItem.created_at)).all()
+
+    # Review statistics
+    review_stats = db.query(
+        func.count(Review.id).label('total_reviews'),
+        func.avg(Review.rating).label('avg_rating')
+    ).filter(Review.product_id == product_id).first()
+
+    # Recent reviews
+    recent_reviews = db.query(Review).filter(
+        Review.product_id == product_id
+    ).order_by(desc(Review.created_at)).limit(5).all()
+
+    return {
+        "product_id": product_id,
+        "product_name": product.name,
+        "period_days": days,
+        "sales": {
+            "total_orders": sales_stats.total_orders or 0,
+            "total_quantity_sold": sales_stats.total_quantity_sold or 0,
+            "total_revenue": float(sales_stats.total_revenue or 0),
+            "avg_order_value": float(sales_stats.total_revenue or 0) / max(sales_stats.total_orders or 1, 1)
+        },
+        "daily_sales": [
+            {
+                "date": sale.date.isoformat() if sale.date else None,
+                "orders": sale.orders or 0,
+                "quantity": sale.quantity or 0,
+                "revenue": float(sale.revenue or 0)
+            }
+            for sale in daily_sales
+        ],
+        "reviews": {
+            "total_reviews": review_stats.total_reviews or 0,
+            "avg_rating": float(review_stats.avg_rating or 0)
+        },
+        "recent_reviews": [
+            {
+                "id": review.id,
+                "rating": review.rating,
+                "comment": review.comment,
+                "created_at": review.created_at.isoformat() if review.created_at else None
+            }
+            for review in recent_reviews
+        ],
+        "product_info": {
+            "price": float(product.price),
+            "quantity_available": product.quantity_available,
+            "is_active": product.is_active,
+            "is_featured": product.is_featured
+        }
+    }
+
+
+@router.post("/upload-image")
+async def upload_product_image(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upload image for product use"""
+    if current_user.role not in [UserRole.SELLER, UserRole.DUAL]:
+        raise HTTPException(status_code=403, detail="Only sellers can upload images")
+
+    # Validate file type
+    allowed_types = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed types: {', '.join(allowed_types)}"
+        )
+
+    # Validate file size (max 10MB)
+    file_data = await file.read()
+    max_size = 10 * 1024 * 1024  # 10MB
+    if len(file_data) > max_size:
+        raise HTTPException(
+            status_code=400,
+            detail="File too large. Maximum size is 10MB"
+        )
+
+    try:
+        # Create upload directory if it doesn't exist
+        upload_dir = "uploads/products"
+        os.makedirs(upload_dir, exist_ok=True)
+
+        # Generate unique filename
+        file_ext = os.path.splitext(file.filename)[1] if file.filename else '.jpg'
+        unique_filename = f"{uuid.uuid4()}{file_ext}"
+        file_path = os.path.join(upload_dir, unique_filename)
+
+        # Save file
+        with open(file_path, "wb") as buffer:
+            buffer.write(file_data)
+
+        # Return file URL
+        file_url = f"/static/{upload_dir}/{unique_filename}"
+
+        return {
+            "message": "Image uploaded successfully",
+            "url": file_url,
+            "filename": unique_filename,
+            "original_name": file.filename,
+            "size": len(file_data),
+            "content_type": file.content_type
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to upload image: {str(e)}"
+        )

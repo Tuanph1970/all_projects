@@ -70,7 +70,7 @@ export const OrderDetailsScreen = () => {
   const handleUpdateStatus = async (newStatus) => {
     try {
       setActionLoading(true);
-      await orderFulfillmentService.updateOrderStatus(orderId, newStatus);
+      await orderFulfillmentService.updateOrderStatus(orderId, { status: newStatus });
       await loadOrderDetails();
       Alert.alert('Success', `Order status updated to ${newStatus}`);
     } catch (error) {
@@ -84,7 +84,10 @@ export const OrderDetailsScreen = () => {
   const handleRejectOrder = async () => {
     try {
       setActionLoading(true);
-      await orderFulfillmentService.updateOrderStatus(orderId, 'CANCELLED', { reason: rejectReason });
+      await orderFulfillmentService.updateOrderStatus(orderId, {
+        status: 'CANCELLED',
+        seller_notes: rejectReason
+      });
       setRejectModalVisible(false);
       setRejectReason('');
       await loadOrderDetails();
@@ -104,7 +107,8 @@ export const OrderDetailsScreen = () => {
     }
     try {
       setActionLoading(true);
-      await orderFulfillmentService.updateOrderStatus(orderId, 'SHIPPED', {
+      // Use shipOrder method for proper shipping with tracking
+      await orderFulfillmentService.shipOrder(orderId, {
         tracking_number: trackingNumber,
         carrier: carrier
       });

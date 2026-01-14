@@ -407,7 +407,7 @@ def get_public_store(
 
     return response_data
 
-@router.get("/store-analytics", response_model=StoreAnalytics)
+@router.get("/analytics", response_model=StoreAnalytics)
 def get_store_analytics(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)

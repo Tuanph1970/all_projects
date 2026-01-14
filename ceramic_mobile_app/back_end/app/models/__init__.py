@@ -1,5 +1,9 @@
 from .user import User
-from .product import Product, ProductImage, Category
+from .product import (
+    Product, ProductImage, Category, Brand,
+    ProductVariant, PriceHistory, ProductTag,
+    ProductTagAssociation, ProductAttribute, ProductSpecification
+)
 from .cart import Cart, CartItem
 from .order import Order, OrderItem
 from .chat import ChatRoom, Message
@@ -12,6 +16,13 @@ __all__ = [
     "Product",
     "ProductImage",
     "Category",
+    "Brand",
+    "ProductVariant",
+    "PriceHistory",
+    "ProductTag",
+    "ProductTagAssociation",
+    "ProductAttribute",
+    "ProductSpecification",
     "Cart",
     "CartItem",
     "Order",
