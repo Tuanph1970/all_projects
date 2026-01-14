@@ -369,15 +369,15 @@ export const OrderManagementScreen = () => {
             </Button>
           }
         >
-          <Menu.Item onPress={() => handleStatusFilter(undefined)} title={t('orderManagement.allOrders')} />
+          <Menu.Item onPress={() => handleStatusFilter(undefined)} title={t('orderManagement.allOrders')} testID="filter-all-orders" />
           <Divider />
-          <Menu.Item onPress={() => handleStatusFilter(OrderStatus.PENDING)} title={t('orderManagement.status.pending')} />
-          <Menu.Item onPress={() => handleStatusFilter(OrderStatus.CONFIRMED)} title={t('orderManagement.status.confirmed')} />
-          <Menu.Item onPress={() => handleStatusFilter(OrderStatus.PROCESSING)} title={t('orderManagement.status.processing')} />
-          <Menu.Item onPress={() => handleStatusFilter(OrderStatus.SHIPPED)} title={t('orderManagement.status.shipped')} />
-          <Menu.Item onPress={() => handleStatusFilter(OrderStatus.DELIVERED)} title={t('orderManagement.status.delivered')} />
-          <Menu.Item onPress={() => handleStatusFilter(OrderStatus.CANCELLED)} title={t('orderManagement.status.cancelled')} />
-          <Menu.Item onPress={() => handleStatusFilter(OrderStatus.REFUNDED)} title={t('orderManagement.status.refunded')} />
+          <Menu.Item onPress={() => handleStatusFilter(OrderStatus.PENDING)} title={t('orderManagement.status.pending')} testID="filter-pending" />
+          <Menu.Item onPress={() => handleStatusFilter(OrderStatus.CONFIRMED)} title={t('orderManagement.status.confirmed')} testID="filter-confirmed" />
+          <Menu.Item onPress={() => handleStatusFilter(OrderStatus.PROCESSING)} title={t('orderManagement.status.processing')} testID="filter-processing" />
+          <Menu.Item onPress={() => handleStatusFilter(OrderStatus.SHIPPED)} title={t('orderManagement.status.shipped')} testID="filter-shipped" />
+          <Menu.Item onPress={() => handleStatusFilter(OrderStatus.DELIVERED)} title={t('orderManagement.status.delivered')} testID="filter-delivered" />
+          <Menu.Item onPress={() => handleStatusFilter(OrderStatus.CANCELLED)} title={t('orderManagement.status.cancelled')} testID="filter-cancelled" />
+          <Menu.Item onPress={() => handleStatusFilter(OrderStatus.REFUNDED)} title={t('orderManagement.status.refunded')} testID="filter-refunded" />
         </Menu>
       </View>
 

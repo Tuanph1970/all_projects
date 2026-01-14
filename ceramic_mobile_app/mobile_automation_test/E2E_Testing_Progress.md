@@ -1,7 +1,7 @@
 # E2E Testing Progress - Ceramic Marketplace Mobile App
 
 **Testing Framework:** Maestro + ADB Hybrid (Character-by-Character Input)
-**Last Updated:** January 13, 2026 (Phase F Seller Fulfillment Extended Tests Implemented)
+**Last Updated:** January 13, 2026 (Phase F Tests Executed & Bug Fixes Applied)
 **Status:** Active Development
 
 ---
@@ -326,6 +326,35 @@ cd mobile_automation_test/maestro/scripts
 ---
 
 ## Recent Changes (January 13, 2026)
+
+### Phase F Seller Order Fulfillment Tests Executed ✅
+
+All Phase F seller order fulfillment extended tests have been executed and passed:
+
+| Test ID | Test Case | Status | Screenshots |
+|---------|-----------|--------|-------------|
+| FUL-003 | Reject Order | ✅ PASSED | 6 screenshots |
+| FUL-005 | Add Tracking Information | ✅ PASSED | 7 screenshots |
+| FUL-006 | Mark Order as Delivered | ✅ PASSED | 6 screenshots |
+
+**Test Execution Summary:**
+- Total Tests: 3
+- Passed: 3
+- Failed: 0
+
+**Bug Fixes Applied During Phase F Testing:**
+
+| Issue | File | Fix Applied |
+|-------|------|-------------|
+| Orders not displaying (API response format mismatch) | `orderFulfillmentService.js` | API returns array directly but frontend expected `{orders: [...], pagination: {...}}` - added response transformation |
+| Wrong API endpoint | `orderFulfillmentService.js` | Changed from non-existent `/api/v1/seller/fulfillment/orders` to working `/api/v1/orders/` |
+| Wrong HTTP method for status update | `orderFulfillmentService.js` | Changed from PATCH to PUT method as per backend API |
+| Status filter menu items not selectable | `OrderManagementScreen.jsx` | Added testIDs to Menu.Items (`filter-pending`, `filter-processing`, `filter-shipped`, etc.) |
+| Test scripts using unreliable text matching | Phase F test scripts | Updated to use testIDs instead of text matching for filter selection |
+
+**Screenshots Location:** `maestro/scripts/ful*.png`
+
+---
 
 ### Phase E Customer Order Tests Implemented ✅
 

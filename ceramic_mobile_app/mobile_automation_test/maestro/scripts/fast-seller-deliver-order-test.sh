@@ -144,7 +144,7 @@ appId: com.ceramicmarketplace.app
     optional: true
 - waitForAnimationToEnd
 - tapOn:
-    text: "Shipped"
+    id: "filter-shipped"
     optional: true
 - waitForAnimationToEnd
 - takeScreenshot: "ful006-01-shipped-orders"

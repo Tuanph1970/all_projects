@@ -142,7 +142,7 @@ appId: com.ceramicmarketplace.app
     optional: true
 - waitForAnimationToEnd
 - tapOn:
-    text: "Processing"
+    id: "filter-processing"
     optional: true
 - waitForAnimationToEnd
 - takeScreenshot: "ful005-01-processing-orders"

@@ -117,7 +117,7 @@ appId: com.ceramicmarketplace.app
     optional: true
 - waitForAnimationToEnd
 - tapOn:
-    text: "Pending"
+    id: "filter-pending"
     optional: true
 - waitForAnimationToEnd
 - takeScreenshot: "ful003-01-pending-orders"
