@@ -27,12 +27,13 @@ class OrderFulfillmentService {
 
   // Get paginated list of seller's orders
   async getOrders(params = {}) {
-    const response = await apiClient.get(`${this.ordersEndpoint}/`, {
+    const response = await apiClient.get(this.ordersEndpoint, {
       params
     });
 
-    // Backend returns array directly, transform to expected format
-    const ordersArray = Array.isArray(response) ? response : (response.data || []);
+    // Backend returns {orders: [...], pagination: {...}} format
+    // Handle various response structures for compatibility
+    const ordersArray = response.orders || (Array.isArray(response) ? response : (response.data?.orders || response.data || []));
 
     // Apply client-side status filtering if specified
     let filteredOrders = ordersArray;
@@ -56,7 +57,9 @@ class OrderFulfillmentService {
       orders: filteredOrders.map(order => ({
         ...order,
         total_amount: parseFloat(order.total_amount) || 0,
-        customer_name: order.customer_name || `Customer #${order.customer_id}`
+        customer_name: order.customer_name ||
+          (order.customer ? `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim() : null) ||
+          `Customer #${order.customer_id}`
       })),
       pagination: {
         current_page: params.page || 1,

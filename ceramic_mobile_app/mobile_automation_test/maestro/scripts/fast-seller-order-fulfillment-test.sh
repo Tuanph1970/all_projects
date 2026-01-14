@@ -26,18 +26,19 @@ source "$SCRIPT_DIR/seller-login-lib.sh"
 
 # Configuration
 APP_ID="com.ceramicmarketplace.app"
-# API running on host machine - use localhost for curl from host
-# Port 8002 for TCP proxy or 80 for direct traefik
-API_BASE_URL="${API_BASE_URL:-http://localhost:80}"
+# API running on host machine - Traefik gateway on port 8002
+# Direct Traefik: http://localhost:8002/api/v1/...
+# Nginx multi-project: http://localhost:80/ceramic-app/api/v1/...
+API_BASE_URL="${API_BASE_URL:-http://localhost:8002}"
 TEMP_FLOW=$(mktemp /tmp/order-fulfillment-XXXXXX.yaml)
 
-# Test customer credentials (for creating orders)
-CUSTOMER_USERNAME="${CUSTOMER_USERNAME:-customer_a}"
-CUSTOMER_PASSWORD="${CUSTOMER_PASSWORD:-Mysql_2025!}"
+# Test customer credentials (for creating orders via API)
+CUSTOMER_USERNAME="${CUSTOMER_USERNAME:-test_customer_user}"
+CUSTOMER_PASSWORD="${CUSTOMER_PASSWORD:-@Test_customer@1234}"
 
-# Seller credentials (using defaults from seller-login-lib.sh)
-# SELLER_USERNAME=test_seller_user
-# SELLER_PASSWORD=Testseller@123456
+# Seller credentials (for API calls - UI login uses seller-login-lib.sh defaults)
+SELLER_USERNAME="${SELLER_USERNAME:-test_seller_user}"
+SELLER_PASSWORD="${SELLER_PASSWORD:-Testseller@123456}"
 
 echo ""
 echo "=============================================="

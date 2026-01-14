@@ -27,8 +27,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/seller-login-lib.sh"
 source "$SCRIPT_DIR/ensure-metro.sh"
 
-# API Configuration
-API_BASE_URL="${API_BASE_URL:-http://localhost:80}"
+# API Configuration - Traefik gateway on port 8002
+# Direct Traefik: http://localhost:8002/api/v1/...
+API_BASE_URL="${API_BASE_URL:-http://localhost:8002}"
 CUSTOMER_USERNAME="${CUSTOMER_USERNAME:-test_customer_user}"
 CUSTOMER_PASSWORD="${CUSTOMER_PASSWORD:-@Test_customer@1234}"
 

@@ -1,0 +1,350 @@
+# Version 2 E2E Test Progress Tracker
+
+**Generated:** 2026-01-14
+**Purpose:** Track E2E test cases that need re-testing and new test cases for Version 2 API changes
+**Reference:** [PLAN_TODO_VERSION_2.md](../PLAN_TODO_VERSION_2.md)
+
+---
+
+## Overview
+
+Version 2 implemented critical API path fixes and HTTP method corrections. This document tracks:
+1. **Existing tests that need re-testing** due to backend/frontend API changes
+2. **New test cases** to validate Version 2 features and fixes
+
+---
+
+## SECTION A: Existing E2E Tests Requiring Re-Testing
+
+### A.1 Critical - Order Fulfillment Tests
+
+**Impact:** API base path changed from `/api/v1/orders/` to `/api/v1/order-fulfillment/orders`
+
+| Test Script | Status | Priority | Reason for Re-Test |
+|-------------|--------|----------|-------------------|
+| `fast-seller-order-fulfillment-test.sh` | [ ] Pending | **CRITICAL** | Base path changed, HTTP methods changed (PUT→PATCH, PUT→POST) |
+| `fast-complete-order-flow-test.sh` | [ ] Pending | **CRITICAL** | Order status updates, shipping flow affected |
+
+**Specific Scenarios to Verify:**
+- [x] Get seller orders list ✅ Fixed 2026-01-14
+- [ ] Get order details
+- [ ] Update order status (now uses PATCH to `/status` endpoint)
+- [ ] Ship order (now uses POST to `/ship` endpoint)
+- [x] Get order stats ✅ Verified working 2026-01-14
+- [ ] Process return requests
+- [ ] Process refunds
+- [ ] Get pending returns
+- [ ] View fulfillment analytics
+
+---
+
+### A.2 Critical - Seller Dashboard Tests
+
+**Impact:** API base path changed from `/api/v1/seller/` to `/api/v1/seller-dashboard/`
+
+| Test Script | Status | Priority | Reason for Re-Test |
+|-------------|--------|----------|-------------------|
+| `fast-seller-add-product-test.sh` | [ ] Pending | **CRITICAL** | Product management endpoints changed |
+| `fast-seller-add-5-products-test.sh` | [ ] Pending | **CRITICAL** | Bulk product operations affected |
+| `fast-seller-edit-products-test.sh` | [ ] Pending | **CRITICAL** | Product editing endpoint changed |
+| `fast-seller-delete-product-test.sh` | [ ] Pending | **CRITICAL** | Product deletion endpoint changed |
+| `fast-seller-product-management-test.sh` | [ ] Pending | **CRITICAL** | All CRUD operations affected |
+
+**Specific Scenarios to Verify:**
+- [ ] Dashboard overview loading
+- [ ] Sales chart data loading
+- [ ] Top products display
+- [ ] Product management list
+- [ ] Image upload functionality
+- [ ] Bulk status update
+- [ ] Bulk price update
+- [ ] Delete product
+
+---
+
+### A.3 Critical - Seller Analytics Tests
+
+**Impact:** API base path changed from `/api/v1/seller/analytics/` to `/api/v1/seller-analytics/`
+
+| Test Script | Status | Priority | Reason for Re-Test |
+|-------------|--------|----------|-------------------|
+| `fast-seller-analytics-test.sh` | [ ] Pending | **CRITICAL** | All analytics endpoints changed |
+
+**Specific Scenarios to Verify:**
+- [ ] Dashboard analytics loading
+- [ ] Revenue trends display
+- [ ] Category performance data
+- [ ] Customer demographics
+- [ ] Performance metrics
+- [ ] Top products analytics
+- [ ] Comparison data
+
+---
+
+### A.4 High - Customer Order Tests
+
+**Impact:** Cancel order method changed (POST to dedicated `/cancel` endpoint)
+
+| Test Script | Status | Priority | Reason for Re-Test |
+|-------------|--------|----------|-------------------|
+| `fast-customer-order-test.sh` | [ ] Pending | **HIGH** | Order cancellation flow affected |
+| `fast-complete-order-flow-test.sh` | [ ] Pending | **HIGH** | Full order lifecycle affected |
+
+**Specific Scenarios to Verify:**
+- [ ] Place new order
+- [ ] View order details
+- [ ] Cancel order (new dedicated endpoint)
+- [ ] Order status tracking
+
+---
+
+### A.5 Medium - Authentication Tests
+
+**Impact:** No direct API changes, but should verify integration still works
+
+| Test Script | Status | Priority | Reason for Re-Test |
+|-------------|--------|----------|-------------------|
+| `fast-seller-login-test.sh` | [ ] Pending | **MEDIUM** | Verify authentication still works after changes |
+| `fast-customer-login-test.sh` | [ ] Pending | **MEDIUM** | Verify authentication still works after changes |
+
+---
+
+## SECTION B: New E2E Test Cases for Version 2
+
+### B.1 Seller Profile Tests (NEW)
+
+**Impact:** API base path is `/api/v1/seller-profile/` (was `/api/v1/seller/profile/`)
+
+| Test Case | Script Name | Priority | Description |
+|-----------|-------------|----------|-------------|
+| Seller Profile View | `fast-seller-profile-view-test.sh` | HIGH | View seller profile information |
+| Seller Profile Update | `fast-seller-profile-update-test.sh` | HIGH | Update seller profile data |
+| Store Settings | `fast-seller-store-settings-test.sh` | HIGH | View and update store settings |
+| Theme Management | `fast-seller-theme-test.sh` | MEDIUM | Create, update, activate themes |
+| Upload Logo | `fast-seller-upload-logo-test.sh` | MEDIUM | Upload store logo |
+| Upload Banner | `fast-seller-upload-banner-test.sh` | MEDIUM | Upload store banner |
+| Verification Request | `fast-seller-verification-test.sh` | LOW | Request seller verification |
+
+**Test Scenarios to Implement:**
+- [ ] GET /api/v1/seller-profile/profile - View profile
+- [ ] PUT /api/v1/seller-profile/profile - Update profile
+- [ ] GET /api/v1/seller-profile/store - View store settings
+- [ ] POST /api/v1/seller-profile/themes - Create theme
+- [ ] PUT /api/v1/seller-profile/themes/{id} - Update theme
+- [ ] POST /api/v1/seller-profile/themes/{id}/activate - Activate theme
+- [ ] DELETE /api/v1/seller-profile/themes/{id} - Delete theme
+- [ ] GET /api/v1/seller-profile/public/{id} - View public store
+- [ ] GET /api/v1/seller-profile/analytics - Store analytics
+- [ ] GET /api/v1/seller-profile/stats - Store stats
+- [ ] POST /api/v1/seller-profile/upload-logo - Upload logo
+- [ ] POST /api/v1/seller-profile/upload-banner - Upload banner
+- [ ] POST /api/v1/seller-profile/verify - Request verification
+
+---
+
+### B.2 Product Enhancement Tests (NEW)
+
+**Impact:** Backend has endpoints not yet utilized by frontend
+
+| Test Case | Script Name | Priority | Description |
+|-----------|-------------|----------|-------------|
+| Search Suggestions | `fast-product-search-suggestions-test.sh` | **HIGH** | Test autocomplete search suggestions |
+| Filter Options | `fast-product-filter-options-test.sh` | **HIGH** | Test available filter options API |
+| Trending Products | `fast-product-trending-test.sh` | MEDIUM | Test trending products endpoint |
+| Product View Tracking | `fast-product-view-tracking-test.sh` | MEDIUM | Test product view analytics tracking |
+| Similar Products | `fast-product-similar-test.sh` | MEDIUM | Test similar products suggestions |
+| Image Management | `fast-product-image-management-test.sh` | MEDIUM | Test add/reorder/set-primary image |
+
+**Test Scenarios to Implement:**
+- [ ] GET /api/v1/products/search/suggestions?q={query}
+- [ ] GET /api/v1/products/filters/options
+- [ ] GET /api/v1/products/trending?limit={n}
+- [ ] POST /api/v1/products/{id}/view - Track view
+- [ ] GET /api/v1/products/{id}/similar
+- [ ] POST /api/v1/products/{id}/images - Add image
+- [ ] PUT /api/v1/products/{id}/images/{imageId}/primary - Set primary
+- [ ] PUT /api/v1/products/{id}/images/reorder - Reorder images
+
+---
+
+### B.3 Review System Tests (NEW)
+
+**Impact:** Backend has review endpoints not implemented in frontend
+
+| Test Case | Script Name | Priority | Description |
+|-----------|-------------|----------|-------------|
+| Create Review | `fast-review-create-test.sh` | **HIGH** | Customer creates product review |
+| Update Review | `fast-review-update-test.sh` | MEDIUM | Customer updates own review |
+| Mark Helpful | `fast-review-helpful-test.sh` | MEDIUM | Mark review as helpful |
+
+**Test Scenarios to Implement:**
+- [ ] POST /api/v1/reviews/ - Create review (requires order history)
+- [ ] PUT /api/v1/reviews/{reviewId} - Update own review
+- [ ] POST /api/v1/reviews/{reviewId}/helpful - Mark helpful
+
+---
+
+### B.4 Chat Enhancement Tests (NEW)
+
+**Impact:** Backend has chat features not utilized by frontend
+
+| Test Case | Script Name | Priority | Description |
+|-----------|-------------|----------|-------------|
+| Online Users | `fast-chat-online-users-test.sh` | MEDIUM | View online users in chat |
+
+**Test Scenarios to Implement:**
+- [ ] GET /api/v1/chat/online-users - View online status
+
+---
+
+### B.5 Order Status Flow Tests (NEW)
+
+**Impact:** HTTP method changes require testing the correct flow
+
+| Test Case | Script Name | Priority | Description |
+|-----------|-------------|----------|-------------|
+| Status Update Flow | `fast-order-status-update-flow-test.sh` | **CRITICAL** | Test PATCH method for status updates |
+| Ship Order Flow | `fast-order-ship-flow-test.sh` | **CRITICAL** | Test POST method for shipping |
+| Bulk Status Update | `fast-order-bulk-status-test.sh` | HIGH | Test bulk status update endpoint |
+
+**Test Scenarios to Implement:**
+- [ ] PATCH /api/v1/order-fulfillment/orders/{id}/status - Update status
+- [ ] POST /api/v1/order-fulfillment/orders/{id}/ship - Ship order
+- [ ] POST /api/v1/order-fulfillment/orders/bulk/update-status - Bulk update
+
+---
+
+## SECTION C: Test Execution Checklist
+
+### C.1 Pre-Test Setup
+- [ ] Backend services updated with Version 2 fixes
+- [ ] Frontend services updated with Version 2 fixes
+- [ ] Docker containers rebuilt: `docker-compose up -d --build`
+- [ ] Metro bundler cache cleared: `npm start -- --reset-cache`
+- [ ] App reinstalled on emulator
+
+### C.2 Execution Order (Recommended)
+
+**Phase 1: Authentication (Day 1)**
+- [ ] `fast-seller-login-test.sh`
+- [ ] `fast-customer-login-test.sh`
+
+**Phase 2: Seller Dashboard (Day 1-2)**
+- [ ] `fast-seller-analytics-test.sh`
+- [ ] `fast-seller-product-management-test.sh`
+- [ ] `fast-seller-add-product-test.sh`
+- [ ] `fast-seller-edit-products-test.sh`
+- [ ] `fast-seller-delete-product-test.sh`
+
+**Phase 3: Order Fulfillment (Day 2-3)**
+- [ ] `fast-seller-order-fulfillment-test.sh`
+- [ ] `fast-customer-order-test.sh`
+- [ ] `fast-complete-order-flow-test.sh`
+
+**Phase 4: New Features (Day 3-4)**
+- [ ] Implement and run Seller Profile tests
+- [ ] Implement and run Product Enhancement tests
+- [ ] Implement and run Review System tests
+
+---
+
+## SECTION D: Test Results Log
+
+### D.1 Re-Testing Results
+
+| Date | Test Script | Result | Notes |
+|------|-------------|--------|-------|
+| 2026-01-14 | `fast-seller-order-fulfillment-test.sh` | ⚠️ Partial | Orders list fixed, customer name display fixed. Need to test status updates. |
+| 2026-01-14 | Manual API verification | ✅ Pass | Verified `/api/v1/seller/fulfillment` returns orders correctly |
+
+### D.2 New Test Implementation Progress
+
+| Date | Test Script | Status | Notes |
+|------|-------------|--------|-------|
+| | | | |
+
+---
+
+## SECTION E: Known Issues & Blockers
+
+### E.1 Current Blockers
+- [ ] None documented yet
+
+### E.2 API Issues Found During Testing
+| Issue | Endpoint | Description | Status |
+|-------|----------|-------------|--------|
+| Trailing slash redirect | `/api/v1/seller/fulfillment/orders/` | API call with trailing slash caused 307 redirect, breaking response handling | ✅ Fixed |
+| Response parsing mismatch | `/api/v1/seller/fulfillment` | Frontend expected `response.data` array, backend returns `{orders: [...], pagination: {...}}` | ✅ Fixed |
+| Customer name not displayed | Order list UI | Frontend looked for flat `order.customer_name`, backend returns nested `order.customer.first_name/last_name` | ✅ Fixed |
+
+### E.3 Frontend Fixes Applied (2026-01-14)
+
+**File:** `front_end/src/services/orderFulfillmentService.js`
+
+| Line | Fix | Description |
+|------|-----|-------------|
+| 30 | Remove trailing slash | Changed `apiClient.get(\`${this.ordersEndpoint}/\`)` to `apiClient.get(this.ordersEndpoint)` |
+| 36 | Response parsing | Added `response.orders` check before array/data fallbacks |
+| 60-62 | Customer name extraction | Extract from nested `order.customer.first_name/last_name` object |
+
+---
+
+## SECTION F: Quick Reference - API Path Changes Summary
+
+| Service | Old Path | New Path |
+|---------|----------|----------|
+| Order Fulfillment | `/api/v1/orders/` | `/api/v1/order-fulfillment/orders` |
+| Seller Dashboard | `/api/v1/seller/` | `/api/v1/seller-dashboard/` |
+| Seller Analytics | `/api/v1/seller/analytics/` | `/api/v1/seller-analytics/` |
+| Seller Profile | `/api/v1/seller/profile/` | `/api/v1/seller-profile/` |
+
+### HTTP Method Changes
+
+| Operation | Old Method | New Method | New Endpoint |
+|-----------|------------|------------|--------------|
+| Update order status | PUT | PATCH | `/orders/{id}/status` |
+| Ship order | PUT | POST | `/orders/{id}/ship` |
+| Cancel order | PUT (generic) | POST | `/orders/{id}/cancel` |
+
+---
+
+## Appendix: Script Template for New Tests
+
+```bash
+#!/bin/bash
+# fast-{feature}-test.sh
+# Description: {Test description}
+# Created: 2026-01-14
+# Reference: VERSION_2_E2E_TEST_PROGRESS.md
+
+source "$(dirname "$0")/seller-login-lib.sh"  # or customer-login-lib.sh
+source "$(dirname "$0")/ensure-metro.sh"
+
+echo "=========================================="
+echo "Starting {Feature} Test"
+echo "=========================================="
+
+# 1. Setup
+ensure_metro_running
+ensure_app_running
+
+# 2. Login if needed
+login_as_seller  # or login_as_customer
+
+# 3. Navigate to feature
+
+# 4. Execute test actions
+
+# 5. Assertions
+
+# 6. Cleanup
+
+echo "=========================================="
+echo "{Feature} Test COMPLETED"
+echo "=========================================="
+```
+
+---
+
+*Document generated: 2026-01-14*
+*Last updated: 2026-01-14 - Order fulfillment fixes documented*

@@ -5,7 +5,8 @@ import {
   ScrollView,
   RefreshControl,
   Alert,
-  FlatList
+  FlatList,
+  TouchableOpacity
 } from 'react-native';
 import {
   Surface,
@@ -38,27 +39,29 @@ const OrderStatus = {
   REFUNDED: 'REFUNDED'
 };
 
-// OrderCard component
+// OrderCard component - wrapped Card.Content in TouchableOpacity for reliable tap handling
 const OrderCard = ({ order, onPress, onQuickAction, t }) => (
-  <Card style={styles.orderCard} onPress={() => onPress(order)} testID={`order-card-${order.id}`}>
-    <Card.Content>
-      <View style={styles.orderHeader}>
-        <Text style={styles.orderNumber} testID={`order-number-${order.id}`}>#{order.order_number}</Text>
-        <Chip
-          mode="flat"
-          style={[styles.statusChip, { backgroundColor: getStatusColor(order.status) }]}
-          textStyle={styles.statusText}
-          testID={`order-status-${order.id}`}
-        >
-          {order.status}
-        </Chip>
-      </View>
-      <Text style={styles.customerName} testID={`order-customer-${order.id}`}>{order.customer_name}</Text>
-      <Text style={styles.orderTotal} testID={`order-total-${order.id}`}>${order.total_amount.toFixed(2)}</Text>
-      <Text style={styles.orderDate} testID={`order-date-${order.id}`}>
-        {new Date(order.created_at).toLocaleDateString()}
-      </Text>
-    </Card.Content>
+  <Card style={styles.orderCard} testID={`order-card-${order.id}`}>
+    <TouchableOpacity onPress={() => onPress(order)} activeOpacity={0.7}>
+      <Card.Content>
+        <View style={styles.orderHeader}>
+          <Text style={styles.orderNumber} testID={`order-number-${order.id}`}>#{order.order_number}</Text>
+          <Chip
+            mode="flat"
+            style={[styles.statusChip, { backgroundColor: getStatusColor(order.status) }]}
+            textStyle={styles.statusText}
+            testID={`order-status-${order.id}`}
+          >
+            {order.status}
+          </Chip>
+        </View>
+        <Text style={styles.customerName} testID={`order-customer-${order.id}`}>{order.customer_name}</Text>
+        <Text style={styles.orderTotal} testID={`order-total-${order.id}`}>${order.total_amount.toFixed(2)}</Text>
+        <Text style={styles.orderDate} testID={`order-date-${order.id}`}>
+          {new Date(order.created_at).toLocaleDateString()}
+        </Text>
+      </Card.Content>
+    </TouchableOpacity>
     <Card.Actions>
       {order.status === 'PENDING' && (
         <Button mode="text" onPress={() => onQuickAction(order, 'confirm')} testID={`order-confirm-btn-${order.id}`}>
