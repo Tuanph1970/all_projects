@@ -86,6 +86,16 @@ const OrderCard = ({ order, onPress, onQuickAction, t }) => (
           {t('orderManagement.ship')}
         </Button>
       )}
+      {order.status?.toUpperCase() === 'SHIPPED' && (
+        <Button mode="text" onPress={() => onQuickAction(order, 'deliver')} testID={`order-deliver-btn-${order.id}`}>
+          Deliver
+        </Button>
+      )}
+      {(order.status?.toUpperCase() === 'DELIVERED' || order.status?.toUpperCase() === 'SHIPPED') && (
+        <Button mode="text" onPress={() => onQuickAction(order, 'refund')} testID={`order-refund-btn-${order.id}`} textColor="#E53935">
+          Refund
+        </Button>
+      )}
     </Card.Actions>
   </Card>
 );
@@ -240,6 +250,51 @@ export const OrderManagementScreen = () => {
 
   const handleQuickAction = async (order, action) => {
     console.log('[DEBUG] handleQuickAction called:', { orderId: order.id, action });
+
+    // Handle refund action with confirmation dialog
+    if (action === 'refund') {
+      Alert.alert(
+        'Process Refund',
+        `Are you sure you want to refund order #${order.order_number}?\nAmount: $${order.total_amount.toFixed(2)}`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          },
+          {
+            text: 'Refund',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                console.log('[DEBUG] Processing refund for order:', order.id);
+                const response = await orderFulfillmentService.processRefund(order.id, {
+                  amount: order.total_amount,
+                  reason: 'Customer return request'
+                });
+                console.log('[DEBUG] processRefund response:', response);
+
+                // Update local state
+                setOrders(prev =>
+                  prev.map(o =>
+                    o.id === order.id
+                      ? { ...o, status: OrderStatus.REFUNDED }
+                      : o
+                  )
+                );
+
+                showSnackbar(`Order #${order.order_number} refunded successfully`);
+              } catch (error) {
+                console.error('[DEBUG] Refund failed:', error);
+                console.error('[DEBUG] Error response:', error.response?.status, error.response?.data);
+                showSnackbar('Failed to process refund');
+              }
+            }
+          }
+        ]
+      );
+      return;
+    }
+
     try {
       let newStatus;
       switch (action) {
@@ -268,9 +323,9 @@ export const OrderManagementScreen = () => {
       console.log('[DEBUG] updateOrderStatus response:', response);
 
       // Update local state
-      setOrders(prev => 
-        prev.map(o => 
-          o.id === order.id 
+      setOrders(prev =>
+        prev.map(o =>
+          o.id === order.id
             ? { ...o, status: newStatus }
             : o
         )

@@ -159,10 +159,21 @@ class OrderFulfillmentService {
 
   // Process refund
   async processRefund(orderId, refundRequest) {
-    return await apiClient.post(
-      `${this.ordersEndpoint}/${orderId}/refund`,
-      { ...refundRequest, order_id: orderId }
-    );
+    const url = `${this.ordersEndpoint}/${orderId}/refund`;
+    const body = { ...refundRequest, order_id: orderId };
+    console.log('[DEBUG] processRefund URL:', url);
+    console.log('[DEBUG] processRefund body:', JSON.stringify(body));
+    try {
+      const response = await apiClient.post(url, body);
+      console.log('[DEBUG] processRefund SUCCESS:', JSON.stringify(response));
+      return response;
+    } catch (error) {
+      console.error('[DEBUG] processRefund FAILED');
+      console.error('[DEBUG] Error status:', error.response?.status);
+      console.error('[DEBUG] Error data:', JSON.stringify(error.response?.data));
+      console.error('[DEBUG] Error message:', error.message);
+      throw error;
+    }
   }
 
   // Get pending returns
