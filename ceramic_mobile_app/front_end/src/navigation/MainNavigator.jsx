@@ -23,6 +23,7 @@ import { SellerDashboardScreen } from '../screens/seller/SellerDashboardScreen.j
 import { ProductManagementScreen } from '../screens/seller/ProductManagementScreen.jsx';
 import { OrderManagementScreen } from '../screens/seller/OrderManagementScreen.jsx';
 import { OrderDetailsScreen } from '../screens/seller/OrderDetailsScreen.jsx';
+import OrderAnalyticsScreen from '../screens/seller/OrderAnalyticsScreen.jsx';
 import { AnalyticsScreen } from '../screens/seller/AnalyticsScreen.jsx';
 import { AddProductScreen } from '../screens/seller/AddProductScreen.jsx';
 import { ProductFormScreen } from '../screens/seller/ProductFormScreen.jsx';
@@ -198,6 +199,7 @@ export const MainNavigator  = () => {
         <Stack.Screen name="OrderHistory" component={OrderHistoryScreen} />
         <Stack.Screen name="CustomerOrderDetails" component={CustomerOrderDetailsScreen} />
         <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
+        <Stack.Screen name="OrderAnalytics" component={OrderAnalyticsScreen} />
         <Stack.Screen name="AddProduct" component={AddProductScreen} />
         <Stack.Screen
           name="ProductForm"

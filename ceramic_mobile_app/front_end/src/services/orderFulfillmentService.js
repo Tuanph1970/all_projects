@@ -188,12 +188,18 @@ class OrderFulfillmentService {
 
   // Get fulfillment analytics
   async getFulfillmentAnalytics(days = 30) {
+    const url = `${this.ordersEndpoint}/analytics/fulfillment`;
+    console.log('[DEBUG] getFulfillmentAnalytics URL:', url);
     try {
-      return await apiClient.get(`${this.ordersEndpoint}/analytics/fulfillment`, {
+      const response = await apiClient.get(url, {
         params: { days }
       });
+      console.log('[DEBUG] getFulfillmentAnalytics SUCCESS:', JSON.stringify(response));
+      return response;
     } catch (error) {
-      console.warn('Fulfillment analytics endpoint not available');
+      console.error('[DEBUG] getFulfillmentAnalytics FAILED');
+      console.error('[DEBUG] Error status:', error.response?.status);
+      console.error('[DEBUG] Error data:', JSON.stringify(error.response?.data));
       return { data: {} };
     }
   }
