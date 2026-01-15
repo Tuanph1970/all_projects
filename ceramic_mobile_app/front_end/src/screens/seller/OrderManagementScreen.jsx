@@ -39,10 +39,18 @@ const OrderStatus = {
   REFUNDED: 'REFUNDED'
 };
 
-// OrderCard component - wrapped Card.Content in TouchableOpacity for reliable tap handling
+// OrderCard component - Card.Content wrapped in TouchableOpacity for tap handling
+// Card.Actions remain outside TouchableOpacity so buttons work independently
 const OrderCard = ({ order, onPress, onQuickAction, t }) => (
   <Card style={styles.orderCard} testID={`order-card-${order.id}`}>
-    <TouchableOpacity onPress={() => onPress(order)} activeOpacity={0.7}>
+    <TouchableOpacity
+      onPress={() => {
+        console.log('[DEBUG] TouchableOpacity onPress triggered for order:', order.id);
+        onPress(order);
+      }}
+      activeOpacity={0.7}
+      testID={`order-card-touch-${order.id}`}
+    >
       <Card.Content>
         <View style={styles.orderHeader}>
           <Text style={styles.orderNumber} testID={`order-number-${order.id}`}>#{order.order_number}</Text>
@@ -63,17 +71,17 @@ const OrderCard = ({ order, onPress, onQuickAction, t }) => (
       </Card.Content>
     </TouchableOpacity>
     <Card.Actions>
-      {order.status === 'PENDING' && (
+      {order.status?.toUpperCase() === 'PENDING' && (
         <Button mode="text" onPress={() => onQuickAction(order, 'confirm')} testID={`order-confirm-btn-${order.id}`}>
           {t('orderManagement.confirm')}
         </Button>
       )}
-      {order.status === 'CONFIRMED' && (
+      {order.status?.toUpperCase() === 'CONFIRMED' && (
         <Button mode="text" onPress={() => onQuickAction(order, 'process')} testID={`order-process-btn-${order.id}`}>
           {t('orderManagement.process')}
         </Button>
       )}
-      {order.status === 'PROCESSING' && (
+      {order.status?.toUpperCase() === 'PROCESSING' && (
         <Button mode="text" onPress={() => onQuickAction(order, 'ship')} testID={`order-ship-btn-${order.id}`}>
           {t('orderManagement.ship')}
         </Button>
@@ -226,10 +234,12 @@ export const OrderManagementScreen = () => {
   };
 
   const handleOrderPress = (order) => {
+    console.log('[DEBUG] handleOrderPress called with order:', order.id);
     navigation.navigate('OrderDetails', { orderId: order.id });
   };
 
   const handleQuickAction = async (order, action) => {
+    console.log('[DEBUG] handleQuickAction called:', { orderId: order.id, action });
     try {
       let newStatus;
       switch (action) {
@@ -253,7 +263,9 @@ export const OrderManagementScreen = () => {
           return;
       }
 
-      await orderFulfillmentService.updateOrderStatus(order.id, { status: newStatus });
+      console.log('[DEBUG] Calling updateOrderStatus:', { orderId: order.id, newStatus });
+      const response = await orderFulfillmentService.updateOrderStatus(order.id, { status: newStatus });
+      console.log('[DEBUG] updateOrderStatus response:', response);
 
       // Update local state
       setOrders(prev => 
@@ -266,7 +278,8 @@ export const OrderManagementScreen = () => {
 
       showSnackbar(t('orderManagement.orderActionSuccess', { orderNumber: order.order_number, action }));
     } catch (error) {
-      console.error('Quick action failed:', error);
+      console.error('[DEBUG] Quick action failed:', error);
+      console.error('[DEBUG] Error response:', error.response?.status, error.response?.data);
       showSnackbar(t('orderManagement.updateStatusError'));
     }
   };

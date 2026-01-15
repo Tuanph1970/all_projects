@@ -88,8 +88,9 @@ export const API_CONFIG = {
     SELLER_ANALYTICS: '/api/v1/seller/analytics',
     SELLER_PROFILE: '/api/v1/seller/profile',
 
-    // Order fulfillment endpoint (seller order management via seller-service)
-    SELLER_FULFILLMENT: '/api/v1/seller/fulfillment/orders',
+    // Order fulfillment endpoints (seller order management)
+    SELLER_FULFILLMENT: '/api/v1/seller/fulfillment/orders',  // For GET orders
+    ORDER_FULFILLMENT: '/api/v1/order-fulfillment/orders',    // For status updates
   },
 };
 

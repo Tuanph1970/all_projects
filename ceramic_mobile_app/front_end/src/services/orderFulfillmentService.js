@@ -21,9 +21,10 @@ export const PaymentStatus = {
 };
 
 class OrderFulfillmentService {
-  // Use SELLER_FULFILLMENT endpoint for seller order management
-  // Routes to /api/v1/seller/fulfillment in backend (via seller-service)
-  ordersEndpoint = API_CONFIG.ENDPOINTS.SELLER_FULFILLMENT; // '/api/v1/seller/fulfillment'
+  // Use SELLER_FULFILLMENT endpoint for all order operations
+  // Backend API: /api/v1/seller/fulfillment/orders
+  ordersEndpoint = API_CONFIG.ENDPOINTS.SELLER_FULFILLMENT;
+  statusEndpoint = API_CONFIG.ENDPOINTS.SELLER_FULFILLMENT;
 
   // Get paginated list of seller's orders
   async getOrders(params = {}) {
@@ -76,11 +77,27 @@ class OrderFulfillmentService {
   }
 
   // Update order status (uses PATCH /{order_id}/status as per backend API)
+  // Backend expects lowercase status: 'pending', 'confirmed', 'processing', etc.
   async updateOrderStatus(orderId, statusUpdate) {
-    return await apiClient.patch(
-      `${this.ordersEndpoint}/${orderId}/status`,
-      statusUpdate
-    );
+    const url = `${this.statusEndpoint}/${orderId}/status`;
+    // Convert status to lowercase for backend API
+    const body = {
+      ...statusUpdate,
+      status: statusUpdate.status?.toLowerCase()
+    };
+    console.log('[DEBUG] updateOrderStatus URL:', url);
+    console.log('[DEBUG] updateOrderStatus body:', JSON.stringify(body));
+    try {
+      const response = await apiClient.patch(url, body);
+      console.log('[DEBUG] updateOrderStatus SUCCESS:', JSON.stringify(response));
+      return response;
+    } catch (error) {
+      console.error('[DEBUG] updateOrderStatus FAILED');
+      console.error('[DEBUG] Error status:', error.response?.status);
+      console.error('[DEBUG] Error data:', JSON.stringify(error.response?.data));
+      console.error('[DEBUG] Error message:', error.message);
+      throw error;
+    }
   }
 
   // Get order statistics overview

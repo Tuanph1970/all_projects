@@ -27,8 +27,8 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 
 **Specific Scenarios to Verify:**
 - [x] Get seller orders list ✅ Fixed 2026-01-14
-- [ ] Get order details
-- [ ] Update order status (now uses PATCH to `/status` endpoint)
+- [x] Get order details ✅ Fixed 2026-01-15 (OrderDetailsScreen navigation)
+- [x] Update order status (now uses PATCH to `/status` endpoint) ✅ Fixed 2026-01-15
 - [ ] Ship order (now uses POST to `/ship` endpoint)
 - [x] Get order stats ✅ Verified working 2026-01-14
 - [ ] Process return requests
@@ -256,6 +256,9 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 |------|-------------|--------|-------|
 | 2026-01-14 | `fast-seller-order-fulfillment-test.sh` | ⚠️ Partial | Orders list fixed, customer name display fixed. Need to test status updates. |
 | 2026-01-14 | Manual API verification | ✅ Pass | Verified `/api/v1/seller/fulfillment` returns orders correctly |
+| 2026-01-15 | Manual Order Card Navigation | ✅ Pass | Fixed OrderCard tap → OrderDetails navigation with TouchableOpacity wrapper |
+| 2026-01-15 | Manual Action Buttons | ✅ Pass | Fixed Confirm/Process/Ship buttons visibility (case sensitivity fix) |
+| 2026-01-15 | Manual Order Status Update | ✅ Pass | Fixed PATCH status endpoint and lowercase status conversion |
 
 ### D.2 New Test Implementation Progress
 
@@ -276,6 +279,11 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | Trailing slash redirect | `/api/v1/seller/fulfillment/orders/` | API call with trailing slash caused 307 redirect, breaking response handling | ✅ Fixed |
 | Response parsing mismatch | `/api/v1/seller/fulfillment` | Frontend expected `response.data` array, backend returns `{orders: [...], pagination: {...}}` | ✅ Fixed |
 | Customer name not displayed | Order list UI | Frontend looked for flat `order.customer_name`, backend returns nested `order.customer.first_name/last_name` | ✅ Fixed |
+| Wrong status update endpoint | `/api/v1/order-fulfillment/orders/{id}/status` | Endpoint doesn't exist, correct path is `/api/v1/seller/fulfillment/orders/{id}/status` | ✅ Fixed 2026-01-15 |
+| Status case sensitivity | PATCH `/status` endpoint | Backend expects lowercase status ('confirmed'), frontend sent uppercase ('CONFIRMED') | ✅ Fixed 2026-01-15 |
+| OrderCard onPress not working | React Native Paper Card | Card.onPress doesn't work when Card.Actions is present; needed TouchableOpacity wrapper | ✅ Fixed 2026-01-15 |
+| OrderDetailsScreen not registered | Navigation | OrderDetailsScreen was not imported/registered in MainNavigator.jsx | ✅ Fixed 2026-01-15 |
+| Action buttons not visible | Order list UI | Status comparison was case-sensitive; API returns 'pending' but code compared with 'PENDING' | ✅ Fixed 2026-01-15 |
 
 ### E.3 Frontend Fixes Applied (2026-01-14)
 
@@ -286,6 +294,37 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | 30 | Remove trailing slash | Changed `apiClient.get(\`${this.ordersEndpoint}/\`)` to `apiClient.get(this.ordersEndpoint)` |
 | 36 | Response parsing | Added `response.orders` check before array/data fallbacks |
 | 60-62 | Customer name extraction | Extract from nested `order.customer.first_name/last_name` object |
+
+### E.4 Frontend Fixes Applied (2026-01-15)
+
+**File:** `front_end/src/services/orderFulfillmentService.js`
+
+| Line | Fix | Description |
+|------|-----|-------------|
+| 26-27 | Unified endpoints | Changed both `ordersEndpoint` and `statusEndpoint` to use `SELLER_FULFILLMENT` |
+| 84-86 | Lowercase status | Added `status: statusUpdate.status?.toLowerCase()` for backend API compatibility |
+| 88-99 | Debug logging | Added detailed debug logging for API calls and errors |
+
+**File:** `front_end/src/screens/seller/OrderManagementScreen.jsx`
+
+| Line | Fix | Description |
+|------|-----|-------------|
+| Import | TouchableOpacity | Added `TouchableOpacity` to react-native imports |
+| OrderCard | Tap handling | Wrapped `Card.Content` in `TouchableOpacity` for reliable tap detection |
+| Card.Actions | Case sensitivity | Changed `order.status === 'PENDING'` to `order.status?.toUpperCase() === 'PENDING'` for all status checks |
+
+**File:** `front_end/src/navigation/MainNavigator.jsx`
+
+| Line | Fix | Description |
+|------|-----|-------------|
+| Import | OrderDetailsScreen | Added `import { OrderDetailsScreen } from '../screens/seller/OrderDetailsScreen.jsx'` |
+| Stack.Screen | Registration | Added `<Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />` |
+
+**File:** `front_end/src/constants/config.js`
+
+| Line | Fix | Description |
+|------|-----|-------------|
+| ENDPOINTS | Clarification | Documented `SELLER_FULFILLMENT` for GET orders and `ORDER_FULFILLMENT` for status updates |
 
 ---
 
@@ -347,4 +386,4 @@ echo "=========================================="
 ---
 
 *Document generated: 2026-01-14*
-*Last updated: 2026-01-14 - Order fulfillment fixes documented*
+*Last updated: 2026-01-15 - Order fulfillment status update fixes documented (TouchableOpacity, navigation, case sensitivity, API endpoint, lowercase status)*
