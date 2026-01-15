@@ -250,9 +250,9 @@ export const OrderManagementScreen = () => {
           newStatus = OrderStatus.PROCESSING;
           break;
         case 'ship':
-          // Navigate to shipping screen
-          navigation.navigate('ShipOrder', { orderId: order.id });
-          return;
+          // Directly update status to SHIPPED
+          newStatus = OrderStatus.SHIPPED;
+          break;
         case 'deliver':
           newStatus = OrderStatus.DELIVERED;
           break;

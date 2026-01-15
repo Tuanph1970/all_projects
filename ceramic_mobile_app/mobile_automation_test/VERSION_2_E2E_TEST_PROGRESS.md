@@ -29,7 +29,7 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 - [x] Get seller orders list ✅ Fixed 2026-01-14
 - [x] Get order details ✅ Fixed 2026-01-15 (OrderDetailsScreen navigation)
 - [x] Update order status (now uses PATCH to `/status` endpoint) ✅ Fixed 2026-01-15
-- [ ] Ship order (now uses POST to `/ship` endpoint)
+- [x] Ship order ✅ Fixed 2026-01-15 (direct status update instead of missing ShipOrder screen)
 - [x] Get order stats ✅ Verified working 2026-01-14
 - [ ] Process return requests
 - [ ] Process refunds
@@ -259,6 +259,7 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | 2026-01-15 | Manual Order Card Navigation | ✅ Pass | Fixed OrderCard tap → OrderDetails navigation with TouchableOpacity wrapper |
 | 2026-01-15 | Manual Action Buttons | ✅ Pass | Fixed Confirm/Process/Ship buttons visibility (case sensitivity fix) |
 | 2026-01-15 | Manual Order Status Update | ✅ Pass | Fixed PATCH status endpoint and lowercase status conversion |
+| 2026-01-15 | Manual Ship Order Flow | ✅ Pass | Full flow tested: PENDING → CONFIRMED → PROCESSING → SHIPPED |
 
 ### D.2 New Test Implementation Progress
 
@@ -312,6 +313,7 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | Import | TouchableOpacity | Added `TouchableOpacity` to react-native imports |
 | OrderCard | Tap handling | Wrapped `Card.Content` in `TouchableOpacity` for reliable tap detection |
 | Card.Actions | Case sensitivity | Changed `order.status === 'PENDING'` to `order.status?.toUpperCase() === 'PENDING'` for all status checks |
+| 252-255 | Ship action | Changed from `navigation.navigate('ShipOrder')` to direct status update `OrderStatus.SHIPPED` |
 
 **File:** `front_end/src/navigation/MainNavigator.jsx`
 
