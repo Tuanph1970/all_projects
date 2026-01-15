@@ -299,52 +299,47 @@ export const ProductManagementScreen = () => {
             </Text>
             <View style={styles.selectionActions}>
               <Button mode="text" onPress={selectAllVisible} testID="product-management-select-all">
-                {t('productManagement.all')}
+                All
               </Button>
               <Button mode="text" onPress={clearSelection} testID="product-management-clear-selection">
-                {t('productManagement.clear')}
+                Clear
               </Button>
-              <Menu
-                visible={bulkMenuVisible}
-                onDismiss={() => setBulkMenuVisible(false)}
-                anchor={
-                  <Button
-                    mode="contained"
-                    onPress={() => setBulkMenuVisible(true)}
-                    testID="product-management-bulk-actions"
-                  >
-                    {t('productManagement.actions')}
-                  </Button>
-                }
+              <Button
+                mode="contained"
+                onPress={() => setBulkMenuVisible(true)}
+                testID="product-management-bulk-actions"
+                buttonColor="#2196F3"
+                textColor="#FFFFFF"
               >
-                <Menu.Item
-                  onPress={() => handleBulkAction('activate')}
-                  title={t('productManagement.activate')}
-                  leadingIcon="check"
-                />
-                <Menu.Item
-                  onPress={() => handleBulkAction('deactivate')}
-                  title={t('productManagement.deactivate')}
-                  leadingIcon="close"
-                />
-                <Menu.Item
-                  onPress={() => handleBulkAction('feature')}
-                  title={t('productManagement.feature')}
-                  leadingIcon="star"
-                />
-                <Menu.Item
-                  onPress={() => handleBulkAction('unfeature')}
-                  title={t('productManagement.unfeature')}
-                  leadingIcon="star-outline"
-                />
-                <Divider />
-                <Menu.Item
-                  onPress={() => handleBulkAction('delete')}
-                  title={t('common.delete')}
-                  leadingIcon="delete"
-                />
-              </Menu>
+                Actions
+              </Button>
             </View>
+          </Surface>
+        )}
+
+        {/* Bulk Actions Menu Modal */}
+        {bulkMenuVisible && (
+          <Surface style={styles.bulkActionsMenu}>
+            <Text style={styles.bulkActionsTitle}>Bulk Actions</Text>
+            <Button mode="text" onPress={() => handleBulkAction('activate')} icon="check">
+              Activate
+            </Button>
+            <Button mode="text" onPress={() => handleBulkAction('deactivate')} icon="close">
+              Deactivate
+            </Button>
+            <Button mode="text" onPress={() => handleBulkAction('feature')} icon="star">
+              Feature
+            </Button>
+            <Button mode="text" onPress={() => handleBulkAction('unfeature')} icon="star-outline">
+              Unfeature
+            </Button>
+            <Divider style={{ marginVertical: 8 }} />
+            <Button mode="text" onPress={() => handleBulkAction('delete')} icon="delete" textColor="#E53935">
+              Delete
+            </Button>
+            <Button mode="outlined" onPress={() => setBulkMenuVisible(false)} style={{ marginTop: 8 }}>
+              Cancel
+            </Button>
           </Surface>
         )}
 
@@ -420,9 +415,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceVariant,
   },
   selectionBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: 'column',
     padding: spacing.md,
     marginHorizontal: spacing.sm,
     marginBottom: spacing.md,
@@ -433,9 +426,12 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.md,
     fontWeight: typography.weights.medium,
     color: colors.onSurface,
+    marginBottom: spacing.sm,
   },
   selectionActions: {
     flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
     gap: spacing.sm,
   },
   list: {
@@ -543,5 +539,20 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: colors.primary,
+  },
+  bulkActionsMenu: {
+    padding: spacing.md,
+    marginHorizontal: spacing.sm,
+    marginBottom: spacing.md,
+    borderRadius: 8,
+    elevation: 4,
+    backgroundColor: colors.surface,
+  },
+  bulkActionsTitle: {
+    fontSize: typography.sizes.lg,
+    fontWeight: typography.weights.semibold,
+    color: colors.onSurface,
+    marginBottom: spacing.md,
+    textAlign: 'center',
   },
 });
