@@ -60,7 +60,9 @@ class OrderFulfillmentService {
         total_amount: parseFloat(order.total_amount) || 0,
         customer_name: order.customer_name ||
           (order.customer ? `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim() : null) ||
-          `Customer #${order.customer_id}`
+          `Customer #${order.customer_id}`,
+        // Ensure date field is available (try different field names)
+        created_at: order.created_at || order.order_date || order.date || new Date().toISOString()
       })),
       pagination: {
         current_page: params.page || 1,

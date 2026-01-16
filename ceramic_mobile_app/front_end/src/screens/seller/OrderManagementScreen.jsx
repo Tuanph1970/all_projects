@@ -203,24 +203,31 @@ export const OrderManagementScreen = () => {
     }
   };
 
+  const searchTimeoutRef = React.useRef(null);
+
   const handleSearch = async (query) => {
     setSearchQuery(query);
-    
+
+    // Clear previous timeout for debounce
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
     // Debounce search
-    setTimeout(async () => {
-      if (query === searchQuery) {
-        try {
-          const response = await orderFulfillmentService.getOrders({
-            page: 1,
-            per_page: 20,
-            status: statusFilter,
-            search: query
-          });
-          setOrders(response.orders);
-          setPagination(response.pagination);
-        } catch (error) {
-          console.error('Search failed:', error);
-        }
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        console.log('[DEBUG] Searching orders with query:', query);
+        const response = await orderFulfillmentService.getOrders({
+          page: 1,
+          per_page: 20,
+          status: statusFilter,
+          search: query
+        });
+        console.log('[DEBUG] Search results:', response.orders.length, 'orders');
+        setOrders(response.orders);
+        setPagination(response.pagination);
+      } catch (error) {
+        console.error('Search failed:', error);
       }
     }, 500);
   };
@@ -612,7 +619,8 @@ const styles = StyleSheet.create({
   },
   orderDate: {
     fontSize: typography.sizes.sm,
-    color: colors.outline,
+    color: '#666666',
+    fontWeight: '500',
   },
   emptyContainer: {
     flex: 1,

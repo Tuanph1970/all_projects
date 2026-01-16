@@ -512,7 +512,8 @@ const styles = StyleSheet.create({
   },
   orderDate: {
     fontSize: typography.sizes.sm,
-    color: colors.outline,
+    color: '#666666',
+    fontWeight: '500',
   },
   customerName: {
     fontSize: typography.sizes.md,

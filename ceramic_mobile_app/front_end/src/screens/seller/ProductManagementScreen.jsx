@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, FlatList, Alert, RefreshControl } from 'react-native';
+import { View, StyleSheet, FlatList, Alert, RefreshControl, Modal, TextInput as RNTextInput } from 'react-native';
 import {
   Text,
   Appbar,
@@ -14,7 +14,9 @@ import {
   IconButton,
   Card,
   ActivityIndicator,
-  Snackbar
+  Snackbar,
+  Portal,
+  TextInput
 } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { colors, spacing, typography } from '../../constants/theme.js';
@@ -35,6 +37,11 @@ export const ProductManagementScreen = () => {
   const [hasMore, setHasMore] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+
+  // Price update modal
+  const [priceModalVisible, setPriceModalVisible] = useState(false);
+  const [priceUpdateType, setPriceUpdateType] = useState('fixed'); // 'fixed' or 'percentage'
+  const [priceUpdateValue, setPriceUpdateValue] = useState('');
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('active');
@@ -143,6 +150,9 @@ export const ProductManagementScreen = () => {
           await sellerService.bulkUpdateFeatured(selectedIds, false);
           showSnackbar(t('productManagement.unfeaturedProducts', { count: selectedIds.length }));
           break;
+        case 'updatePrice':
+          setPriceModalVisible(true);
+          return;
         case 'delete':
           Alert.alert(
             t('productManagement.deleteProducts'),
@@ -176,6 +186,67 @@ export const ProductManagementScreen = () => {
     } catch (error) {
       console.error('Bulk action failed:', error);
       showSnackbar(t('productManagement.bulkActionFailed'));
+    }
+  };
+
+  const handlePriceUpdate = async () => {
+    const selectedIds = Array.from(selectedProducts);
+    const value = parseFloat(priceUpdateValue);
+
+    console.log('[DEBUG] handlePriceUpdate called');
+    console.log('[DEBUG] selectedIds:', selectedIds);
+    console.log('[DEBUG] priceUpdateType:', priceUpdateType);
+    console.log('[DEBUG] priceUpdateValue:', priceUpdateValue);
+    console.log('[DEBUG] parsed value:', value);
+
+    if (isNaN(value) || (priceUpdateType === 'fixed' && value <= 0)) {
+      console.log('[DEBUG] Invalid value, showing error');
+      showSnackbar('Please enter a valid price value');
+      return;
+    }
+
+    try {
+      setPriceModalVisible(false);
+
+      // Build updates array for bulk operation
+      const updates = [];
+      for (const productId of selectedIds) {
+        const product = products.find(p => p.id === productId);
+        console.log('[DEBUG] Processing product:', productId, product?.name, 'current price:', product?.price);
+        if (product) {
+          let newPrice;
+          if (priceUpdateType === 'fixed') {
+            newPrice = value;
+          } else {
+            // Percentage: positive = increase, negative = decrease
+            newPrice = product.price * (1 + value / 100);
+          }
+          newPrice = Math.max(0.01, Math.round(newPrice * 100) / 100); // Ensure min price and round to 2 decimals
+
+          console.log('[DEBUG] New price calculated:', newPrice);
+          updates.push({
+            product_id: productId,
+            price: newPrice
+          });
+        }
+      }
+
+      console.log('[DEBUG] Updates array:', JSON.stringify(updates));
+      console.log('[DEBUG] Calling sellerService.bulkUpdatePrices...');
+
+      // Use bulk update API
+      const response = await sellerService.bulkUpdatePrices(updates);
+      console.log('[DEBUG] bulkUpdatePrices response:', JSON.stringify(response));
+
+      showSnackbar(`Updated prices for ${selectedIds.length} product(s)`);
+      setPriceUpdateValue('');
+      loadProducts(true);
+    } catch (error) {
+      console.error('[DEBUG] Price update failed:', error);
+      console.error('[DEBUG] Error message:', error.message);
+      console.error('[DEBUG] Error response:', error.response?.data);
+      console.error('[DEBUG] Error status:', error.response?.status);
+      showSnackbar('Failed to update prices');
     }
   };
 
@@ -334,6 +405,10 @@ export const ProductManagementScreen = () => {
               Unfeature
             </Button>
             <Divider style={{ marginVertical: 8 }} />
+            <Button mode="text" onPress={() => handleBulkAction('updatePrice')} icon="currency-usd" textColor="#4CAF50">
+              Update Price
+            </Button>
+            <Divider style={{ marginVertical: 8 }} />
             <Button mode="text" onPress={() => handleBulkAction('delete')} icon="delete" textColor="#E53935">
               Delete
             </Button>
@@ -342,6 +417,79 @@ export const ProductManagementScreen = () => {
             </Button>
           </Surface>
         )}
+
+        {/* Price Update Modal */}
+        <Modal
+          visible={priceModalVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setPriceModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <Surface style={styles.priceModal}>
+              <Text style={styles.priceModalTitle}>Update Price</Text>
+              <Text style={styles.priceModalSubtitle}>
+                {selectedProducts.size} product(s) selected
+              </Text>
+
+              <View style={styles.priceTypeSelector}>
+                <Button
+                  mode={priceUpdateType === 'fixed' ? 'contained' : 'outlined'}
+                  onPress={() => setPriceUpdateType('fixed')}
+                  style={styles.priceTypeButton}
+                  compact
+                >
+                  Fixed Price
+                </Button>
+                <Button
+                  mode={priceUpdateType === 'percentage' ? 'contained' : 'outlined'}
+                  onPress={() => setPriceUpdateType('percentage')}
+                  style={styles.priceTypeButton}
+                  compact
+                >
+                  Percentage
+                </Button>
+              </View>
+
+              <TextInput
+                label={priceUpdateType === 'fixed' ? 'New Price ($)' : 'Change (%)'}
+                value={priceUpdateValue}
+                onChangeText={setPriceUpdateValue}
+                keyboardType="numeric"
+                mode="outlined"
+                style={styles.priceInput}
+                placeholder={priceUpdateType === 'fixed' ? 'e.g. 29.99' : 'e.g. 10 or -10'}
+              />
+
+              {priceUpdateType === 'percentage' && (
+                <Text style={styles.priceHint}>
+                  Positive = increase, Negative = decrease
+                </Text>
+              )}
+
+              <View style={styles.priceModalButtons}>
+                <Button
+                  mode="outlined"
+                  onPress={() => {
+                    setPriceModalVisible(false);
+                    setPriceUpdateValue('');
+                  }}
+                  style={styles.priceModalButton}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  mode="contained"
+                  onPress={handlePriceUpdate}
+                  style={styles.priceModalButton}
+                  buttonColor="#4CAF50"
+                >
+                  Apply
+                </Button>
+              </View>
+            </Surface>
+          </View>
+        </Modal>
 
         {loading && products.length === 0 ? (
           <View style={styles.loadingContainer} testID="product-management-loading">
@@ -554,5 +702,62 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
     marginBottom: spacing.md,
     textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  priceModal: {
+    width: '100%',
+    maxWidth: 400,
+    padding: spacing.lg,
+    borderRadius: 12,
+    elevation: 8,
+    backgroundColor: colors.surface,
+  },
+  priceModalTitle: {
+    fontSize: typography.sizes.xl,
+    fontWeight: typography.weights.semibold,
+    color: colors.onSurface,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  priceModalSubtitle: {
+    fontSize: typography.sizes.sm,
+    color: colors.outline,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  priceTypeSelector: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  priceTypeButton: {
+    flex: 1,
+  },
+  priceInput: {
+    marginBottom: spacing.sm,
+    backgroundColor: colors.surface,
+  },
+  priceHint: {
+    fontSize: typography.sizes.xs,
+    color: colors.outline,
+    textAlign: 'center',
+    marginBottom: spacing.md,
+    fontStyle: 'italic',
+  },
+  priceModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+  priceModalButton: {
+    flex: 1,
   },
 });

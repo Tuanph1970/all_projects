@@ -75,10 +75,7 @@ class SellerService {
   }
 
   // Bulk Operations
-  async bulkUpdateStatus(
-    productIds,
-    isActive
-  ) {
+  async bulkUpdateStatus(productIds, isActive) {
     return await apiClient.post(`${API_CONFIG.ENDPOINTS.SELLER}/bulk-operations/update-status`, {
       product_ids: productIds,
       is_active: isActive
@@ -86,9 +83,20 @@ class SellerService {
   }
 
   async bulkUpdatePrices(updates) {
-    return await apiClient.post(`${API_CONFIG.ENDPOINTS.SELLER}/bulk-operations/update-prices`, {
-      updates
-    });
+    const url = `${API_CONFIG.ENDPOINTS.SELLER}/bulk-operations/update-prices`;
+    console.log('[DEBUG] bulkUpdatePrices URL:', url);
+    console.log('[DEBUG] bulkUpdatePrices payload:', JSON.stringify(updates));
+    try {
+      // API expects direct array, not wrapped in {updates: [...]}
+      const response = await apiClient.post(url, updates);
+      console.log('[DEBUG] bulkUpdatePrices SUCCESS:', JSON.stringify(response));
+      return response;
+    } catch (error) {
+      console.error('[DEBUG] bulkUpdatePrices FAILED');
+      console.error('[DEBUG] Error status:', error.response?.status);
+      console.error('[DEBUG] Error data:', JSON.stringify(error.response?.data));
+      throw error;
+    }
   }
 
   async bulkUpdateStock(updates) {
@@ -101,10 +109,21 @@ class SellerService {
     productIds,
     isFeatured
   ) {
-    return await apiClient.post(`${API_CONFIG.ENDPOINTS.PRODUCTS}/bulk/update-featured`, {
-      product_ids: productIds,
-      is_featured: isFeatured
-    });
+    // Use the products service bulk endpoint
+    // is_featured is a query param, product_ids is a direct array in body
+    const url = `${API_CONFIG.ENDPOINTS.PRODUCTS}/bulk/update-featured?is_featured=${isFeatured}`;
+    console.log('[DEBUG] bulkUpdateFeatured URL:', url);
+    console.log('[DEBUG] bulkUpdateFeatured payload:', JSON.stringify(productIds));
+    try {
+      const response = await apiClient.post(url, productIds);
+      console.log('[DEBUG] bulkUpdateFeatured SUCCESS:', JSON.stringify(response));
+      return response;
+    } catch (error) {
+      console.error('[DEBUG] bulkUpdateFeatured FAILED');
+      console.error('[DEBUG] Error status:', error.response?.status);
+      console.error('[DEBUG] Error data:', JSON.stringify(error.response?.data));
+      throw error;
+    }
   }
 
   // Create Product

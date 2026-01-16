@@ -85,7 +85,7 @@ export const API_CONFIG = {
     SELLER: '/api/v1/seller', // Base seller path for upload-image, bulk-operations
     SELLER_DASHBOARD: '/api/v1/seller/dashboard',
     SELLER_PRODUCTS: '/api/v1/seller/products',
-    SELLER_ANALYTICS: '/api/v1/seller/analytics',
+    SELLER_ANALYTICS: '/api/v1/seller',
     SELLER_PROFILE: '/api/v1/seller/profile',
 
     // Order fulfillment endpoints (seller order management)

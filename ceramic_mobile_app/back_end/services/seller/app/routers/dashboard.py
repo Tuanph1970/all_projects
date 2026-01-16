@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, 
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, func, and_, or_, extract, case
 from typing import List, Optional, Dict
+from pydantic import BaseModel
 from datetime import datetime, timedelta, date
 import os
 import shutil
@@ -560,14 +561,19 @@ def get_products_for_management(
         }
     }
 
+class BulkStatusUpdateRequest(BaseModel):
+    product_ids: List[int]
+    is_active: bool
+
 @router.post("/bulk-operations/update-status")
 def bulk_update_product_status(
-    product_ids: List[int],
-    is_active: bool,
+    request: BulkStatusUpdateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Bulk update product active status"""
+    product_ids = request.product_ids
+    is_active = request.is_active
     if current_user.role not in [UserRole.SELLER, UserRole.DUAL]:
         raise HTTPException(status_code=403, detail="Only sellers can update products")
 
