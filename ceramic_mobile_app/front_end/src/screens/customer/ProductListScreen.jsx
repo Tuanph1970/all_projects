@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -91,20 +91,30 @@ export const ProductListScreen = () => {
   const [sortBy, setSortBy] = useState('newest');
   const [sortOrder, setSortOrder] = useState('desc');
 
+  // Ref to prevent duplicate loads
+  const isInitialLoadDone = useRef(false);
+  const categoriesLoadedRef = useRef(false);
+
   // Get route parameters
   const categoryId = route.params?.categoryId;
   const categoryName = route.params?.categoryName;
   const initialSearchQuery = route.params?.searchQuery;
 
+  // Load categories only once
+  useEffect(() => {
+    if (!categoriesLoadedRef.current && categories.length === 0) {
+      categoriesLoadedRef.current = true;
+      dispatch(fetchCategories());
+    }
+  }, [dispatch, categories.length]);
+
   useFocusEffect(
     useCallback(() => {
+      // Reset on focus
+      isInitialLoadDone.current = false;
+
       // Clear products when screen focuses
       dispatch(clearProducts());
-      
-      // Load categories if not loaded
-      if (categories.length === 0) {
-        dispatch(fetchCategories());
-      }
 
       // Set initial search query if provided
       if (initialSearchQuery && initialSearchQuery !== localSearchQuery) {
@@ -113,16 +123,19 @@ export const ProductListScreen = () => {
       }
 
       // Find selected category
-      if (categoryId) {
+      if (categoryId && categories.length > 0) {
         const category = categories.find(c => c.id === categoryId);
         if (category) {
           setSelectedCategory(category);
         }
       }
 
-      // Load initial data
-      loadProducts(1);
-    }, [categoryId, initialSearchQuery, categories])
+      // Load initial data only once per focus
+      if (!isInitialLoadDone.current) {
+        isInitialLoadDone.current = true;
+        loadProducts(1);
+      }
+    }, [categoryId, initialSearchQuery])
   );
 
   const loadProducts = useCallback(

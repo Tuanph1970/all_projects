@@ -6,8 +6,8 @@ http:
     # Rate Limiting Middleware
     ratelimit:
       rateLimit:
-        average: 100
-        burst: 200
+        average: 1000
+        burst: 2000
         period: 1m
         sourceCriterion:
           ipStrategy:
