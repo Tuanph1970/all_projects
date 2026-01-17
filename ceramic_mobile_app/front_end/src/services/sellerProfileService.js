@@ -5,12 +5,12 @@ import { API_CONFIG } from '../constants/config.js';
 class SellerProfileService {
   // Get seller profile
   async getProfile() {
-    return await apiClient.get(`${API_CONFIG.ENDPOINTS.SELLER_PROFILE}/profile`);
+    return await apiClient.get(API_CONFIG.ENDPOINTS.SELLER_PROFILE);
   }
 
   // Update seller profile
   async updateProfile(profileUpdate) {
-    return await apiClient.put(`${API_CONFIG.ENDPOINTS.SELLER_PROFILE}/profile`, profileUpdate);
+    return await apiClient.put(API_CONFIG.ENDPOINTS.SELLER_PROFILE, profileUpdate);
   }
 
   // Get complete store information

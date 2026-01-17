@@ -27,6 +27,7 @@ import OrderAnalyticsScreen from '../screens/seller/OrderAnalyticsScreen.jsx';
 import { AnalyticsScreen } from '../screens/seller/AnalyticsScreen.jsx';
 import { AddProductScreen } from '../screens/seller/AddProductScreen.jsx';
 import { ProductFormScreen } from '../screens/seller/ProductFormScreen.jsx';
+import { SellerProfileScreen } from '../screens/seller/SellerProfileScreen.jsx';
 
 // Common Screens
 import { ChatListScreen } from '../screens/chat/ChatListScreen.jsx';
@@ -108,6 +109,9 @@ const SellerTabs = () => {
             case 'Chat':
               iconName = 'chat';
               break;
+            case 'Profile':
+              iconName = 'person';
+              break;
             default:
               iconName = 'help';
           }
@@ -125,6 +129,7 @@ const SellerTabs = () => {
       <Tab.Screen name="Orders" component={OrderManagementScreen} />
       <Tab.Screen name="Analytics" component={AnalyticsScreen} />
       <Tab.Screen name="Chat" component={ChatListScreen} />
+      <Tab.Screen name="Profile" component={SellerProfileScreen} />
     </Tab.Navigator>
   );
 };
