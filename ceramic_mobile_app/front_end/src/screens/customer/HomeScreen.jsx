@@ -7,6 +7,7 @@ import {
   fetchFeaturedProducts,
   fetchPopularProducts,
   fetchNewArrivals,
+  fetchTrendingProducts,
   toggleFavorite
 } from '../../store/slices/productSlice.js';
 import { colors, spacing, typography } from '../../constants/theme.js';
@@ -22,6 +23,7 @@ export const HomeScreen = () => {
     mainCategories,
     popularProducts,
     newArrivals,
+    trendingProducts,
     favorites,
     isFeaturedLoading,
     isLoading,
@@ -43,6 +45,7 @@ export const HomeScreen = () => {
         dispatch(fetchFeaturedProducts()),
         dispatch(fetchPopularProducts(10)),
         dispatch(fetchNewArrivals(10)),
+        dispatch(fetchTrendingProducts(10)),
       ]);
     } catch (error) {
       console.error('Failed to load home data:', error);
@@ -205,6 +208,33 @@ export const HomeScreen = () => {
           </View>
         )}
 
+        {/* Trending Products */}
+        {trendingProducts?.length > 0 && (
+          <View style={styles.section} testID="trending-products-section">
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                🔥 Trending Now
+              </Text>
+              <Button
+                mode="text"
+                onPress={() => navigation.navigate('ProductList', { filter: 'trending' })}
+                compact
+              >
+                {t('common.viewAll')}
+              </Button>
+            </View>
+            <FlatList
+              data={trendingProducts.slice(0, 4)}
+              renderItem={renderPopularProduct}
+              keyExtractor={item => `trending-${item.id}`}
+              numColumns={2}
+              scrollEnabled={false}
+              contentContainerStyle={styles.productsGrid}
+              columnWrapperStyle={styles.productRow}
+            />
+          </View>
+        )}
+
         {/* New Arrivals */}
         {newArrivals?.length > 0 && (
           <View style={styles.section}>
@@ -254,6 +284,7 @@ export const HomeScreen = () => {
         {!isLoading && !error &&
          (featuredProducts?.length ?? 0) === 0 &&
          (popularProducts?.length ?? 0) === 0 &&
+         (trendingProducts?.length ?? 0) === 0 &&
          (newArrivals?.length ?? 0) === 0 && (
           <View style={styles.emptyStateContainer}>
             <Card style={styles.emptyStateCard}>

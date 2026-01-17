@@ -34,6 +34,7 @@ const initialState = {
   products: [],
   popularProducts: [],
   newArrivals: [],
+  trendingProducts: [],
   saleProducts: [],
   favorites: [],
   
@@ -153,6 +154,18 @@ export const fetchNewArrivals = createAsyncThunk(
       return products;
     } catch (error) {
       return rejectWithValue(extractErrorMessage(error, 'Failed to fetch new arrivals'));
+    }
+  }
+);
+
+export const fetchTrendingProducts = createAsyncThunk(
+  'products/fetchTrendingProducts',
+  async (limit = 10, { rejectWithValue }) => {
+    try {
+      const products = await productService.getTrendingProducts(limit);
+      return products;
+    } catch (error) {
+      return rejectWithValue(extractErrorMessage(error, 'Failed to fetch trending products'));
     }
   }
 );
@@ -421,7 +434,12 @@ const productSlice = createSlice({
       .addCase(fetchNewArrivals.fulfilled, (state, action) => {
         state.newArrivals = action.payload;
       })
-      
+
+      // Fetch trending products
+      .addCase(fetchTrendingProducts.fulfilled, (state, action) => {
+        state.trendingProducts = action.payload;
+      })
+
       // Fetch sale products
       .addCase(fetchSaleProducts.fulfilled, (state, action) => {
         state.saleProducts = action.payload;

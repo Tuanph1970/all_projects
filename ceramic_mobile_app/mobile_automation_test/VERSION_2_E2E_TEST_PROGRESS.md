@@ -153,7 +153,7 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 |-----------|-------------|----------|--------|-------------|
 | Search Suggestions | `fast-product-search-suggestions-test.sh` | **HIGH** | ✅ Done | Test autocomplete search suggestions |
 | Filter Options | `fast-product-filter-options-test.sh` | **HIGH** | ✅ Done | Test available filter options API |
-| Trending Products | `fast-product-trending-test.sh` | MEDIUM | ⏳ Pending | Test trending products endpoint |
+| Trending Products | `fast-product-trending-test.sh` | MEDIUM | ✅ Done | Test trending products endpoint |
 | Product View Tracking | `fast-product-view-tracking-test.sh` | MEDIUM | ⏳ Pending | Test product view analytics tracking |
 | Similar Products | `fast-product-similar-test.sh` | MEDIUM | ⏳ Pending | Test similar products suggestions |
 | Image Management | `fast-product-image-management-test.sh` | MEDIUM | ⏳ Pending | Test add/reorder/set-primary image |
@@ -161,7 +161,7 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 **Test Scenarios:**
 - [x] Search Suggestions - Autocomplete with debounce ✅ Fixed 2026-01-17 (SearchScreen.jsx)
 - [x] Filter Options - Category, Price Range, Sort By filters ✅ Fixed 2026-01-17 (SearchScreen.jsx)
-- [ ] GET /api/v1/products/trending?limit={n}
+- [x] GET /api/v1/products/trending?limit={n} ✅ Fixed 2026-01-17 (HomeScreen.jsx)
 - [ ] POST /api/v1/products/{id}/view - Track view
 - [ ] GET /api/v1/products/{id}/similar
 - [ ] POST /api/v1/products/{id}/images - Add image
@@ -172,7 +172,9 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 - `SearchScreen.jsx` - Added autocomplete suggestions with 300ms debounce, dropdown UI
 - `SearchScreen.jsx` - Added filter modal with Sort By, Price Range, Category filters
 - `SearchScreen.jsx` - Filter state management, apply/clear filters, active filter count badge
-- `productService.js` - Added getSearchSuggestions (with fallback), getFilterOptions (with fallback building filters from categories + predefined price ranges)
+- `HomeScreen.jsx` - Added "🔥 Trending Now" section with fetchTrendingProducts
+- `productSlice.js` - Added trendingProducts state and fetchTrendingProducts thunk
+- `productService.js` - Added getSearchSuggestions (with fallback), getFilterOptions (with fallback), getTrendingProducts
 - Fixed ProductCard price formatting (handle string/undefined prices)
 - Fixed RadioButton values (changed null to empty string for React Native Paper compatibility)
 - Fixed search text clear (properly resets products when text is cleared)
@@ -290,6 +292,7 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | | B.1 Verification Request | ⏳ Pending | Backend endpoint exists, frontend not implemented |
 | 2026-01-17 | B.2 Search Suggestions | ✅ Pass | Autocomplete with debounce, fallback to product search |
 | 2026-01-17 | B.2 Filter Options | ✅ Pass | Filter modal with Sort By, Price Range, Category filters |
+| 2026-01-17 | B.2 Trending Products | ✅ Pass | Trending section on HomeScreen with API integration |
 
 ---
 
@@ -415,4 +418,4 @@ echo "=========================================="
 ---
 
 *Document generated: 2026-01-14*
-*Last updated: 2026-01-17 - Section A COMPLETE, Section B.1 PARTIAL (4/7), Section B.2 PARTIAL (2/6: Search Suggestions + Filter Options done)*
+*Last updated: 2026-01-17 - Section A COMPLETE, Section B.1 PARTIAL (4/7), Section B.2 PARTIAL (3/6: Search Suggestions + Filter Options + Trending Products done)*
