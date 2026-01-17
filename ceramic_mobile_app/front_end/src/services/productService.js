@@ -280,11 +280,39 @@ class ProductService {
   // Get filter options (available filters for search)
   async getFilterOptions() {
     try {
+      // Try dedicated endpoint first
       const response = await apiClient.get(`${this.baseUrl}/filters/options`);
       return response;
     } catch (error) {
-      console.log('Filter options error:', error);
-      return { categories: [], brands: [], priceRanges: [] };
+      // Fallback: build filter options from available data
+      try {
+        const categories = await this.getCategories();
+
+        // Predefined price ranges
+        const priceRanges = [
+          { id: 'under50', label: 'Under $50', min: 0, max: 50 },
+          { id: '50to100', label: '$50 - $100', min: 50, max: 100 },
+          { id: '100to200', label: '$100 - $200', min: 100, max: 200 },
+          { id: 'over200', label: 'Over $200', min: 200, max: null },
+        ];
+
+        // Sort options
+        const sortOptions = [
+          { id: 'newest', label: 'Newest First', sortBy: 'created_at', sortOrder: 'desc' },
+          { id: 'price_low', label: 'Price: Low to High', sortBy: 'price', sortOrder: 'asc' },
+          { id: 'price_high', label: 'Price: High to Low', sortBy: 'price', sortOrder: 'desc' },
+          { id: 'name_az', label: 'Name: A to Z', sortBy: 'name', sortOrder: 'asc' },
+        ];
+
+        return {
+          categories: Array.isArray(categories) ? categories : [],
+          priceRanges,
+          sortOptions,
+          brands: [], // Not available in current backend
+        };
+      } catch (fallbackError) {
+        return { categories: [], brands: [], priceRanges: [], sortOptions: [] };
+      }
     }
   }
 

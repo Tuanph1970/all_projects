@@ -6,6 +6,8 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
+  ScrollView,
+  Modal,
 } from 'react-native';
 import {
   Appbar,
@@ -17,6 +19,8 @@ import {
   ActivityIndicator,
   Button,
   Divider,
+  Portal,
+  RadioButton,
 } from 'react-native-paper';
 import { useSelector, useDispatch } from 'react-redux';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -88,6 +92,20 @@ export const SearchScreen = () => {
   const [showSuggestionDropdown, setShowSuggestionDropdown] = useState(false);
   const debounceTimerRef = useRef(null);
 
+  // Filter state
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filterOptions, setFilterOptions] = useState({
+    categories: [],
+    priceRanges: [],
+    sortOptions: [],
+  });
+  const [selectedFilters, setSelectedFilters] = useState({
+    categoryId: '',
+    priceRange: '',
+    sortOption: 'newest',
+  });
+  const [activeFiltersCount, setActiveFiltersCount] = useState(0);
+
   useFocusEffect(
     useCallback(() => {
       // Load categories if not loaded
@@ -99,8 +117,21 @@ export const SearchScreen = () => {
       if (popularProducts.length === 0) {
         dispatch(fetchPopularProducts({ limit: 10 }));
       }
+
+      // Load filter options
+      loadFilterOptions();
     }, [dispatch, categories.length, popularProducts.length])
   );
+
+  // Load filter options from service
+  const loadFilterOptions = useCallback(async () => {
+    try {
+      const options = await productService.getFilterOptions();
+      setFilterOptions(options);
+    } catch (error) {
+      // Use default options on error
+    }
+  }, []);
 
   // Fetch search suggestions with debounce
   const fetchSuggestions = useCallback(async (query) => {
@@ -131,11 +162,21 @@ export const SearchScreen = () => {
       clearTimeout(debounceTimerRef.current);
     }
 
-    // Set new debounced call
+    // If text is cleared, reset search state immediately
+    if (!text.trim()) {
+      setSuggestions([]);
+      setShowSuggestionDropdown(false);
+      setShowSuggestions(true);
+      dispatch(clearProducts());
+      dispatch(setSearchQuery(''));
+      return;
+    }
+
+    // Set new debounced call for suggestions
     debounceTimerRef.current = setTimeout(() => {
       fetchSuggestions(text);
     }, 300); // 300ms debounce
-  }, [fetchSuggestions]);
+  }, [fetchSuggestions, dispatch]);
 
   // Handle suggestion tap
   const handleSuggestionTap = useCallback((suggestion) => {
@@ -156,14 +197,41 @@ export const SearchScreen = () => {
   }, []);
 
   const handleSearch = useCallback(
-    (query) => {
+    (query, filters = selectedFilters) => {
       if (query.trim()) {
         setLocalSearchQuery(query);
         dispatch(setSearchQuery(query));
         dispatch(clearProducts());
-        dispatch(searchProducts({ query, page: 1 }));
+
+        // Build params object for the Redux thunk
+        // The thunk expects { query, params } structure
+        const params = { page: 1 };
+
+        if (filters.categoryId) {
+          // Convert string to number for API
+          params.categoryId = parseInt(filters.categoryId, 10);
+        }
+
+        if (filters.priceRange) {
+          const range = filterOptions.priceRanges.find(r => r.id === filters.priceRange);
+          if (range) {
+            params.minPrice = range.min;
+            if (range.max) params.maxPrice = range.max;
+          }
+        }
+
+        if (filters.sortOption) {
+          const sort = filterOptions.sortOptions.find(s => s.id === filters.sortOption);
+          if (sort) {
+            params.sortBy = sort.sortBy;
+            params.sortOrder = sort.sortOrder;
+          }
+        }
+
+        // Dispatch with correct structure: { query, params }
+        dispatch(searchProducts({ query, params }));
         setShowSuggestions(false);
-        
+
         // Add to search history
         setSearchHistory(prev => {
           const newHistory = [query, ...prev.filter(item => item !== query)].slice(0, 5);
@@ -175,8 +243,42 @@ export const SearchScreen = () => {
         dispatch(setSearchQuery(''));
       }
     },
-    [dispatch]
+    [dispatch, selectedFilters, filterOptions]
   );
+
+  // Filter handlers
+  const updateActiveFiltersCount = useCallback((filters) => {
+    let count = 0;
+    if (filters.categoryId) count++;
+    if (filters.priceRange) count++;
+    if (filters.sortOption && filters.sortOption !== 'newest') count++;
+    setActiveFiltersCount(count);
+  }, []);
+
+  const handleFilterChange = useCallback((filterType, value) => {
+    setSelectedFilters(prev => {
+      const newFilters = { ...prev, [filterType]: value };
+      updateActiveFiltersCount(newFilters);
+      return newFilters;
+    });
+  }, [updateActiveFiltersCount]);
+
+  const applyFilters = useCallback(() => {
+    setShowFilterModal(false);
+    if (localSearchQuery.trim()) {
+      handleSearch(localSearchQuery, selectedFilters);
+    }
+  }, [localSearchQuery, selectedFilters, handleSearch]);
+
+  const clearFilters = useCallback(() => {
+    const defaultFilters = {
+      categoryId: '',
+      priceRange: '',
+      sortOption: 'newest',
+    };
+    setSelectedFilters(defaultFilters);
+    setActiveFiltersCount(0);
+  }, []);
 
   const handleCategorySelect = useCallback(
     (category) => {
@@ -203,21 +305,67 @@ export const SearchScreen = () => {
 
   const handleLoadMore = useCallback(() => {
     if (hasMore && !isLoadingMore && searchQuery) {
-      dispatch(searchProducts({ 
-        query: searchQuery, 
-        page: currentPage + 1 
-      }));
+      // Build params with current filters and next page
+      const params = { page: currentPage + 1 };
+
+      if (selectedFilters.categoryId) {
+        // Convert string to number for API
+        params.categoryId = parseInt(selectedFilters.categoryId, 10);
+      }
+
+      if (selectedFilters.priceRange) {
+        const range = filterOptions.priceRanges.find(r => r.id === selectedFilters.priceRange);
+        if (range) {
+          params.minPrice = range.min;
+          if (range.max) params.maxPrice = range.max;
+        }
+      }
+
+      if (selectedFilters.sortOption) {
+        const sort = filterOptions.sortOptions.find(s => s.id === selectedFilters.sortOption);
+        if (sort) {
+          params.sortBy = sort.sortBy;
+          params.sortOrder = sort.sortOrder;
+        }
+      }
+
+      dispatch(searchProducts({ query: searchQuery, params }));
     }
-  }, [hasMore, isLoadingMore, searchQuery, currentPage, dispatch]);
+  }, [hasMore, isLoadingMore, searchQuery, currentPage, dispatch, selectedFilters, filterOptions]);
 
   const handleRefresh = useCallback(async () => {
     if (searchQuery) {
       setIsRefreshing(true);
       dispatch(clearProducts());
-      await dispatch(searchProducts({ query: searchQuery, page: 1 }));
+
+      // Build params with current filters
+      const params = { page: 1 };
+
+      if (selectedFilters.categoryId) {
+        // Convert string to number for API
+        params.categoryId = parseInt(selectedFilters.categoryId, 10);
+      }
+
+      if (selectedFilters.priceRange) {
+        const range = filterOptions.priceRanges.find(r => r.id === selectedFilters.priceRange);
+        if (range) {
+          params.minPrice = range.min;
+          if (range.max) params.maxPrice = range.max;
+        }
+      }
+
+      if (selectedFilters.sortOption) {
+        const sort = filterOptions.sortOptions.find(s => s.id === selectedFilters.sortOption);
+        if (sort) {
+          params.sortBy = sort.sortBy;
+          params.sortOrder = sort.sortOrder;
+        }
+      }
+
+      await dispatch(searchProducts({ query: searchQuery, params }));
       setIsRefreshing(false);
     }
-  }, [searchQuery, dispatch]);
+  }, [searchQuery, dispatch, selectedFilters, filterOptions]);
 
   const handleHistoryItemPress = (historyItem) => {
     setLocalSearchQuery(historyItem);
@@ -404,22 +552,160 @@ export const SearchScreen = () => {
         <Appbar.Content title={t('search.title')} />
       </Appbar.Header>
 
-      {/* Search Bar */}
+      {/* Search Bar with Filter Button */}
       <View style={styles.searchContainer}>
-        <Searchbar
-          placeholder={t('search.placeholder')}
-          value={localSearchQuery}
-          onChangeText={handleSearchTextChange}
-          onSubmitEditing={() => handleSearch(localSearchQuery)}
-          onClearIconPress={() => {
-            setLocalSearchQuery('');
-            handleSearch('');
-            setShowSuggestions(true);
-          }}
-          style={styles.searchBar}
-          testID="search-input"
-        />
+        <View style={styles.searchRow}>
+          <Searchbar
+            placeholder={t('search.placeholder')}
+            value={localSearchQuery}
+            onChangeText={handleSearchTextChange}
+            onSubmitEditing={() => handleSearch(localSearchQuery)}
+            onClearIconPress={() => {
+              setLocalSearchQuery('');
+              handleSearch('');
+              setShowSuggestions(true);
+            }}
+            style={styles.searchBar}
+            testID="search-input"
+          />
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => setShowFilterModal(true)}
+            testID="filter-button"
+          >
+            <IconButton
+              icon="filter-variant"
+              size={24}
+              iconColor={activeFiltersCount > 0 ? colors.primary : colors.onSurface}
+            />
+            {activeFiltersCount > 0 && (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {/* Filter Modal */}
+      <Modal
+        visible={showFilterModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowFilterModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filters</Text>
+              <IconButton
+                icon="close"
+                size={24}
+                onPress={() => setShowFilterModal(false)}
+              />
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              {/* Sort Options */}
+              <View style={styles.filterSection}>
+                <Text style={styles.filterSectionTitle}>Sort By</Text>
+                <RadioButton.Group
+                  onValueChange={(value) => handleFilterChange('sortOption', value)}
+                  value={selectedFilters.sortOption}
+                >
+                  {filterOptions.sortOptions.map((option) => (
+                    <TouchableOpacity
+                      key={option.id}
+                      style={styles.radioItem}
+                      onPress={() => handleFilterChange('sortOption', option.id)}
+                    >
+                      <RadioButton value={option.id} />
+                      <Text style={styles.radioLabel}>{option.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </RadioButton.Group>
+              </View>
+
+              <Divider style={styles.filterDivider} />
+
+              {/* Price Range */}
+              <View style={styles.filterSection}>
+                <Text style={styles.filterSectionTitle}>Price Range</Text>
+                <RadioButton.Group
+                  onValueChange={(value) => handleFilterChange('priceRange', value)}
+                  value={selectedFilters.priceRange}
+                >
+                  <TouchableOpacity
+                    style={styles.radioItem}
+                    onPress={() => handleFilterChange('priceRange', '')}
+                  >
+                    <RadioButton value="" />
+                    <Text style={styles.radioLabel}>All Prices</Text>
+                  </TouchableOpacity>
+                  {filterOptions.priceRanges.map((range) => (
+                    <TouchableOpacity
+                      key={range.id}
+                      style={styles.radioItem}
+                      onPress={() => handleFilterChange('priceRange', range.id)}
+                    >
+                      <RadioButton value={range.id} />
+                      <Text style={styles.radioLabel}>{range.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </RadioButton.Group>
+              </View>
+
+              <Divider style={styles.filterDivider} />
+
+              {/* Categories */}
+              {filterOptions.categories.length > 0 && (
+                <View style={styles.filterSection}>
+                  <Text style={styles.filterSectionTitle}>Category</Text>
+                  <RadioButton.Group
+                    onValueChange={(value) => handleFilterChange('categoryId', value)}
+                    value={selectedFilters.categoryId?.toString() || ''}
+                  >
+                    <TouchableOpacity
+                      style={styles.radioItem}
+                      onPress={() => handleFilterChange('categoryId', '')}
+                    >
+                      <RadioButton value="" />
+                      <Text style={styles.radioLabel}>All Categories</Text>
+                    </TouchableOpacity>
+                    {filterOptions.categories.map((category) => (
+                      <TouchableOpacity
+                        key={category.id}
+                        style={styles.radioItem}
+                        onPress={() => handleFilterChange('categoryId', category.id.toString())}
+                      >
+                        <RadioButton value={category.id.toString()} />
+                        <Text style={styles.radioLabel}>{category.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </RadioButton.Group>
+                </View>
+              )}
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <Button
+                mode="outlined"
+                onPress={clearFilters}
+                style={styles.clearButton}
+              >
+                Clear
+              </Button>
+              <Button
+                mode="contained"
+                onPress={applyFilters}
+                style={styles.applyButton}
+              >
+                Apply
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Autocomplete Suggestions - Rendered outside searchContainer */}
       {showSuggestionDropdown && (
@@ -473,6 +759,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   searchBar: {
+    flex: 1,
     elevation: 0,
     backgroundColor: colors.surfaceVariant,
   },
@@ -626,5 +913,93 @@ const styles = StyleSheet.create({
   footerLoader: {
     padding: spacing.md,
     alignItems: 'center',
+  },
+  // Filter styles
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  filterButton: {
+    position: 'relative',
+    marginLeft: spacing.xs,
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterBadgeText: {
+    color: colors.onPrimary || '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outline + '30',
+  },
+  modalTitle: {
+    fontSize: typography.sizes.lg,
+    fontWeight: typography.weights.semibold,
+    color: colors.onSurface,
+  },
+  modalBody: {
+    padding: spacing.md,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    padding: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.outline + '30',
+    gap: spacing.md,
+  },
+  clearButton: {
+    flex: 1,
+  },
+  applyButton: {
+    flex: 1,
+  },
+  filterSection: {
+    marginBottom: spacing.md,
+  },
+  filterSectionTitle: {
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.semibold,
+    color: colors.onSurface,
+    marginBottom: spacing.sm,
+  },
+  filterDivider: {
+    marginVertical: spacing.md,
+  },
+  radioItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+  },
+  radioLabel: {
+    fontSize: typography.sizes.md,
+    color: colors.onSurface,
+    marginLeft: spacing.xs,
   },
 });
