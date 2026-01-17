@@ -18,24 +18,54 @@ class SellerProfileService {
     return await apiClient.get(`${API_CONFIG.ENDPOINTS.SELLER_PROFILE}/store`);
   }
 
-  // Create new store theme
+  // Save theme to profile's brand_colors field
+  async saveTheme(themeData) {
+    // Get current profile to preserve other data
+    const currentProfile = await this.getProfile();
+    const profile = currentProfile.data || currentProfile;
+
+    // Store theme data in brand_colors field as JSON
+    const brandColors = {
+      primary_color: themeData.primary_color,
+      secondary_color: themeData.secondary_color,
+      accent_color: themeData.accent_color,
+      background_color: themeData.background_color,
+      text_color: themeData.text_color,
+      theme_name: themeData.theme_name,
+      layout_style: themeData.layout_style,
+      header_style: themeData.header_style,
+      footer_style: themeData.footer_style,
+      heading_font: themeData.heading_font,
+      body_font: themeData.body_font,
+    };
+
+    return await this.updateProfile({ brand_colors: brandColors });
+  }
+
+  // Get theme from profile's brand_colors field
+  async getTheme() {
+    const response = await this.getProfile();
+    const profile = response.data || response;
+    return profile.brand_colors || null;
+  }
+
+  // Legacy methods for backward compatibility (using profile update)
   async createTheme(themeCreate) {
-    return await apiClient.post(`${API_CONFIG.ENDPOINTS.SELLER_PROFILE}/themes`, themeCreate);
+    return await this.saveTheme(themeCreate);
   }
 
-  // Update store theme
   async updateTheme(themeId, themeUpdate) {
-    return await apiClient.put(`${API_CONFIG.ENDPOINTS.SELLER_PROFILE}/themes/${themeId}`, themeUpdate);
+    return await this.saveTheme(themeUpdate);
   }
 
-  // Activate theme
   async activateTheme(themeId) {
-    return await apiClient.post(`${API_CONFIG.ENDPOINTS.SELLER_PROFILE}/themes/${themeId}/activate`);
+    // With single theme approach, theme is always active
+    return { success: true };
   }
 
-  // Delete theme
   async deleteTheme(themeId) {
-    return await apiClient.delete(`${API_CONFIG.ENDPOINTS.SELLER_PROFILE}/themes/${themeId}`);
+    // Clear brand_colors to delete theme
+    return await this.updateProfile({ brand_colors: null });
   }
 
   // Get store (for customers)

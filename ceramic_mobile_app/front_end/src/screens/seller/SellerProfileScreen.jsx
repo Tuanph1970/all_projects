@@ -193,6 +193,24 @@ export const SellerProfileScreen = () => {
           />
           <Divider />
           <List.Item
+            title="Store Settings"
+            description="Configure your store settings"
+            left={props => <List.Icon {...props} icon="store-cog" />}
+            right={props => <List.Icon {...props} icon="chevron-right" />}
+            onPress={() => navigation.navigate('StoreSettings')}
+            testID="store-settings-button"
+          />
+          <Divider />
+          <List.Item
+            title="Theme Management"
+            description="Customize your store appearance"
+            left={props => <List.Icon {...props} icon="palette" />}
+            right={props => <List.Icon {...props} icon="chevron-right" />}
+            onPress={() => navigation.navigate('ThemeManagement')}
+            testID="theme-management-button"
+          />
+          <Divider />
+          <List.Item
             title="Order Management"
             description="View and manage customer orders"
             left={props => <List.Icon {...props} icon="receipt" />}

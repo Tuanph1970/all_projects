@@ -28,6 +28,8 @@ import { AnalyticsScreen } from '../screens/seller/AnalyticsScreen.jsx';
 import { AddProductScreen } from '../screens/seller/AddProductScreen.jsx';
 import { ProductFormScreen } from '../screens/seller/ProductFormScreen.jsx';
 import { SellerProfileScreen } from '../screens/seller/SellerProfileScreen.jsx';
+import { StoreSettingsScreen } from '../screens/seller/StoreSettingsScreen.jsx';
+import { ThemeManagementScreen } from '../screens/seller/ThemeManagementScreen.jsx';
 
 // Common Screens
 import { ChatListScreen } from '../screens/chat/ChatListScreen.jsx';
@@ -204,6 +206,8 @@ export const MainNavigator  = () => {
         <Stack.Screen name="OrderHistory" component={OrderHistoryScreen} />
         <Stack.Screen name="CustomerOrderDetails" component={CustomerOrderDetailsScreen} />
         <Stack.Screen name="OrderDetails" component={OrderDetailsScreen} />
+        <Stack.Screen name="StoreSettings" component={StoreSettingsScreen} />
+        <Stack.Screen name="ThemeManagement" component={ThemeManagementScreen} />
         <Stack.Screen name="OrderAnalytics" component={OrderAnalyticsScreen} />
         <Stack.Screen name="AddProduct" component={AddProductScreen} />
         <Stack.Screen
