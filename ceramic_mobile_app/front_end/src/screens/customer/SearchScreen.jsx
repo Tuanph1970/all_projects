@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -16,6 +16,7 @@ import {
   IconButton,
   ActivityIndicator,
   Button,
+  Divider,
 } from 'react-native-paper';
 import { useSelector, useDispatch } from 'react-redux';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -27,15 +28,22 @@ import {
   setSearchQuery,
   clearProducts,
 } from '../../store/slices/productSlice.js';
+import { productService } from '../../services/productService.js';
 import { colors, spacing, typography } from '../../constants/theme.js';
 import { useTranslation } from '@i18n';
 
 // Simple ProductCard component since the imported one doesn't exist
-const ProductCard = ({ product, onPress, onFavoritePress, isFavorite }) => (
+const ProductCard = ({ product, onPress, onFavoritePress, isFavorite }) => {
+  const formatPrice = (price) => {
+    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+    return numPrice && !isNaN(numPrice) ? numPrice.toFixed(2) : '0.00';
+  };
+
+  return (
   <Card style={styles.productCard} onPress={() => onPress(product)} testID={`search-product-card-${product.id}`}>
     <Card.Content>
       <Text style={styles.productName}>{product.name}</Text>
-      <Text style={styles.productPrice}>${product.price?.toFixed(2)}</Text>
+      <Text style={styles.productPrice}>${formatPrice(product.price)}</Text>
       {product.category && (
         <Text style={styles.productCategory}>{product.category}</Text>
       )}
@@ -48,7 +56,8 @@ const ProductCard = ({ product, onPress, onFavoritePress, isFavorite }) => (
       />
     </Card.Actions>
   </Card>
-);
+  );
+};
 
 export const SearchScreen = () => {
   const navigation = useNavigation();
@@ -74,6 +83,10 @@ export const SearchScreen = () => {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [showSuggestionDropdown, setShowSuggestionDropdown] = useState(false);
+  const debounceTimerRef = useRef(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -81,13 +94,66 @@ export const SearchScreen = () => {
       if (categories.length === 0) {
         dispatch(fetchCategories());
       }
-      
+
       // Load popular products for suggestions
       if (popularProducts.length === 0) {
         dispatch(fetchPopularProducts({ limit: 10 }));
       }
     }, [dispatch, categories.length, popularProducts.length])
   );
+
+  // Fetch search suggestions with debounce
+  const fetchSuggestions = useCallback(async (query) => {
+    if (!query || query.trim().length < 2) {
+      setSuggestions([]);
+      setShowSuggestionDropdown(false);
+      return;
+    }
+
+    setLoadingSuggestions(true);
+    try {
+      const results = await productService.getSearchSuggestions(query, 8);
+      setSuggestions(results);
+      setShowSuggestionDropdown(results.length > 0);
+    } catch (error) {
+      setSuggestions([]);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  }, []);
+
+  // Handle text change with debounced suggestions
+  const handleSearchTextChange = useCallback((text) => {
+    setLocalSearchQuery(text);
+
+    // Clear previous timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Set new debounced call
+    debounceTimerRef.current = setTimeout(() => {
+      fetchSuggestions(text);
+    }, 300); // 300ms debounce
+  }, [fetchSuggestions]);
+
+  // Handle suggestion tap
+  const handleSuggestionTap = useCallback((suggestion) => {
+    const query = typeof suggestion === 'string' ? suggestion : suggestion.name || suggestion.query;
+    setLocalSearchQuery(query);
+    setShowSuggestionDropdown(false);
+    setSuggestions([]);
+    handleSearch(query);
+  }, []);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleSearch = useCallback(
     (query) => {
@@ -343,7 +409,7 @@ export const SearchScreen = () => {
         <Searchbar
           placeholder={t('search.placeholder')}
           value={localSearchQuery}
-          onChangeText={setLocalSearchQuery}
+          onChangeText={handleSearchTextChange}
           onSubmitEditing={() => handleSearch(localSearchQuery)}
           onClearIconPress={() => {
             setLocalSearchQuery('');
@@ -355,7 +421,40 @@ export const SearchScreen = () => {
         />
       </View>
 
-      {renderContent()}
+      {/* Autocomplete Suggestions - Rendered outside searchContainer */}
+      {showSuggestionDropdown && (
+        <View style={styles.suggestionsDropdown}>
+          {loadingSuggestions ? (
+            <View style={styles.suggestionLoading}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={styles.suggestionLoadingText}>{t('search.loadingSuggestions') || 'Loading suggestions...'}</Text>
+            </View>
+          ) : (
+            suggestions.map((suggestion, index) => {
+              const suggestionText = typeof suggestion === 'string'
+                ? suggestion
+                : suggestion.name || suggestion.query || suggestion.title;
+              return (
+                <React.Fragment key={`suggestion-${index}`}>
+                  <TouchableOpacity
+                    style={styles.suggestionItem}
+                    onPress={() => handleSuggestionTap(suggestion)}
+                    testID={`search-suggestion-${index}`}
+                  >
+                    <IconButton icon="magnify" size={16} style={styles.suggestionIcon} />
+                    <Text style={styles.suggestionText} numberOfLines={1}>
+                      {suggestionText}
+                    </Text>
+                  </TouchableOpacity>
+                  {index < suggestions.length - 1 && <Divider />}
+                </React.Fragment>
+              );
+            })
+          )}
+        </View>
+      )}
+
+      {!showSuggestionDropdown && renderContent()}
     </SafeAreaView>
   );
 };
@@ -376,6 +475,43 @@ const styles = StyleSheet.create({
   searchBar: {
     elevation: 0,
     backgroundColor: colors.surfaceVariant,
+  },
+  suggestionsDropdown: {
+    backgroundColor: colors.surface,
+    marginHorizontal: spacing.md,
+    borderRadius: 8,
+    maxHeight: 300,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  suggestionIcon: {
+    margin: 0,
+    marginRight: spacing.xs,
+  },
+  suggestionText: {
+    flex: 1,
+    fontSize: typography.sizes.md,
+    color: colors.onSurface,
+  },
+  suggestionLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.md,
+  },
+  suggestionLoadingText: {
+    marginLeft: spacing.sm,
+    fontSize: typography.sizes.sm,
+    color: colors.outline,
   },
   loadingContainer: {
     flex: 1,

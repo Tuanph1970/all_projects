@@ -242,6 +242,83 @@ class ProductService {
   async getProductAttributes(productId) {
     return apiClient.get(`${this.baseUrl}/${productId}/attributes`);
   }
+
+  // Get search suggestions (autocomplete)
+  async getSearchSuggestions(query, limit = 10) {
+    if (!query || query.trim().length < 2) {
+      return [];
+    }
+    try {
+      // First try the dedicated suggestions endpoint
+      const response = await apiClient.get(`${this.baseUrl}/search/suggestions?q=${encodeURIComponent(query)}&limit=${limit}`);
+      return Array.isArray(response) ? response : (response.suggestions || []);
+    } catch (error) {
+      // Fallback: use regular product search to generate suggestions
+      try {
+        const queryParams = new URLSearchParams();
+        queryParams.append('search', query);
+        queryParams.append('skip', '0');
+        queryParams.append('limit', limit.toString());
+
+        const products = await apiClient.get(`${this.baseUrl}/?${queryParams.toString()}`);
+        const productList = Array.isArray(products) ? products : [];
+
+        // Transform products into suggestion format
+        return productList.map(product => ({
+          id: product.id,
+          name: product.name,
+          type: 'product',
+          price: product.price,
+          category: product.category_name || product.category
+        }));
+      } catch (fallbackError) {
+        return [];
+      }
+    }
+  }
+
+  // Get filter options (available filters for search)
+  async getFilterOptions() {
+    try {
+      const response = await apiClient.get(`${this.baseUrl}/filters/options`);
+      return response;
+    } catch (error) {
+      console.log('Filter options error:', error);
+      return { categories: [], brands: [], priceRanges: [] };
+    }
+  }
+
+  // Get trending products
+  async getTrendingProducts(limit = 10) {
+    try {
+      const response = await apiClient.get(`${this.baseUrl}/trending?limit=${limit}`);
+      return Array.isArray(response) ? response : (response.products || []);
+    } catch (error) {
+      console.log('Trending products error:', error);
+      return [];
+    }
+  }
+
+  // Track product view (for analytics)
+  async trackProductView(productId) {
+    try {
+      return await apiClient.post(`${this.baseUrl}/${productId}/view`);
+    } catch (error) {
+      console.log('Track view error:', error);
+      // Silently fail - analytics shouldn't block user experience
+    }
+  }
+
+  // Get similar products
+  async getSimilarProducts(productId, limit = 10) {
+    try {
+      const response = await apiClient.get(`${this.baseUrl}/${productId}/similar?limit=${limit}`);
+      return Array.isArray(response) ? response : (response.products || []);
+    } catch (error) {
+      console.log('Similar products error:', error);
+      return [];
+    }
+  }
 }
 
 export const productService = new ProductService();
