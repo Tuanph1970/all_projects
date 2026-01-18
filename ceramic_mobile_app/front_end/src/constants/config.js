@@ -27,9 +27,9 @@ const ENV_CONFIG = {
   },
   testing: {
     // E2E testing via Traefik gateway (10.0.2.2 is Android emulator's alias for host)
-    // Uses /ceramic prefix for multi-project server routing
-    BASE_URL: 'http://10.0.2.2/ceramic',
-    WS_URL: 'ws://10.0.2.2/ceramic',
+    // Direct connection to Traefik on port 8002 (bypasses nginx for local testing)
+    BASE_URL: 'http://10.0.2.2:8002',
+    WS_URL: 'ws://10.0.2.2:8002',
   },
   production: {
     // Using /ceramic-app path prefix for multi-project server

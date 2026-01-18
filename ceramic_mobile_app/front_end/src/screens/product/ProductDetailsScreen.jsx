@@ -24,6 +24,8 @@ import { fetchProduct, toggleFavorite } from '../../store/slices/productSlice.js
 import { addToCart } from '../../store/slices/cartSlice.js';
 import { colors, spacing, typography, borderRadius, shadows } from '../../constants/theme.js';
 import { useTranslation } from '@i18n';
+import { productService } from '../../services/productService.js';
+import { reviewService } from '../../services/reviewService.js';
 
 export const ProductDetailsScreen = () => {
   const navigation = useNavigation();
@@ -41,8 +43,12 @@ export const ProductDetailsScreen = () => {
   } = useSelector((state) => state.products);
 
   const { loading: cartLoading } = useSelector((state) => state.cart);
+  const { isAuthenticated } = useSelector((state) => state.auth);
 
   const [quantity, setQuantity] = useState(1);
+  const [reviews, setReviews] = useState([]);
+  const [reviewStats, setReviewStats] = useState(null);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
 
   useEffect(() => {
     if (productId) {
@@ -50,13 +56,44 @@ export const ProductDetailsScreen = () => {
     }
   }, [productId, dispatch]);
 
+  // Track product view for analytics
+  useEffect(() => {
+    if (productId && product) {
+      productService.trackProductView(productId);
+    }
+  }, [productId, product]);
+
+  // Fetch reviews for product
+  useEffect(() => {
+    const fetchReviews = async () => {
+      if (!productId) return;
+
+      setReviewsLoading(true);
+      try {
+        const [reviewsData, statsData] = await Promise.all([
+          reviewService.getProductReviews(productId, { limit: 5 }),
+          reviewService.getProductReviewStats(productId),
+        ]);
+        setReviews(reviewsData || []);
+        setReviewStats(statsData);
+      } catch (error) {
+        console.log('Error fetching reviews:', error);
+        // Silently fail - reviews are not critical
+      } finally {
+        setReviewsLoading(false);
+      }
+    };
+
+    fetchReviews();
+  }, [productId]);
+
   const handleShare = async () => {
     if (!product) return;
     
     try {
       await Share.share({
-        message: `Check out this amazing product: ${product.title} - ${product.description}`,
-        title: product.title,
+        message: `Check out this amazing product: ${product.name} - ${product.description}`,
+        title: product.name,
       });
     } catch (error) {
       console.error('Error sharing product:', error);
@@ -80,7 +117,7 @@ export const ProductDetailsScreen = () => {
 
       Alert.alert(
         t('product.addedToCart'),
-        t('product.addedToCartMessage', { quantity, name: product.title }),
+        t('product.addedToCartMessage', { quantity, name: product.name }),
         [
           { text: t('product.continueShopping'), style: 'cancel' },
           { text: t('product.viewCart'), onPress: () => navigation.navigate('Cart') }
@@ -196,6 +233,155 @@ export const ProductDetailsScreen = () => {
     );
   };
 
+  const renderStars = (rating) => {
+    const stars = [];
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+
+    for (let i = 0; i < 5; i++) {
+      if (i < fullStars) {
+        stars.push('⭐');
+      } else if (i === fullStars && hasHalfStar) {
+        stars.push('⭐');
+      } else {
+        stars.push('☆');
+      }
+    }
+    return stars.join('');
+  };
+
+  const handleMarkHelpful = async (reviewId) => {
+    try {
+      await reviewService.markHelpful(reviewId);
+      // Update local state
+      setReviews(prev => prev.map(r =>
+        r.id === reviewId
+          ? { ...r, is_helpful_count: (r.is_helpful_count || 0) + 1 }
+          : r
+      ));
+    } catch (error) {
+      console.log('Error marking review helpful:', error);
+    }
+  };
+
+  const handleWriteReview = () => {
+    if (!isAuthenticated) {
+      Alert.alert(
+        t('auth.loginRequired') || 'Login Required',
+        t('auth.loginToReview') || 'Please login to write a review',
+        [
+          { text: t('common.cancel') || 'Cancel', style: 'cancel' },
+          { text: t('auth.signIn') || 'Sign In', onPress: () => navigation.navigate('Auth') },
+        ]
+      );
+      return;
+    }
+    navigation.navigate('WriteReview', { productId, productName: product?.name });
+  };
+
+  const renderReviews = () => {
+    return (
+      <Card style={styles.reviewsCard}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.sectionTitle}>{t('product.customerReviews') || 'Customer Reviews'}</Text>
+        </View>
+
+        {/* Review Stats */}
+        {reviewStats && (
+          <View style={styles.reviewStatsContainer}>
+            <View style={styles.reviewStatsMain}>
+              <Text style={styles.avgRating}>{reviewStats.average_rating?.toFixed(1) || '0.0'}</Text>
+              <Text style={styles.avgRatingStars}>{renderStars(reviewStats.average_rating || 0)}</Text>
+              <Text style={styles.totalReviews}>
+                {reviewStats.total_reviews || 0} {t('product.reviews', { count: reviewStats.total_reviews || 0 })}
+              </Text>
+            </View>
+
+            {/* Rating Distribution */}
+            <View style={styles.ratingDistribution}>
+              {[5, 4, 3, 2, 1].map(star => {
+                const count = reviewStats.rating_distribution?.[star] || 0;
+                const percentage = reviewStats.total_reviews > 0
+                  ? (count / reviewStats.total_reviews) * 100
+                  : 0;
+                return (
+                  <View key={star} style={styles.ratingBar}>
+                    <Text style={styles.ratingBarLabel}>{star}⭐</Text>
+                    <View style={styles.ratingBarTrack}>
+                      <View style={[styles.ratingBarFill, { width: `${percentage}%` }]} />
+                    </View>
+                    <Text style={styles.ratingBarCount}>{count}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* Review List */}
+        {reviewsLoading ? (
+          <View style={styles.reviewsLoading}>
+            <ActivityIndicator size="small" color={colors.primary} />
+          </View>
+        ) : reviews.length > 0 ? (
+          <View style={styles.reviewsList}>
+            {reviews.map((review) => (
+              <View key={review.id} style={styles.reviewItem}>
+                <View style={styles.reviewHeader}>
+                  <Text style={styles.reviewRating}>{renderStars(review.rating)}</Text>
+                  {review.is_verified_purchase && (
+                    <Chip style={styles.verifiedChip} textStyle={styles.verifiedChipText}>
+                      {t('product.verifiedPurchase') || 'Verified'}
+                    </Chip>
+                  )}
+                </View>
+                {review.title && <Text style={styles.reviewTitle}>{review.title}</Text>}
+                {review.comment && <Text style={styles.reviewComment}>{review.comment}</Text>}
+                <View style={styles.reviewFooter}>
+                  <Text style={styles.reviewDate}>
+                    {new Date(review.created_at).toLocaleDateString()}
+                  </Text>
+                  <Button
+                    mode="text"
+                    compact
+                    onPress={() => handleMarkHelpful(review.id)}
+                    style={styles.helpfulButton}
+                  >
+                    {t('product.helpful') || 'Helpful'} ({review.is_helpful_count || 0})
+                  </Button>
+                </View>
+                {review.seller_response && (
+                  <View style={styles.sellerResponse}>
+                    <Text style={styles.sellerResponseLabel}>
+                      {t('product.sellerResponse') || 'Seller Response'}:
+                    </Text>
+                    <Text style={styles.sellerResponseText}>{review.seller_response}</Text>
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.noReviews}>
+            <Text style={styles.noReviewsText}>
+              {t('product.noReviews') || 'No reviews yet. Be the first to review!'}
+            </Text>
+          </View>
+        )}
+
+        {/* Write Review Button */}
+        <Button
+          mode="outlined"
+          onPress={handleWriteReview}
+          style={styles.writeReviewButton}
+          icon="pencil"
+        >
+          {t('product.writeReview') || 'Write a Review'}
+        </Button>
+      </Card>
+    );
+  };
+
   if (isProductLoading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -244,7 +430,7 @@ export const ProductDetailsScreen = () => {
       {/* Header */}
       <Appbar.Header style={styles.header}>
         <Appbar.BackAction onPress={() => navigation.goBack()} testID="product-details-back-button" />
-        <Appbar.Content title={product.title} />
+        <Appbar.Content title={product.name} />
         <Appbar.Action icon={isFavorite ? "heart" : "heart-outline"} onPress={handleFavoriteToggle} testID="product-favorite-button" />
         <Appbar.Action icon="share" onPress={handleShare} />
       </Appbar.Header>
@@ -265,7 +451,7 @@ export const ProductDetailsScreen = () => {
           <Text style={styles.category}>{product.category?.name || 'Product'}</Text>
           
           {/* Title */}
-          <Text style={styles.productTitle}>{product.title}</Text>
+          <Text style={styles.productTitle}>{product.name}</Text>
           
           {/* Price */}
           <View style={styles.priceContainer}>
@@ -289,7 +475,7 @@ export const ProductDetailsScreen = () => {
           {/* Rating */}
           <View style={styles.ratingContainer}>
             <Text style={styles.ratingText}>
-              ⭐ {product.rating?.toFixed(1) || '0.0'} ({product.reviewCount || 0} {t('product.reviews')})
+              ⭐ {product.rating?.toFixed(1) || '0.0'} ({t('product.reviews', { count: product.reviewCount || 0 })})
             </Text>
           </View>
 
@@ -334,7 +520,7 @@ export const ProductDetailsScreen = () => {
             <View style={styles.sellerInfo}>
               <Text style={styles.sellerName}>{product.seller.name}</Text>
               <Text style={styles.sellerRating}>
-                ⭐ {product.seller.rating?.toFixed(1) || '0.0'} ({product.seller.reviewCount || 0} {t('product.reviews')})
+                ⭐ {product.seller.rating?.toFixed(1) || '0.0'} ({t('product.reviews', { count: product.seller.reviewCount || 0 })})
               </Text>
               <View style={styles.sellerActions}>
                 <Button mode="outlined" onPress={handleSellerPress} style={styles.sellerButton}>
@@ -347,6 +533,9 @@ export const ProductDetailsScreen = () => {
             </View>
           </Card>
         )}
+
+        {/* Customer Reviews */}
+        {renderReviews()}
 
         {/* Related Products */}
         {relatedProducts && relatedProducts.length > 0 && (
@@ -362,7 +551,7 @@ export const ProductDetailsScreen = () => {
                     onPress={() => handleRelatedProductPress(relatedProduct)}
                     style={styles.relatedButton}
                   >
-                    {relatedProduct.title}
+                    {relatedProduct.name}
                   </Button>
                 </View>
               ))}
@@ -717,5 +906,147 @@ const styles = StyleSheet.create({
   },
   actionButtonContent: {
     height: 48,
+  },
+  // Review styles
+  reviewsCard: {
+    margin: spacing.md,
+    backgroundColor: colors.surface,
+  },
+  reviewStatsContainer: {
+    padding: spacing.md,
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outline,
+  },
+  reviewStatsMain: {
+    alignItems: 'center',
+    marginRight: spacing.lg,
+    minWidth: 80,
+  },
+  avgRating: {
+    fontSize: 36,
+    fontWeight: typography.weights.bold,
+    color: colors.onSurface,
+  },
+  avgRatingStars: {
+    fontSize: typography.sizes.md,
+    marginVertical: spacing.xs,
+  },
+  totalReviews: {
+    fontSize: typography.sizes.sm,
+    color: colors.outline,
+  },
+  ratingDistribution: {
+    flex: 1,
+  },
+  ratingBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  ratingBarLabel: {
+    fontSize: typography.sizes.xs,
+    width: 30,
+  },
+  ratingBarTrack: {
+    flex: 1,
+    height: 8,
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: 4,
+    marginHorizontal: spacing.xs,
+  },
+  ratingBarFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 4,
+  },
+  ratingBarCount: {
+    fontSize: typography.sizes.xs,
+    color: colors.outline,
+    width: 20,
+    textAlign: 'right',
+  },
+  reviewsLoading: {
+    padding: spacing.lg,
+    alignItems: 'center',
+  },
+  reviewsList: {
+    padding: spacing.md,
+  },
+  reviewItem: {
+    marginBottom: spacing.md,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outline,
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  reviewRating: {
+    fontSize: typography.sizes.md,
+  },
+  verifiedChip: {
+    marginLeft: spacing.sm,
+    backgroundColor: colors.success,
+    height: 24,
+  },
+  verifiedChipText: {
+    fontSize: typography.sizes.xs,
+    color: colors.onSuccess || '#fff',
+  },
+  reviewTitle: {
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.semibold,
+    color: colors.onSurface,
+    marginBottom: spacing.xs,
+  },
+  reviewComment: {
+    fontSize: typography.sizes.md,
+    color: colors.onSurface,
+    lineHeight: 20,
+  },
+  reviewFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  reviewDate: {
+    fontSize: typography.sizes.sm,
+    color: colors.outline,
+  },
+  helpfulButton: {
+    marginRight: -spacing.sm,
+  },
+  sellerResponse: {
+    marginTop: spacing.sm,
+    padding: spacing.sm,
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: borderRadius.sm,
+  },
+  sellerResponseLabel: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.medium,
+    color: colors.onSurface,
+    marginBottom: spacing.xs,
+  },
+  sellerResponseText: {
+    fontSize: typography.sizes.sm,
+    color: colors.onSurface,
+  },
+  noReviews: {
+    padding: spacing.lg,
+    alignItems: 'center',
+  },
+  noReviewsText: {
+    fontSize: typography.sizes.md,
+    color: colors.outline,
+    textAlign: 'center',
+  },
+  writeReviewButton: {
+    margin: spacing.md,
+    borderColor: colors.primary,
   },
 });

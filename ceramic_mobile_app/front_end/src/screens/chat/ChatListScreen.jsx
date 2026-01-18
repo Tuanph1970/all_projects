@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  ScrollView,
 } from 'react-native';
 import {
   Text,
@@ -21,6 +22,25 @@ import { useSelector } from 'react-redux';
 import { colors, spacing, typography } from '../../constants/theme.js';
 import { chatService } from '../../services/chatService.js';
 import { useTranslation } from '@i18n';
+
+// Online User Item Component
+const OnlineUserItem = ({ user, onPress }) => {
+  return (
+    <TouchableOpacity style={styles.onlineUserItem} onPress={() => onPress(user)}>
+      <View style={styles.onlineUserAvatarContainer}>
+        <Avatar.Text
+          size={48}
+          label={user.username?.charAt(0)?.toUpperCase() || 'U'}
+          style={styles.onlineUserAvatar}
+        />
+        <View style={styles.onlineUserDot} />
+      </View>
+      <Text style={styles.onlineUserName} numberOfLines={1}>
+        {user.username || 'User'}
+      </Text>
+    </TouchableOpacity>
+  );
+};
 
 const ChatRoomItem = ({ room, currentUserId, onPress, t }) => {
   const isCustomer = room.customer_id === currentUserId;
@@ -96,24 +116,45 @@ export const ChatListScreen = () => {
   
   // State
   const [chatRooms, setChatRooms] = useState([]);
+  const [onlineUsers, setOnlineUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   
+  // Load online users
+  const loadOnlineUsers = useCallback(async () => {
+    if (!currentUser) return;
+
+    try {
+      const data = await chatService.getOnlineUsers();
+      // Filter out current user from online users list
+      const filteredUsers = (data.online_users || []).filter(
+        user => user.user_id !== currentUser.id
+      );
+      setOnlineUsers(filteredUsers);
+    } catch (error) {
+      console.log('Error loading online users:', error);
+      // Silently fail - online users is not critical
+    }
+  }, [currentUser]);
+
   // Load chat rooms
   const loadChatRooms = useCallback(async (showRefreshing = false) => {
     if (!currentUser) return;
-    
+
     try {
       if (showRefreshing) {
         setIsRefreshing(true);
       } else {
         setIsLoading(true);
       }
-      
-      const rooms = await chatService.getChatRooms();
+
+      const [rooms] = await Promise.all([
+        chatService.getChatRooms(),
+        loadOnlineUsers(),
+      ]);
       setChatRooms(rooms);
-      
+
     } catch (error) {
       console.error('Error loading chat rooms', error);
       Alert.alert(t('common.error'), t('chat.loadError'));
@@ -121,7 +162,7 @@ export const ChatListScreen = () => {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [currentUser]);
+  }, [currentUser, loadOnlineUsers]);
   
   // Handle WebSocket messages
   const handleWebSocketMessage = useCallback((wsMessage) => {
@@ -200,14 +241,32 @@ export const ChatListScreen = () => {
     const isCustomer = room.customer_id === currentUser?.id;
     const otherUserName = isCustomer ? room.seller_name : room.customer_name;
     const otherUserId = isCustomer ? room.seller_id : room.customer_id;
-    
-    navigation.navigate('Chat', {
+
+    navigation.navigate('ChatScreen', {
       conversationId: room.id,
       recipientName: otherUserName,
       recipientId: otherUserId,
     });
   }, [navigation, currentUser]);
-  
+
+  // Handle online user press
+  const handleOnlineUserPress = useCallback((user) => {
+    // Check if there's an existing chat room with this user
+    const existingRoom = chatRooms.find(room =>
+      room.customer_id === user.user_id || room.seller_id === user.user_id
+    );
+
+    if (existingRoom) {
+      handleChatRoomPress(existingRoom);
+    } else {
+      // Navigate to chat with this user (will create room if needed)
+      navigation.navigate('ChatScreen', {
+        recipientId: user.user_id,
+        recipientName: user.username,
+      });
+    }
+  }, [chatRooms, handleChatRoomPress, navigation]);
+
   // Pull to refresh
   const handleRefresh = useCallback(() => {
     loadChatRooms(true);
@@ -262,6 +321,27 @@ export const ChatListScreen = () => {
       </Appbar.Header>
 
       <View style={styles.content}>
+        {/* Online Users Section */}
+        {onlineUsers.length > 0 && (
+          <View style={styles.onlineUsersSection}>
+            <Text style={styles.onlineUsersSectionTitle}>
+              {t('chat.onlineNow') || 'Online Now'} ({onlineUsers.length})
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.onlineUsersScroll}
+            >
+              {onlineUsers.map(user => (
+                <OnlineUserItem
+                  key={user.user_id}
+                  user={user}
+                  onPress={handleOnlineUserPress}
+                />
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {chatRooms.length === 0 ? (
           <View style={styles.emptyContainer}>
@@ -423,5 +503,49 @@ const styles = StyleSheet.create({
   },
   unreadBadge: {
     backgroundColor: colors.primary,
+  },
+  // Online Users Section Styles
+  onlineUsersSection: {
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outline + '30',
+  },
+  onlineUsersSectionTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.semibold,
+    color: colors.onSurface,
+    marginLeft: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  onlineUsersScroll: {
+    paddingHorizontal: spacing.md,
+  },
+  onlineUserItem: {
+    alignItems: 'center',
+    marginRight: spacing.md,
+    width: 64,
+  },
+  onlineUserAvatarContainer: {
+    position: 'relative',
+  },
+  onlineUserAvatar: {
+    backgroundColor: colors.primaryContainer,
+  },
+  onlineUserDot: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.success,
+    borderWidth: 2,
+    borderColor: colors.surface,
+  },
+  onlineUserName: {
+    fontSize: typography.sizes.xs,
+    color: colors.onSurface,
+    marginTop: spacing.xs,
+    textAlign: 'center',
   },
 });

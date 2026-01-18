@@ -1,5 +1,5 @@
 import { API_CONFIG } from '../constants/config.js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { secureStorage } from '../utils/secureStorage.js';
 
 class ChatService {
   ws = null;
@@ -22,13 +22,13 @@ class ChatService {
     this.isConnecting = true;
 
     try {
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
+      const tokens = await secureStorage.getTokens();
+      if (!tokens?.accessToken) {
         throw new Error('No authentication token found');
       }
 
       // Create WebSocket URL using centralized config
-      const wsUrl = `${API_CONFIG.WS_URL}/api/v1/chat/ws/${userId}?token=${encodeURIComponent(token)}`;
+      const wsUrl = `${API_CONFIG.WS_URL}/api/v1/chat/ws/${userId}?token=${encodeURIComponent(tokens.accessToken)}`;
 
       this.ws = new WebSocket(wsUrl);
 
@@ -263,7 +263,8 @@ class ChatService {
   }
 
   async getChatRooms() {
-    const token = await AsyncStorage.getItem('token');
+    const tokens = await secureStorage.getTokens();
+    const token = tokens?.accessToken;
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/chat/rooms`, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -284,7 +285,8 @@ class ChatService {
     limit = 50,
     markAsRead = true
   ) {
-    const token = await AsyncStorage.getItem('token');
+    const tokens = await secureStorage.getTokens();
+    const token = tokens?.accessToken;
     const url = new URL(`${API_CONFIG.BASE_URL}/api/v1/chat/rooms/${chatRoomId}/messages`);
     url.searchParams.append('skip', skip.toString());
     url.searchParams.append('limit', limit.toString());
@@ -306,7 +308,8 @@ class ChatService {
   }
 
   async createChatRoom(sellerId, productId) {
-    const token = await AsyncStorage.getItem('token');
+    const tokens = await secureStorage.getTokens();
+    const token = tokens?.accessToken;
     const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/chat/rooms`, {
       method: 'POST',
       headers: {
@@ -321,6 +324,23 @@ class ChatService {
 
     if (!response.ok) {
       throw new Error(`Failed to create chat room: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  async getOnlineUsers() {
+    const tokens = await secureStorage.getTokens();
+    const token = tokens?.accessToken;
+    const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/chat/online-users`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch online users: ${response.status}`);
     }
 
     return response.json();

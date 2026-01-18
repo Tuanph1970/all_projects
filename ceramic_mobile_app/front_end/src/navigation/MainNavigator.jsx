@@ -35,6 +35,7 @@ import { ThemeManagementScreen } from '../screens/seller/ThemeManagementScreen.j
 import { ChatListScreen } from '../screens/chat/ChatListScreen.jsx';
 import { ChatScreen } from '../screens/chat/ChatScreen.jsx';
 import { ProductDetailsScreen } from '../screens/product/ProductDetailsScreen.jsx';
+import { WriteReviewScreen } from '../screens/product/WriteReviewScreen.jsx';
 import { ProductListScreen } from '../screens/customer/ProductListScreen.jsx';
 import { CheckoutScreen } from '../screens/checkout/CheckoutScreen.jsx';
 import { ChangePasswordScreen } from '../screens/auth/ChangePasswordScreen.jsx';
@@ -199,6 +200,7 @@ export const MainNavigator  = () => {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="MainTabs" component={MainTabs} />
         <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} />
+        <Stack.Screen name="WriteReview" component={WriteReviewScreen} />
         <Stack.Screen name="ProductList" component={ProductListScreen} />
         <Stack.Screen name="ChatScreen" component={ChatScreen} />
         <Stack.Screen name="Checkout" component={CheckoutScreen} />

@@ -192,10 +192,40 @@ export const AddProductScreen = () => {
       const product = await sellerService.createProduct(productData);
 
       // Upload images if any
-      if (images.length > 0) {
+      if (images.length > 0 && product?.id) {
         setIsUploading(true);
-        // TODO: Implement image upload with sellerService
-        // await sellerService.uploadImage(formData);
+        console.log(`Uploading ${images.length} images for product ${product.id}`);
+
+        for (let i = 0; i < images.length; i++) {
+          const image = images[i];
+          try {
+            // Create FormData for image upload
+            const imageFormData = new FormData();
+            imageFormData.append('file', {
+              uri: image.uri,
+              type: image.mimeType || 'image/jpeg',
+              name: image.fileName || `product_${product.id}_${i}.jpg`,
+            });
+
+            // Upload image to get URL
+            const uploadResult = await sellerService.uploadImage(imageFormData);
+            console.log('Image uploaded:', uploadResult);
+
+            // Add image to product if we got a URL back
+            if (uploadResult?.image_url || uploadResult?.url) {
+              const imageUrl = uploadResult.image_url || uploadResult.url;
+              await sellerService.addProductImage(product.id, {
+                image_url: imageUrl,
+                is_primary: i === 0, // First image is primary
+                order_index: i,
+              });
+              console.log(`Image ${i + 1} added to product`);
+            }
+          } catch (uploadError) {
+            console.error(`Failed to upload image ${i + 1}:`, uploadError);
+            // Continue with other images even if one fails
+          }
+        }
       }
 
       Alert.alert(

@@ -41,6 +41,9 @@ class Product(Base):
     is_active = Column(Boolean, default=True)
     is_featured = Column(Boolean, default=False)
     minimum_order_quantity = Column(Integer, default=1)
+
+    # Analytics
+    view_count = Column(Integer, default=0, nullable=False)
     
     # SEO and discovery
     tags = Column(String(500), nullable=True)  # comma-separated tags

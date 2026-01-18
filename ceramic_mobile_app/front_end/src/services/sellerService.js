@@ -74,6 +74,18 @@ class SellerService {
     return await apiClient.upload(`${API_CONFIG.ENDPOINTS.SELLER}/upload-image`, formData);
   }
 
+  // Add image to product
+  async addProductImage(productId, imageData) {
+    // imageData: { image_url, alt_text?, is_primary?, order_index? }
+    const params = new URLSearchParams();
+    params.append('image_url', imageData.image_url);
+    if (imageData.alt_text) params.append('alt_text', imageData.alt_text);
+    if (imageData.is_primary !== undefined) params.append('is_primary', imageData.is_primary);
+    if (imageData.order_index !== undefined) params.append('order_index', imageData.order_index);
+
+    return await apiClient.post(`${API_CONFIG.ENDPOINTS.PRODUCTS}/${productId}/images?${params.toString()}`);
+  }
+
   // Bulk Operations
   async bulkUpdateStatus(productIds, isActive) {
     return await apiClient.post(`${API_CONFIG.ENDPOINTS.SELLER}/bulk-operations/update-status`, {

@@ -191,6 +191,34 @@ def read_product(product_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Product not found")
     return product
 
+
+@router.post("/{product_id}/view")
+def track_product_view(
+    product_id: int,
+    current_user: Optional[User] = Depends(get_optional_current_user),
+    db: Session = Depends(get_db)
+):
+    """Track a product view for analytics"""
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.is_active == True
+    ).first()
+
+    if product is None:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    # Increment view count
+    product.view_count = (product.view_count or 0) + 1
+    db.commit()
+
+    logger.info(f"Product {product_id} viewed. Total views: {product.view_count}")
+
+    return {
+        "message": "View tracked successfully",
+        "product_id": product_id,
+        "view_count": product.view_count
+    }
+
 @router.get("/{product_id}/related", response_model=List[ProductResponse])
 def get_related_products(
     product_id: int,
