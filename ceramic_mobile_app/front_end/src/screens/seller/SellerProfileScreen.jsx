@@ -42,6 +42,17 @@ export const SellerProfileScreen = () => {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [bannerUri, setBannerUri] = useState(null);
   const [uploadingBanner, setUploadingBanner] = useState(false);
+  const [verificationModalVisible, setVerificationModalVisible] = useState(false);
+  const [verificationForm, setVerificationForm] = useState({
+    business_name: '',
+    business_type: '',
+    tax_id: '',
+    business_license: '',
+    business_address: '',
+    business_phone: '',
+    business_email: '',
+  });
+  const [submittingVerification, setSubmittingVerification] = useState(false);
 
   // Fetch seller profile on mount and when screen is focused
   const fetchSellerProfile = useCallback(async () => {
@@ -206,6 +217,66 @@ export const SellerProfileScreen = () => {
     }
   };
 
+  const handleOpenVerificationModal = () => {
+    // Pre-fill with existing profile data if available
+    setVerificationForm({
+      business_name: sellerProfile?.store_name || '',
+      business_type: sellerProfile?.business_type || '',
+      tax_id: '',
+      business_license: '',
+      business_address: sellerProfile?.business_address_line1 || '',
+      business_phone: sellerProfile?.business_phone || user?.phoneNumber || user?.phone_number || '',
+      business_email: sellerProfile?.business_email || user?.email || '',
+    });
+    setVerificationModalVisible(true);
+  };
+
+  const handleSubmitVerification = async () => {
+    // Validate required fields
+    if (!verificationForm.business_name.trim()) {
+      Alert.alert('Validation Error', 'Business name is required');
+      return;
+    }
+    if (!verificationForm.business_type.trim()) {
+      Alert.alert('Validation Error', 'Business type is required');
+      return;
+    }
+    if (!verificationForm.tax_id.trim()) {
+      Alert.alert('Validation Error', 'Tax ID is required');
+      return;
+    }
+    if (!verificationForm.business_address.trim()) {
+      Alert.alert('Validation Error', 'Business address is required');
+      return;
+    }
+    if (!verificationForm.business_phone.trim()) {
+      Alert.alert('Validation Error', 'Business phone is required');
+      return;
+    }
+    if (!verificationForm.business_email.trim()) {
+      Alert.alert('Validation Error', 'Business email is required');
+      return;
+    }
+
+    setSubmittingVerification(true);
+    try {
+      const response = await sellerProfileService.requestVerification(verificationForm);
+      const result = response.data || response;
+
+      setVerificationModalVisible(false);
+      Alert.alert(
+        'Verification Submitted',
+        result.message || 'Your verification request has been submitted successfully. We will review it and get back to you.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Verification request error:', error);
+      Alert.alert('Error', error.response?.data?.detail || error.message || 'Failed to submit verification request');
+    } finally {
+      setSubmittingVerification(false);
+    }
+  };
+
   const handleSaveProfile = async () => {
     if (!editForm.full_name.trim()) {
       Alert.alert('Validation Error', 'Full name is required');
@@ -349,6 +420,15 @@ export const SellerProfileScreen = () => {
             left={props => <List.Icon {...props} icon="package-variant" />}
             right={props => <List.Icon {...props} icon="chevron-right" />}
             onPress={() => navigation.navigate('Products')}
+          />
+          <Divider />
+          <List.Item
+            title="Request Verification"
+            description="Verify your business for trusted seller badge"
+            left={props => <List.Icon {...props} icon="check-decagram" />}
+            right={props => <List.Icon {...props} icon="chevron-right" />}
+            onPress={handleOpenVerificationModal}
+            testID="request-verification-button"
           />
         </Card>
 
@@ -501,6 +581,110 @@ export const SellerProfileScreen = () => {
               Save
             </Button>
           </View>
+        </Modal>
+
+        {/* Verification Request Modal */}
+        <Modal
+          visible={verificationModalVisible}
+          onDismiss={() => setVerificationModalVisible(false)}
+          contentContainerStyle={styles.verificationModalContainer}
+        >
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <Text style={styles.modalTitle}>Request Business Verification</Text>
+            <Text style={styles.verificationDescription}>
+              Submit your business details to become a verified seller and earn customer trust.
+            </Text>
+
+            <TextInput
+              label="Business Name *"
+              value={verificationForm.business_name}
+              onChangeText={(text) => setVerificationForm(prev => ({ ...prev, business_name: text }))}
+              style={styles.input}
+              mode="outlined"
+              testID="verification-business-name"
+            />
+
+            <TextInput
+              label="Business Type *"
+              value={verificationForm.business_type}
+              onChangeText={(text) => setVerificationForm(prev => ({ ...prev, business_type: text }))}
+              style={styles.input}
+              mode="outlined"
+              placeholder="e.g., Sole Proprietorship, LLC, Corporation"
+              testID="verification-business-type"
+            />
+
+            <TextInput
+              label="Tax ID / Business Registration Number *"
+              value={verificationForm.tax_id}
+              onChangeText={(text) => setVerificationForm(prev => ({ ...prev, tax_id: text }))}
+              style={styles.input}
+              mode="outlined"
+              testID="verification-tax-id"
+            />
+
+            <TextInput
+              label="Business License Number (Optional)"
+              value={verificationForm.business_license}
+              onChangeText={(text) => setVerificationForm(prev => ({ ...prev, business_license: text }))}
+              style={styles.input}
+              mode="outlined"
+              testID="verification-business-license"
+            />
+
+            <TextInput
+              label="Business Address *"
+              value={verificationForm.business_address}
+              onChangeText={(text) => setVerificationForm(prev => ({ ...prev, business_address: text }))}
+              style={styles.input}
+              mode="outlined"
+              multiline
+              numberOfLines={2}
+              testID="verification-business-address"
+            />
+
+            <TextInput
+              label="Business Phone *"
+              value={verificationForm.business_phone}
+              onChangeText={(text) => setVerificationForm(prev => ({ ...prev, business_phone: text }))}
+              style={styles.input}
+              mode="outlined"
+              keyboardType="phone-pad"
+              testID="verification-business-phone"
+            />
+
+            <TextInput
+              label="Business Email *"
+              value={verificationForm.business_email}
+              onChangeText={(text) => setVerificationForm(prev => ({ ...prev, business_email: text }))}
+              style={styles.input}
+              mode="outlined"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              testID="verification-business-email"
+            />
+
+            <View style={styles.modalButtons}>
+              <Button
+                mode="outlined"
+                onPress={() => setVerificationModalVisible(false)}
+                style={styles.modalButton}
+                testID="cancel-verification-button"
+              >
+                Cancel
+              </Button>
+              <Button
+                mode="contained"
+                onPress={handleSubmitVerification}
+                style={styles.modalButton}
+                loading={submittingVerification}
+                disabled={submittingVerification}
+                testID="submit-verification-button"
+              >
+                Submit
+              </Button>
+            </View>
+          </ScrollView>
         </Modal>
       </Portal>
     </View>
@@ -710,6 +894,20 @@ const styles = StyleSheet.create({
   },
   changeBannerButton: {
     marginTop: spacing.xs,
+  },
+  verificationModalContainer: {
+    backgroundColor: colors.surface,
+    padding: spacing.lg,
+    margin: spacing.md,
+    borderRadius: 12,
+    maxHeight: '90%',
+  },
+  verificationDescription: {
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary || '#666',
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+    lineHeight: 20,
   },
 });
 

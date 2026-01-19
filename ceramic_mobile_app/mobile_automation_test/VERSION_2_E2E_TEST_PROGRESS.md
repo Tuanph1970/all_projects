@@ -123,7 +123,7 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | Theme Management | `fast-seller-theme-test.sh` | MEDIUM | ✅ Done | Create, update, activate themes |
 | Upload Logo | `fast-seller-upload-logo-test.sh` | MEDIUM | ✅ Done | Upload store logo |
 | Upload Banner | `fast-seller-upload-banner-test.sh` | MEDIUM | ✅ Done | Upload store banner |
-| Verification Request | `fast-seller-verification-test.sh` | LOW | ⏳ Pending | Request seller verification |
+| Verification Request | `fast-seller-verification-test.sh` | LOW | ✅ Done | Request seller verification |
 
 **Test Scenarios Implemented:**
 - [x] GET /api/v1/seller-profile/ - View profile ✅ Fixed 2026-01-17 (SellerProfileScreen)
@@ -134,7 +134,7 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 **Pending Test Scenarios:**
 - [x] POST /api/v1/seller/upload-logo - Upload logo ✅ Fixed 2026-01-19 (SellerProfileScreen)
 - [x] POST /api/v1/seller/upload-banner - Upload banner ✅ Fixed 2026-01-19 (SellerProfileScreen)
-- [ ] POST /api/v1/seller-profile/verify - Request verification
+- [x] POST /api/v1/seller/verify - Request verification ✅ Fixed 2026-01-19 (SellerProfileScreen)
 
 **Frontend Implementations (2026-01-17):**
 - `SellerProfileScreen.jsx` - New screen with profile display, edit modal, navigation to settings
@@ -146,7 +146,8 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 **Frontend Implementations (2026-01-19):**
 - `SellerProfileScreen.jsx` - Added Upload Logo feature with expo-image-picker, logo preview, handleUploadLogo function
 - `SellerProfileScreen.jsx` - Added Upload Banner feature with 16:9 aspect ratio, banner preview, handleUploadBanner function
-- `sellerProfileService.js` - Fixed uploadLogo/uploadBanner endpoints to use /api/v1/seller/ (not /seller/profile/)
+- `SellerProfileScreen.jsx` - Added Verification Request modal with business details form, handleSubmitVerification function
+- `sellerProfileService.js` - Fixed uploadLogo/uploadBanner/verify endpoints to use /api/v1/seller/ (not /seller/profile/)
 
 ---
 
@@ -304,7 +305,7 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | 2026-01-17 | B.1 Theme Management | ✅ Pass | ThemeManagementScreen with color presets and live preview |
 | 2026-01-19 | B.1 Upload Logo | ✅ Pass | Implemented with expo-image-picker, upload to /api/v1/seller/upload-logo |
 | 2026-01-19 | B.1 Upload Banner | ✅ Pass | Implemented with expo-image-picker (16:9 aspect), upload to /api/v1/seller/upload-banner |
-| | B.1 Verification Request | ⏳ Pending | Backend endpoint exists, frontend not implemented |
+| 2026-01-19 | B.1 Verification Request | ✅ Pass | Verification form with business details, submit to /api/v1/seller/verify |
 | 2026-01-17 | B.2 Search Suggestions | ✅ Pass | Autocomplete with debounce, fallback to product search |
 | 2026-01-17 | B.2 Filter Options | ✅ Pass | Filter modal with Sort By, Price Range, Category filters |
 | 2026-01-17 | B.2 Trending Products | ✅ Pass | Trending section on HomeScreen with API integration |
@@ -439,4 +440,4 @@ echo "=========================================="
 ---
 
 *Document generated: 2026-01-14*
-*Last updated: 2026-01-19 - Section A COMPLETE, Section B.1 PARTIAL (6/7), Section B.2 COMPLETE (6/6), Section B.3 PARTIAL (3/4)*
+*Last updated: 2026-01-19 - Section A COMPLETE, Section B.1 COMPLETE (7/7), Section B.2 COMPLETE (6/6), Section B.3 PARTIAL (3/4)*

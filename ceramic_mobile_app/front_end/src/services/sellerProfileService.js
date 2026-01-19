@@ -101,7 +101,8 @@ class SellerProfileService {
 
   // Request business verification
   async requestVerification(verificationRequest) {
-    return await apiClient.post(`${API_CONFIG.ENDPOINTS.SELLER_PROFILE}/verify`, verificationRequest);
+    // Note: verify endpoint is under /api/v1/seller, not /api/v1/seller-profile
+    return await apiClient.post(`${API_CONFIG.ENDPOINTS.SELLER}/verify`, verificationRequest);
   }
 
   // Helper methods for profile management
