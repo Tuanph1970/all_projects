@@ -7,12 +7,15 @@ class ApiClient {
   constructor() {
     this.isRefreshing = false;
     this.refreshSubscribers = [];
-    
+    this.detectedBaseUrl = null;
+    this.isDetecting = false;
+    this.detectPromise = null;
+
     // Debug logging for development
     if (__DEV__ || process.env.NODE_ENV === 'development') {
       console.log('🔗 API Base URL:', API_CONFIG.BASE_URL);
     }
-    
+
     this.client = axios.create({
       baseURL: API_CONFIG.BASE_URL,
       timeout: API_CONFIG.TIMEOUT,
@@ -22,6 +25,72 @@ class ApiClient {
     });
 
     this.setupInterceptors();
+
+    // Start auto-detection if BASE_URLS is available
+    if (API_CONFIG.BASE_URLS && API_CONFIG.BASE_URLS.length > 0) {
+      this.autoDetectBaseUrl();
+    }
+  }
+
+  // Auto-detect working base URL from list of candidates
+  async autoDetectBaseUrl() {
+    if (this.isDetecting) {
+      return this.detectPromise;
+    }
+
+    this.isDetecting = true;
+    this.detectPromise = this._performDetection();
+
+    try {
+      await this.detectPromise;
+    } finally {
+      this.isDetecting = false;
+    }
+  }
+
+  async _performDetection() {
+    const urls = API_CONFIG.BASE_URLS || [API_CONFIG.BASE_URL];
+
+    console.log('🔍 Auto-detecting API server from:', urls);
+
+    for (const url of urls) {
+      try {
+        // Try a simple health check - products endpoint
+        const testUrl = `${url}/api/v1/products/?limit=1`;
+        console.log(`🔄 Trying: ${url}`);
+
+        const response = await axios.get(testUrl, {
+          timeout: 5000,
+          validateStatus: (status) => status < 500 // Accept any non-server-error
+        });
+
+        if (response.status < 500) {
+          console.log(`✅ API server detected: ${url}`);
+          this.detectedBaseUrl = url;
+          this.client.defaults.baseURL = url;
+
+          // Also update WebSocket URL if pattern matches
+          if (url.includes(':8002')) {
+            API_CONFIG.WS_URL = url.replace('http', 'ws');
+          } else if (url.includes('/ceramic')) {
+            API_CONFIG.WS_URL = url.replace('http', 'ws');
+          }
+
+          return url;
+        }
+      } catch (error) {
+        console.log(`❌ Failed: ${url} - ${error.message}`);
+      }
+    }
+
+    // If no URL works, keep the default
+    console.warn('⚠️ No working API server found, using default:', API_CONFIG.BASE_URL);
+    return API_CONFIG.BASE_URL;
+  }
+
+  // Get the current base URL (detected or default)
+  getBaseUrl() {
+    return this.detectedBaseUrl || API_CONFIG.BASE_URL;
   }
 
   setupInterceptors() {

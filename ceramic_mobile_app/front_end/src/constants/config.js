@@ -27,8 +27,13 @@ const ENV_CONFIG = {
   },
   testing: {
     // E2E testing via Traefik gateway (10.0.2.2 is Android emulator's alias for host)
-    // Direct connection to Traefik on port 8002 (bypasses nginx for local testing)
-    BASE_URL: 'http://10.0.2.2:8002',
+    // Auto-detect: tries each URL in order, uses first one that works
+    BASE_URLS: [
+      'http://10.0.2.2:8002',      // Office: direct Traefik port
+      'http://10.0.2.2/ceramic',   // Home: nginx proxy with /ceramic path
+      'http://10.0.2.2:80',        // Fallback: standard HTTP port
+    ],
+    BASE_URL: 'http://10.0.2.2:8002', // Default (will be auto-detected)
     WS_URL: 'ws://10.0.2.2:8002',
   },
   production: {
@@ -44,6 +49,7 @@ const currentEnv = ENV_CONFIG[ENVIRONMENT];
 export const API_CONFIG = {
   // Base URL for API requests
   BASE_URL: currentEnv.BASE_URL,
+  BASE_URLS: currentEnv.BASE_URLS || null, // Array for auto-detection (testing env only)
   WS_URL: currentEnv.WS_URL,
 
   TIMEOUT: 10000, // 10 seconds
