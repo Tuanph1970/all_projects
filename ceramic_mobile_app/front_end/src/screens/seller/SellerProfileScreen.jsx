@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Image, TouchableOpacity } from 'react-native';
 import {
   Text,
   Appbar,
@@ -11,11 +11,13 @@ import {
   TextInput,
   Portal,
   Modal,
-  ActivityIndicator
+  ActivityIndicator,
+  IconButton
 } from 'react-native-paper';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { useFocusEffect } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
 import { logoutUser, getCurrentUser } from '../../store/slices/authSlice.js';
 import { colors, spacing, typography } from '../../constants/theme.js';
 import LanguageToggle from '../../components/common/LanguageToggle';
@@ -36,6 +38,8 @@ export const SellerProfileScreen = () => {
     shop_description: '',
   });
   const [saving, setSaving] = useState(false);
+  const [logoUri, setLogoUri] = useState(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   // Fetch seller profile on mount and when screen is focused
   const fetchSellerProfile = useCallback(async () => {
@@ -78,7 +82,67 @@ export const SellerProfileScreen = () => {
       shop_name: sellerProfile?.store_name || '',
       shop_description: sellerProfile?.store_description || '',
     });
+    setLogoUri(sellerProfile?.logo_url || null);
     setEditModalVisible(true);
+  };
+
+  const handleSelectLogo = async () => {
+    try {
+      // Request permission
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Required', 'Please allow access to your photo library to upload a logo.');
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        handleUploadLogo(asset);
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Alert.alert('Error', 'Failed to open image picker');
+    }
+  };
+
+  const handleUploadLogo = async (imageAsset) => {
+    setUploadingLogo(true);
+    try {
+      // Get file name from URI
+      const uriParts = imageAsset.uri.split('/');
+      const fileName = uriParts[uriParts.length - 1] || 'logo.jpg';
+
+      const file = {
+        uri: imageAsset.uri,
+        type: imageAsset.mimeType || 'image/jpeg',
+        name: fileName,
+      };
+
+      const response = await sellerProfileService.uploadLogo(file);
+      const result = response.data || response;
+
+      // Use local URI for display (server URL may not be accessible)
+      // The server stores the reference, but we display the local image
+      setLogoUri(imageAsset.uri);
+      Alert.alert('Success', 'Logo uploaded successfully');
+
+      // Refresh seller profile to get updated logo_url
+      await fetchSellerProfile();
+    } catch (error) {
+      console.error('Upload logo error:', error);
+      Alert.alert('Error', error.response?.data?.detail || error.message || 'Failed to upload logo');
+    } finally {
+      setUploadingLogo(false);
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -250,6 +314,39 @@ export const SellerProfileScreen = () => {
           contentContainerStyle={styles.modalContainer}
         >
           <Text style={styles.modalTitle}>Edit Profile</Text>
+
+          {/* Logo Upload Section */}
+          <View style={styles.logoSection}>
+            <Text style={styles.logoLabel}>Store Logo</Text>
+            <TouchableOpacity
+              style={styles.logoContainer}
+              onPress={handleSelectLogo}
+              disabled={uploadingLogo}
+              testID="upload-logo-button"
+            >
+              {uploadingLogo ? (
+                <ActivityIndicator size="large" color={colors.primary} />
+              ) : logoUri ? (
+                <Image source={{ uri: logoUri }} style={styles.logoImage} />
+              ) : (
+                <View style={styles.logoPlaceholder}>
+                  <IconButton icon="camera-plus" size={40} iconColor={colors.primary} />
+                  <Text style={styles.logoPlaceholderText}>Tap to upload logo</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            {logoUri && (
+              <Button
+                mode="text"
+                onPress={handleSelectLogo}
+                disabled={uploadingLogo}
+                style={styles.changeLogoButton}
+                testID="change-logo-button"
+              >
+                Change Logo
+              </Button>
+            )}
+          </View>
 
           <TextInput
             label="Full Name *"
@@ -439,6 +536,46 @@ const styles = StyleSheet.create({
   modalButton: {
     flex: 1,
     marginHorizontal: spacing.xs,
+  },
+  logoSection: {
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  logoLabel: {
+    fontSize: typography.sizes.md,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  logoContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.surfaceVariant || '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.primary,
+    borderStyle: 'dashed',
+    overflow: 'hidden',
+  },
+  logoImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+  },
+  logoPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoPlaceholderText: {
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary || '#666',
+    textAlign: 'center',
+    marginTop: -spacing.sm,
+  },
+  changeLogoButton: {
+    marginTop: spacing.xs,
   },
 });
 

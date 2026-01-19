@@ -121,7 +121,7 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | Seller Profile Update | `fast-seller-profile-update-test.sh` | HIGH | ✅ Done | Update seller profile data |
 | Store Settings | `fast-seller-store-settings-test.sh` | HIGH | ✅ Done | View and update store settings |
 | Theme Management | `fast-seller-theme-test.sh` | MEDIUM | ✅ Done | Create, update, activate themes |
-| Upload Logo | `fast-seller-upload-logo-test.sh` | MEDIUM | ⏳ Pending | Upload store logo |
+| Upload Logo | `fast-seller-upload-logo-test.sh` | MEDIUM | ✅ Done | Upload store logo |
 | Upload Banner | `fast-seller-upload-banner-test.sh` | MEDIUM | ⏳ Pending | Upload store banner |
 | Verification Request | `fast-seller-verification-test.sh` | LOW | ⏳ Pending | Request seller verification |
 
@@ -132,8 +132,8 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 - [x] Theme Management - Save theme via brand_colors ✅ Fixed 2026-01-17 (ThemeManagementScreen)
 
 **Pending Test Scenarios:**
-- [ ] POST /api/v1/seller-profile/upload-logo - Upload logo
-- [ ] POST /api/v1/seller-profile/upload-banner - Upload banner
+- [x] POST /api/v1/seller/upload-logo - Upload logo ✅ Fixed 2026-01-19 (SellerProfileScreen)
+- [ ] POST /api/v1/seller/upload-banner - Upload banner
 - [ ] POST /api/v1/seller-profile/verify - Request verification
 
 **Frontend Implementations (2026-01-17):**
@@ -142,6 +142,10 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 - `ThemeManagementScreen.jsx` - Theme customization with color presets, live preview, layout settings
 - `sellerProfileService.js` - Updated with saveTheme/getTheme methods using brand_colors field
 - `MainNavigator.jsx` - Added Profile tab to SellerTabs, StoreSettings and ThemeManagement routes
+
+**Frontend Implementations (2026-01-19):**
+- `SellerProfileScreen.jsx` - Added Upload Logo feature with expo-image-picker, logo preview, handleUploadLogo function
+- `sellerProfileService.js` - Fixed uploadLogo endpoint to use /api/v1/seller/upload-logo (not /seller/profile/)
 
 ---
 
@@ -297,7 +301,7 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | 2026-01-17 | B.1 Seller Profile Update | ✅ Pass | Edit Profile modal with validation working |
 | 2026-01-17 | B.1 Store Settings | ✅ Pass | StoreSettingsScreen with all business fields |
 | 2026-01-17 | B.1 Theme Management | ✅ Pass | ThemeManagementScreen with color presets and live preview |
-| | B.1 Upload Logo | ⏳ Pending | Backend endpoint exists, frontend not implemented |
+| 2026-01-19 | B.1 Upload Logo | ✅ Pass | Implemented with expo-image-picker, upload to /api/v1/seller/upload-logo |
 | | B.1 Upload Banner | ⏳ Pending | Backend endpoint exists, frontend not implemented |
 | | B.1 Verification Request | ⏳ Pending | Backend endpoint exists, frontend not implemented |
 | 2026-01-17 | B.2 Search Suggestions | ✅ Pass | Autocomplete with debounce, fallback to product search |
@@ -434,4 +438,4 @@ echo "=========================================="
 ---
 
 *Document generated: 2026-01-14*
-*Last updated: 2026-01-18 - Section A COMPLETE, Section B.1 PARTIAL (4/7), Section B.2 COMPLETE (6/6), Section B.3 COMPLETE (3/4)*
+*Last updated: 2026-01-19 - Section A COMPLETE, Section B.1 PARTIAL (5/7), Section B.2 COMPLETE (6/6), Section B.3 PARTIAL (3/4)*

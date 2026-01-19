@@ -87,14 +87,16 @@ class SellerProfileService {
   async uploadLogo(file) {
     const formData = new FormData();
     formData.append('file', file);
-    return await apiClient.upload(`${API_CONFIG.ENDPOINTS.SELLER_PROFILE}/upload-logo`, formData);
+    // Note: upload-logo is under /api/v1/seller, not /api/v1/seller/profile
+    return await apiClient.upload(`${API_CONFIG.ENDPOINTS.SELLER}/upload-logo`, formData);
   }
 
   // Upload store banner
   async uploadBanner(file) {
     const formData = new FormData();
     formData.append('file', file);
-    return await apiClient.upload(`${API_CONFIG.ENDPOINTS.SELLER_PROFILE}/upload-banner`, formData);
+    // Note: upload-banner is under /api/v1/seller, not /api/v1/seller/profile
+    return await apiClient.upload(`${API_CONFIG.ENDPOINTS.SELLER}/upload-banner`, formData);
   }
 
   // Request business verification
