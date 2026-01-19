@@ -40,6 +40,8 @@ export const SellerProfileScreen = () => {
   const [saving, setSaving] = useState(false);
   const [logoUri, setLogoUri] = useState(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [bannerUri, setBannerUri] = useState(null);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
 
   // Fetch seller profile on mount and when screen is focused
   const fetchSellerProfile = useCallback(async () => {
@@ -83,6 +85,7 @@ export const SellerProfileScreen = () => {
       shop_description: sellerProfile?.store_description || '',
     });
     setLogoUri(sellerProfile?.logo_url || null);
+    setBannerUri(sellerProfile?.banner_url || null);
     setEditModalVisible(true);
   };
 
@@ -142,6 +145,64 @@ export const SellerProfileScreen = () => {
       Alert.alert('Error', error.response?.data?.detail || error.message || 'Failed to upload logo');
     } finally {
       setUploadingLogo(false);
+    }
+  };
+
+  const handleSelectBanner = async () => {
+    try {
+      // Request permission
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permissionResult.granted) {
+        Alert.alert('Permission Required', 'Please allow access to your photo library to upload a banner.');
+        return;
+      }
+
+      // Launch image picker with wider aspect ratio for banner
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        handleUploadBanner(asset);
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Alert.alert('Error', 'Failed to open image picker');
+    }
+  };
+
+  const handleUploadBanner = async (imageAsset) => {
+    setUploadingBanner(true);
+    try {
+      // Get file name from URI
+      const uriParts = imageAsset.uri.split('/');
+      const fileName = uriParts[uriParts.length - 1] || 'banner.jpg';
+
+      const file = {
+        uri: imageAsset.uri,
+        type: imageAsset.mimeType || 'image/jpeg',
+        name: fileName,
+      };
+
+      const response = await sellerProfileService.uploadBanner(file);
+      const result = response.data || response;
+
+      // Use local URI for display (server URL may not be accessible)
+      setBannerUri(imageAsset.uri);
+      Alert.alert('Success', 'Banner uploaded successfully');
+
+      // Refresh seller profile to get updated banner_url
+      await fetchSellerProfile();
+    } catch (error) {
+      console.error('Upload banner error:', error);
+      Alert.alert('Error', error.response?.data?.detail || error.message || 'Failed to upload banner');
+    } finally {
+      setUploadingBanner(false);
     }
   };
 
@@ -344,6 +405,39 @@ export const SellerProfileScreen = () => {
                 testID="change-logo-button"
               >
                 Change Logo
+              </Button>
+            )}
+          </View>
+
+          {/* Banner Upload Section */}
+          <View style={styles.bannerSection}>
+            <Text style={styles.bannerLabel}>Store Banner</Text>
+            <TouchableOpacity
+              style={styles.bannerContainer}
+              onPress={handleSelectBanner}
+              disabled={uploadingBanner}
+              testID="upload-banner-button"
+            >
+              {uploadingBanner ? (
+                <ActivityIndicator size="large" color={colors.primary} />
+              ) : bannerUri ? (
+                <Image source={{ uri: bannerUri }} style={styles.bannerImage} />
+              ) : (
+                <View style={styles.bannerPlaceholder}>
+                  <IconButton icon="image-plus" size={40} iconColor={colors.primary} />
+                  <Text style={styles.bannerPlaceholderText}>Tap to upload banner (16:9)</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            {bannerUri && (
+              <Button
+                mode="text"
+                onPress={handleSelectBanner}
+                disabled={uploadingBanner}
+                style={styles.changeBannerButton}
+                testID="change-banner-button"
+              >
+                Change Banner
               </Button>
             )}
           </View>
@@ -575,6 +669,46 @@ const styles = StyleSheet.create({
     marginTop: -spacing.sm,
   },
   changeLogoButton: {
+    marginTop: spacing.xs,
+  },
+  bannerSection: {
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  bannerLabel: {
+    fontSize: typography.sizes.md,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.sm,
+  },
+  bannerContainer: {
+    width: '100%',
+    height: 120,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceVariant || '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.primary,
+    borderStyle: 'dashed',
+    overflow: 'hidden',
+  },
+  bannerImage: {
+    width: '100%',
+    height: 120,
+    borderRadius: 8,
+  },
+  bannerPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bannerPlaceholderText: {
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary || '#666',
+    textAlign: 'center',
+    marginTop: -spacing.sm,
+  },
+  changeBannerButton: {
     marginTop: spacing.xs,
   },
 });
