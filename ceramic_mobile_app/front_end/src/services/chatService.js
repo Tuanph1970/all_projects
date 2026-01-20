@@ -279,6 +279,27 @@ class ChatService {
     return response.json();
   }
 
+  async createOrGetRoom(sellerId, productId) {
+    const tokens = await secureStorage.getTokens();
+    const token = tokens?.accessToken;
+    const response = await fetch(
+      `${API_CONFIG.BASE_URL}/api/v1/chat/rooms?seller_id=${sellerId}&product_id=${productId}`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to create/get chat room: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
   async getChatMessages(
     chatRoomId,
     skip = 0,

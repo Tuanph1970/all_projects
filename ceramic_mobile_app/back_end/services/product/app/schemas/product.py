@@ -3,6 +3,19 @@ from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
 
+
+class SellerInfo(BaseModel):
+    """Seller information embedded in product response"""
+    id: int
+    name: str
+    shop_name: Optional[str] = None
+    rating: Optional[float] = None
+    reviewCount: int = 0
+
+    class Config:
+        from_attributes = True
+
+
 class CategoryBase(BaseModel):
     name: str
     description: Optional[str] = None
@@ -88,6 +101,7 @@ class ProductResponse(BaseModel):
     is_featured: bool
     created_at: datetime
     images: List[ProductImageResponse] = []
+    seller: Optional[SellerInfo] = None
 
     class Config:
         from_attributes = True

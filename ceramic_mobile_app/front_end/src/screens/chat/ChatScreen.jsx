@@ -93,18 +93,19 @@ const TypingIndicator = ({ typingUsers, t }) => {
 export const ChatScreen = () => {
   const route = useRoute();
   const t = useTranslation();
-  const { conversationId, recipientName } = route.params;
+  const { sellerId, productId, conversationId, recipientName } = route.params || {};
   const currentUser = useSelector((state) => state.auth.user);
-  
+
   // State
   const [messages, setMessages] = useState([]);
   const [chatRoom, setChatRoom] = useState(null);
+  const [roomId, setRoomId] = useState(conversationId);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
-  
+
   // Refs
   const flatListRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -117,33 +118,47 @@ export const ChatScreen = () => {
 
     try {
       setIsLoading(true);
-      
+
       // Connect to WebSocket
       await chatService.connect(currentUser.id);
-      
-      // Load chat messages
-      const loadedMessages = await chatService.getChatMessages(conversationId);
-      setMessages(loadedMessages);
-      
-      // Load chat room info
-      const rooms = await chatService.getChatRooms();
-      const currentRoom = rooms.find(room => room.id === conversationId);
-      setChatRoom(currentRoom || null);
-      
+
+      let actualRoomId = roomId;
+
+      // If sellerId and productId provided, create or get the chat room first
+      if (sellerId && productId && !roomId) {
+        const room = await chatService.createOrGetRoom(sellerId, productId);
+        actualRoomId = room.id;
+        setRoomId(room.id);
+        setChatRoom(room);
+      }
+
+      if (actualRoomId) {
+        // Load chat messages
+        const loadedMessages = await chatService.getChatMessages(actualRoomId);
+        setMessages(loadedMessages);
+
+        // Load chat room info if not already set
+        if (!chatRoom) {
+          const rooms = await chatService.getChatRooms();
+          const currentRoom = rooms.find(room => room.id === actualRoomId);
+          setChatRoom(currentRoom || null);
+        }
+      }
+
     } catch (error) {
       console.error('Error initializing chat:', error);
       Alert.alert(t('common.error'), t('chat.loadMessagesError'));
     } finally {
       setIsLoading(false);
     }
-  }, [conversationId, currentUser]);
+  }, [sellerId, productId, roomId, currentUser, chatRoom]);
 
   // Handle WebSocket messages
   const handleWebSocketMessage = useCallback((wsMessage) => {
     switch (wsMessage.type) {
       case 'new_message':
         const newMessage = wsMessage.data;
-        if (newMessage.chat_room_id === conversationId) {
+        if (newMessage.chat_room_id === roomId) {
           setMessages(prev => {
             // Avoid duplicates
             const exists = prev.some(msg => msg.id === newMessage.id);
@@ -159,7 +174,7 @@ export const ChatScreen = () => {
           // Mark if from other user
           if (newMessage.sender_id !== currentUser?.id) {
             setTimeout(() => {
-              chatService.markMessagesAsRead(conversationId, [newMessage.id]);
+              chatService.markMessagesAsRead(roomId, [newMessage.id]);
             }, 1000);
           }
         }
@@ -167,7 +182,7 @@ export const ChatScreen = () => {
         
       case 'messages_read':
         const readData = wsMessage.data;
-        if (readData.chat_room_id === conversationId) {
+        if (readData.chat_room_id === roomId) {
           setMessages(prev => prev.map(msg => 
             readData.message_ids.includes(msg.id) 
               ? { ...msg, is_read: true, read_at: readData.read_at } : msg
@@ -177,7 +192,7 @@ export const ChatScreen = () => {
         
       case 'user_typing':
         const typingData = wsMessage.data;
-        if (typingData.chat_room_id === conversationId) {
+        if (typingData.chat_room_id === roomId) {
           setTypingUsers(prev => {
             const filtered = prev.filter(id => id !== typingData.user_id);
             return typingData.is_typing 
@@ -187,7 +202,7 @@ export const ChatScreen = () => {
         }
         break;
     }
-  }, [conversationId, currentUser]);
+  }, [roomId, currentUser]);
 
   // Setup WebSocket listeners
   useEffect(() => {
@@ -222,9 +237,9 @@ export const ChatScreen = () => {
         .filter(id => id !== undefined);
       
       if (unreadMessages.length > 0) {
-        chatService.markMessagesAsRead(conversationId, unreadMessages);
+        chatService.markMessagesAsRead(roomId, unreadMessages);
       }
-    }, [messages, conversationId, currentUser])
+    }, [messages, roomId, currentUser])
   );
 
   // Send message
@@ -240,7 +255,7 @@ export const ChatScreen = () => {
     // Optimistic update
     const optimisticMessage = {
       id: clientMessageId, // Temporary ID
-      chat_room_id: conversationId,
+      chat_room_id: roomId,
       sender_id: currentUser.id,
       receiver_id: receiverId,
       content: inputText,
@@ -256,7 +271,7 @@ export const ChatScreen = () => {
     
     // Send via WebSocket
     chatService.sendChatMessage(
-      conversationId,
+      roomId,
       receiverId,
       inputText,
       'text',
@@ -268,7 +283,7 @@ export const ChatScreen = () => {
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 100);
-  }, [inputText, chatRoom, currentUser, conversationId]);
+  }, [inputText, chatRoom, currentUser, roomId]);
 
   // Handle typing
   const handleTyping = useCallback((text) => {
@@ -277,7 +292,7 @@ export const ChatScreen = () => {
     // Send typing indicator
     if (text.length > 0 && !isTyping) {
       setIsTyping(true);
-      chatService.sendTypingIndicator(conversationId, true);
+      chatService.sendTypingIndicator(roomId, true);
     }
     
     // Clear existing timeout
@@ -289,10 +304,10 @@ export const ChatScreen = () => {
     typingTimeoutRef.current = setTimeout(() => {
       if (isTyping) {
         setIsTyping(false);
-        chatService.sendTypingIndicator(conversationId, false);
+        chatService.sendTypingIndicator(roomId, false);
       }
     }, 2000);
-  }, [conversationId, isTyping]);
+  }, [roomId, isTyping]);
 
   // Render message item
   const renderMessage = ({ item }) => {

@@ -151,10 +151,11 @@ export const ProductDetailsScreen = () => {
 
   const handleChatPress = () => {
     if (!product?.seller) return;
-    
-    // Navigate to chat with seller
-    navigation.navigate('Chat', { 
-      conversationId: `seller_${product.seller.id}`,
+
+    // Navigate to chat with seller - pass sellerId and productId for room creation
+    navigation.navigate('ChatScreen', {
+      sellerId: product.seller.id,
+      productId: product.id,
       recipientName: product.seller.name
     });
   };

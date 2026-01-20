@@ -16,8 +16,54 @@ from shared.models.review import Review
 
 from app.schemas.product import (
     ProductCreate, ProductResponse, ProductUpdate,
-    CategoryCreate, CategoryResponse
+    CategoryCreate, CategoryResponse, SellerInfo, ProductImageResponse
 )
+from shared.models.seller_profile import SellerProfile
+
+
+def product_to_dict(product, include_seller=False, db=None):
+    """Helper function to convert Product to dict for response"""
+    seller_info = None
+    if include_seller and product.seller and db:
+        seller_stats = db.query(
+            func.avg(Review.rating).label('avg_rating'),
+            func.count(Review.id).label('review_count')
+        ).filter(Review.seller_id == product.seller_id).first()
+
+        seller_profile = db.query(SellerProfile).filter(
+            SellerProfile.user_id == product.seller_id
+        ).first()
+
+        seller_info = {
+            "id": product.seller.id,
+            "name": product.seller.full_name,
+            "shop_name": seller_profile.store_name if seller_profile else product.seller.shop_name,
+            "rating": float(seller_stats.avg_rating) if seller_stats.avg_rating else None,
+            "reviewCount": seller_stats.review_count or 0
+        }
+
+    return {
+        "id": product.id,
+        "name": product.name,
+        "description": product.description,
+        "price": product.price,
+        "quantity_available": product.quantity_available,
+        "dimensions": product.dimensions,
+        "weight": product.weight,
+        "material": product.material,
+        "color": product.color,
+        "technique": product.technique,
+        "minimum_order_quantity": product.minimum_order_quantity,
+        "tags": product.tags,
+        "category_id": product.category_id,
+        "seller_id": product.seller_id,
+        "sku": product.sku,
+        "is_active": product.is_active,
+        "is_featured": product.is_featured,
+        "created_at": product.created_at,
+        "images": [ProductImageResponse.from_orm(img).model_dump() for img in product.images] if product.images else [],
+        "seller": seller_info
+    }
 from app.services.image_service import image_service
 from app.services.product_analytics import product_analytics
 
@@ -78,7 +124,7 @@ def create_product(
 
     CacheInvalidation.invalidate_all_products()
 
-    return db_product
+    return product_to_dict(db_product)
 
 @router.get("/", response_model=List[ProductResponse])
 def read_products(
@@ -116,7 +162,7 @@ def read_products(
         query = query.order_by(asc(getattr(Product, sort_by)))
 
     products = query.offset(skip).limit(limit).all()
-    return products
+    return [product_to_dict(p) for p in products]
 
 @router.get("/featured", response_model=List[ProductResponse])
 def get_featured_products(
@@ -142,7 +188,7 @@ def get_featured_products(
 
     products = query.order_by(desc(Product.created_at)).limit(20).all()
 
-    products_data = [ProductResponse.from_orm(p).model_dump() for p in products]
+    products_data = [product_to_dict(p) for p in products]
     cache.set(cache_key, products_data, ttl=settings.CACHE_TTL_FEATURED)
 
     return products_data[:limit]
@@ -176,7 +222,7 @@ def get_trending_products(
     )
 
     products = trending_query.limit(limit).all()
-    return products
+    return [product_to_dict(p) for p in products]
 
 @router.get("/{product_id}", response_model=ProductResponse)
 def read_product(product_id: int, db: Session = Depends(get_db)):
@@ -189,7 +235,8 @@ def read_product(product_id: int, db: Session = Depends(get_db)):
 
     if product is None:
         raise HTTPException(status_code=404, detail="Product not found")
-    return product
+
+    return product_to_dict(product, include_seller=True, db=db)
 
 
 @router.post("/{product_id}/view")
@@ -243,16 +290,16 @@ def get_related_products(
         related_with_tags = related_query.filter(or_(*tag_conditions)).limit(limit).all()
 
         if len(related_with_tags) >= limit:
-            return related_with_tags
+            return [product_to_dict(p) for p in related_with_tags]
 
         remaining = limit - len(related_with_tags)
         category_products = related_query.filter(
             ~Product.id.in_([p.id for p in related_with_tags])
         ).limit(remaining).all()
 
-        return related_with_tags + category_products
+        return [product_to_dict(p) for p in (related_with_tags + category_products)]
 
-    return related_query.limit(limit).all()
+    return [product_to_dict(p) for p in related_query.limit(limit).all()]
 
 @router.put("/{product_id}", response_model=ProductResponse)
 def update_product(
@@ -342,15 +389,15 @@ def get_home_featured_products(db: Session = Depends(get_db)):
                 "products": category_products
             })
 
-    featured_list = [ProductResponse.from_orm(p).model_dump() for p in latest_featured]
-    popular_list = [ProductResponse.from_orm(p).model_dump() for p in popular_products]
-    newest_list = [ProductResponse.from_orm(p).model_dump() for p in newest_products]
+    featured_list = [product_to_dict(p) for p in latest_featured]
+    popular_list = [product_to_dict(p) for p in popular_products]
+    newest_list = [product_to_dict(p) for p in newest_products]
 
     categories_data = []
     for cat_item in categories_with_products:
         categories_data.append({
             "category": CategoryResponse.from_orm(cat_item["category"]).model_dump(),
-            "products": [ProductResponse.from_orm(p).model_dump() for p in cat_item["products"]]
+            "products": [product_to_dict(p) for p in cat_item["products"]]
         })
 
     result = {
@@ -361,7 +408,7 @@ def get_home_featured_products(db: Session = Depends(get_db)):
         "banner": {
             "title": "Discover Unique Ceramics",
             "subtitle": "Handcrafted pieces from talented artisans",
-            "featured_product": ProductResponse.from_orm(latest_featured[0]).model_dump() if latest_featured else None
+            "featured_product": product_to_dict(latest_featured[0]) if latest_featured else None
         }
     }
 
@@ -555,7 +602,7 @@ def advanced_search(
     products = query.offset(skip).limit(limit).all()
 
     return {
-        "products": products,
+        "products": [product_to_dict(p) for p in products],
         "total": total,
         "page": (skip // limit) + 1,
         "pages": (total + limit - 1) // limit,
@@ -636,7 +683,7 @@ def get_trending_analytics(
 
     return [
         {
-            "product": ProductResponse.from_orm(item["product"]).model_dump(),
+            "product": product_to_dict(item["product"]),
             "trending_score": item["trending_score"],
             "recent_activity": item["recent_activity"]
         }
