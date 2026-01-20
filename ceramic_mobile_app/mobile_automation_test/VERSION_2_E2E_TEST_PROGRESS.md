@@ -227,12 +227,24 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 
 **Impact:** Backend has chat features not utilized by frontend
 
-| Test Case | Script Name | Priority | Description |
-|-----------|-------------|----------|-------------|
-| Online Users | `fast-chat-online-users-test.sh` | MEDIUM | View online users in chat |
+| Test Case | Script Name | Priority | Status | Description |
+|-----------|-------------|----------|--------|-------------|
+| Chat Now from Product | `manual-chat-now-test` | **HIGH** | ✅ Done | Chat with seller from product page |
+| Online Users | `fast-chat-online-users-test.sh` | MEDIUM | ✅ Done | View online users in chat |
 
-**Test Scenarios to Implement:**
-- [ ] GET /api/v1/chat/online-users - View online status
+**Test Scenarios:**
+- [x] Seller Info displayed on ProductDetailsScreen ✅ Fixed 2026-01-20
+- [x] Chat Now button navigates to ChatScreen ✅ Fixed 2026-01-20
+- [x] Chat room created/retrieved automatically ✅ Fixed 2026-01-20
+- [x] Messages load correctly in chat ✅ Fixed 2026-01-20
+- [x] GET /api/v1/chat/online-users - View online status ✅ Verified 2026-01-20
+
+**Frontend Implementations (2026-01-20):**
+- `product/schemas/product.py` - Added SellerInfo schema with shop_name, rating, reviewCount
+- `product/routers/products.py` - Created product_to_dict() helper for consistent seller info in all endpoints
+- `chatService.js` - Added createOrGetRoom(sellerId, productId) method for room creation
+- `ChatScreen.jsx` - Updated to create/get room before loading messages, uses roomId state
+- `ProductDetailsScreen.jsx` - Fixed navigation from 'Chat' (Tab) to 'ChatScreen' (Stack screen)
 
 ---
 
@@ -325,6 +337,8 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | 2026-01-18 | B.3 Create Review | ✅ Pass | WriteReviewScreen with purchase verification, star rating |
 | 2026-01-18 | B.3 Mark Helpful | ✅ Pass | Helpful button on reviews with API integration |
 | 2026-01-20 | B.3 Update Review | ✅ Pass | Edit mode in WriteReviewScreen, Edit button on user's own reviews |
+| 2026-01-20 | B.4 Chat Now from Product | ✅ Pass | Seller Info on ProductDetails, Chat Now navigates to ChatScreen |
+| 2026-01-20 | B.4 Online Users | ✅ Pass | Backend endpoint verified, chat room creation working |
 
 ---
 
@@ -450,4 +464,4 @@ echo "=========================================="
 ---
 
 *Document generated: 2026-01-14*
-*Last updated: 2026-01-20 - Section A COMPLETE, Section B.1 COMPLETE (7/7), Section B.2 COMPLETE (6/6), Section B.3 COMPLETE (4/4)*
+*Last updated: 2026-01-20 - Section A COMPLETE, Section B.1 COMPLETE (7/7), Section B.2 COMPLETE (6/6), Section B.3 COMPLETE (4/4), Section B.4 COMPLETE (2/2)*
