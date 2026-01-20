@@ -28,6 +28,7 @@ import {
   searchProducts,
   fetchCategories,
   fetchPopularProducts,
+  fetchProducts,
   toggleFavorite,
   setSearchQuery,
   clearProducts,
@@ -120,7 +121,12 @@ export const SearchScreen = () => {
 
       // Load filter options
       loadFilterOptions();
-    }, [dispatch, categories.length, popularProducts.length])
+
+      // Load all products on initial screen load if no search query
+      if (!searchQuery) {
+        dispatch(fetchProducts({ page: 1, limit: 20 }));
+      }
+    }, [dispatch, categories.length, popularProducts.length, searchQuery])
   );
 
   // Load filter options from service
@@ -162,13 +168,14 @@ export const SearchScreen = () => {
       clearTimeout(debounceTimerRef.current);
     }
 
-    // If text is cleared, reset search state immediately
+    // If text is cleared, reset search state and load all products
     if (!text.trim()) {
       setSuggestions([]);
       setShowSuggestionDropdown(false);
       setShowSuggestions(true);
-      dispatch(clearProducts());
       dispatch(setSearchQuery(''));
+      // Fetch all products when search is cleared
+      dispatch(fetchProducts({ page: 1, limit: 20 }));
       return;
     }
 
@@ -267,8 +274,33 @@ export const SearchScreen = () => {
     setShowFilterModal(false);
     if (localSearchQuery.trim()) {
       handleSearch(localSearchQuery, selectedFilters);
+    } else {
+      // Apply filters without search query - fetch all products with filters
+      const params = { page: 1, limit: 20 };
+
+      if (selectedFilters.categoryId) {
+        params.categoryId = parseInt(selectedFilters.categoryId, 10);
+      }
+
+      if (selectedFilters.priceRange) {
+        const range = filterOptions.priceRanges.find(r => r.id === selectedFilters.priceRange);
+        if (range) {
+          params.minPrice = range.min;
+          if (range.max) params.maxPrice = range.max;
+        }
+      }
+
+      if (selectedFilters.sortOption) {
+        const sort = filterOptions.sortOptions.find(s => s.id === selectedFilters.sortOption);
+        if (sort) {
+          params.sortBy = sort.sortBy;
+          params.sortOrder = sort.sortOrder;
+        }
+      }
+
+      dispatch(fetchProducts(params));
     }
-  }, [localSearchQuery, selectedFilters, handleSearch]);
+  }, [localSearchQuery, selectedFilters, handleSearch, filterOptions, dispatch]);
 
   const clearFilters = useCallback(() => {
     const defaultFilters = {
@@ -334,37 +366,39 @@ export const SearchScreen = () => {
   }, [hasMore, isLoadingMore, searchQuery, currentPage, dispatch, selectedFilters, filterOptions]);
 
   const handleRefresh = useCallback(async () => {
-    if (searchQuery) {
-      setIsRefreshing(true);
-      dispatch(clearProducts());
+    setIsRefreshing(true);
+    dispatch(clearProducts());
 
-      // Build params with current filters
-      const params = { page: 1 };
+    // Build params with current filters
+    const params = { page: 1, limit: 20 };
 
-      if (selectedFilters.categoryId) {
-        // Convert string to number for API
-        params.categoryId = parseInt(selectedFilters.categoryId, 10);
-      }
-
-      if (selectedFilters.priceRange) {
-        const range = filterOptions.priceRanges.find(r => r.id === selectedFilters.priceRange);
-        if (range) {
-          params.minPrice = range.min;
-          if (range.max) params.maxPrice = range.max;
-        }
-      }
-
-      if (selectedFilters.sortOption) {
-        const sort = filterOptions.sortOptions.find(s => s.id === selectedFilters.sortOption);
-        if (sort) {
-          params.sortBy = sort.sortBy;
-          params.sortOrder = sort.sortOrder;
-        }
-      }
-
-      await dispatch(searchProducts({ query: searchQuery, params }));
-      setIsRefreshing(false);
+    if (selectedFilters.categoryId) {
+      // Convert string to number for API
+      params.categoryId = parseInt(selectedFilters.categoryId, 10);
     }
+
+    if (selectedFilters.priceRange) {
+      const range = filterOptions.priceRanges.find(r => r.id === selectedFilters.priceRange);
+      if (range) {
+        params.minPrice = range.min;
+        if (range.max) params.maxPrice = range.max;
+      }
+    }
+
+    if (selectedFilters.sortOption) {
+      const sort = filterOptions.sortOptions.find(s => s.id === selectedFilters.sortOption);
+      if (sort) {
+        params.sortBy = sort.sortBy;
+        params.sortOrder = sort.sortOrder;
+      }
+    }
+
+    if (searchQuery) {
+      await dispatch(searchProducts({ query: searchQuery, params }));
+    } else {
+      await dispatch(fetchProducts(params));
+    }
+    setIsRefreshing(false);
   }, [searchQuery, dispatch, selectedFilters, filterOptions]);
 
   const handleHistoryItemPress = (historyItem) => {
@@ -416,8 +450,6 @@ export const SearchScreen = () => {
   );
 
   const renderSearchResults = () => {
-    if (!searchQuery) return null;
-
     if (isLoading && products.length === 0) {
       return (
         <View style={styles.loadingContainer}>
@@ -432,15 +464,19 @@ export const SearchScreen = () => {
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyTitle}>{t('search.noProductsFound')}</Text>
           <Text style={styles.emptySubtitle}>
-            {t('search.noProductsFoundFor', { query: searchQuery })}
+            {searchQuery
+              ? t('search.noProductsFoundFor', { query: searchQuery })
+              : t('search.noProductsAvailable') || 'No products available at the moment'}
           </Text>
-          <Button
-            mode="contained"
-            style={styles.emptyButton}
-            onPress={() => handleSearch('')}
-          >
-            {t('search.clearSearch')}
-          </Button>
+          {searchQuery && (
+            <Button
+              mode="contained"
+              style={styles.emptyButton}
+              onPress={() => handleSearch('')}
+            >
+              {t('search.clearSearch')}
+            </Button>
+          )}
         </View>
       );
     }
@@ -534,14 +570,21 @@ export const SearchScreen = () => {
   );
 
   const renderContent = () => {
+    // Show search results when there's a search query
     if (searchQuery) {
       return renderSearchResults();
     }
-    
+
+    // Show products when they exist (fetched without search query)
+    if (products.length > 0 || isLoading) {
+      return renderSearchResults();
+    }
+
+    // Show suggestions (categories, popular products) when no products loaded
     if (showSuggestions) {
       return renderSuggestions();
     }
-    
+
     return renderEmptySearch();
   };
 
