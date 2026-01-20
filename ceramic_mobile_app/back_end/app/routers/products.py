@@ -24,8 +24,10 @@ from app.schemas.product import (
     ProductTagResponse,
     ProductAttributeResponse, ProductAttributeCreate,
     ProductSpecificationResponse, ProductSpecificationCreate,
-    ProductAvailabilityResponse, ProductCompareResponse
+    ProductAvailabilityResponse, ProductCompareResponse,
+    SellerInfo
 )
+from app.models.seller_profile import SellerProfile
 from app.services.image_service import image_service
 from app.services.product_analytics import product_analytics
 import uuid
@@ -214,7 +216,34 @@ def read_product(product_id: int, db: Session = Depends(get_db)):
 
     if product is None:
         raise HTTPException(status_code=404, detail="Product not found")
-    return product
+
+    # Build seller info with rating and review count
+    seller_info = None
+    if product.seller:
+        # Get seller's rating and review count from reviews they received
+        seller_stats = db.query(
+            func.avg(Review.rating).label('avg_rating'),
+            func.count(Review.id).label('review_count')
+        ).filter(Review.seller_id == product.seller_id).first()
+
+        # Get shop name from seller profile if available
+        seller_profile = db.query(SellerProfile).filter(
+            SellerProfile.user_id == product.seller_id
+        ).first()
+
+        seller_info = SellerInfo(
+            id=product.seller.id,
+            name=product.seller.full_name,
+            shop_name=seller_profile.store_name if seller_profile else product.seller.shop_name,
+            rating=float(seller_stats.avg_rating) if seller_stats.avg_rating else None,
+            reviewCount=seller_stats.review_count or 0
+        )
+
+    # Build response with seller info
+    response = ProductResponse.from_orm(product)
+    response.seller = seller_info
+
+    return response
 
 @router.get("/{product_id}/related", response_model=List[ProductResponse])
 def get_related_products(
