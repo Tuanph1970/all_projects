@@ -194,7 +194,7 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 |-----------|-------------|----------|--------|-------------|
 | Review Display | `manual-review-display-test` | **HIGH** | ✅ Done | Display reviews on product page |
 | Create Review | `fast-review-create-test.sh` | **HIGH** | ✅ Done | Customer creates product review |
-| Update Review | `fast-review-update-test.sh` | MEDIUM | ⏳ Pending | Customer updates own review |
+| Update Review | `fast-review-update-test.sh` | MEDIUM | ✅ Done | Customer updates own review |
 | Mark Helpful | `fast-review-helpful-test.sh` | MEDIUM | ✅ Done | Mark review as helpful |
 
 **Test Scenarios:**
@@ -202,7 +202,7 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 - [x] GET /api/v1/reviews/stats/product/{id} - Get review stats ✅ Fixed 2026-01-18
 - [x] POST /api/v1/reviews/ - Create review (requires order history) ✅ Fixed 2026-01-18
 - [x] POST /api/v1/reviews/{reviewId}/helpful - Mark helpful ✅ Fixed 2026-01-18
-- [ ] PUT /api/v1/reviews/{reviewId} - Update own review
+- [x] PUT /api/v1/reviews/{reviewId} - Update own review ✅ Fixed 2026-01-20
 
 **Frontend Implementations (2026-01-18):**
 - `reviewService.js` - Created with all review API methods (createReview, getProductReviews, getProductReviewStats, markHelpful, etc.)
@@ -211,6 +211,15 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 - `MainNavigator.jsx` - Added WriteReview screen registration
 - `en.js` - Added translation keys for reviews (customerReviews, noReviews, writeReview, helpful, verifiedPurchase, sellerResponse, etc.)
 - Auth check added to handleWriteReview - prompts login if not authenticated
+
+**Frontend Implementations (2026-01-20) - Update Review:**
+- `WriteReviewScreen.jsx` - Added edit mode support with pre-filled form data (rating, title, comment)
+- `WriteReviewScreen.jsx` - Added isEditMode check to call updateReview instead of createReview
+- `WriteReviewScreen.jsx` - Dynamic title and button text based on edit/create mode
+- `ProductDetailsScreen.jsx` - Added Edit button for user's own reviews with handleEditReview function
+- `ProductDetailsScreen.jsx` - Fixed ID comparison using String() for type safety (user.id vs review.reviewer_id)
+- `en.js` - Added translation keys: editReview, updateReview, reviewUpdated
+- `vi.js` - Added full review section with Vietnamese translations
 
 ---
 
@@ -315,6 +324,7 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | 2026-01-18 | B.3 Review Display | ✅ Pass | Customer Reviews section with rating distribution, review list |
 | 2026-01-18 | B.3 Create Review | ✅ Pass | WriteReviewScreen with purchase verification, star rating |
 | 2026-01-18 | B.3 Mark Helpful | ✅ Pass | Helpful button on reviews with API integration |
+| 2026-01-20 | B.3 Update Review | ✅ Pass | Edit mode in WriteReviewScreen, Edit button on user's own reviews |
 
 ---
 
@@ -440,4 +450,4 @@ echo "=========================================="
 ---
 
 *Document generated: 2026-01-14*
-*Last updated: 2026-01-19 - Section A COMPLETE, Section B.1 COMPLETE (7/7), Section B.2 COMPLETE (6/6), Section B.3 PARTIAL (3/4)*
+*Last updated: 2026-01-20 - Section A COMPLETE, Section B.1 COMPLETE (7/7), Section B.2 COMPLETE (6/6), Section B.3 COMPLETE (4/4)*

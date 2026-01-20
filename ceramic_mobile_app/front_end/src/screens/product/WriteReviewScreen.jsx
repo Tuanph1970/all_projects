@@ -26,21 +26,28 @@ export const WriteReviewScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const t = useTranslation();
-  const { productId, productName } = route.params || {};
+  // Support both create mode (productId) and edit mode (reviewId + existing review data)
+  const { productId, productName, reviewId, existingReview } = route.params || {};
 
   const { user } = useSelector((state) => state.auth);
 
-  const [rating, setRating] = useState(0);
-  const [title, setTitle] = useState('');
-  const [comment, setComment] = useState('');
-  const [orderId, setOrderId] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Check if we're in edit mode
+  const isEditMode = !!reviewId;
+
+  const [rating, setRating] = useState(existingReview?.rating || 0);
+  const [title, setTitle] = useState(existingReview?.title || '');
+  const [comment, setComment] = useState(existingReview?.comment || '');
+  const [orderId, setOrderId] = useState(existingReview?.order_id || null);
+  const [loading, setLoading] = useState(!isEditMode); // Don't load orders in edit mode
   const [submitting, setSubmitting] = useState(false);
   const [eligibleOrders, setEligibleOrders] = useState([]);
 
   useEffect(() => {
-    fetchEligibleOrders();
-  }, [productId]);
+    // In edit mode, we already have the review data
+    if (!isEditMode) {
+      fetchEligibleOrders();
+    }
+  }, [productId, isEditMode]);
 
   const fetchEligibleOrders = async () => {
     try {
@@ -77,7 +84,8 @@ export const WriteReviewScreen = () => {
       return;
     }
 
-    if (!orderId) {
+    // Only check orderId for new reviews, not for edits
+    if (!isEditMode && !orderId) {
       Alert.alert(
         t('review.error') || 'Error',
         t('review.noEligibleOrder') || 'You need to purchase this product before reviewing'
@@ -88,27 +96,49 @@ export const WriteReviewScreen = () => {
     setSubmitting(true);
 
     try {
-      await reviewService.createReview({
-        product_id: productId,
-        order_id: orderId,
-        rating,
-        title: title.trim() || null,
-        comment: comment.trim() || null,
-      });
+      if (isEditMode) {
+        // Update existing review
+        await reviewService.updateReview(reviewId, {
+          rating,
+          title: title.trim() || null,
+          comment: comment.trim() || null,
+        });
 
-      Alert.alert(
-        t('review.success') || 'Success',
-        t('review.reviewSubmitted') || 'Your review has been submitted!',
-        [
-          {
-            text: t('common.ok') || 'OK',
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
+        Alert.alert(
+          t('review.success') || 'Success',
+          t('review.reviewUpdated') || 'Your review has been updated!',
+          [
+            {
+              text: t('common.ok') || 'OK',
+              onPress: () => navigation.goBack(),
+            },
+          ]
+        );
+      } else {
+        // Create new review
+        await reviewService.createReview({
+          product_id: productId,
+          order_id: orderId,
+          rating,
+          title: title.trim() || null,
+          comment: comment.trim() || null,
+        });
+
+        Alert.alert(
+          t('review.success') || 'Success',
+          t('review.reviewSubmitted') || 'Your review has been submitted!',
+          [
+            {
+              text: t('common.ok') || 'OK',
+              onPress: () => navigation.goBack(),
+            },
+          ]
+        );
+      }
     } catch (error) {
       console.error('Error submitting review:', error);
-      const errorMessage = error.response?.data?.detail || error.message || 'Failed to submit review';
+      const errorMessage = error.response?.data?.detail || error.message ||
+        (isEditMode ? 'Failed to update review' : 'Failed to submit review');
       Alert.alert(
         t('review.error') || 'Error',
         errorMessage
@@ -120,12 +150,13 @@ export const WriteReviewScreen = () => {
 
   const renderStarSelector = () => {
     return (
-      <View style={styles.starContainer}>
+      <View style={styles.starContainer} testID="star-selector">
         {[1, 2, 3, 4, 5].map((star) => (
           <TouchableOpacity
             key={star}
             onPress={() => setRating(star)}
             style={styles.starButton}
+            testID={`star-${star}`}
           >
             <Text style={[styles.star, star <= rating && styles.starSelected]}>
               {star <= rating ? '⭐' : '☆'}
@@ -147,12 +178,17 @@ export const WriteReviewScreen = () => {
     return rating > 0 ? labels[rating] : t('review.tapToRate') || 'Tap to rate';
   };
 
+  // Determine the screen title based on mode
+  const screenTitle = isEditMode
+    ? (t('review.editReview') || 'Edit Review')
+    : (t('review.writeReview') || 'Write Review');
+
   if (loading) {
     return (
       <View style={styles.container}>
         <Appbar.Header style={styles.header}>
-          <Appbar.BackAction onPress={() => navigation.goBack()} />
-          <Appbar.Content title={t('review.writeReview') || 'Write Review'} />
+          <Appbar.BackAction onPress={() => navigation.goBack()} testID="review-back-button" />
+          <Appbar.Content title={screenTitle} />
         </Appbar.Header>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -161,12 +197,13 @@ export const WriteReviewScreen = () => {
     );
   }
 
-  if (eligibleOrders.length === 0) {
+  // Only show "not eligible" screen for new reviews, not edits
+  if (!isEditMode && eligibleOrders.length === 0) {
     return (
       <View style={styles.container}>
         <Appbar.Header style={styles.header}>
-          <Appbar.BackAction onPress={() => navigation.goBack()} />
-          <Appbar.Content title={t('review.writeReview') || 'Write Review'} />
+          <Appbar.BackAction onPress={() => navigation.goBack()} testID="review-back-button" />
+          <Appbar.Content title={screenTitle} />
         </Appbar.Header>
         <View style={styles.notEligibleContainer}>
           <Text style={styles.notEligibleIcon}>📦</Text>
@@ -190,16 +227,16 @@ export const WriteReviewScreen = () => {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="write-review-screen">
       <Appbar.Header style={styles.header}>
-        <Appbar.BackAction onPress={() => navigation.goBack()} />
-        <Appbar.Content title={t('review.writeReview') || 'Write Review'} />
+        <Appbar.BackAction onPress={() => navigation.goBack()} testID="review-back-button" />
+        <Appbar.Content title={screenTitle} />
       </Appbar.Header>
 
       <ScrollView style={styles.content}>
         {/* Product Info */}
         <Card style={styles.productCard}>
-          <Text style={styles.productName}>{productName || 'Product'}</Text>
+          <Text style={styles.productName}>{productName || existingReview?.product_name || 'Product'}</Text>
         </Card>
 
         {/* Rating Section */}
@@ -220,6 +257,7 @@ export const WriteReviewScreen = () => {
             style={styles.input}
             mode="outlined"
             placeholder={t('review.titlePlaceholder') || 'Summarize your experience'}
+            testID="review-title-input"
           />
 
           <TextInput
@@ -231,6 +269,7 @@ export const WriteReviewScreen = () => {
             multiline
             numberOfLines={5}
             placeholder={t('review.commentPlaceholder') || 'Tell others about your experience with this product'}
+            testID="review-comment-input"
           />
         </Card>
 
@@ -242,8 +281,11 @@ export const WriteReviewScreen = () => {
           disabled={submitting || rating === 0}
           style={styles.submitButton}
           contentStyle={styles.submitButtonContent}
+          testID="submit-review-button"
         >
-          {t('review.submitReview') || 'Submit Review'}
+          {isEditMode
+            ? (t('review.updateReview') || 'Update Review')
+            : (t('review.submitReview') || 'Submit Review')}
         </Button>
       </ScrollView>
     </View>

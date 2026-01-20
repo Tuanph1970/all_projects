@@ -247,6 +247,9 @@ export default {
   // Review Screen
   review: {
     writeReview: 'Write Review',
+    editReview: 'Edit Review',
+    updateReview: 'Update Review',
+    reviewUpdated: 'Your review has been updated!',
     yourRating: 'Your Rating',
     tapToRate: 'Tap to rate',
     terrible: 'Terrible',

@@ -43,7 +43,7 @@ export const ProductDetailsScreen = () => {
   } = useSelector((state) => state.products);
 
   const { loading: cartLoading } = useSelector((state) => state.cart);
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
 
   const [quantity, setQuantity] = useState(1);
   const [reviews, setReviews] = useState([]);
@@ -279,6 +279,21 @@ export const ProductDetailsScreen = () => {
     navigation.navigate('WriteReview', { productId, productName: product?.name });
   };
 
+  const handleEditReview = (review) => {
+    navigation.navigate('WriteReview', {
+      productId,
+      productName: product?.name,
+      reviewId: review.id,
+      existingReview: {
+        rating: review.rating,
+        title: review.title,
+        comment: review.comment,
+        order_id: review.order_id,
+        product_name: product?.name,
+      },
+    });
+  };
+
   const renderReviews = () => {
     return (
       <Card style={styles.reviewsCard}>
@@ -341,14 +356,27 @@ export const ProductDetailsScreen = () => {
                   <Text style={styles.reviewDate}>
                     {new Date(review.created_at).toLocaleDateString()}
                   </Text>
-                  <Button
-                    mode="text"
-                    compact
-                    onPress={() => handleMarkHelpful(review.id)}
-                    style={styles.helpfulButton}
-                  >
-                    {t('product.helpful') || 'Helpful'} ({review.is_helpful_count || 0})
-                  </Button>
+                  <View style={styles.reviewActions}>
+                    {user && String(user.id) === String(review.reviewer_id) && (
+                      <Button
+                        mode="text"
+                        compact
+                        onPress={() => handleEditReview(review)}
+                        style={styles.editButton}
+                        testID={`edit-review-${review.id}`}
+                      >
+                        {t('common.edit') || 'Edit'}
+                      </Button>
+                    )}
+                    <Button
+                      mode="text"
+                      compact
+                      onPress={() => handleMarkHelpful(review.id)}
+                      style={styles.helpfulButton}
+                    >
+                      {t('product.helpful') || 'Helpful'} ({review.is_helpful_count || 0})
+                    </Button>
+                  </View>
                 </View>
                 {review.seller_response && (
                   <View style={styles.sellerResponse}>
@@ -1016,6 +1044,13 @@ const styles = StyleSheet.create({
   reviewDate: {
     fontSize: typography.sizes.sm,
     color: colors.outline,
+  },
+  reviewActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  editButton: {
+    marginRight: spacing.xs,
   },
   helpfulButton: {
     marginRight: -spacing.sm,
