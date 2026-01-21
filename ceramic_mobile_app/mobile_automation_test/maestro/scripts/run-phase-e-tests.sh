@@ -17,7 +17,7 @@
 #   - Backend API running
 #   - Android emulator connected
 #   - Products exist in database
-#   - test_customer_user account exists
+#   - Customer test account exists (see test_config.sh)
 # =============================================================================
 
 set -e

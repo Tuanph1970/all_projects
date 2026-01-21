@@ -9,11 +9,16 @@
 #   customer_login  # Returns 0 on success, 1 on failure
 # =============================================================================
 
-# Default customer credentials - can be overridden via environment variables
-# Account created via API and verified in database for E2E testing
-CUSTOMER_USERNAME="${CUSTOMER_USERNAME:-test_customer_user}"
-CUSTOMER_PASSWORD="${CUSTOMER_PASSWORD:-@Test_customer@1234}"
-APP_ID="com.ceramicmarketplace.app"
+# Source test configuration if not already sourced
+SCRIPT_DIR_LOGIN_LIB="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+if [[ -f "$SCRIPT_DIR_LOGIN_LIB/test_config.sh" ]]; then
+    source "$SCRIPT_DIR_LOGIN_LIB/test_config.sh"
+fi
+
+# Default customer credentials - can be overridden via environment variables or test_config.sh
+CUSTOMER_USERNAME="${CUSTOMER_USERNAME:-test_customer}"
+CUSTOMER_PASSWORD="${CUSTOMER_PASSWORD:-Test@123456}"
+APP_ID="${APP_ID:-com.ceramicmarketplace.app}"
 
 # Colors for output
 GREEN='\033[0;32m'

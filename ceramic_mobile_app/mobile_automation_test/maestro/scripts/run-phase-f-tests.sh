@@ -16,7 +16,7 @@
 # Prerequisites:
 #   - Backend API running
 #   - Android emulator connected
-#   - test_seller_user account exists
+#   - Seller test account exists (see test_config.sh)
 #   - Orders in various states exist (tests will try to create via API)
 # =============================================================================
 

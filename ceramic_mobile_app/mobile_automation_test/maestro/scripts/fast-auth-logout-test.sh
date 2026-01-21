@@ -25,15 +25,10 @@ SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 source "$SCRIPT_DIR/ensure-metro.sh"
 
 # Source both login libraries for helper functions
+# customer-login-lib.sh sources test_config.sh which provides SELLER_* and CUSTOMER_* credentials
 source "$SCRIPT_DIR/customer-login-lib.sh"
 
-# We'll also need seller functions but avoid redefinition conflicts
-# by loading seller-specific variables only
-SELLER_USERNAME="${SELLER_USERNAME:-test_seller_user}"
-SELLER_PASSWORD="${SELLER_PASSWORD:-Testseller@123456}"
-
-# Configuration
-APP_ID="com.ceramicmarketplace.app"
+# Configuration (uses test_config.sh via customer-login-lib.sh)
 TEMP_FLOW=$(mktemp /tmp/auth-logout-XXXXXX.yaml)
 
 echo ""

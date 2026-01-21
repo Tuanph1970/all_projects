@@ -14,7 +14,7 @@
 #
 # Prerequisites:
 #   - Backend API running
-#   - test_customer_user account exists
+#   - Customer test account exists (see test_config.sh)
 #   - Customer may have previous orders
 # =============================================================================
 

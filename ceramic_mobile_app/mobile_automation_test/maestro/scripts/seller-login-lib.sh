@@ -9,10 +9,16 @@
 #   seller_login  # Returns 0 on success, 1 on failure
 # =============================================================================
 
-# Default seller credentials - can be overridden via environment variables
-SELLER_USERNAME="${SELLER_USERNAME:-test_seller_user}"
-SELLER_PASSWORD="${SELLER_PASSWORD:-Testseller@123456}"
-APP_ID="com.ceramicmarketplace.app"
+# Source test configuration if not already sourced
+SCRIPT_DIR_LOGIN_LIB="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+if [[ -f "$SCRIPT_DIR_LOGIN_LIB/test_config.sh" ]]; then
+    source "$SCRIPT_DIR_LOGIN_LIB/test_config.sh"
+fi
+
+# Default seller credentials - can be overridden via environment variables or test_config.sh
+SELLER_USERNAME="${SELLER_USERNAME:-test_seller}"
+SELLER_PASSWORD="${SELLER_PASSWORD:-Test@123456}"
+APP_ID="${APP_ID:-com.ceramicmarketplace.app}"
 
 # Colors for output
 GREEN='\033[0;32m'

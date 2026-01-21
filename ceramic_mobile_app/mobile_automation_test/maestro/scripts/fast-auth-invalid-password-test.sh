@@ -22,12 +22,11 @@ source "$SCRIPT_DIR/ensure-metro.sh"
 # Source the login library for helper functions
 source "$SCRIPT_DIR/seller-login-lib.sh"
 
-# Configuration
-APP_ID="com.ceramicmarketplace.app"
+# Configuration (uses test_config.sh via seller-login-lib.sh)
 TEMP_FLOW=$(mktemp /tmp/auth-invalid-password-XXXXXX.yaml)
 
 # Test credentials - valid username with INVALID password
-VALID_USERNAME="test_seller_user"
+VALID_USERNAME="${SELLER_USERNAME}"
 INVALID_PASSWORD="WrongPassword@123"
 
 echo ""

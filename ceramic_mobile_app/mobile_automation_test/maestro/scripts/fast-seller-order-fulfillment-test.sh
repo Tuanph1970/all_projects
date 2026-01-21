@@ -24,21 +24,11 @@ source "$SCRIPT_DIR/ensure-metro.sh"
 # Source the login library
 source "$SCRIPT_DIR/seller-login-lib.sh"
 
-# Configuration
-APP_ID="com.ceramicmarketplace.app"
-# API running on host machine - Traefik gateway on port 8002
-# Direct Traefik: http://localhost:8002/api/v1/...
-# Nginx multi-project: http://localhost:80/ceramic-app/api/v1/...
-API_BASE_URL="${API_BASE_URL:-http://localhost:8002}"
+# Source test configuration
+source "$SCRIPT_DIR/test_config.sh"
+
+# Temp flow file
 TEMP_FLOW=$(mktemp /tmp/order-fulfillment-XXXXXX.yaml)
-
-# Test customer credentials (for creating orders via API)
-CUSTOMER_USERNAME="${CUSTOMER_USERNAME:-test_customer_user}"
-CUSTOMER_PASSWORD="${CUSTOMER_PASSWORD:-@Test_customer@1234}"
-
-# Seller credentials (for API calls - UI login uses seller-login-lib.sh defaults)
-SELLER_USERNAME="${SELLER_USERNAME:-test_seller_user}"
-SELLER_PASSWORD="${SELLER_PASSWORD:-Testseller@123456}"
 
 echo ""
 echo "=============================================="
@@ -61,8 +51,8 @@ get_customer_token() {
     _log_step "Getting customer authentication token..."
 
     local response=$(curl -s -X POST "$API_BASE_URL/api/v1/auth/login" \
-        -H "Content-Type: application/x-www-form-urlencoded" \
-        -d "username=$CUSTOMER_USERNAME&password=$CUSTOMER_PASSWORD")
+        -H "Content-Type: application/json" \
+        -d "{\"username\": \"$CUSTOMER_USERNAME\", \"password\": \"$CUSTOMER_PASSWORD\"}")
 
     local token=$(echo "$response" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
 

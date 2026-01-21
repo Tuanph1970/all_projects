@@ -13,35 +13,27 @@
 
 set -e
 
-# Configuration - Using nginx proxy (localhost/ceramic/)
-# Can also use direct Traefik access on port 8002
-AUTH_API_BASE="${AUTH_API_BASE:-http://localhost/ceramic/api/v1}"
-PRODUCT_API_BASE="${PRODUCT_API_BASE:-http://localhost/ceramic/api/v1}"
+# Get script directory and source test configuration
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+source "$SCRIPT_DIR/test_config.sh"
 
-# Test Credentials
-SELLER_USERNAME="test_seller_user"
-SELLER_PASSWORD="Testseller@123456"
-SELLER_EMAIL="test_seller@example.com"
-SELLER_FULLNAME="Test Seller User"
+# Configuration - API endpoints
+AUTH_API_BASE="${API_BASE_URL}/api/v1"
+PRODUCT_API_BASE="${API_BASE_URL}/api/v1"
+
+# Use credentials from test_config.sh
+# CUSTOMER_USERNAME, CUSTOMER_PASSWORD, CUSTOMER_EMAIL are set in test_config.sh
+# SELLER_USERNAME, SELLER_PASSWORD, SELLER_EMAIL are set in test_config.sh
+SELLER_FULLNAME="${SELLER_FULL_NAME:-Test Seller}"
 SELLER_PHONE="1234567890"
-
-CUSTOMER_USERNAME="test_customer_user"
-CUSTOMER_PASSWORD="@Test_customer@1234"
-CUSTOMER_EMAIL="test_customer@example.com"
-CUSTOMER_FULLNAME="Test Customer User"
+CUSTOMER_FULLNAME="${CUSTOMER_FULL_NAME:-Test Customer}"
 CUSTOMER_PHONE="0987654321"
 
-# Colors for output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
-log_success() { echo -e "${GREEN}[PASS]${NC} $1"; }
-log_error() { echo -e "${RED}[FAIL]${NC} $1"; }
-log_info() { echo -e "${YELLOW}[INFO]${NC} $1"; }
+# Logging functions are inherited from test_config.sh
+log_step() { _log_step "$1"; }
+log_success() { _log_success "$1"; }
+log_error() { _log_error "$1"; }
+log_info() { _log_info "$1"; }
 
 # Store tokens
 SELLER_TOKEN=""

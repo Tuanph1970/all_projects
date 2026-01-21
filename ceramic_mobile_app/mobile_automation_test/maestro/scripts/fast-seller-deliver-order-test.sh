@@ -15,7 +15,7 @@
 # Prerequisites:
 #   - Backend API running
 #   - Android emulator connected
-#   - test_seller_user account exists
+#   - Seller test account exists (see test_config.sh)
 #   - A shipped order exists (will try to create via API if not)
 # =============================================================================
 
@@ -25,13 +25,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/seller-login-lib.sh"
 source "$SCRIPT_DIR/ensure-metro.sh"
 
-# API Configuration - Traefik gateway on port 8002
-# Direct Traefik: http://localhost:8002/api/v1/...
-API_BASE_URL="${API_BASE_URL:-http://localhost:8002}"
-CUSTOMER_USERNAME="${CUSTOMER_USERNAME:-test_customer_user}"
-CUSTOMER_PASSWORD="${CUSTOMER_PASSWORD:-@Test_customer@1234}"
-SELLER_USERNAME="${SELLER_USERNAME:-test_seller_user}"
-SELLER_PASSWORD="${SELLER_PASSWORD:-Testseller@123456}"
+# API Configuration and credentials are loaded from test_config.sh via seller-login-lib.sh
 
 echo ""
 echo "=============================================="

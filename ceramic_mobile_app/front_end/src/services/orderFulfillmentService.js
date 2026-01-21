@@ -136,19 +136,37 @@ class OrderFulfillmentService {
     );
   }
 
-  // Bulk update order statuses
+  // Bulk update order statuses (uses POST to /bulk/update-status endpoint)
   async bulkUpdateOrderStatus(updates) {
-    // Process updates sequentially if bulk endpoint doesn't exist
-    const results = [];
-    for (const update of updates) {
-      try {
-        const result = await this.updateOrderStatus(update.order_id, { status: update.status });
-        results.push(result);
-      } catch (error) {
-        console.error(`Failed to update order ${update.order_id}:`, error);
+    const url = `${this.ordersEndpoint}/bulk/update-status`;
+    // Convert status to lowercase for backend API
+    const body = updates.map(update => ({
+      order_id: update.order_id,
+      status: update.status?.toLowerCase()
+    }));
+    console.log('[DEBUG] bulkUpdateOrderStatus URL:', url);
+    console.log('[DEBUG] bulkUpdateOrderStatus body:', JSON.stringify(body));
+    try {
+      const response = await apiClient.post(url, body);
+      console.log('[DEBUG] bulkUpdateOrderStatus SUCCESS:', JSON.stringify(response));
+      return response;
+    } catch (error) {
+      console.error('[DEBUG] bulkUpdateOrderStatus FAILED');
+      console.error('[DEBUG] Error status:', error.response?.status);
+      console.error('[DEBUG] Error data:', JSON.stringify(error.response?.data));
+      // Fallback: process updates sequentially if bulk endpoint fails
+      console.log('[DEBUG] Falling back to sequential updates');
+      const results = [];
+      for (const update of updates) {
+        try {
+          const result = await this.updateOrderStatus(update.order_id, { status: update.status });
+          results.push(result);
+        } catch (seqError) {
+          console.error(`Failed to update order ${update.order_id}:`, seqError);
+        }
       }
+      return { data: results };
     }
-    return { data: results };
   }
 
   // Process return request

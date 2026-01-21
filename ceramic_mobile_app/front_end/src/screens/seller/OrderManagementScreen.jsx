@@ -21,7 +21,10 @@ import {
   Chip,
   ActivityIndicator,
   IconButton,
-  Appbar
+  Appbar,
+  Checkbox,
+  Portal,
+  Modal
 } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import orderFulfillmentService from '../../services/orderFulfillmentService.js';
@@ -41,19 +44,35 @@ const OrderStatus = {
 
 // OrderCard component - Card.Content wrapped in TouchableOpacity for tap handling
 // Card.Actions remain outside TouchableOpacity so buttons work independently
-const OrderCard = ({ order, onPress, onQuickAction, t }) => (
-  <Card style={styles.orderCard} testID={`order-card-${order.id}`}>
+// Supports selection mode with checkbox
+const OrderCard = ({ order, onPress, onQuickAction, t, selectionMode, isSelected, onSelect }) => (
+  <Card style={[styles.orderCard, isSelected && styles.orderCardSelected]} testID={`order-card-${order.id}`}>
     <TouchableOpacity
       onPress={() => {
-        console.log('[DEBUG] TouchableOpacity onPress triggered for order:', order.id);
-        onPress(order);
+        if (selectionMode) {
+          onSelect(order.id);
+        } else {
+          console.log('[DEBUG] TouchableOpacity onPress triggered for order:', order.id);
+          onPress(order);
+        }
       }}
       activeOpacity={0.7}
       testID={`order-card-touch-${order.id}`}
     >
       <Card.Content>
         <View style={styles.orderHeader}>
-          <Text style={styles.orderNumber} testID={`order-number-${order.id}`}>#{order.order_number}</Text>
+          {selectionMode && (
+            <View style={styles.checkboxContainer}>
+              <Checkbox
+                status={isSelected ? 'checked' : 'unchecked'}
+                onPress={() => onSelect(order.id)}
+                color="#2196F3"
+                uncheckedColor="#666666"
+                testID={`order-checkbox-${order.id}`}
+              />
+            </View>
+          )}
+          <Text style={[styles.orderNumber, selectionMode && { marginLeft: 8, flex: 1 }]} testID={`order-number-${order.id}`}>#{order.order_number}</Text>
           <Chip
             mode="flat"
             style={[styles.statusChip, { backgroundColor: getStatusColor(order.status) }]}
@@ -70,33 +89,35 @@ const OrderCard = ({ order, onPress, onQuickAction, t }) => (
         </Text>
       </Card.Content>
     </TouchableOpacity>
-    <Card.Actions>
-      {order.status?.toUpperCase() === 'PENDING' && (
-        <Button mode="text" onPress={() => onQuickAction(order, 'confirm')} testID={`order-confirm-btn-${order.id}`}>
-          {t('orderManagement.confirm')}
-        </Button>
-      )}
-      {order.status?.toUpperCase() === 'CONFIRMED' && (
-        <Button mode="text" onPress={() => onQuickAction(order, 'process')} testID={`order-process-btn-${order.id}`}>
-          {t('orderManagement.process')}
-        </Button>
-      )}
-      {order.status?.toUpperCase() === 'PROCESSING' && (
-        <Button mode="text" onPress={() => onQuickAction(order, 'ship')} testID={`order-ship-btn-${order.id}`}>
-          {t('orderManagement.ship')}
-        </Button>
-      )}
-      {order.status?.toUpperCase() === 'SHIPPED' && (
-        <Button mode="text" onPress={() => onQuickAction(order, 'deliver')} testID={`order-deliver-btn-${order.id}`}>
-          Deliver
-        </Button>
-      )}
-      {(order.status?.toUpperCase() === 'DELIVERED' || order.status?.toUpperCase() === 'SHIPPED') && (
-        <Button mode="text" onPress={() => onQuickAction(order, 'refund')} testID={`order-refund-btn-${order.id}`} textColor="#E53935">
-          Refund
-        </Button>
-      )}
-    </Card.Actions>
+    {!selectionMode && (
+      <Card.Actions>
+        {order.status?.toUpperCase() === 'PENDING' && (
+          <Button mode="text" onPress={() => onQuickAction(order, 'confirm')} testID={`order-confirm-btn-${order.id}`}>
+            {t('orderManagement.confirm')}
+          </Button>
+        )}
+        {order.status?.toUpperCase() === 'CONFIRMED' && (
+          <Button mode="text" onPress={() => onQuickAction(order, 'process')} testID={`order-process-btn-${order.id}`}>
+            {t('orderManagement.process')}
+          </Button>
+        )}
+        {order.status?.toUpperCase() === 'PROCESSING' && (
+          <Button mode="text" onPress={() => onQuickAction(order, 'ship')} testID={`order-ship-btn-${order.id}`}>
+            {t('orderManagement.ship')}
+          </Button>
+        )}
+        {order.status?.toUpperCase() === 'SHIPPED' && (
+          <Button mode="text" onPress={() => onQuickAction(order, 'deliver')} testID={`order-deliver-btn-${order.id}`}>
+            Deliver
+          </Button>
+        )}
+        {(order.status?.toUpperCase() === 'DELIVERED' || order.status?.toUpperCase() === 'SHIPPED') && (
+          <Button mode="text" onPress={() => onQuickAction(order, 'refund')} testID={`order-refund-btn-${order.id}`} textColor="#E53935">
+            Refund
+          </Button>
+        )}
+      </Card.Actions>
+    )}
   </Card>
 );
 
@@ -147,6 +168,11 @@ export const OrderManagementScreen = () => {
     has_next: false,
     has_prev: false
   });
+
+  // Bulk selection state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedOrders, setSelectedOrders] = useState(new Set());
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -351,6 +377,180 @@ export const OrderManagementScreen = () => {
     setSnackbarVisible(true);
   };
 
+  // Toggle selection mode
+  const toggleSelectionMode = () => {
+    setSelectionMode(!selectionMode);
+    setSelectedOrders(new Set());
+  };
+
+  // Handle order selection
+  const handleOrderSelect = (orderId) => {
+    setSelectedOrders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(orderId)) {
+        newSet.delete(orderId);
+      } else {
+        newSet.add(orderId);
+      }
+      return newSet;
+    });
+  };
+
+  // Select all visible orders
+  const handleSelectAll = () => {
+    if (selectedOrders.size === orders.length) {
+      setSelectedOrders(new Set());
+    } else {
+      setSelectedOrders(new Set(orders.map(o => o.id)));
+    }
+  };
+
+  // Bulk confirm all pending orders
+  const handleBulkConfirmPending = async () => {
+    const pendingOrders = orders.filter(o => o.status?.toUpperCase() === 'PENDING');
+    if (pendingOrders.length === 0) {
+      showSnackbar('No pending orders to confirm');
+      return;
+    }
+
+    Alert.alert(
+      'Confirm All Pending Orders',
+      `Are you sure you want to confirm ${pendingOrders.length} pending orders?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm All',
+          onPress: async () => {
+            setBulkActionLoading(true);
+            try {
+              const updates = pendingOrders.map(order => ({
+                order_id: order.id,
+                status: 'confirmed'
+              }));
+
+              console.log('[DEBUG] Bulk confirming orders:', updates);
+              await orderFulfillmentService.bulkUpdateOrderStatus(updates);
+
+              // Update local state
+              setOrders(prev =>
+                prev.map(o =>
+                  pendingOrders.find(p => p.id === o.id)
+                    ? { ...o, status: 'CONFIRMED' }
+                    : o
+                )
+              );
+
+              showSnackbar(`${pendingOrders.length} orders confirmed successfully`);
+            } catch (error) {
+              console.error('[DEBUG] Bulk confirm failed:', error);
+              showSnackbar('Failed to confirm orders');
+            } finally {
+              setBulkActionLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Bulk action on selected orders
+  const handleBulkAction = async (action) => {
+    if (selectedOrders.size === 0) {
+      showSnackbar('No orders selected');
+      return;
+    }
+
+    const selectedOrdersList = orders.filter(o => selectedOrders.has(o.id));
+    let newStatus;
+    let actionName;
+
+    switch (action) {
+      case 'confirm':
+        newStatus = 'confirmed';
+        actionName = 'confirm';
+        break;
+      case 'process':
+        newStatus = 'processing';
+        actionName = 'process';
+        break;
+      case 'ship':
+        newStatus = 'shipped';
+        actionName = 'ship';
+        break;
+      case 'deliver':
+        newStatus = 'delivered';
+        actionName = 'deliver';
+        break;
+      default:
+        return;
+    }
+
+    Alert.alert(
+      `Bulk ${actionName}`,
+      `Are you sure you want to ${actionName} ${selectedOrders.size} orders?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: `${actionName.charAt(0).toUpperCase() + actionName.slice(1)} All`,
+          onPress: async () => {
+            setBulkActionLoading(true);
+            try {
+              const updates = selectedOrdersList.map(order => ({
+                order_id: order.id,
+                status: newStatus
+              }));
+
+              console.log('[DEBUG] Bulk action:', action, updates);
+              await orderFulfillmentService.bulkUpdateOrderStatus(updates);
+
+              // Update local state
+              setOrders(prev =>
+                prev.map(o =>
+                  selectedOrders.has(o.id)
+                    ? { ...o, status: newStatus.toUpperCase() }
+                    : o
+                )
+              );
+
+              showSnackbar(`${selectedOrders.size} orders ${actionName}ed successfully`);
+              setSelectedOrders(new Set());
+              setSelectionMode(false);
+            } catch (error) {
+              console.error('[DEBUG] Bulk action failed:', error);
+              showSnackbar(`Failed to ${actionName} orders`);
+            } finally {
+              setBulkActionLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Get available bulk actions based on selected orders
+  const getAvailableBulkActions = () => {
+    if (selectedOrders.size === 0) return [];
+
+    const selectedOrdersList = orders.filter(o => selectedOrders.has(o.id));
+    const statuses = [...new Set(selectedOrdersList.map(o => o.status?.toUpperCase()))];
+
+    // Only allow bulk actions if all selected orders have the same status
+    if (statuses.length !== 1) return ['mixed'];
+
+    switch (statuses[0]) {
+      case 'PENDING':
+        return ['confirm'];
+      case 'CONFIRMED':
+        return ['process'];
+      case 'PROCESSING':
+        return ['ship'];
+      case 'SHIPPED':
+        return ['deliver'];
+      default:
+        return [];
+    }
+  };
+
   const getStatusFilterText = () => {
     if (!statusFilter) return t('orderManagement.allOrders');
     return t(`orderManagement.status.${statusFilter.toLowerCase()}`);
@@ -362,6 +562,9 @@ export const OrderManagementScreen = () => {
       onPress={handleOrderPress}
       onQuickAction={handleQuickAction}
       t={t}
+      selectionMode={selectionMode}
+      isSelected={selectedOrders.has(item.id)}
+      onSelect={handleOrderSelect}
     />
   );
 
@@ -383,9 +586,110 @@ export const OrderManagementScreen = () => {
   return (
     <View style={styles.container} testID="order-management-screen">
       <Appbar.Header>
-        <Appbar.BackAction onPress={() => navigation.goBack()} testID="order-management-back" />
-        <Appbar.Content title={t('orderManagement.title')} />
+        {selectionMode ? (
+          <>
+            <Appbar.Action icon="close" onPress={toggleSelectionMode} testID="cancel-selection" />
+            <Appbar.Content title={`${selectedOrders.size} selected`} />
+            <Button
+              mode="text"
+              onPress={handleSelectAll}
+              testID="select-all-btn"
+              textColor="#fff"
+            >
+              {selectedOrders.size === orders.length ? "Deselect All" : "Select All"}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Appbar.BackAction onPress={() => navigation.goBack()} testID="order-management-back" />
+            <Appbar.Content title={t('orderManagement.title')} />
+            <Button
+              mode="contained"
+              onPress={toggleSelectionMode}
+              testID="enter-selection-mode"
+              style={styles.selectModeButton}
+              labelStyle={styles.selectModeButtonLabel}
+              icon="checkbox-multiple-marked-outline"
+              buttonColor="#FF9800"
+              textColor="#FFFFFF"
+            >
+              Select
+            </Button>
+          </>
+        )}
       </Appbar.Header>
+
+      {/* Bulk Action Bar - shown when in selection mode with orders selected */}
+      {selectionMode && selectedOrders.size > 0 && (
+        <View style={styles.bulkActionBar} testID="bulk-action-bar">
+          {getAvailableBulkActions().includes('mixed') ? (
+            <Text style={styles.bulkActionText}>Select orders with same status for bulk actions</Text>
+          ) : (
+            <View style={styles.bulkActionButtons}>
+              {getAvailableBulkActions().includes('confirm') && (
+                <Button
+                  mode="contained"
+                  onPress={() => handleBulkAction('confirm')}
+                  loading={bulkActionLoading}
+                  style={styles.bulkButton}
+                  testID="bulk-confirm-btn"
+                >
+                  Confirm ({selectedOrders.size})
+                </Button>
+              )}
+              {getAvailableBulkActions().includes('process') && (
+                <Button
+                  mode="contained"
+                  onPress={() => handleBulkAction('process')}
+                  loading={bulkActionLoading}
+                  style={styles.bulkButton}
+                  testID="bulk-process-btn"
+                >
+                  Process ({selectedOrders.size})
+                </Button>
+              )}
+              {getAvailableBulkActions().includes('ship') && (
+                <Button
+                  mode="contained"
+                  onPress={() => handleBulkAction('ship')}
+                  loading={bulkActionLoading}
+                  style={styles.bulkButton}
+                  testID="bulk-ship-btn"
+                >
+                  Ship ({selectedOrders.size})
+                </Button>
+              )}
+              {getAvailableBulkActions().includes('deliver') && (
+                <Button
+                  mode="contained"
+                  onPress={() => handleBulkAction('deliver')}
+                  loading={bulkActionLoading}
+                  style={styles.bulkButton}
+                  testID="bulk-deliver-btn"
+                >
+                  Deliver ({selectedOrders.size})
+                </Button>
+              )}
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Quick "Confirm All Pending" Button - shown when filtered to pending */}
+      {!selectionMode && statusFilter === 'PENDING' && orders.filter(o => o.status?.toUpperCase() === 'PENDING').length > 0 && (
+        <View style={styles.quickActionBar} testID="quick-action-bar">
+          <Button
+            mode="contained"
+            icon="check-all"
+            onPress={handleBulkConfirmPending}
+            loading={bulkActionLoading}
+            style={styles.confirmAllButton}
+            testID="confirm-all-pending-btn"
+          >
+            Confirm All Pending ({orders.filter(o => o.status?.toUpperCase() === 'PENDING').length})
+          </Button>
+        </View>
+      )}
 
       {/* Header Stats */}
       {stats && (
@@ -649,5 +953,56 @@ const styles = StyleSheet.create({
   },
   snackbar: {
     marginBottom: spacing.lg,
+  },
+  // Bulk selection styles
+  checkboxContainer: {
+    backgroundColor: '#E3F2FD',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#2196F3',
+    marginRight: 8,
+  },
+  orderCardSelected: {
+    borderWidth: 3,
+    borderColor: '#2196F3',
+    backgroundColor: '#E3F2FD',
+  },
+  bulkActionBar: {
+    backgroundColor: colors.primaryContainer || '#E3F2FD',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outline,
+  },
+  bulkActionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing.sm,
+  },
+  bulkActionText: {
+    textAlign: 'center',
+    color: colors.onSurfaceVariant,
+    fontSize: typography.sizes.sm,
+  },
+  bulkButton: {
+    minWidth: 120,
+  },
+  quickActionBar: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.outline,
+  },
+  confirmAllButton: {
+    backgroundColor: colors.success || '#4CAF50',
+  },
+  selectModeButton: {
+    marginRight: 8,
+    borderColor: '#fff',
+  },
+  selectModeButtonLabel: {
+    color: '#fff',
+    fontSize: 12,
   },
 });
