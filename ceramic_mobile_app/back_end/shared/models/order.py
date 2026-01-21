@@ -67,6 +67,33 @@ class Order(Base):
     customer = relationship("User", foreign_keys=[customer_id], back_populates="orders_as_customer")
     seller = relationship("User", foreign_keys=[seller_id], back_populates="orders_as_seller")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+    status_history = relationship("OrderStatusHistory", back_populates="order", cascade="all, delete-orphan", order_by="OrderStatusHistory.changed_at")
+
+class OrderStatusHistory(Base):
+    """Track order status changes for audit and display"""
+    __tablename__ = "order_status_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False, index=True)
+
+    # Status change details
+    old_status = Column(Enum(OrderStatus), nullable=True)  # null for initial status
+    new_status = Column(Enum(OrderStatus), nullable=False)
+
+    # Who made the change
+    changed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    changed_by_role = Column(String(50), nullable=True)  # 'seller', 'customer', 'system'
+
+    # Additional info
+    notes = Column(Text, nullable=True)
+
+    # Timestamp
+    changed_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    order = relationship("Order", back_populates="status_history")
+    changed_by = relationship("User", foreign_keys=[changed_by_id])
+
 
 class OrderItem(Base):
     __tablename__ = "order_items"

@@ -37,10 +37,16 @@ export const OrderDetailsScreen = () => {
   const [carrier, setCarrier] = useState('');
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [editTrackingModalVisible, setEditTrackingModalVisible] = useState(false);
+  const [editTrackingNumber, setEditTrackingNumber] = useState('');
+  const [editCarrier, setEditCarrier] = useState('');
+  const [statusHistory, setStatusHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     if (orderId) {
       loadOrderDetails();
+      loadStatusHistory();
     }
   }, [orderId]);
 
@@ -65,6 +71,48 @@ export const OrderDetailsScreen = () => {
 
   const handleRefresh = () => {
     loadOrderDetails(true);
+    loadStatusHistory();
+  };
+
+  const loadStatusHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      const data = await orderFulfillmentService.getOrderStatusHistory(orderId);
+      setStatusHistory(data.history || []);
+    } catch (error) {
+      console.error('Error loading status history:', error);
+      setStatusHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleOpenEditTracking = () => {
+    setEditTrackingNumber(order?.tracking_number || '');
+    setEditCarrier(order?.shipping_carrier || order?.carrier || '');
+    setEditTrackingModalVisible(true);
+  };
+
+  const handleUpdateTracking = async () => {
+    if (!editTrackingNumber.trim()) {
+      Alert.alert('Error', 'Please enter a tracking number');
+      return;
+    }
+    try {
+      setActionLoading(true);
+      await orderFulfillmentService.updateTracking(orderId, {
+        tracking_number: editTrackingNumber,
+        carrier: editCarrier
+      });
+      setEditTrackingModalVisible(false);
+      await loadOrderDetails();
+      Alert.alert('Success', 'Tracking information updated successfully');
+    } catch (error) {
+      console.error('Error updating tracking:', error);
+      Alert.alert('Error', 'Failed to update tracking information. Please try again.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleUpdateStatus = async (newStatus) => {
@@ -255,17 +303,66 @@ export const OrderDetailsScreen = () => {
           </Card>
         )}
 
-        {/* Tracking Information (if shipped) */}
-        {order.tracking_number && (
+        {/* Tracking Information (if shipped or delivered) */}
+        {(order.status?.toUpperCase() === 'SHIPPED' || order.status?.toUpperCase() === 'DELIVERED' || order.tracking_number) && (
           <Card style={styles.card} testID="order-details-tracking-card">
-            <Text style={styles.sectionTitle}>Tracking Information</Text>
-            <Text style={styles.trackingText} testID="order-details-tracking-number">
-              Tracking #: {order.tracking_number}
-            </Text>
-            {(order.carrier || order.shipping_carrier) && (
-              <Text style={styles.trackingText} testID="order-details-carrier">
-                Carrier: {order.carrier || order.shipping_carrier}
-              </Text>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Tracking Information</Text>
+              {(order.status?.toUpperCase() === 'SHIPPED' || order.status?.toUpperCase() === 'DELIVERED') && (
+                <Button
+                  mode="text"
+                  compact
+                  onPress={handleOpenEditTracking}
+                  testID="edit-tracking-btn"
+                >
+                  Edit
+                </Button>
+              )}
+            </View>
+            {order.tracking_number ? (
+              <>
+                <Text style={styles.trackingText} testID="order-details-tracking-number">
+                  Tracking #: {order.tracking_number}
+                </Text>
+                {(order.carrier || order.shipping_carrier) && (
+                  <Text style={styles.trackingText} testID="order-details-carrier">
+                    Carrier: {order.carrier || order.shipping_carrier}
+                  </Text>
+                )}
+              </>
+            ) : (
+              <Text style={styles.trackingTextMuted}>No tracking information added yet</Text>
+            )}
+          </Card>
+        )}
+
+        {/* Status History Timeline */}
+        {statusHistory.length > 0 && (
+          <Card style={styles.card} testID="order-details-history-card">
+            <Text style={styles.sectionTitle}>Status History</Text>
+            {historyLoading ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <View style={styles.historyContainer}>
+                {statusHistory.map((entry, index) => (
+                  <View key={entry.id || index} style={styles.historyItem}>
+                    <View style={styles.historyDot} />
+                    {index < statusHistory.length - 1 && <View style={styles.historyLine} />}
+                    <View style={styles.historyContent}>
+                      <Text style={styles.historyStatus}>
+                        {entry.old_status ? `${entry.old_status.toUpperCase()} → ` : ''}
+                        {entry.new_status.toUpperCase()}
+                      </Text>
+                      <Text style={styles.historyTime}>
+                        {formatDate(entry.changed_at)}
+                      </Text>
+                      {entry.notes && (
+                        <Text style={styles.historyNotes}>{entry.notes}</Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </View>
             )}
           </Card>
         )}
@@ -451,6 +548,53 @@ export const OrderDetailsScreen = () => {
           </View>
         </Modal>
       </Portal>
+
+      {/* Edit Tracking Modal */}
+      <Portal>
+        <Modal
+          visible={editTrackingModalVisible}
+          onDismiss={() => setEditTrackingModalVisible(false)}
+          contentContainerStyle={styles.modalContainer}
+        >
+          <View testID="edit-tracking-modal">
+            <Text style={styles.modalTitle}>Update Tracking Information</Text>
+            <TextInput
+              label="Tracking Number"
+              value={editTrackingNumber}
+              onChangeText={setEditTrackingNumber}
+              style={styles.modalInput}
+              testID="edit-tracking-number-input"
+            />
+            <TextInput
+              label="Carrier (optional)"
+              value={editCarrier}
+              onChangeText={setEditCarrier}
+              style={styles.modalInput}
+              testID="edit-tracking-carrier-input"
+            />
+            <View style={styles.modalActions}>
+              <Button
+                mode="outlined"
+                onPress={() => setEditTrackingModalVisible(false)}
+                style={styles.modalButton}
+                testID="edit-tracking-cancel-btn"
+              >
+                Cancel
+              </Button>
+              <Button
+                mode="contained"
+                onPress={handleUpdateTracking}
+                loading={actionLoading}
+                disabled={actionLoading}
+                style={styles.modalButton}
+                testID="edit-tracking-confirm-btn"
+              >
+                Update Tracking
+              </Button>
+            </View>
+          </View>
+        </Modal>
+      </Portal>
     </View>
   );
 };
@@ -583,6 +727,60 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.md,
     color: colors.onSurface,
     marginBottom: spacing.xs,
+  },
+  trackingTextMuted: {
+    fontSize: typography.sizes.md,
+    color: colors.outline,
+    fontStyle: 'italic',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  historyContainer: {
+    marginTop: spacing.sm,
+  },
+  historyItem: {
+    flexDirection: 'row',
+    marginBottom: spacing.md,
+    position: 'relative',
+  },
+  historyDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.primary,
+    marginRight: spacing.md,
+    marginTop: 4,
+  },
+  historyLine: {
+    position: 'absolute',
+    left: 5,
+    top: 16,
+    bottom: -spacing.md,
+    width: 2,
+    backgroundColor: colors.outline,
+  },
+  historyContent: {
+    flex: 1,
+  },
+  historyStatus: {
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.medium,
+    color: colors.onSurface,
+  },
+  historyTime: {
+    fontSize: typography.sizes.sm,
+    color: colors.outline,
+    marginTop: 2,
+  },
+  historyNotes: {
+    fontSize: typography.sizes.sm,
+    color: colors.outline,
+    fontStyle: 'italic',
+    marginTop: 4,
   },
   modalContainer: {
     backgroundColor: colors.surface,

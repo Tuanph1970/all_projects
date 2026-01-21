@@ -308,6 +308,40 @@ class OrderFulfillmentService {
       return `${diffInDays} days ago`;
     }
   }
+
+  // Update tracking information for a shipped order
+  async updateTracking(orderId, trackingInfo) {
+    const url = `${this.ordersEndpoint}/${orderId}/tracking`;
+    console.log('[DEBUG] updateTracking URL:', url);
+    console.log('[DEBUG] updateTracking body:', JSON.stringify(trackingInfo));
+    try {
+      const response = await apiClient.patch(url, trackingInfo);
+      console.log('[DEBUG] updateTracking SUCCESS:', JSON.stringify(response));
+      return response;
+    } catch (error) {
+      console.error('[DEBUG] updateTracking FAILED');
+      console.error('[DEBUG] Error status:', error.response?.status);
+      console.error('[DEBUG] Error data:', JSON.stringify(error.response?.data));
+      throw error;
+    }
+  }
+
+  // Get order status history
+  async getOrderStatusHistory(orderId) {
+    const url = `${this.ordersEndpoint}/${orderId}/status-history`;
+    console.log('[DEBUG] getOrderStatusHistory URL:', url);
+    try {
+      const response = await apiClient.get(url);
+      console.log('[DEBUG] getOrderStatusHistory SUCCESS:', JSON.stringify(response));
+      return response;
+    } catch (error) {
+      console.error('[DEBUG] getOrderStatusHistory FAILED');
+      console.error('[DEBUG] Error status:', error.response?.status);
+      console.error('[DEBUG] Error data:', JSON.stringify(error.response?.data));
+      // Return empty history if endpoint doesn't exist yet
+      return { history: [], timestamps: {} };
+    }
+  }
 }
 
 export default new OrderFulfillmentService();

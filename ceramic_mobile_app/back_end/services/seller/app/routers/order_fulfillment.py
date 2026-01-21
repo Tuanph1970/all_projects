@@ -9,7 +9,7 @@ from decimal import Decimal
 from shared.database import get_db
 from shared.security import get_current_user
 from shared.models.user import User, UserRole
-from shared.models.order import Order, OrderItem, OrderStatus, PaymentStatus
+from shared.models.order import Order, OrderItem, OrderStatus, PaymentStatus, OrderStatusHistory
 from shared.models.product import Product
 
 from app.schemas.order_fulfillment import (
@@ -270,6 +270,9 @@ def update_order_status(
             detail=f"Cannot transition from {order.status.value} to {status_update.status.value}"
         )
 
+    # Capture old status for history
+    old_status = order.status
+
     # Update fields
     update_data = status_update.dict(exclude_unset=True)
 
@@ -284,6 +287,18 @@ def update_order_status(
             order.delivered_at = datetime.utcnow()
 
     order.updated_at = datetime.utcnow()
+
+    # Record status change in history
+    if status_update.status and status_update.status != old_status:
+        history_entry = OrderStatusHistory(
+            order_id=order.id,
+            old_status=old_status,
+            new_status=status_update.status,
+            changed_by_id=current_user.id,
+            changed_by_role=current_user.role.value,
+            notes=status_update.seller_notes if hasattr(status_update, 'seller_notes') else None
+        )
+        db.add(history_entry)
 
     try:
         db.commit()
@@ -407,6 +422,9 @@ def ship_order(
             detail="Order must be in processing status to ship"
         )
 
+    # Capture old status for history
+    old_status = order.status
+
     # Update order with shipping information
     order.status = OrderStatus.SHIPPED
     order.tracking_number = shipping_info.get("tracking_number")
@@ -418,6 +436,17 @@ def ship_order(
     # Add seller notes if provided
     if shipping_info.get("notes"):
         order.seller_notes = shipping_info.get("notes")
+
+    # Record status change in history
+    history_entry = OrderStatusHistory(
+        order_id=order.id,
+        old_status=old_status,
+        new_status=OrderStatus.SHIPPED,
+        changed_by_id=current_user.id,
+        changed_by_role=current_user.role.value,
+        notes=f"Shipped with tracking: {order.tracking_number}" if order.tracking_number else "Shipped"
+    )
+    db.add(history_entry)
 
     try:
         db.commit()
@@ -799,3 +828,138 @@ def get_fulfillment_analytics(
             ).count()
         }
     }
+
+
+@router.patch("/orders/{order_id}/tracking", response_model=dict)
+def update_order_tracking(
+    order_id: int,
+    tracking_info: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update tracking information for a shipped order"""
+
+    if current_user.role not in [UserRole.SELLER, UserRole.DUAL]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only sellers can update tracking information"
+        )
+
+    order = db.query(Order).filter(
+        and_(Order.id == order_id, Order.seller_id == current_user.id)
+    ).first()
+
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found"
+        )
+
+    if order.status not in [OrderStatus.SHIPPED, OrderStatus.DELIVERED]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tracking can only be updated for shipped or delivered orders"
+        )
+
+    # Update tracking fields
+    if "tracking_number" in tracking_info:
+        order.tracking_number = tracking_info["tracking_number"]
+    if "carrier" in tracking_info:
+        order.shipping_carrier = tracking_info["carrier"]
+    if "estimated_delivery" in tracking_info:
+        order.estimated_delivery = tracking_info["estimated_delivery"]
+
+    order.updated_at = datetime.utcnow()
+
+    try:
+        db.commit()
+        db.refresh(order)
+
+        return {
+            "message": "Tracking information updated successfully",
+            "order_id": order.id,
+            "tracking_number": order.tracking_number,
+            "carrier": order.shipping_carrier,
+            "estimated_delivery": order.estimated_delivery.isoformat() if order.estimated_delivery else None,
+            "updated_at": order.updated_at.isoformat()
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update tracking information"
+        )
+
+
+@router.get("/orders/{order_id}/status-history", response_model=dict)
+def get_order_status_history(
+    order_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get the status change history for an order"""
+
+    if current_user.role not in [UserRole.SELLER, UserRole.DUAL]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only sellers can view order status history"
+        )
+
+    order = db.query(Order).filter(
+        and_(Order.id == order_id, Order.seller_id == current_user.id)
+    ).first()
+
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found"
+        )
+
+    # Get status history
+    history = db.query(OrderStatusHistory).filter(
+        OrderStatusHistory.order_id == order_id
+    ).order_by(OrderStatusHistory.changed_at.asc()).all()
+
+    return {
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "current_status": order.status.value,
+        "history": [
+            {
+                "id": h.id,
+                "old_status": h.old_status.value if h.old_status else None,
+                "new_status": h.new_status.value,
+                "changed_by_role": h.changed_by_role,
+                "notes": h.notes,
+                "changed_at": h.changed_at.isoformat()
+            }
+            for h in history
+        ],
+        "timestamps": {
+            "created_at": order.created_at.isoformat(),
+            "updated_at": order.updated_at.isoformat() if order.updated_at else None,
+            "shipped_at": order.shipped_at.isoformat() if order.shipped_at else None,
+            "delivered_at": order.delivered_at.isoformat() if order.delivered_at else None
+        }
+    }
+
+
+def _record_status_change(
+    db: Session,
+    order: Order,
+    old_status: OrderStatus,
+    new_status: OrderStatus,
+    changed_by: User,
+    notes: str = None
+):
+    """Helper function to record a status change in the history table"""
+    history_entry = OrderStatusHistory(
+        order_id=order.id,
+        old_status=old_status,
+        new_status=new_status,
+        changed_by_id=changed_by.id if changed_by else None,
+        changed_by_role=changed_by.role.value if changed_by else "system",
+        notes=notes
+    )
+    db.add(history_entry)
+    return history_entry

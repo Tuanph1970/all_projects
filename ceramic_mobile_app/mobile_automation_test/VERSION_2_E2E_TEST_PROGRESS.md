@@ -295,23 +295,26 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | Test Case | Script Name | Priority | Status | Description |
 |-----------|-------------|----------|--------|-------------|
 | View Tracking Info | `manual-tracking-info-test` | HIGH | ✅ Done | View tracking info on order details |
-| Update Tracking | `manual-update-tracking-test` | MEDIUM | ⏸️ Needs Backend | Update tracking number/carrier |
-| Shipping History | `manual-shipping-history-test` | LOW | ⏸️ Needs Backend | View shipping status history |
+| Update Tracking | `manual-update-tracking-test` | MEDIUM | ✅ Done | Update tracking number/carrier |
+| Shipping History | `manual-shipping-history-test` | LOW | ✅ Done | View shipping status history |
 
 **Test Scenarios:**
 - [x] View tracking information on OrderDetailsScreen ✅ Tested 2026-01-21
-- [ ] Update tracking number and carrier (requires new backend endpoint)
-- [ ] View shipping status change history (requires backend status history table)
+- [x] Update tracking number and carrier ✅ Tested 2026-01-21 (Edit button → modal → PATCH API)
+- [x] View shipping status change history ✅ Tested 2026-01-21 (Status History section with timeline)
 
 **Frontend Implementation (2026-01-21):**
 - `OrderDetailsScreen.jsx` - Tracking Information card displays tracking_number and shipping_carrier
+- `OrderDetailsScreen.jsx` - Edit button opens Update Tracking modal
+- `OrderDetailsScreen.jsx` - Status History section shows order status timeline with timestamps
 - Fixed carrier field name mismatch (order.carrier → order.shipping_carrier)
-- Test verified: Order #ORD-BC9C4185 shows "TRACK-123456789" / "FedEx"
+- Test verified: Order #ORD-F14E4C7B tracking updated from "TRACK-TEST-12345/FedEx" to "TRACK-TEST-999999/UPS"
 
 **Backend Status:**
 - ✅ GET `/orders/{id}` returns tracking_number, shipping_carrier, estimated_delivery
-- ❌ No PATCH endpoint for updating tracking after order is shipped
-- ❌ No status history table/endpoint for tracking status changes over time
+- ✅ PATCH `/orders/{id}/tracking` - Update tracking info (implemented in order_fulfillment.py:833-891)
+- ✅ GET `/orders/{id}/status-history` - Get status history (implemented in order_fulfillment.py:894-944)
+- ✅ `order_status_history` table created via migration (2026_01_21_add_order_status_history.py)
 
 ---
 
@@ -397,6 +400,8 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | 2026-01-21 | B.5 Manual E2E Test | ✅ Pass | Full order lifecycle: Confirm→Process→Ship→Deliver all working |
 | 2026-01-21 | B.5 Bulk Selection UI | ✅ Pass | Bulk selection mode with checkboxes, bulk actions bar, Confirm All Pending |
 | 2026-01-21 | B.6.1 View Tracking Info | ✅ Pass | Tracking Information card shows tracking # and carrier on OrderDetailsScreen |
+| 2026-01-21 | B.6.2 Update Tracking | ✅ Pass | Edit button → Update Tracking modal → PATCH API successfully updates tracking |
+| 2026-01-21 | B.6.3 Status History | ✅ Pass | Status History section shows timeline: PENDING→CONFIRMED→PROCESSING→SHIPPED |
 
 ---
 
@@ -522,4 +527,4 @@ echo "=========================================="
 ---
 
 *Document generated: 2026-01-14*
-*Last updated: 2026-01-21 - Section A COMPLETE, Section B.1 COMPLETE (7/7), Section B.2 COMPLETE (6/6), Section B.3 COMPLETE (4/4), Section B.4 COMPLETE (2/2), Section B.5 COMPLETE (3/3 + Bulk UI), Section B.6 (1/3 done, 2 need backend)*
+*Last updated: 2026-01-21 - Section A COMPLETE, Section B.1 COMPLETE (7/7), Section B.2 COMPLETE (6/6), Section B.3 COMPLETE (4/4), Section B.4 COMPLETE (2/2), Section B.5 COMPLETE (3/3 + Bulk UI), Section B.6 COMPLETE (3/3)*
