@@ -262,9 +262,9 @@ export const OrderDetailsScreen = () => {
             <Text style={styles.trackingText} testID="order-details-tracking-number">
               Tracking #: {order.tracking_number}
             </Text>
-            {order.carrier && (
+            {(order.carrier || order.shipping_carrier) && (
               <Text style={styles.trackingText} testID="order-details-carrier">
-                Carrier: {order.carrier}
+                Carrier: {order.carrier || order.shipping_carrier}
               </Text>
             )}
           </Card>

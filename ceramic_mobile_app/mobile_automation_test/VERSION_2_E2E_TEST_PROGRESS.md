@@ -276,6 +276,16 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 - Ship with tracking info (PROCESSING → SHIPPED) ✅
 - Mark as delivered (SHIPPED → DELIVERED) ✅
 
+**Bulk Selection UI Implementation (2026-01-21):**
+- Orange "Select" button in Appbar header to enter selection mode ✅
+- Blue checkboxes with visible container on each order card ✅
+- Select All / Deselect All functionality ✅
+- Bulk action bar showing selected count and available actions ✅
+- "Confirm All Pending" quick action button ✅
+- "Process" button for bulk status updates ✅
+- Selected cards highlighted with blue border and background ✅
+- Bulk API: POST /api/v1/seller/fulfillment/orders/bulk/update-status ✅
+
 ---
 
 ### B.6 Shipping Management Tests (NEW)
@@ -284,14 +294,24 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 
 | Test Case | Script Name | Priority | Status | Description |
 |-----------|-------------|----------|--------|-------------|
-| View Tracking Info | `manual-tracking-info-test` | HIGH | 🔄 Pending | View tracking info on order details |
-| Update Tracking | `manual-update-tracking-test` | MEDIUM | 🔄 Pending | Update tracking number/carrier |
-| Shipping History | `manual-shipping-history-test` | LOW | 🔄 Pending | View shipping status history |
+| View Tracking Info | `manual-tracking-info-test` | HIGH | ✅ Done | View tracking info on order details |
+| Update Tracking | `manual-update-tracking-test` | MEDIUM | ⏸️ Needs Backend | Update tracking number/carrier |
+| Shipping History | `manual-shipping-history-test` | LOW | ⏸️ Needs Backend | View shipping status history |
 
-**Test Scenarios to Implement:**
-- [ ] View tracking information on OrderDetailsScreen
-- [ ] Update tracking number and carrier
-- [ ] View shipping status change history
+**Test Scenarios:**
+- [x] View tracking information on OrderDetailsScreen ✅ Tested 2026-01-21
+- [ ] Update tracking number and carrier (requires new backend endpoint)
+- [ ] View shipping status change history (requires backend status history table)
+
+**Frontend Implementation (2026-01-21):**
+- `OrderDetailsScreen.jsx` - Tracking Information card displays tracking_number and shipping_carrier
+- Fixed carrier field name mismatch (order.carrier → order.shipping_carrier)
+- Test verified: Order #ORD-BC9C4185 shows "TRACK-123456789" / "FedEx"
+
+**Backend Status:**
+- ✅ GET `/orders/{id}` returns tracking_number, shipping_carrier, estimated_delivery
+- ❌ No PATCH endpoint for updating tracking after order is shipped
+- ❌ No status history table/endpoint for tracking status changes over time
 
 ---
 
@@ -375,6 +395,8 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | 2026-01-21 | B.5 Ship Order Flow | ✅ Pass | POST ship with tracking number and carrier info working |
 | 2026-01-21 | B.5 Bulk Status Update | ✅ Pass | POST bulk update for multiple orders working |
 | 2026-01-21 | B.5 Manual E2E Test | ✅ Pass | Full order lifecycle: Confirm→Process→Ship→Deliver all working |
+| 2026-01-21 | B.5 Bulk Selection UI | ✅ Pass | Bulk selection mode with checkboxes, bulk actions bar, Confirm All Pending |
+| 2026-01-21 | B.6.1 View Tracking Info | ✅ Pass | Tracking Information card shows tracking # and carrier on OrderDetailsScreen |
 
 ---
 
@@ -500,4 +522,4 @@ echo "=========================================="
 ---
 
 *Document generated: 2026-01-14*
-*Last updated: 2026-01-21 - Section A COMPLETE, Section B.1 COMPLETE (7/7), Section B.2 COMPLETE (6/6), Section B.3 COMPLETE (4/4), Section B.4 COMPLETE (2/2), Section B.5 COMPLETE (3/3)*
+*Last updated: 2026-01-21 - Section A COMPLETE, Section B.1 COMPLETE (7/7), Section B.2 COMPLETE (6/6), Section B.3 COMPLETE (4/4), Section B.4 COMPLETE (2/2), Section B.5 COMPLETE (3/3 + Bulk UI), Section B.6 (1/3 done, 2 need backend)*
