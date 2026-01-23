@@ -318,6 +318,142 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 
 ---
 
+### B.7 Category Management Tests (NEW)
+
+**Impact:** New feature - Seller product category management with tree structure (max 4 levels)
+
+| Test Case | Script Name | Priority | Status | Description |
+|-----------|-------------|----------|--------|-------------|
+| View Category List | `manual-category-list-test` | **HIGH** | [ ] Pending | View seller's category list |
+| View Category Tree | `manual-category-tree-test` | **HIGH** | [ ] Pending | View hierarchical category tree |
+| Create Root Category | `manual-category-create-root-test` | **HIGH** | [ ] Pending | Create Level 1 category |
+| Create Subcategory | `manual-category-create-sub-test` | **HIGH** | [ ] Pending | Create Level 2-4 subcategories |
+| Edit Category | `manual-category-edit-test` | **MEDIUM** | [ ] Pending | Update category name/description |
+| Delete Category | `manual-category-delete-test` | **MEDIUM** | [ ] Pending | Delete category (with/without children) |
+| Max Depth Validation | `manual-category-max-depth-test` | **HIGH** | [ ] Pending | Verify Level 5 is rejected |
+| Seller Isolation | `manual-category-isolation-test` | **CRITICAL** | [ ] Pending | Verify sellers only see own categories |
+| Category Selector (Add Product) | `manual-category-selector-test` | **HIGH** | [ ] Pending | Select category when creating product |
+
+**API Endpoints:**
+- GET `/api/v1/seller/categories` - List seller's categories (flat)
+- GET `/api/v1/seller/categories/tree` - Get hierarchical tree structure
+- GET `/api/v1/seller/categories/{id}` - Get single category
+- POST `/api/v1/seller/categories` - Create category
+- PUT `/api/v1/seller/categories/{id}` - Update category
+- DELETE `/api/v1/seller/categories/{id}` - Delete category
+
+**Test Scenarios:**
+
+**B.7.1 View Category List**
+- [ ] Login as seller (testseller / Test1234@)
+- [ ] Navigate to Profile tab
+- [ ] Tap "Category Management" menu item
+- [ ] Verify CategoryManagementScreen loads
+- [ ] Verify existing categories are displayed
+- [ ] Verify category count matches API response
+
+**B.7.2 View Category Tree**
+- [ ] On CategoryManagementScreen, verify tree structure displays
+- [ ] Verify expand/collapse icons on parent categories
+- [ ] Tap expand icon to show children
+- [ ] Verify level indentation is correct (visual hierarchy)
+- [ ] Verify level indicator (1-4) displays correctly
+
+**B.7.3 Create Root Category (Level 1)**
+- [ ] Tap FAB (+) button on CategoryManagementScreen
+- [ ] Verify CategoryFormScreen opens with "Add Category" title
+- [ ] Verify Level indicator shows "Level 1"
+- [ ] Leave Parent Category empty (for root)
+- [ ] Enter category name: "Test Root Category"
+- [ ] Enter description (optional)
+- [ ] Tap "Create Category" button
+- [ ] Verify success alert appears
+- [ ] Navigate back and verify new category in list
+
+**B.7.4 Create Subcategory (Level 2-4)**
+- [ ] From CategoryManagementScreen, tap FAB (+) button
+- [ ] Tap "Parent Category" selector field
+- [ ] Verify CategorySelector modal opens
+- [ ] Select a parent category (e.g., "Ceramics")
+- [ ] Verify Level indicator updates (e.g., "Level 2")
+- [ ] Enter subcategory name: "Test Subcategory"
+- [ ] Tap "Create Category"
+- [ ] Verify success and category appears under parent
+- [ ] Repeat for Level 3 and Level 4
+
+**B.7.5 Edit Category**
+- [ ] On CategoryManagementScreen, tap menu (⋮) on a category
+- [ ] Tap "Edit" option
+- [ ] Verify CategoryFormScreen opens with "Edit Category" title
+- [ ] Verify form pre-filled with existing data
+- [ ] Change category name
+- [ ] Tap "Update Category"
+- [ ] Verify success alert
+- [ ] Verify updated name in list
+
+**B.7.6 Delete Category**
+- [ ] On CategoryManagementScreen, tap menu (⋮) on a category
+- [ ] Tap "Delete" option
+- [ ] Verify confirmation dialog appears
+- [ ] Tap "Delete" to confirm
+- [ ] Verify category removed from list
+- [ ] Test deleting category with children (should show warning or cascade delete)
+
+**B.7.7 Max Depth Validation (Level 5 Rejected)**
+- [ ] Navigate to a Level 4 category
+- [ ] Attempt to add subcategory under Level 4
+- [ ] Verify error message: "Maximum depth of 4 levels reached"
+- [ ] Verify CategoryFormScreen shows warning when Level 4 parent selected
+
+**B.7.8 Seller Isolation**
+- [ ] Create categories as Seller 1 (testseller)
+- [ ] Logout and login as Seller 2 (testseller2 / Test1234@)
+- [ ] Navigate to Category Management
+- [ ] Verify Seller 2 sees ONLY their own categories (not Seller 1's)
+- [ ] Verify Seller 2 cannot access Seller 1's category by ID (API returns 404)
+
+**B.7.9 Category Selector in Add Product**
+- [ ] Navigate to Products tab
+- [ ] Tap "Add Product" (+ button)
+- [ ] Scroll to Category field
+- [ ] Verify CategorySelectorField displays "Tap to select a category"
+- [ ] Tap the field
+- [ ] Verify CategorySelector modal opens
+- [ ] Verify tree navigation works (tap parent to see children)
+- [ ] Select a category
+- [ ] Verify selected category name displays in field
+- [ ] Complete product creation
+- [ ] Verify product saved with correct category_id
+
+**Frontend Implementation (2026-01-23):**
+- `sellerCategoryService.js` - API service for category CRUD operations
+- `CategorySelector.jsx` - Reusable modal-based hierarchical category picker
+- `CategoryManagementScreen.jsx` - Tree view with expand/collapse, add/edit/delete
+- `CategoryFormScreen.jsx` - Form for creating/editing categories with level indicator
+- `AddProductScreen.jsx` - Updated to use CategorySelectorField instead of text input
+- `MainNavigator.jsx` - Added CategoryManagement, AddCategory, EditCategory routes
+- `SellerProfileScreen.jsx` - Added "Category Management" menu item
+- `config.js` - Added SELLER_CATEGORIES endpoint
+
+**Backend Implementation (2026-01-23):**
+- `seller_category.py` - SQLAlchemy model with tree structure (parent_id, level, path)
+- `2026_01_23_add_seller_categories.py` - Alembic migration
+- `seller_category.py` (schemas) - Pydantic schemas for request/response
+- `categories.py` (router) - Full CRUD API with seller isolation
+
+**API Verified via curl (2026-01-23):**
+- ✅ Create root category (Level 1)
+- ✅ Create subcategories (Level 2, 3, 4)
+- ✅ Max depth enforcement (Level 5 rejected)
+- ✅ Get category tree with nested children
+- ✅ Seller isolation (Seller 2 cannot see Seller 1's categories)
+
+1. Login as testseller / Test1234@                                                                                                                                                                       
+  2. Go to Profile → Category Management                                                                                                                                                                   
+  3. Follow each test scenario step-by-step    
+
+---
+
 ## SECTION C: Test Execution Checklist
 
 ### C.1 Pre-Test Setup
@@ -402,6 +538,9 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | 2026-01-21 | B.6.1 View Tracking Info | ✅ Pass | Tracking Information card shows tracking # and carrier on OrderDetailsScreen |
 | 2026-01-21 | B.6.2 Update Tracking | ✅ Pass | Edit button → Update Tracking modal → PATCH API successfully updates tracking |
 | 2026-01-21 | B.6.3 Status History | ✅ Pass | Status History section shows timeline: PENDING→CONFIRMED→PROCESSING→SHIPPED |
+| 2026-01-23 | B.7 Category API Tests | ✅ Pass | curl tests: Create categories (L1-L4), max depth enforced, seller isolation verified |
+| 2026-01-23 | B.7 Category Management | [ ] Pending | Frontend E2E tests pending - CategoryManagementScreen, CategoryFormScreen |
+| 2026-01-23 | B.7 Category Selector | [ ] Pending | Frontend E2E tests pending - CategorySelector in AddProductScreen |
 
 ---
 
@@ -527,4 +666,4 @@ echo "=========================================="
 ---
 
 *Document generated: 2026-01-14*
-*Last updated: 2026-01-21 - Section A COMPLETE, Section B.1 COMPLETE (7/7), Section B.2 COMPLETE (6/6), Section B.3 COMPLETE (4/4), Section B.4 COMPLETE (2/2), Section B.5 COMPLETE (3/3 + Bulk UI), Section B.6 COMPLETE (3/3)*
+*Last updated: 2026-01-23 - Section A COMPLETE, Section B.1 COMPLETE (7/7), Section B.2 COMPLETE (6/6), Section B.3 COMPLETE (4/4), Section B.4 COMPLETE (2/2), Section B.5 COMPLETE (3/3 + Bulk UI), Section B.6 COMPLETE (3/3), Section B.7 NEW (0/9 - Category Management)*
