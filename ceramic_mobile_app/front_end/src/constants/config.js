@@ -94,6 +94,7 @@ export const API_CONFIG = {
     SELLER_PRODUCTS: '/api/v1/seller/products',
     SELLER_ANALYTICS: '/api/v1/seller',
     SELLER_PROFILE: '/api/v1/seller/profile',
+    SELLER_CATEGORIES: '/api/v1/seller/categories',
 
     // Order fulfillment endpoints (seller order management)
     SELLER_FULFILLMENT: '/api/v1/seller/fulfillment/orders',  // For GET orders

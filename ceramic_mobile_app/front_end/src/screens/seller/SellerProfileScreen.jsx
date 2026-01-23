@@ -407,6 +407,15 @@ export const SellerProfileScreen = () => {
           />
           <Divider />
           <List.Item
+            title="Category Management"
+            description="Organize your product categories"
+            left={props => <List.Icon {...props} icon="folder-multiple" />}
+            right={props => <List.Icon {...props} icon="chevron-right" />}
+            onPress={() => navigation.navigate('CategoryManagement')}
+            testID="category-management-button"
+          />
+          <Divider />
+          <List.Item
             title="Order Management"
             description="View and manage customer orders"
             left={props => <List.Icon {...props} icon="receipt" />}

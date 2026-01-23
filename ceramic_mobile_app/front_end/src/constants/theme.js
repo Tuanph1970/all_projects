@@ -13,12 +13,19 @@ export const colors = {
   tertiary: '#20c997',
   
   success: '#28a745',
+  successLight: '#d4edda',
   warning: '#ffc107',
+  warningLight: '#fff3cd',
   error: '#dc3545',
+  errorLight: '#f8d7da',
   info: '#17a2b8',
-  
+  infoLight: '#d1ecf1',
+
   errorContainer: '#ffebee',
   onErrorContainer: '#b71c1c',
+  onError: '#ffffff',
+  onSurface: '#212529',
+  textTertiary: '#adb5bd',
   
   background: '#ffffff',
   surface: '#f8f9fa',

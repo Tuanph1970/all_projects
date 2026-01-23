@@ -9,6 +9,7 @@ from .chat import ChatRoom, Message
 from .review import Review
 from .address import ShippingAddress
 from .seller_profile import SellerProfile, StoreTheme
+from .seller_category import SellerCategory
 
 __all__ = [
     # User
@@ -35,5 +36,6 @@ __all__ = [
     "ShippingAddress",
     # Seller
     "SellerProfile",
-    "StoreTheme"
+    "StoreTheme",
+    "SellerCategory"
 ]

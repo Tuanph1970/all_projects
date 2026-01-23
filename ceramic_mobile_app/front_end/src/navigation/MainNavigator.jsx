@@ -30,6 +30,8 @@ import { ProductFormScreen } from '../screens/seller/ProductFormScreen.jsx';
 import { SellerProfileScreen } from '../screens/seller/SellerProfileScreen.jsx';
 import { StoreSettingsScreen } from '../screens/seller/StoreSettingsScreen.jsx';
 import { ThemeManagementScreen } from '../screens/seller/ThemeManagementScreen.jsx';
+import { CategoryManagementScreen } from '../screens/seller/CategoryManagementScreen.jsx';
+import { CategoryFormScreen } from '../screens/seller/CategoryFormScreen.jsx';
 
 // Common Screens
 import { ChatListScreen } from '../screens/chat/ChatListScreen.jsx';
@@ -217,6 +219,9 @@ export const MainNavigator  = () => {
           component={ProductFormScreen}
           options={{ headerShown: true }}
         />
+        <Stack.Screen name="CategoryManagement" component={CategoryManagementScreen} />
+        <Stack.Screen name="AddCategory" component={CategoryFormScreen} />
+        <Stack.Screen name="EditCategory" component={CategoryFormScreen} />
       </Stack.Navigator>
     </ErrorBoundary>
   );

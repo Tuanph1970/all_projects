@@ -21,6 +21,7 @@ import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { colors, spacing, typography } from '../../constants/theme.js';
 import sellerService from '../../services/sellerService.js';
+import { CategorySelectorField } from '../../components/seller/CategorySelector.jsx';
 
 export const AddProductScreen = () => {
   const navigation = useNavigation();
@@ -30,11 +31,13 @@ export const AddProductScreen = () => {
     title: '',
     description: '',
     price: '',
-    category: '',
     tags: '',
     stock_quantity: '',
     condition: 'new',
   });
+
+  // Selected category (object with id, name, etc.)
+  const [selectedCategory, setSelectedCategory] = useState(null);
   
   // Media state
   const [images, setImages] = useState([]);
@@ -149,7 +152,7 @@ export const AddProductScreen = () => {
     } else if (isNaN(parseFloat(formData.price)) || parseFloat(formData.price) <= 0) {
       newErrors.price = 'Price must be a valid positive number';
     }
-    if (!formData.category.trim()) {
+    if (!selectedCategory) {
       newErrors.category = 'Category is required';
     }
     if (!formData.stock_quantity.trim()) {
@@ -171,12 +174,13 @@ export const AddProductScreen = () => {
     setIsLoading(true);
 
     try {
-      // Map category names to IDs
-      const categoryMap = {
-        'vases': 1, 'bowls': 2, 'plates': 3, 'mugs': 4, 'art': 5
-      };
-      const categoryId = parseInt(formData.category) ||
-        categoryMap[formData.category.toLowerCase()] || 1;
+      // Use selected category ID directly
+      const categoryId = selectedCategory?.id;
+
+      if (!categoryId) {
+        Alert.alert('Error', 'Please select a category');
+        return;
+      }
 
       // Prepare form data - map form fields to API expected fields
       const productData = {
@@ -257,11 +261,11 @@ export const AddProductScreen = () => {
       title: '',
       description: '',
       price: '',
-      category: '',
       tags: '',
       stock_quantity: '',
       condition: 'new',
     });
+    setSelectedCategory(null);
     setImages([]);
     setErrors({});
   };
@@ -350,16 +354,19 @@ export const AddProductScreen = () => {
           />
           {errors.price && <Text style={styles.errorText} testID="add-product-price-error">{errors.price}</Text>}
 
-          <TextInput
-            label="Category *"
-            value={formData.category}
-            onChangeText={(text) => handleInputChange('category', text)}
-            style={styles.input}
+          <CategorySelectorField
+            value={selectedCategory}
+            onChange={(category) => {
+              setSelectedCategory(category);
+              if (errors.category) {
+                setErrors(prev => ({ ...prev, category: '' }));
+              }
+            }}
             error={!!errors.category}
-            mode="outlined"
-            testID="add-product-category-input"
+            errorMessage={errors.category}
+            label="Category *"
+            placeholder="Tap to select a category"
           />
-          {errors.category && <Text style={styles.errorText} testID="add-product-category-error">{errors.category}</Text>}
 
           <TextInput
             label="Stock Quantity *"
