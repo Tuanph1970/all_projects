@@ -262,7 +262,8 @@ class ProductBase(BaseModel):
     technique: Optional[str] = None
     minimum_order_quantity: int = 1
     tags: Optional[str] = None
-    category_id: int
+    category_id: Optional[int] = None
+    seller_category_id: Optional[int] = None
     brand_id: Optional[int] = None
 
 
@@ -292,6 +293,7 @@ class ProductUpdate(BaseModel):
     minimum_order_quantity: Optional[int] = None
     tags: Optional[str] = None
     category_id: Optional[int] = None
+    seller_category_id: Optional[int] = None
     brand_id: Optional[int] = None
     is_active: Optional[bool] = None
     is_featured: Optional[bool] = None
@@ -313,7 +315,8 @@ class ProductResponse(BaseModel):
     technique: Optional[str] = None
     minimum_order_quantity: Optional[int] = 1
     tags: Optional[str] = None
-    category_id: int
+    category_id: Optional[int] = None
+    seller_category_id: Optional[int] = None
     brand_id: Optional[int] = None
     seller_id: int
     sku: Optional[str] = None

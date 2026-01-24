@@ -51,7 +51,8 @@ class Product(Base):
 
     # Foreign keys
     seller_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    category_id = Column(Integer, ForeignKey("categories.id"), nullable=False, index=True)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True, index=True)
+    seller_category_id = Column(Integer, ForeignKey("seller_categories.id"), nullable=True, index=True)
     brand_id = Column(Integer, ForeignKey("brands.id"), nullable=True, index=True)
 
     # Timestamps
@@ -61,6 +62,7 @@ class Product(Base):
     # Relationships
     seller = relationship("User", back_populates="products")
     category = relationship("Category", back_populates="products")
+    seller_category = relationship("SellerCategory", back_populates="products")
     brand = relationship("Brand", back_populates="products")
     images = relationship("ProductImage", back_populates="product", cascade="all, delete-orphan")
     variants = relationship("ProductVariant", back_populates="product", cascade="all, delete-orphan")

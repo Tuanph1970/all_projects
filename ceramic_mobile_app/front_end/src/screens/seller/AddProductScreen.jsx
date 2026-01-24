@@ -17,7 +17,7 @@ import {
   ActivityIndicator,
   Surface,
 } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { colors, spacing, typography } from '../../constants/theme.js';
 import sellerService from '../../services/sellerService.js';
@@ -25,6 +25,11 @@ import { CategorySelectorField } from '../../components/seller/CategorySelector.
 
 export const AddProductScreen = () => {
   const navigation = useNavigation();
+  const route = useRoute();
+
+  // Check if editing existing product
+  const productId = route.params?.productId;
+  const isEditMode = !!productId;
   
   // Form state
   const [formData, setFormData] = useState({
@@ -43,13 +48,57 @@ export const AddProductScreen = () => {
   const [images, setImages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  
+  const [loadingProduct, setLoadingProduct] = useState(false);
+
   // Form errors
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
     requestPermissions();
-  }, []);
+    if (isEditMode) {
+      loadProductData();
+    }
+  }, [productId]);
+
+  // Load product data for editing
+  const loadProductData = async () => {
+    try {
+      setLoadingProduct(true);
+      const product = await sellerService.getProduct(productId);
+
+      setFormData({
+        title: product.name || '',
+        description: product.description || '',
+        price: product.price?.toString() || '',
+        tags: product.tags || '',
+        stock_quantity: product.quantity_available?.toString() || '',
+        condition: 'new',
+      });
+
+      // Set category if available
+      if (product.seller_category_id) {
+        setSelectedCategory({
+          id: product.seller_category_id,
+          name: product.seller_category?.name || 'Selected Category',
+        });
+      }
+
+      // Load existing images
+      if (product.images && product.images.length > 0) {
+        setImages(product.images.map(img => ({
+          uri: img.image_url,
+          id: img.id,
+          existing: true,
+        })));
+      }
+    } catch (error) {
+      console.error('Failed to load product:', error);
+      Alert.alert('Error', 'Failed to load product data');
+      navigation.goBack();
+    } finally {
+      setLoadingProduct(false);
+    }
+  };
 
   const requestPermissions = async () => {
     try {
@@ -187,21 +236,28 @@ export const AddProductScreen = () => {
         name: formData.title,
         description: formData.description,
         price: parseFloat(formData.price),
-        category_id: categoryId,
+        seller_category_id: categoryId,  // Use seller_category_id for seller-specific categories
         quantity_available: parseInt(formData.stock_quantity),
         tags: formData.tags ? formData.tags.trim() : null,
       };
 
-      // Create product
-      const product = await sellerService.createProduct(productData);
+      // Create or update product
+      let product;
+      if (isEditMode) {
+        product = await sellerService.updateProduct(productId, productData);
+        product.id = productId; // Ensure we have the ID for image uploads
+      } else {
+        product = await sellerService.createProduct(productData);
+      }
 
-      // Upload images if any
-      if (images.length > 0 && product?.id) {
+      // Upload new images only (skip existing ones in edit mode)
+      const newImages = images.filter(img => !img.existing);
+      if (newImages.length > 0 && product?.id) {
         setIsUploading(true);
-        console.log(`Uploading ${images.length} images for product ${product.id}`);
+        console.log(`Uploading ${newImages.length} new images for product ${product.id}`);
 
-        for (let i = 0; i < images.length; i++) {
-          const image = images[i];
+        for (let i = 0; i < newImages.length; i++) {
+          const image = newImages[i];
           try {
             // Create FormData for image upload
             const imageFormData = new FormData();
@@ -232,24 +288,37 @@ export const AddProductScreen = () => {
         }
       }
 
-      Alert.alert(
-        'Success',
-        'Product created successfully!',
-        [
-          {
-            text: 'Add Another',
-            onPress: resetForm
-          },
-          {
-            text: 'View Product',
-            onPress: () => navigation.navigate('ProductDetails', { productId: product.id })
-          }
-        ]
-      );
+      if (isEditMode) {
+        Alert.alert(
+          'Success',
+          'Product updated successfully!',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.goBack()
+            }
+          ]
+        );
+      } else {
+        Alert.alert(
+          'Success',
+          'Product created successfully!',
+          [
+            {
+              text: 'Add Another',
+              onPress: resetForm
+            },
+            {
+              text: 'View Product',
+              onPress: () => navigation.navigate('ProductDetails', { productId: product.id })
+            }
+          ]
+        );
+      }
 
     } catch (error) {
-      console.error('Error creating product:', error);
-      Alert.alert('Error', error.message || 'Failed to create product. Please try again.');
+      console.error('Error saving product:', error);
+      Alert.alert('Error', error.message || `Failed to ${isEditMode ? 'update' : 'create'} product. Please try again.`);
     } finally {
       setIsLoading(false);
       setIsUploading(false);
@@ -286,9 +355,15 @@ export const AddProductScreen = () => {
     <View style={styles.container} testID="add-product-screen">
       <Appbar.Header style={styles.header}>
         <Appbar.BackAction onPress={() => navigation.goBack()} testID="add-product-back-button" />
-        <Appbar.Content title="Add Product" />
+        <Appbar.Content title={isEditMode ? "Edit Product" : "Add Product"} />
       </Appbar.Header>
 
+      {loadingProduct ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading product...</Text>
+        </View>
+      ) : (
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false} testID="add-product-scroll">
         {/* Product Images */}
         <Card style={styles.section} testID="add-product-images-section">
@@ -402,10 +477,11 @@ export const AddProductScreen = () => {
             contentStyle={{ height: 48 }}
             testID="add-product-submit-button"
           >
-            {isUploading ? 'Uploading Images...' : isLoading ? 'Creating Product...' : 'Create Product'}
+            {isUploading ? 'Uploading Images...' : isLoading ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Product' : 'Create Product')}
           </Button>
         </View>
       </ScrollView>
+      )}
     </View>
   );
 };
@@ -417,6 +493,16 @@ const styles = StyleSheet.create({
   },
   header: {
     elevation: 2,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: spacing.md,
+    fontSize: typography.sizes.md,
+    color: colors.onSurfaceVariant,
   },
   content: {
     flex: 1,

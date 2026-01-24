@@ -53,6 +53,7 @@ class SellerCategory(Base):
     seller = relationship("User", foreign_keys=[seller_id])
     parent = relationship("SellerCategory", remote_side=[id], back_populates="children", foreign_keys=[parent_id])
     children = relationship("SellerCategory", back_populates="parent", cascade="all, delete-orphan", foreign_keys=[parent_id])
+    products = relationship("Product", back_populates="seller_category")
 
     # Indexes for performance
     __table_args__ = (

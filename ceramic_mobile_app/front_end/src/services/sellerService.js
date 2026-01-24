@@ -69,6 +69,17 @@ class SellerService {
     return await apiClient.get(`${API_CONFIG.ENDPOINTS.SELLER_PRODUCTS}/management`, { params });
   }
 
+  // Get single product for editing
+  async getProduct(productId) {
+    return await apiClient.get(`${API_CONFIG.ENDPOINTS.PRODUCTS}/${productId}`);
+  }
+
+  // Update product
+  async updateProduct(productId, productData) {
+    // Use product service endpoint which has the PUT handler
+    return await apiClient.put(`${API_CONFIG.ENDPOINTS.PRODUCTS}/${productId}`, productData);
+  }
+
   // Image Upload
   async uploadImage(formData) {
     return await apiClient.upload(`${API_CONFIG.ENDPOINTS.SELLER}/upload-image`, formData);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, FlatList, Alert, RefreshControl, Modal, TextInput as RNTextInput } from 'react-native';
 import {
   Text,
@@ -18,7 +18,7 @@ import {
   Portal,
   TextInput
 } from 'react-native-paper';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, typography } from '../../constants/theme.js';
 import sellerService from '../../services/sellerService.js';
 import { useTranslation } from '@i18n';
@@ -50,6 +50,13 @@ export const ProductManagementScreen = () => {
   useEffect(() => {
     loadProducts(true);
   }, [searchQuery, statusFilter, stockFilter]);
+
+  // Reload products when screen comes into focus (e.g., after adding/editing a product)
+  useFocusEffect(
+    useCallback(() => {
+      loadProducts(true);
+    }, [])
+  );
 
   const loadProducts = async (reset = false) => {
     try {
@@ -286,7 +293,7 @@ export const ProductManagementScreen = () => {
         <IconButton
           icon="pencil"
           onPress={() => {
-            showSnackbar(t('productManagement.editProduct', { name: item.name }));
+            navigation.navigate('AddProduct', { productId: item.id });
           }}
         />
       </View>

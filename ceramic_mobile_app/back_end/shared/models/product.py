@@ -51,15 +51,17 @@ class Product(Base):
     
     # Foreign keys
     seller_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    category_id = Column(Integer, ForeignKey("categories.id"), nullable=False, index=True)
-    
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True, index=True)
+    seller_category_id = Column(Integer, ForeignKey("seller_categories.id"), nullable=True, index=True)
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
+
     # Relationships
     seller = relationship("User", back_populates="products")
     category = relationship("Category", back_populates="products")
+    seller_category = relationship("SellerCategory", back_populates="products")
     images = relationship("ProductImage", back_populates="product", cascade="all, delete-orphan")
     cart_items = relationship("CartItem", back_populates="product")
     order_items = relationship("OrderItem", back_populates="product")

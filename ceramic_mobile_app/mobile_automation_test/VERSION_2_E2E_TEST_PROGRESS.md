@@ -324,15 +324,16 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 
 | Test Case | Script Name | Priority | Status | Description |
 |-----------|-------------|----------|--------|-------------|
-| View Category List | `manual-category-list-test` | **HIGH** | [ ] Pending | View seller's category list |
-| View Category Tree | `manual-category-tree-test` | **HIGH** | [ ] Pending | View hierarchical category tree |
-| Create Root Category | `manual-category-create-root-test` | **HIGH** | [ ] Pending | Create Level 1 category |
-| Create Subcategory | `manual-category-create-sub-test` | **HIGH** | [ ] Pending | Create Level 2-4 subcategories |
-| Edit Category | `manual-category-edit-test` | **MEDIUM** | [ ] Pending | Update category name/description |
-| Delete Category | `manual-category-delete-test` | **MEDIUM** | [ ] Pending | Delete category (with/without children) |
-| Max Depth Validation | `manual-category-max-depth-test` | **HIGH** | [ ] Pending | Verify Level 5 is rejected |
-| Seller Isolation | `manual-category-isolation-test` | **CRITICAL** | [ ] Pending | Verify sellers only see own categories |
-| Category Selector (Add Product) | `manual-category-selector-test` | **HIGH** | [ ] Pending | Select category when creating product |
+| View Category List | `manual-category-list-test` | **HIGH** | ✅ Done | View seller's category list |
+| View Category Tree | `manual-category-tree-test` | **HIGH** | ✅ Done | View hierarchical category tree |
+| Create Root Category | `manual-category-create-root-test` | **HIGH** | ✅ Done | Create Level 1 category |
+| Create Subcategory | `manual-category-create-sub-test` | **HIGH** | ✅ Done | Create Level 2-4 subcategories |
+| Edit Category | `manual-category-edit-test` | **MEDIUM** | ✅ Done | Update category name/description |
+| Delete Category | `manual-category-delete-test` | **MEDIUM** | ✅ Done | Delete category (with/without children) |
+| Max Depth Validation | `manual-category-max-depth-test` | **HIGH** | ✅ Done | Verify Level 5 is rejected |
+| Seller Isolation | `manual-category-isolation-test` | **CRITICAL** | ✅ Done | Verify sellers only see own categories |
+| Category Selector (Add Product) | `manual-category-selector-add-test` | **HIGH** | [ ] Pending | Select category when creating product |
+| Category Selector (Edit Product) | `manual-category-selector-edit-test` | **HIGH** | [ ] Pending | Change category when editing product |
 
 **API Endpoints:**
 - GET `/api/v1/seller/categories` - List seller's categories (flat)
@@ -344,73 +345,73 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 
 **Test Scenarios:**
 
-**B.7.1 View Category List**
-- [ ] Login as seller (testseller / Test1234@)
-- [ ] Navigate to Profile tab
-- [ ] Tap "Category Management" menu item
-- [ ] Verify CategoryManagementScreen loads
-- [ ] Verify existing categories are displayed
-- [ ] Verify category count matches API response
+**B.7.1 View Category List** ✅ Tested 2026-01-23
+- [x] Login as seller (testseller / Test1234@)
+- [x] Navigate to Profile tab
+- [x] Tap "Category Management" menu item
+- [x] Verify CategoryManagementScreen loads
+- [x] Verify existing categories are displayed
+- [x] Verify category count matches API response
 
-**B.7.2 View Category Tree**
-- [ ] On CategoryManagementScreen, verify tree structure displays
-- [ ] Verify expand/collapse icons on parent categories
-- [ ] Tap expand icon to show children
-- [ ] Verify level indentation is correct (visual hierarchy)
-- [ ] Verify level indicator (1-4) displays correctly
+**B.7.2 View Category Tree** ✅ Tested 2026-01-23
+- [x] On CategoryManagementScreen, verify tree structure displays
+- [x] Verify expand/collapse icons on parent categories
+- [x] Tap expand icon to show children
+- [x] Verify level indentation is correct (visual hierarchy)
+- [x] Verify level indicator (1-4) displays correctly
 
-**B.7.3 Create Root Category (Level 1)**
-- [ ] Tap FAB (+) button on CategoryManagementScreen
-- [ ] Verify CategoryFormScreen opens with "Add Category" title
-- [ ] Verify Level indicator shows "Level 1"
-- [ ] Leave Parent Category empty (for root)
-- [ ] Enter category name: "Test Root Category"
-- [ ] Enter description (optional)
-- [ ] Tap "Create Category" button
-- [ ] Verify success alert appears
-- [ ] Navigate back and verify new category in list
+**B.7.3 Create Root Category (Level 1)** ✅ Tested 2026-01-23
+- [x] Tap FAB (+) button on CategoryManagementScreen
+- [x] Verify CategoryFormScreen opens with "Add Category" title
+- [x] Verify Level indicator shows "Level 1"
+- [x] Leave Parent Category empty (for root)
+- [x] Enter category name: "Test Root Category"
+- [x] Enter description (optional)
+- [x] Tap "Create Category" button
+- [x] Verify success alert appears
+- [x] Navigate back and verify new category in list
 
-**B.7.4 Create Subcategory (Level 2-4)**
-- [ ] From CategoryManagementScreen, tap FAB (+) button
-- [ ] Tap "Parent Category" selector field
-- [ ] Verify CategorySelector modal opens
-- [ ] Select a parent category (e.g., "Ceramics")
-- [ ] Verify Level indicator updates (e.g., "Level 2")
-- [ ] Enter subcategory name: "Test Subcategory"
-- [ ] Tap "Create Category"
-- [ ] Verify success and category appears under parent
-- [ ] Repeat for Level 3 and Level 4
+**B.7.4 Create Subcategory (Level 2-4)** ✅ Tested 2026-01-23
+- [x] From CategoryManagementScreen, tap FAB (+) button
+- [x] Tap "Parent Category" selector field
+- [x] Verify CategorySelector modal opens
+- [x] Select a parent category (e.g., "Ceramics")
+- [x] Verify Level indicator updates (e.g., "Level 2")
+- [x] Enter subcategory name: "Test Subcategory"
+- [x] Tap "Create Category"
+- [x] Verify success and category appears under parent
+- [x] Repeat for Level 3 and Level 4
 
-**B.7.5 Edit Category**
-- [ ] On CategoryManagementScreen, tap menu (⋮) on a category
-- [ ] Tap "Edit" option
-- [ ] Verify CategoryFormScreen opens with "Edit Category" title
-- [ ] Verify form pre-filled with existing data
-- [ ] Change category name
-- [ ] Tap "Update Category"
-- [ ] Verify success alert
-- [ ] Verify updated name in list
+**B.7.5 Edit Category** ✅ Tested 2026-01-23
+- [x] On CategoryManagementScreen, tap menu (⋮) on a category
+- [x] Tap "Edit" option
+- [x] Verify CategoryFormScreen opens with "Edit Category" title
+- [x] Verify form pre-filled with existing data
+- [x] Change category name
+- [x] Tap "Update Category"
+- [x] Verify success alert
+- [x] Verify updated name in list
 
-**B.7.6 Delete Category**
-- [ ] On CategoryManagementScreen, tap menu (⋮) on a category
-- [ ] Tap "Delete" option
-- [ ] Verify confirmation dialog appears
-- [ ] Tap "Delete" to confirm
-- [ ] Verify category removed from list
-- [ ] Test deleting category with children (should show warning or cascade delete)
+**B.7.6 Delete Category** ✅ Tested 2026-01-23
+- [x] On CategoryManagementScreen, tap menu (⋮) on a category
+- [x] Tap "Delete" option
+- [x] Verify confirmation dialog appears
+- [x] Tap "Delete" to confirm
+- [x] Verify category removed from list
+- [x] Test deleting category with children (should show warning or cascade delete)
 
-**B.7.7 Max Depth Validation (Level 5 Rejected)**
-- [ ] Navigate to a Level 4 category
-- [ ] Attempt to add subcategory under Level 4
-- [ ] Verify error message: "Maximum depth of 4 levels reached"
-- [ ] Verify CategoryFormScreen shows warning when Level 4 parent selected
+**B.7.7 Max Depth Validation (Level 5 Rejected)** ✅ Tested 2026-01-23
+- [x] Navigate to a Level 4 category
+- [x] Attempt to add subcategory under Level 4
+- [x] Verify error message: "Maximum depth of 4 levels reached"
+- [x] Verify CategoryFormScreen shows warning when Level 4 parent selected
 
-**B.7.8 Seller Isolation**
-- [ ] Create categories as Seller 1 (testseller)
-- [ ] Logout and login as Seller 2 (testseller2 / Test1234@)
-- [ ] Navigate to Category Management
-- [ ] Verify Seller 2 sees ONLY their own categories (not Seller 1's)
-- [ ] Verify Seller 2 cannot access Seller 1's category by ID (API returns 404)
+**B.7.8 Seller Isolation** ✅ Tested 2026-01-23
+- [x] Create categories as Seller 1 (testseller)
+- [x] Logout and login as Seller 2 (testseller2 / Test1234@)
+- [x] Navigate to Category Management
+- [x] Verify Seller 2 sees ONLY their own categories (not Seller 1's)
+- [x] Verify Seller 2 cannot access Seller 1's category by ID (API returns 404)
 
 **B.7.9 Category Selector in Add Product**
 - [ ] Navigate to Products tab
@@ -424,6 +425,19 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 - [ ] Verify selected category name displays in field
 - [ ] Complete product creation
 - [ ] Verify product saved with correct category_id
+
+**B.7.10 Category Selector in Edit Product**
+- [ ] Navigate to Products tab
+- [ ] Tap on an existing product to edit
+- [ ] Scroll to Category field
+- [ ] Verify CategorySelectorField displays current category name
+- [ ] Tap the field
+- [ ] Verify CategorySelector modal opens
+- [ ] Verify current category is highlighted/selected
+- [ ] Select a different category
+- [ ] Verify new category name displays in field
+- [ ] Save product changes
+- [ ] Verify product updated with new category_id
 
 **Frontend Implementation (2026-01-23):**
 - `sellerCategoryService.js` - API service for category CRUD operations
@@ -539,8 +553,16 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | 2026-01-21 | B.6.2 Update Tracking | ✅ Pass | Edit button → Update Tracking modal → PATCH API successfully updates tracking |
 | 2026-01-21 | B.6.3 Status History | ✅ Pass | Status History section shows timeline: PENDING→CONFIRMED→PROCESSING→SHIPPED |
 | 2026-01-23 | B.7 Category API Tests | ✅ Pass | curl tests: Create categories (L1-L4), max depth enforced, seller isolation verified |
-| 2026-01-23 | B.7 Category Management | [ ] Pending | Frontend E2E tests pending - CategoryManagementScreen, CategoryFormScreen |
-| 2026-01-23 | B.7 Category Selector | [ ] Pending | Frontend E2E tests pending - CategorySelector in AddProductScreen |
+| 2026-01-23 | B.7.1 View Category List | ✅ Pass | Manual test: CategoryManagementScreen loads, categories displayed correctly |
+| 2026-01-23 | B.7.2 View Category Tree | ✅ Pass | Manual test: Tree structure, expand/collapse, level indentation working |
+| 2026-01-23 | B.7.3 Create Root Category | ✅ Pass | Manual test: FAB → CategoryFormScreen → Create Level 1 category working |
+| 2026-01-23 | B.7.4 Create Subcategory | ✅ Pass | Manual test: Parent selector, Level 2-4 subcategories created successfully |
+| 2026-01-23 | B.7.5 Edit Category | ✅ Pass | Manual test: Edit menu → pre-filled form → Update category working |
+| 2026-01-23 | B.7.6 Delete Category | ✅ Pass | Manual test: Delete menu → confirmation → category removed |
+| 2026-01-23 | B.7.7 Max Depth Validation | ✅ Pass | Manual test: Level 5 rejected with error message |
+| 2026-01-23 | B.7.8 Seller Isolation | ✅ Pass | Manual test: Seller 2 cannot see Seller 1's categories |
+| 2026-01-23 | B.7.9 Category Selector (Add) | [ ] Pending | Frontend E2E tests pending - CategorySelector in AddProductScreen |
+| 2026-01-23 | B.7.10 Category Selector (Edit) | [ ] Pending | Frontend E2E tests pending - CategorySelector in EditProductScreen |
 
 ---
 
@@ -666,4 +688,4 @@ echo "=========================================="
 ---
 
 *Document generated: 2026-01-14*
-*Last updated: 2026-01-23 - Section A COMPLETE, Section B.1 COMPLETE (7/7), Section B.2 COMPLETE (6/6), Section B.3 COMPLETE (4/4), Section B.4 COMPLETE (2/2), Section B.5 COMPLETE (3/3 + Bulk UI), Section B.6 COMPLETE (3/3), Section B.7 NEW (0/9 - Category Management)*
+*Last updated: 2026-01-23 - Section A COMPLETE, Section B.1 COMPLETE (7/7), Section B.2 COMPLETE (6/6), Section B.3 COMPLETE (4/4), Section B.4 COMPLETE (2/2), Section B.5 COMPLETE (3/3 + Bulk UI), Section B.6 COMPLETE (3/3), Section B.7 IN PROGRESS (8/10 - Category Management, pending: Category Selector in Add/Edit Product)*

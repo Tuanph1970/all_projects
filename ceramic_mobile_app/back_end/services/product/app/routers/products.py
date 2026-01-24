@@ -323,7 +323,7 @@ def update_product(
 
     CacheInvalidation.invalidate_product(product_id)
 
-    return product
+    return product_to_dict(product, include_seller=True, db=db)
 
 @router.delete("/{product_id}")
 def delete_product(
