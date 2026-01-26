@@ -56,6 +56,7 @@ def product_to_dict(product, include_seller=False, db=None):
         "minimum_order_quantity": product.minimum_order_quantity,
         "tags": product.tags,
         "category_id": product.category_id,
+        "seller_category_id": product.seller_category_id,
         "seller_id": product.seller_id,
         "sku": product.sku,
         "is_active": product.is_active,

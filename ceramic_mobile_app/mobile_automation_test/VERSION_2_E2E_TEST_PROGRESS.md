@@ -332,8 +332,8 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | Delete Category | `manual-category-delete-test` | **MEDIUM** | ✅ Done | Delete category (with/without children) |
 | Max Depth Validation | `manual-category-max-depth-test` | **HIGH** | ✅ Done | Verify Level 5 is rejected |
 | Seller Isolation | `manual-category-isolation-test` | **CRITICAL** | ✅ Done | Verify sellers only see own categories |
-| Category Selector (Add Product) | `manual-category-selector-add-test` | **HIGH** | [ ] Pending | Select category when creating product |
-| Category Selector (Edit Product) | `manual-category-selector-edit-test` | **HIGH** | [ ] Pending | Change category when editing product |
+| Category Selector (Add Product) | `manual-category-selector-add-test` | **HIGH** | ✅ Done | Select category when creating product |
+| Category Selector (Edit Product) | `manual-category-selector-edit-test` | **HIGH** | ✅ Done | Change category when editing product |
 
 **API Endpoints:**
 - GET `/api/v1/seller/categories` - List seller's categories (flat)
@@ -413,31 +413,31 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 - [x] Verify Seller 2 sees ONLY their own categories (not Seller 1's)
 - [x] Verify Seller 2 cannot access Seller 1's category by ID (API returns 404)
 
-**B.7.9 Category Selector in Add Product**
-- [ ] Navigate to Products tab
-- [ ] Tap "Add Product" (+ button)
-- [ ] Scroll to Category field
-- [ ] Verify CategorySelectorField displays "Tap to select a category"
-- [ ] Tap the field
-- [ ] Verify CategorySelector modal opens
-- [ ] Verify tree navigation works (tap parent to see children)
-- [ ] Select a category
-- [ ] Verify selected category name displays in field
-- [ ] Complete product creation
-- [ ] Verify product saved with correct category_id
+**B.7.9 Category Selector in Add Product** ✅ Tested 2026-01-26
+- [x] Navigate to Products tab
+- [x] Tap "Add Product" (+ button)
+- [x] Scroll to Category field
+- [x] Verify CategorySelectorField displays "Tap to select a category"
+- [x] Tap the field
+- [x] Verify CategorySelector modal opens
+- [x] Verify tree navigation works (tap parent to see children)
+- [x] Select a category
+- [x] Verify selected category name displays in field
+- [x] Complete product creation
+- [x] Verify product saved with correct seller_category_id
 
-**B.7.10 Category Selector in Edit Product**
-- [ ] Navigate to Products tab
-- [ ] Tap on an existing product to edit
-- [ ] Scroll to Category field
-- [ ] Verify CategorySelectorField displays current category name
-- [ ] Tap the field
-- [ ] Verify CategorySelector modal opens
-- [ ] Verify current category is highlighted/selected
-- [ ] Select a different category
-- [ ] Verify new category name displays in field
-- [ ] Save product changes
-- [ ] Verify product updated with new category_id
+**B.7.10 Category Selector in Edit Product** ✅ Tested 2026-01-26
+- [x] Navigate to Products tab
+- [x] Tap on an existing product to edit
+- [x] Scroll to Category field
+- [x] Verify CategorySelectorField displays current category name (full path: "Am thanh > Loa Keo")
+- [x] Tap the field
+- [x] Verify CategorySelector modal opens
+- [x] Verify current category is highlighted/selected
+- [x] Select a different category
+- [x] Verify new category name displays in field
+- [x] Save product changes
+- [x] Verify product updated with new seller_category_id
 
 **Frontend Implementation (2026-01-23):**
 - `sellerCategoryService.js` - API service for category CRUD operations
@@ -561,8 +561,8 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | 2026-01-23 | B.7.6 Delete Category | ✅ Pass | Manual test: Delete menu → confirmation → category removed |
 | 2026-01-23 | B.7.7 Max Depth Validation | ✅ Pass | Manual test: Level 5 rejected with error message |
 | 2026-01-23 | B.7.8 Seller Isolation | ✅ Pass | Manual test: Seller 2 cannot see Seller 1's categories |
-| 2026-01-23 | B.7.9 Category Selector (Add) | [ ] Pending | Frontend E2E tests pending - CategorySelector in AddProductScreen |
-| 2026-01-23 | B.7.10 Category Selector (Edit) | [ ] Pending | Frontend E2E tests pending - CategorySelector in EditProductScreen |
+| 2026-01-26 | B.7.9 Category Selector (Add) | ✅ Pass | Manual test: CategorySelector in AddProductScreen working, product saved with seller_category_id |
+| 2026-01-26 | B.7.10 Category Selector (Edit) | ✅ Pass | Manual test: Fixed bugs - added seller_category_id to API response, category displays as "Am thanh > Loa Keo" |
 
 ---
 
@@ -628,6 +628,37 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 |------|-----|-------------|
 | ENDPOINTS | Clarification | Documented `SELLER_FULFILLMENT` for GET orders and `ORDER_FULFILLMENT` for status updates |
 
+### E.5 Frontend/Backend Fixes Applied (2026-01-26)
+
+**Bug:** Edit Product screen not displaying category name and product images
+
+**File:** `back_end/services/product/app/routers/products.py`
+
+| Line | Fix | Description |
+|------|-----|-------------|
+| 59 | Add seller_category_id | Added `"seller_category_id": product.seller_category_id` to `product_to_dict()` function |
+
+**File:** `front_end/src/screens/seller/AddProductScreen.jsx`
+
+| Line | Fix | Description |
+|------|-----|-------------|
+| 24 | Import sellerCategoryService | Added static import instead of dynamic require() |
+| 79-131 | Category loading | Improved category loading with proper error handling and logging |
+| 124-136 | Image URL fix | Prepend API_BASE_URL to relative image paths for proper display |
+
+**File:** `back_end/services/seller/app/main.py`
+
+| Line | Fix | Description |
+|------|-----|-------------|
+| 7 | Import StaticFiles | Added `from fastapi.staticfiles import StaticFiles` |
+| 39-42 | Mount static files | Added `app.mount("/static/uploads", StaticFiles(directory=uploads_dir))` for serving uploaded images |
+
+**File:** `back_end/docker-compose.yml`
+
+| Line | Fix | Description |
+|------|-----|-------------|
+| 310-312 | Traefik static routing | Added Traefik labels for routing `/static/uploads` to seller-service |
+
 ---
 
 ## SECTION F: Quick Reference - API Path Changes Summary
@@ -688,4 +719,4 @@ echo "=========================================="
 ---
 
 *Document generated: 2026-01-14*
-*Last updated: 2026-01-23 - Section A COMPLETE, Section B.1 COMPLETE (7/7), Section B.2 COMPLETE (6/6), Section B.3 COMPLETE (4/4), Section B.4 COMPLETE (2/2), Section B.5 COMPLETE (3/3 + Bulk UI), Section B.6 COMPLETE (3/3), Section B.7 IN PROGRESS (8/10 - Category Management, pending: Category Selector in Add/Edit Product)*
+*Last updated: 2026-01-26 - Section A COMPLETE, Section B.1 COMPLETE (7/7), Section B.2 COMPLETE (6/6), Section B.3 COMPLETE (4/4), Section B.4 COMPLETE (2/2), Section B.5 COMPLETE (3/3 + Bulk UI), Section B.6 COMPLETE (3/3), Section B.7 COMPLETE (10/10 - Category Management fully tested including Category Selector in Add/Edit Product)*

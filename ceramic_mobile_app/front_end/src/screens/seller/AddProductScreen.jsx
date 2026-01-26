@@ -20,7 +20,9 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { colors, spacing, typography } from '../../constants/theme.js';
+import { API_BASE_URL } from '../../constants/config.js';
 import sellerService from '../../services/sellerService.js';
+import sellerCategoryService from '../../services/sellerCategoryService.js';
 import { CategorySelectorField } from '../../components/seller/CategorySelector.jsx';
 
 export const AddProductScreen = () => {
@@ -75,21 +77,74 @@ export const AddProductScreen = () => {
         condition: 'new',
       });
 
-      // Set category if available
+      // Set category if available - fetch category details
       if (product.seller_category_id) {
-        setSelectedCategory({
-          id: product.seller_category_id,
-          name: product.seller_category?.name || 'Selected Category',
-        });
+        console.log('[EditProduct] Loading category for seller_category_id:', product.seller_category_id);
+        try {
+          const categoryResponse = await sellerCategoryService.getCategoryTree(false);
+          console.log('[EditProduct] Category tree response:', JSON.stringify(categoryResponse, null, 2));
+
+          // Find the category in the tree recursively
+          const findCategory = (categories, targetId) => {
+            for (const cat of categories) {
+              if (cat.id === targetId) {
+                return cat;
+              }
+              if (cat.children && cat.children.length > 0) {
+                const found = findCategory(cat.children, targetId);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+
+          const categories = categoryResponse?.categories || categoryResponse || [];
+          console.log('[EditProduct] Searching in categories:', categories.length);
+
+          const category = findCategory(categories, product.seller_category_id);
+          console.log('[EditProduct] Found category:', category);
+
+          if (category) {
+            const selectedCat = {
+              id: category.id,
+              name: category.name,
+              full_path_name: category.full_path_name || category.name,
+            };
+            console.log('[EditProduct] Setting selectedCategory:', selectedCat);
+            setSelectedCategory(selectedCat);
+          } else {
+            // Fallback if category not found in tree
+            console.warn('[EditProduct] Category not found in tree, using fallback');
+            setSelectedCategory({
+              id: product.seller_category_id,
+              name: product.seller_category?.name || `Category #${product.seller_category_id}`,
+            });
+          }
+        } catch (categoryError) {
+          console.error('[EditProduct] Failed to fetch category details:', categoryError);
+          // Fallback to basic info from product
+          setSelectedCategory({
+            id: product.seller_category_id,
+            name: product.seller_category?.name || `Category #${product.seller_category_id}`,
+          });
+        }
+      } else {
+        console.log('[EditProduct] No seller_category_id on product');
       }
 
-      // Load existing images
+      // Load existing images - prepend base URL for relative paths
       if (product.images && product.images.length > 0) {
-        setImages(product.images.map(img => ({
-          uri: img.image_url,
-          id: img.id,
-          existing: true,
-        })));
+        setImages(product.images.map(img => {
+          // Check if image_url is relative (starts with /) and prepend base URL
+          const imageUri = img.image_url.startsWith('http')
+            ? img.image_url
+            : `${API_BASE_URL}${img.image_url}`;
+          return {
+            uri: imageUri,
+            id: img.id,
+            existing: true,
+          };
+        }));
       }
     } catch (error) {
       console.error('Failed to load product:', error);

@@ -306,6 +306,10 @@ services:
       - "traefik.http.routers.ceramic-seller.entrypoints=web"
       - "traefik.http.services.ceramic-seller.loadbalancer.server.port=8005"
       - "traefik.http.routers.ceramic-seller.middlewares=ratelimit@file"
+      # Static files routing for uploaded images
+      - "traefik.http.routers.ceramic-static.rule=PathPrefix(`/static/uploads`)"
+      - "traefik.http.routers.ceramic-static.entrypoints=web"
+      - "traefik.http.routers.ceramic-static.service=ceramic-seller"
 
 # ===========================================
 # VOLUMES
