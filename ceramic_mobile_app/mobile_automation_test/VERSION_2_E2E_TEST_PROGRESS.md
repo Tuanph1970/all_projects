@@ -468,6 +468,113 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 
 ---
 
+### B.8 Category Management Impact Tests (PRE-PRODUCTION)
+
+**Impact:** Category Management feature added seller_category_id FK to products table. Need to verify existing modules work correctly.
+
+| Test Case | Script Name | Priority | Status | Description |
+|-----------|-------------|----------|--------|-------------|
+| Product List with Categories | `manual-product-list-category-test` | **HIGH** | Pending | Verify product list displays products with/without categories |
+| Product Details Category | `manual-product-details-category-test` | **HIGH** | Pending | Verify product details show category correctly |
+| Delete Product with Category | `manual-delete-product-category-test` | **MEDIUM** | Pending | Delete product that has category assigned |
+| Delete Category with Products | `manual-delete-category-products-test` | **CRITICAL** | Pending | Delete category → products get NULL seller_category_id |
+| Edit Product NULL Category | `manual-edit-null-category-test` | **HIGH** | Pending | Edit product whose category was deleted |
+| Product API Response | `manual-product-api-category-test` | **HIGH** | Pending | Verify API returns seller_category_id correctly |
+| Customer Product View | `manual-customer-product-view-test` | **MEDIUM** | Pending | Products still visible to customers |
+| Order with Categorized Product | `manual-order-category-test` | **MEDIUM** | Pending | Order workflow unaffected by categories |
+
+**Critical Integration Tests:**
+
+**B.8.1 Product List with Categories** - Pending
+- [ ] Login as seller (testseller / Test1234@)
+- [ ] Navigate to Products tab
+- [ ] Verify products WITH category display correctly
+- [ ] Verify products WITHOUT category display correctly (no errors)
+- [ ] Verify product count matches API response
+
+**B.8.2 Product Details Category Display** - Pending
+- [ ] Tap on product with category assigned
+- [ ] Verify category name displays on product details (if shown)
+- [ ] Tap on product WITHOUT category
+- [ ] Verify no errors, graceful handling of NULL category
+
+**B.8.3 Delete Product with Category** - Pending
+- [ ] Create a test product with category assigned
+- [ ] Delete the product
+- [ ] Verify deletion successful
+- [ ] Verify category still exists (not affected)
+- [ ] Verify category product_count decremented
+
+**B.8.4 Delete Category with Products (CRITICAL)** - Pending
+- [ ] Create a test category
+- [ ] Create 2 products assigned to this category
+- [ ] Delete the category (cascade=false)
+- [ ] Verify products now have seller_category_id = NULL
+- [ ] Verify products still exist and are functional
+- [ ] Edit one of these products → verify CategorySelector shows "Tap to select"
+
+**B.8.5 Edit Product with NULL Category** - Pending
+- [ ] Find/create product with NULL seller_category_id
+- [ ] Tap to edit the product
+- [ ] Verify CategorySelector shows "Tap to select a category" (not crash)
+- [ ] Assign a new category
+- [ ] Save and verify category saved correctly
+
+**B.8.6 Product API Response Verification** - Pending
+- [ ] GET /api/v1/seller/products - List should include seller_category_id
+- [ ] GET /api/v1/seller/products/{id} - Detail should include seller_category_id
+- [ ] POST /api/v1/seller/products - Create with seller_category_id works
+- [ ] PUT /api/v1/seller/products/{id} - Update seller_category_id works
+- [ ] Verify NULL seller_category_id is handled (not error)
+
+**B.8.7 Customer Product View** - Pending
+- [ ] Login as customer (testcustomer / Test1234@)
+- [ ] Navigate to product listing
+- [ ] Verify products with categories display correctly
+- [ ] Verify products without categories display correctly
+- [ ] Tap on product → verify ProductDetailsScreen loads
+
+**B.8.8 Order Creation with Categorized Product** - Pending
+- [ ] Login as customer
+- [ ] Add product WITH category to cart
+- [ ] Add product WITHOUT category to cart
+- [ ] Proceed to checkout
+- [ ] Complete order
+- [ ] Verify order created successfully
+- [ ] Verify seller can view order (OrderManagementScreen)
+
+**Edge Cases to Verify:**
+
+**B.8.9 Cascade Delete Behavior** - Pending
+- [ ] Create parent category with 2 child categories
+- [ ] Assign products to child categories
+- [ ] Delete parent category with cascade=true
+- [ ] Verify all children deleted
+- [ ] Verify all products have seller_category_id = NULL
+
+**B.8.10 Move Category with Products** - Pending
+- [ ] Create category structure: Root > Child > Grandchild
+- [ ] Assign products to Grandchild
+- [ ] Move Grandchild to different parent
+- [ ] Verify products still reference correct category
+- [ ] Verify category path updated correctly
+
+**B.8.11 Max Depth with Products** - Pending
+- [ ] Create Level 4 category
+- [ ] Assign products to Level 4 category
+- [ ] Verify products work normally
+- [ ] Attempt to add Level 5 child → should fail
+- [ ] Verify Level 4 products unaffected
+
+**Why These Tests Are Important:**
+- Products table now has FK relationship with seller_categories
+- Deletion of categories affects product data (SET NULL behavior)
+- UI must gracefully handle NULL seller_category_id
+- API responses must include seller_category_id field
+- Customer-facing features must not be affected by seller categories
+
+---
+
 ## SECTION C: Test Execution Checklist
 
 ### C.1 Pre-Test Setup
@@ -719,4 +826,4 @@ echo "=========================================="
 ---
 
 *Document generated: 2026-01-14*
-*Last updated: 2026-01-26 - Section A COMPLETE, Section B.1 COMPLETE (7/7), Section B.2 COMPLETE (6/6), Section B.3 COMPLETE (4/4), Section B.4 COMPLETE (2/2), Section B.5 COMPLETE (3/3 + Bulk UI), Section B.6 COMPLETE (3/3), Section B.7 COMPLETE (10/10 - Category Management fully tested including Category Selector in Add/Edit Product)*
+*Last updated: 2026-01-26 - Section A COMPLETE, Section B.1-B.7 COMPLETE, Section B.8 ADDED (Category Management Impact Tests - 11 test cases for pre-production verification)*
