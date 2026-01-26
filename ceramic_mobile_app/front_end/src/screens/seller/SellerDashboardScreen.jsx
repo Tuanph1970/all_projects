@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
-import { Text, Appbar, Surface, FAB, Snackbar } from 'react-native-paper';
+import { Text, Appbar, Surface, Snackbar } from 'react-native-paper';
 import { Card } from '../../components/common/Card.jsx';
 import PerformanceWidget from '../../components/seller/PerformanceWidget.jsx';
 import SalesChart from '../../components/seller/SalesChart.jsx';
@@ -139,16 +139,6 @@ export const SellerDashboardScreen = () => {
         />
       </ScrollView>
 
-      {/* Floating Action Button for Quick Actions */}
-      <FAB
-        testID="seller-dashboard-fab-add"
-        style={styles.fab}
-        icon="plus"
-        onPress={() => {
-          showSnackbar(t('seller.addNewProduct'));
-        }}
-      />
-
       {/* Snackbar for notifications */}
       <Snackbar
         visible={snackbarVisible}
@@ -215,12 +205,5 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     color: colors.onErrorContainer,
     marginBottom: spacing.xs,
-  },
-  fab: {
-    position: 'absolute',
-    margin: spacing.md,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.primary,
   },
 });
