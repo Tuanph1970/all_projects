@@ -483,20 +483,43 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | Customer Product View | `manual-customer-product-view-test` | **MEDIUM** | Pending | Products still visible to customers |
 | Order with Categorized Product | `manual-order-category-test` | **MEDIUM** | Pending | Order workflow unaffected by categories |
 
+**Prerequisites - Create Product WITHOUT Category:**
+
+> **Note:** The AddProductScreen requires category selection (validation enforced).
+> To get a product WITHOUT category for testing, use one of these methods:
+>
+> **Method 1 (Recommended):** Delete the category
+> 1. Create a test category "TempCategory"
+> 2. Create a product assigned to "TempCategory"
+> 3. Go to Category Management → Delete "TempCategory"
+> 4. Product now has `seller_category_id = NULL` (ON DELETE SET NULL)
+>
+> **Method 2:** Create via API (skip UI validation)
+> ```bash
+> curl -X POST "http://localhost:8002/api/v1/seller/products" \
+>   -H "Authorization: Bearer <token>" \
+>   -H "Content-Type: application/json" \
+>   -d '{"name": "No Category Product", "description": "Test", "price": 100, "quantity_available": 10}'
+> ```
+
+---
+
 **Critical Integration Tests:**
 
 **B.8.1 Product List with Categories** - Pending
 - [ ] Login as seller (testseller / Test1234@)
+- [ ] **Setup:** Ensure you have at least 1 product WITH category and 1 product WITHOUT category (see Prerequisites above)
 - [ ] Navigate to Products tab
-- [ ] Verify products WITH category display correctly
-- [ ] Verify products WITHOUT category display correctly (no errors)
+- [ ] Verify products WITH category display correctly (category name shown)
+- [ ] Verify products WITHOUT category display correctly (no crash, graceful handling)
 - [ ] Verify product count matches API response
 
 **B.8.2 Product Details Category Display** - Pending
-- [ ] Tap on product with category assigned
+- [ ] **Prerequisite:** Have products with and without category (use Method 1 above)
+- [ ] Tap on product WITH category assigned
 - [ ] Verify category name displays on product details (if shown)
-- [ ] Tap on product WITHOUT category
-- [ ] Verify no errors, graceful handling of NULL category
+- [ ] Tap on product WITHOUT category (seller_category_id = NULL)
+- [ ] Verify no errors, no crash, graceful handling of NULL category
 
 **B.8.3 Delete Product with Category** - Pending
 - [ ] Create a test product with category assigned
@@ -506,19 +529,23 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 - [ ] Verify category product_count decremented
 
 **B.8.4 Delete Category with Products (CRITICAL)** - Pending
-- [ ] Create a test category
-- [ ] Create 2 products assigned to this category
-- [ ] Delete the category (cascade=false)
-- [ ] Verify products now have seller_category_id = NULL
-- [ ] Verify products still exist and are functional
-- [ ] Edit one of these products → verify CategorySelector shows "Tap to select"
+- [ ] Create a test category named "DeleteTest"
+- [ ] Create 2 products assigned to "DeleteTest" category
+- [ ] Note the product IDs
+- [ ] Go to Category Management → Delete "DeleteTest" category
+- [ ] Verify products now have seller_category_id = NULL (check via API or Edit screen)
+- [ ] Verify products still appear in Products list
+- [ ] Edit one of these products → verify CategorySelector shows "Tap to select a category"
 
 **B.8.5 Edit Product with NULL Category** - Pending
-- [ ] Find/create product with NULL seller_category_id
-- [ ] Tap to edit the product
-- [ ] Verify CategorySelector shows "Tap to select a category" (not crash)
-- [ ] Assign a new category
-- [ ] Save and verify category saved correctly
+- [ ] **Prerequisite:** Use B.8.4 result OR create product without category using Method 1/2 above
+- [ ] Navigate to Products tab
+- [ ] Tap on product that has NULL seller_category_id
+- [ ] Tap Edit to open AddProductScreen in edit mode
+- [ ] Verify CategorySelector shows "Tap to select a category" (NOT crash or error)
+- [ ] Tap to select a new category
+- [ ] Save product
+- [ ] Verify category saved correctly (re-open Edit to confirm)
 
 **B.8.6 Product API Response Verification** - Pending
 - [ ] GET /api/v1/seller/products - List should include seller_category_id
@@ -528,20 +555,24 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 - [ ] Verify NULL seller_category_id is handled (not error)
 
 **B.8.7 Customer Product View** - Pending
+- [ ] **Prerequisite:** Ensure seller has products with and without category (see Prerequisites above)
 - [ ] Login as customer (testcustomer / Test1234@)
-- [ ] Navigate to product listing
-- [ ] Verify products with categories display correctly
-- [ ] Verify products without categories display correctly
-- [ ] Tap on product → verify ProductDetailsScreen loads
+- [ ] Navigate to product listing / Home screen
+- [ ] Verify products with categories display correctly to customer
+- [ ] Verify products without categories display correctly (no errors)
+- [ ] Tap on product WITH category → verify ProductDetailsScreen loads
+- [ ] Tap on product WITHOUT category → verify ProductDetailsScreen loads (no crash)
 
 **B.8.8 Order Creation with Categorized Product** - Pending
-- [ ] Login as customer
+- [ ] **Prerequisite:** Ensure seller has products with and without category
+- [ ] Login as customer (testcustomer / Test1234@)
 - [ ] Add product WITH category to cart
 - [ ] Add product WITHOUT category to cart
 - [ ] Proceed to checkout
 - [ ] Complete order
-- [ ] Verify order created successfully
-- [ ] Verify seller can view order (OrderManagementScreen)
+- [ ] Verify order created successfully (both products in order)
+- [ ] Login as seller → verify order visible in OrderManagementScreen
+- [ ] Verify order details show both products correctly
 
 **Edge Cases to Verify:**
 
