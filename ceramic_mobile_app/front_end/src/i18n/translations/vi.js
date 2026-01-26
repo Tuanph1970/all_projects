@@ -468,6 +468,55 @@ export default {
     cancelFailed: 'Không thể hủy đơn hàng. Vui lòng thử lại.',
   },
 
+  // Add/Edit Product
+  addProduct: {
+    title: 'Thêm sản phẩm',
+    editTitle: 'Sửa sản phẩm',
+    productImages: 'Hình ảnh sản phẩm',
+    productDetails: 'Chi tiết sản phẩm',
+    titleLabel: 'Tiêu đề *',
+    descriptionLabel: 'Mô tả *',
+    priceLabel: 'Giá *',
+    categoryLabel: 'Danh mục *',
+    stockQuantityLabel: 'Số lượng tồn kho *',
+    tagsLabel: 'Thẻ (phân cách bằng dấu phẩy)',
+    tagsPlaceholder: 'gốm sứ, thủ công, đồ gốm',
+    createProduct: 'Tạo sản phẩm',
+    updateProduct: 'Cập nhật sản phẩm',
+    creating: 'Đang tạo...',
+    updating: 'Đang cập nhật...',
+    uploadingImages: 'Đang tải hình ảnh...',
+    loadingProduct: 'Đang tải sản phẩm...',
+    // Validation
+    titleRequired: 'Tiêu đề là bắt buộc',
+    descriptionRequired: 'Mô tả là bắt buộc',
+    priceRequired: 'Giá là bắt buộc',
+    priceInvalid: 'Giá phải là số dương hợp lệ',
+    categoryRequired: 'Danh mục là bắt buộc',
+    stockRequired: 'Số lượng tồn kho là bắt buộc',
+    stockInvalid: 'Số lượng tồn kho phải là số dương hợp lệ',
+    // Success/Error
+    productCreated: 'Tạo sản phẩm thành công!',
+    productUpdated: 'Cập nhật sản phẩm thành công!',
+    createFailed: 'Không thể tạo sản phẩm. Vui lòng thử lại.',
+    updateFailed: 'Không thể cập nhật sản phẩm. Vui lòng thử lại.',
+    loadFailed: 'Không thể tải dữ liệu sản phẩm',
+    validationError: 'Vui lòng sửa các lỗi trước khi gửi.',
+    // Images
+    addImage: 'Thêm hình ảnh',
+    camera: 'Máy ảnh',
+    gallery: 'Thư viện',
+    limitReached: 'Bạn chỉ có thể tải lên tối đa 5 hình ảnh.',
+    imagePickFailed: 'Không thể chọn hình ảnh. Vui lòng thử lại.',
+    photoCaptureFailed: 'Không thể chụp ảnh. Vui lòng thử lại.',
+    permissionRequired: 'Yêu cầu quyền truy cập',
+    cameraPermission: 'Cần quyền truy cập máy ảnh để chụp ảnh.',
+    galleryPermission: 'Xin lỗi, chúng tôi cần quyền truy cập thư viện ảnh để tải lên hình ảnh.',
+    // Actions
+    addAnother: 'Thêm sản phẩm khác',
+    viewProduct: 'Xem sản phẩm',
+  },
+
   // Category Management
   categoryManagement: {
     title: 'Quản lý danh mục',

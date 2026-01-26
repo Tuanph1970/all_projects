@@ -468,6 +468,55 @@ export default {
     cancelFailed: 'Failed to cancel order. Please try again.',
   },
 
+  // Add/Edit Product
+  addProduct: {
+    title: 'Add Product',
+    editTitle: 'Edit Product',
+    productImages: 'Product Images',
+    productDetails: 'Product Details',
+    titleLabel: 'Title *',
+    descriptionLabel: 'Description *',
+    priceLabel: 'Price *',
+    categoryLabel: 'Category *',
+    stockQuantityLabel: 'Stock Quantity *',
+    tagsLabel: 'Tags (comma-separated)',
+    tagsPlaceholder: 'ceramic, handmade, pottery',
+    createProduct: 'Create Product',
+    updateProduct: 'Update Product',
+    creating: 'Creating...',
+    updating: 'Updating...',
+    uploadingImages: 'Uploading Images...',
+    loadingProduct: 'Loading product...',
+    // Validation
+    titleRequired: 'Title is required',
+    descriptionRequired: 'Description is required',
+    priceRequired: 'Price is required',
+    priceInvalid: 'Price must be a valid positive number',
+    categoryRequired: 'Category is required',
+    stockRequired: 'Stock quantity is required',
+    stockInvalid: 'Stock quantity must be a valid positive number',
+    // Success/Error
+    productCreated: 'Product created successfully!',
+    productUpdated: 'Product updated successfully!',
+    createFailed: 'Failed to create product. Please try again.',
+    updateFailed: 'Failed to update product. Please try again.',
+    loadFailed: 'Failed to load product data',
+    validationError: 'Please fix the errors before submitting.',
+    // Images
+    addImage: 'Add Image',
+    camera: 'Camera',
+    gallery: 'Gallery',
+    limitReached: 'You can only upload up to 5 images.',
+    imagePickFailed: 'Failed to pick image. Please try again.',
+    photoCaptureFailed: 'Failed to capture photo. Please try again.',
+    permissionRequired: 'Permission Required',
+    cameraPermission: 'Camera permission is required to take photos.',
+    galleryPermission: 'Sorry, we need camera roll permissions to upload images.',
+    // Actions
+    addAnother: 'Add Another',
+    viewProduct: 'View Product',
+  },
+
   // Category Management
   categoryManagement: {
     title: 'Category Management',
