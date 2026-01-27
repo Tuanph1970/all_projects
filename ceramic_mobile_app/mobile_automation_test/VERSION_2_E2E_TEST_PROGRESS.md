@@ -576,26 +576,26 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 
 **Edge Cases to Verify:**
 
-**B.8.9 Cascade Delete Behavior** - Pending
-- [ ] Create parent category with 2 child categories
-- [ ] Assign products to child categories
-- [ ] Delete parent category with cascade=true
-- [ ] Verify all children deleted
-- [ ] Verify all products have seller_category_id = NULL
+**B.8.9 Cascade Delete Behavior** - ✅ Done (2026-01-27)
+- [x] Create parent category with 2 child categories
+- [x] Assign products to child categories
+- [x] Delete parent category with cascade=true
+- [x] Verify all children deleted
+- [x] Verify all products have seller_category_id = NULL
 
-**B.8.10 Move Category with Products** - Pending
-- [ ] Create category structure: Root > Child > Grandchild
-- [ ] Assign products to Grandchild
-- [ ] Move Grandchild to different parent
-- [ ] Verify products still reference correct category
-- [ ] Verify category path updated correctly
+**B.8.10 Move Category with Products** - ✅ Done (2026-01-27)
+- [x] Create category structure: Root > Child > Grandchild
+- [x] Assign products to Grandchild
+- [x] Move Grandchild to different parent
+- [x] Verify products still reference correct category
+- [x] Verify category path updated correctly
 
-**B.8.11 Max Depth with Products** - Pending
-- [ ] Create Level 4 category
-- [ ] Assign products to Level 4 category
-- [ ] Verify products work normally
-- [ ] Attempt to add Level 5 child → should fail
-- [ ] Verify Level 4 products unaffected
+**B.8.11 Max Depth with Products** - ✅ Done (2026-01-27)
+- [x] Create Level 4 category
+- [x] Assign products to Level 4 category
+- [x] Verify products work normally
+- [x] Attempt to add Level 5 child → should fail
+- [x] Verify Level 4 products unaffected
 
 **Why These Tests Are Important:**
 - Products table now has FK relationship with seller_categories
@@ -707,6 +707,9 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | 2026-01-27 | B.8.4 Delete Category with Products | ✅ Pass | Manual test: Category deleted, products have NULL category, still functional |
 | 2026-01-27 | B.8.5 Edit Product with NULL Category | ✅ Pass | Manual test: Edit works, can assign new category, saves correctly |
 | 2026-01-27 | B.8.6 Product API Response Verification | ✅ Pass | API test: All endpoints work. Fixed ProductResponse schema to include SellerCategoryInfo |
+| 2026-01-27 | B.8.9 Cascade Delete Behavior | ✅ Pass | Manual test: Parent category deleted with cascade, children deleted, products have NULL category |
+| 2026-01-27 | B.8.11 Max Depth with Products | ✅ Pass | Manual test: Level 4 category with products works, Level 5 rejected, products unaffected |
+| 2026-01-27 | B.8.10 Move Category with Products | ✅ Pass | Manual test: Category moved to different parent, products reference correct, path updated |
 
 ---
 
@@ -863,4 +866,4 @@ echo "=========================================="
 ---
 
 *Document generated: 2026-01-14*
-*Last updated: 2026-01-27 - Section A COMPLETE, Section B.1-B.7 COMPLETE, Section B.8 IN PROGRESS (6/11 done: B.8.1-B.8.6)*
+*Last updated: 2026-01-27 - Section A COMPLETE, Section B.1-B.7 COMPLETE, Section B.8 IN PROGRESS (9/11 done: B.8.1-B.8.6, B.8.9-B.8.11)*
