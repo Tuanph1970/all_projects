@@ -563,16 +563,16 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 - [x] Tap on product WITH category → verify ProductDetailsScreen loads ✅ Category shows as "Home Appliances > Speakers"
 - [x] Tap on product WITHOUT category → verify ProductDetailsScreen loads (no crash) ✅
 
-**B.8.8 Order Creation with Categorized Product** - Pending
-- [ ] **Prerequisite:** Ensure seller has products with and without category
-- [ ] Login as customer (testcustomer / Test1234@)
-- [ ] Add product WITH category to cart
-- [ ] Add product WITHOUT category to cart
-- [ ] Proceed to checkout
-- [ ] Complete order
-- [ ] Verify order created successfully (both products in order)
-- [ ] Login as seller → verify order visible in OrderManagementScreen
-- [ ] Verify order details show both products correctly
+**B.8.8 Order Creation with Categorized Product** - ✅ Done (2026-01-27)
+- [x] **Prerequisite:** Ensure seller has products with and without category
+- [x] Login as customer (testcustomer / Test1234@)
+- [x] Add product WITH category to cart
+- [x] Add product WITHOUT category to cart
+- [x] Proceed to checkout
+- [x] Complete order
+- [x] Verify order created successfully (both products in order)
+- [x] Login as seller → verify order visible in OrderManagementScreen
+- [x] Verify order details show both products correctly
 
 **Edge Cases to Verify:**
 

@@ -6,8 +6,8 @@
 // - 'testing': E2E testing (direct API access)
 // - 'production': Production server
 // ============================================
-const ENVIRONMENT = 'testing'; // Use 'testing' for E2E tests
-// const ENVIRONMENT = 'production'; // Use 'production' for release
+// const ENVIRONMENT = 'testing'; // Use 'testing' for E2E tests
+const ENVIRONMENT = 'production'; // Use 'production' for release
 // ============================================
 
 // Microservices Architecture:
