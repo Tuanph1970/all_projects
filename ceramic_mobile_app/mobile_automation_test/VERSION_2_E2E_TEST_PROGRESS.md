@@ -506,20 +506,20 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 
 **Critical Integration Tests:**
 
-**B.8.1 Product List with Categories** - Pending
-- [ ] Login as seller (testseller / Test1234@)
-- [ ] **Setup:** Ensure you have at least 1 product WITH category and 1 product WITHOUT category (see Prerequisites above)
-- [ ] Navigate to Products tab
-- [ ] Verify products WITH category display correctly (category name shown)
-- [ ] Verify products WITHOUT category display correctly (no crash, graceful handling)
+**B.8.1 Product List with Categories** - ✅ Done (2026-01-27)
+- [x] Login as seller (test_seller_user / Test@12345678)
+- [x] **Setup:** Created 3 categories (Ceramics, Vases, Bowls) with 1 product each
+- [x] Navigate to Products tab
+- [x] Verify products WITH category display correctly (category name shown) ✅
+- [x] Verify products WITHOUT category display correctly (shows "No category" in orange) ✅
 - [ ] Verify product count matches API response
 
-**B.8.2 Product Details Category Display** - Pending
-- [ ] **Prerequisite:** Have products with and without category (use Method 1 above)
-- [ ] Tap on product WITH category assigned
-- [ ] Verify category name displays on product details (if shown)
-- [ ] Tap on product WITHOUT category (seller_category_id = NULL)
-- [ ] Verify no errors, no crash, graceful handling of NULL category
+**B.8.2 Product Details Category Display** - ✅ Done (2026-01-27)
+- [x] **Prerequisite:** Have products with and without category (use Method 1 above)
+- [x] Tap on product WITH category assigned
+- [x] Verify category name displays on product details (if shown) ✅
+- [x] Tap on product WITHOUT category (seller_category_id = NULL)
+- [x] Verify no errors, no crash, graceful handling of NULL category ✅
 
 **B.8.3 Delete Product with Category** - Pending
 - [ ] Create a test product with category assigned
@@ -701,6 +701,8 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | 2026-01-23 | B.7.8 Seller Isolation | ✅ Pass | Manual test: Seller 2 cannot see Seller 1's categories |
 | 2026-01-26 | B.7.9 Category Selector (Add) | ✅ Pass | Manual test: CategorySelector in AddProductScreen working, product saved with seller_category_id |
 | 2026-01-26 | B.7.10 Category Selector (Edit) | ✅ Pass | Manual test: Fixed bugs - added seller_category_id to API response, category displays as "Am thanh > Loa Keo" |
+| 2026-01-27 | B.8.1 Product List with Categories | ✅ Pass | Manual test: Category displayed in product list, "No category" shown in orange for NULL |
+| 2026-01-27 | B.8.2 Product Details Category Display | ✅ Pass | Manual test: Category displays correctly, no crash with NULL category |
 
 ---
 
@@ -857,4 +859,4 @@ echo "=========================================="
 ---
 
 *Document generated: 2026-01-14*
-*Last updated: 2026-01-26 - Section A COMPLETE, Section B.1-B.7 COMPLETE, Section B.8 ADDED (Category Management Impact Tests - 11 test cases for pre-production verification)*
+*Last updated: 2026-01-27 - Section A COMPLETE, Section B.1-B.7 COMPLETE, Section B.8 IN PROGRESS (2/11 done: B.8.1, B.8.2)*
