@@ -119,6 +119,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    volumes:
+      - ./services/auth/app:/app/app
+      - ./shared:/app/shared
     networks:
       - ceramic_network
     labels:
@@ -164,6 +167,8 @@ services:
       start_period: 60s
     volumes:
       - ./uploads:/app/uploads
+      - ./services/product/app:/app/app
+      - ./shared:/app/shared
     networks:
       - ceramic_network
     labels:
@@ -208,6 +213,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    volumes:
+      - ./services/order/app:/app/app
+      - ./shared:/app/shared
     networks:
       - ceramic_network
     labels:
@@ -251,6 +259,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    volumes:
+      - ./services/chat/app:/app/app
+      - ./shared:/app/shared
     networks:
       - ceramic_network
     labels:
@@ -297,6 +308,8 @@ services:
       start_period: 60s
     volumes:
       - ./uploads:/app/uploads
+      - ./services/seller/app:/app/app
+      - ./shared:/app/shared
     networks:
       - ceramic_network
     labels:

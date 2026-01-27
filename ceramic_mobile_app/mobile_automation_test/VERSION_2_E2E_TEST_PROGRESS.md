@@ -521,38 +521,38 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 - [x] Tap on product WITHOUT category (seller_category_id = NULL)
 - [x] Verify no errors, no crash, graceful handling of NULL category ✅
 
-**B.8.3 Delete Product with Category** - Pending
-- [ ] Create a test product with category assigned
-- [ ] Delete the product
-- [ ] Verify deletion successful
-- [ ] Verify category still exists (not affected)
-- [ ] Verify category product_count decremented
+**B.8.3 Delete Product with Category** - ✅ Done (2026-01-27)
+- [x] Create a test product with category assigned
+- [x] Delete the product
+- [x] Verify deletion successful ✅
+- [x] Verify category still exists (not affected) ✅
+- [x] Verify category product_count decremented ✅
 
-**B.8.4 Delete Category with Products (CRITICAL)** - Pending
-- [ ] Create a test category named "DeleteTest"
-- [ ] Create 2 products assigned to "DeleteTest" category
-- [ ] Note the product IDs
-- [ ] Go to Category Management → Delete "DeleteTest" category
-- [ ] Verify products now have seller_category_id = NULL (check via API or Edit screen)
-- [ ] Verify products still appear in Products list
-- [ ] Edit one of these products → verify CategorySelector shows "Tap to select a category"
+**B.8.4 Delete Category with Products (CRITICAL)** - ✅ Done (2026-01-27)
+- [x] Create a test category named "DeleteTest"
+- [x] Create 2 products assigned to "DeleteTest" category
+- [x] Note the product IDs
+- [x] Go to Category Management → Delete "DeleteTest" category
+- [x] Verify products now have seller_category_id = NULL (check via API or Edit screen) ✅
+- [x] Verify products still appear in Products list ✅
+- [x] Edit one of these products → verify CategorySelector shows "Tap to select a category" ✅
 
-**B.8.5 Edit Product with NULL Category** - Pending
-- [ ] **Prerequisite:** Use B.8.4 result OR create product without category using Method 1/2 above
-- [ ] Navigate to Products tab
-- [ ] Tap on product that has NULL seller_category_id
-- [ ] Tap Edit to open AddProductScreen in edit mode
-- [ ] Verify CategorySelector shows "Tap to select a category" (NOT crash or error)
-- [ ] Tap to select a new category
-- [ ] Save product
-- [ ] Verify category saved correctly (re-open Edit to confirm)
+**B.8.5 Edit Product with NULL Category** - ✅ Done (2026-01-27)
+- [x] **Prerequisite:** Use B.8.4 result OR create product without category using Method 1/2 above
+- [x] Navigate to Products tab
+- [x] Tap on product that has NULL seller_category_id
+- [x] Tap Edit to open AddProductScreen in edit mode
+- [x] Verify CategorySelector shows "Tap to select a category" (NOT crash or error) ✅
+- [x] Tap to select a new category
+- [x] Save product
+- [x] Verify category saved correctly (re-open Edit to confirm) ✅
 
-**B.8.6 Product API Response Verification** - Pending
-- [ ] GET /api/v1/seller/products - List should include seller_category_id
-- [ ] GET /api/v1/seller/products/{id} - Detail should include seller_category_id
-- [ ] POST /api/v1/seller/products - Create with seller_category_id works
-- [ ] PUT /api/v1/seller/products/{id} - Update seller_category_id works
-- [ ] Verify NULL seller_category_id is handled (not error)
+**B.8.6 Product API Response Verification** - ✅ Done (2026-01-27)
+- [x] GET /api/v1/seller/products/management - List includes seller_category_id + seller_category object ✅
+- [x] GET /api/v1/products/{id} - Detail includes seller_category_id + seller_category object ✅ (Fixed: added SellerCategoryInfo to ProductResponse schema)
+- [x] POST /api/v1/products/ - Create with seller_category_id works ✅
+- [x] PUT /api/v1/products/{id} - Update seller_category_id works ✅
+- [x] Verify NULL seller_category_id is handled (not error) ✅ Both create and update with null work
 
 **B.8.7 Customer Product View** - Pending
 - [ ] **Prerequisite:** Ensure seller has products with and without category (see Prerequisites above)
@@ -703,6 +703,10 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | 2026-01-26 | B.7.10 Category Selector (Edit) | ✅ Pass | Manual test: Fixed bugs - added seller_category_id to API response, category displays as "Am thanh > Loa Keo" |
 | 2026-01-27 | B.8.1 Product List with Categories | ✅ Pass | Manual test: Category displayed in product list, "No category" shown in orange for NULL |
 | 2026-01-27 | B.8.2 Product Details Category Display | ✅ Pass | Manual test: Category displays correctly, no crash with NULL category |
+| 2026-01-27 | B.8.3 Delete Product with Category | ✅ Pass | Manual test: Product deleted, category unaffected |
+| 2026-01-27 | B.8.4 Delete Category with Products | ✅ Pass | Manual test: Category deleted, products have NULL category, still functional |
+| 2026-01-27 | B.8.5 Edit Product with NULL Category | ✅ Pass | Manual test: Edit works, can assign new category, saves correctly |
+| 2026-01-27 | B.8.6 Product API Response Verification | ✅ Pass | API test: All endpoints work. Fixed ProductResponse schema to include SellerCategoryInfo |
 
 ---
 
@@ -859,4 +863,4 @@ echo "=========================================="
 ---
 
 *Document generated: 2026-01-14*
-*Last updated: 2026-01-27 - Section A COMPLETE, Section B.1-B.7 COMPLETE, Section B.8 IN PROGRESS (2/11 done: B.8.1, B.8.2)*
+*Last updated: 2026-01-27 - Section A COMPLETE, Section B.1-B.7 COMPLETE, Section B.8 IN PROGRESS (6/11 done: B.8.1-B.8.6)*

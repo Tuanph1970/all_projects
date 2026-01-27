@@ -16,6 +16,16 @@ class SellerInfo(BaseModel):
         from_attributes = True
 
 
+class SellerCategoryInfo(BaseModel):
+    """Seller category information embedded in product response"""
+    id: int
+    name: str
+    full_path_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class CategoryBase(BaseModel):
     name: str
     description: Optional[str] = None
@@ -98,6 +108,7 @@ class ProductResponse(BaseModel):
     tags: Optional[str] = None
     category_id: Optional[int] = None
     seller_category_id: Optional[int] = None
+    seller_category: Optional[SellerCategoryInfo] = None
     seller_id: int
     sku: Optional[str] = None
     is_active: bool
