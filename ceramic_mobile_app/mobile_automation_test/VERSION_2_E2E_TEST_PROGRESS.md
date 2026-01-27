@@ -554,14 +554,14 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 - [x] PUT /api/v1/products/{id} - Update seller_category_id works ✅
 - [x] Verify NULL seller_category_id is handled (not error) ✅ Both create and update with null work
 
-**B.8.7 Customer Product View** - Pending
-- [ ] **Prerequisite:** Ensure seller has products with and without category (see Prerequisites above)
-- [ ] Login as customer (testcustomer / Test1234@)
-- [ ] Navigate to product listing / Home screen
-- [ ] Verify products with categories display correctly to customer
-- [ ] Verify products without categories display correctly (no errors)
-- [ ] Tap on product WITH category → verify ProductDetailsScreen loads
-- [ ] Tap on product WITHOUT category → verify ProductDetailsScreen loads (no crash)
+**B.8.7 Customer Product View** - ✅ Done (2026-01-27)
+- [x] **Prerequisite:** Ensure seller has products with and without category (see Prerequisites above)
+- [x] Login as customer (test_customer_v2 / Test@12345678)
+- [x] Navigate to product listing / Home screen
+- [x] Verify products with categories display correctly to customer ✅ (Added category chip to ProductDetailsScreen)
+- [x] Verify products without categories display correctly (no errors) ✅
+- [x] Tap on product WITH category → verify ProductDetailsScreen loads ✅ Category shows as "Home Appliances > Speakers"
+- [x] Tap on product WITHOUT category → verify ProductDetailsScreen loads (no crash) ✅
 
 **B.8.8 Order Creation with Categorized Product** - Pending
 - [ ] **Prerequisite:** Ensure seller has products with and without category
@@ -710,6 +710,7 @@ Version 2 implemented critical API path fixes and HTTP method corrections. This 
 | 2026-01-27 | B.8.9 Cascade Delete Behavior | ✅ Pass | Manual test: Parent category deleted with cascade, children deleted, products have NULL category |
 | 2026-01-27 | B.8.11 Max Depth with Products | ✅ Pass | Manual test: Level 4 category with products works, Level 5 rejected, products unaffected |
 | 2026-01-27 | B.8.10 Move Category with Products | ✅ Pass | Manual test: Category moved to different parent, products reference correct, path updated |
+| 2026-01-27 | B.8.7 Customer Product View | ✅ Pass | Manual test: Category displays on ProductDetailsScreen, products with/without category work correctly |
 
 ---
 
@@ -866,4 +867,4 @@ echo "=========================================="
 ---
 
 *Document generated: 2026-01-14*
-*Last updated: 2026-01-27 - Section A COMPLETE, Section B.1-B.7 COMPLETE, Section B.8 IN PROGRESS (9/11 done: B.8.1-B.8.6, B.8.9-B.8.11)*
+*Last updated: 2026-01-27 - Section A COMPLETE, Section B.1-B.7 COMPLETE, Section B.8 IN PROGRESS (10/11 done: B.8.1-B.8.7, B.8.9-B.8.11)*

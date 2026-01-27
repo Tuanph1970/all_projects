@@ -523,6 +523,16 @@ export const ProductDetailsScreen = () => {
             )}
           </View>
 
+          {/* Category */}
+          {product.seller_category && (
+            <View style={styles.categoryContainer}>
+              <Text style={styles.categoryLabel}>{t('product.category')}:</Text>
+              <Chip style={styles.categoryChip} textStyle={styles.categoryChipText}>
+                {product.seller_category.full_path_name || product.seller_category.name}
+              </Chip>
+            </View>
+          )}
+
           {/* Tags */}
           {renderTags()}
         </Card>
@@ -777,6 +787,24 @@ const styles = StyleSheet.create({
   inStockText: {
     color: colors.success,
     fontWeight: typography.weights.medium,
+  },
+  categoryContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+    flexWrap: 'wrap',
+  },
+  categoryLabel: {
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary,
+    marginRight: spacing.xs,
+  },
+  categoryChip: {
+    backgroundColor: colors.primaryLight || '#E3F2FD',
+  },
+  categoryChipText: {
+    fontSize: typography.sizes.sm,
+    color: colors.primary,
   },
   tagsContainer: {
     marginTop: spacing.sm,

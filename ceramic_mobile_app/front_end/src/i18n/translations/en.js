@@ -226,6 +226,7 @@ export default {
     outOfStock: 'Out of Stock',
     lowStock: 'Only {count} left in stock',
     inStock: 'In Stock',
+    category: 'Category',
     quantity: 'Quantity:',
     addToCart: 'Add to Cart',
     buyNow: 'Buy Now',

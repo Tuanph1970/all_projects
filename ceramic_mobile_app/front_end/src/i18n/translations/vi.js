@@ -226,6 +226,7 @@ export default {
     outOfStock: 'Hết hàng',
     lowStock: 'Chỉ còn {count} sản phẩm',
     inStock: 'Còn hàng',
+    category: 'Danh mục',
     quantity: 'Số lượng:',
     addToCart: 'Thêm vào giỏ',
     buyNow: 'Mua ngay',
