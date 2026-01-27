@@ -12,6 +12,7 @@ from shared.config import settings
 from shared.security import get_current_user, get_optional_current_user
 from shared.models.user import User, UserRole
 from shared.models.product import Product, Category, ProductImage
+from shared.models.seller_category import SellerCategory
 from shared.models.review import Review
 
 from app.schemas.product import (
@@ -57,6 +58,11 @@ def product_to_dict(product, include_seller=False, db=None):
         "tags": product.tags,
         "category_id": product.category_id,
         "seller_category_id": product.seller_category_id,
+        "seller_category": {
+            "id": product.seller_category.id,
+            "name": product.seller_category.name,
+            "full_path_name": product.seller_category.get_full_path_name() if hasattr(product.seller_category, 'get_full_path_name') else product.seller_category.name
+        } if product.seller_category else None,
         "seller_id": product.seller_id,
         "sku": product.sku,
         "is_active": product.is_active,
@@ -230,6 +236,7 @@ def read_product(product_id: int, db: Session = Depends(get_db)):
     product = db.query(Product).options(
         joinedload(Product.seller),
         joinedload(Product.category),
+        joinedload(Product.seller_category),
         joinedload(Product.images),
         joinedload(Product.reviews)
     ).filter(Product.id == product_id, Product.is_active == True).first()

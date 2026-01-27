@@ -300,6 +300,17 @@ export const ProductManagementScreen = () => {
       
       <View style={styles.productDetails}>
         <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>{t('productManagement.categoryLabel')}</Text>
+          <Text style={[
+            styles.detailValue,
+            !item.seller_category_id && styles.noCategoryText
+          ]}>
+            {item.seller_category?.name ||
+             (item.seller_category_id ? `Category #${item.seller_category_id}` : t('productManagement.noCategory'))}
+          </Text>
+        </View>
+
+        <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>{t('productManagement.statusLabel')}</Text>
           <Chip
             style={[styles.statusChip, { backgroundColor: getStatusColor(item) }]}
@@ -650,6 +661,10 @@ const styles = StyleSheet.create({
   detailValue: {
     fontSize: typography.sizes.sm,
     color: colors.onSurface,
+  },
+  noCategoryText: {
+    color: '#FF9800',
+    fontStyle: 'italic',
   },
   statusChip: {
     alignSelf: 'flex-start',

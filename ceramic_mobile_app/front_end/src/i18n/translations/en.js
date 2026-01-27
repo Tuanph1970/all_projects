@@ -354,6 +354,8 @@ export default {
     featured: 'Featured',
     sku: 'SKU: {sku}',
     skuNA: 'SKU: N/A',
+    categoryLabel: 'Category:',
+    noCategory: 'No category',
     statusLabel: 'Status:',
     stockLabel: 'Stock:',
     units: '{count} units',

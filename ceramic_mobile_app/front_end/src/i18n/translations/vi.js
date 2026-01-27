@@ -354,6 +354,8 @@ export default {
     featured: 'Nổi bật',
     sku: 'SKU: {sku}',
     skuNA: 'SKU: N/A',
+    categoryLabel: 'Danh mục:',
+    noCategory: 'Chưa phân loại',
     statusLabel: 'Trạng thái:',
     stockLabel: 'Tồn kho:',
     units: '{count} đơn vị',

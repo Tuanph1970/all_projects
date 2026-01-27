@@ -530,6 +530,11 @@ def get_products_for_management(
                 "id": product.category.id,
                 "name": product.category.name
             } if product.category else None,
+            "seller_category_id": product.seller_category_id,
+            "seller_category": {
+                "id": product.seller_category.id,
+                "name": product.seller_category.name
+            } if product.seller_category else None,
             "stock_status": stock_status_value,
             "sales": {
                 "total_orders": sales_data.total_orders or 0,
