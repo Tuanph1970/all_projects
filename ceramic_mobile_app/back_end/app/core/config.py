@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # Email verification
     EMAIL_VERIFICATION_EXPIRE_HOURS: int = 24
 
+    # Password reset
+    PASSWORD_RESET_EXPIRE_HOURS: int = 5
+
     # Password requirements
     MIN_PASSWORD_LENGTH: int = 8
 

@@ -14,7 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useForm, Controller } from 'react-hook-form';
 import Toast from 'react-native-toast-message';
 
-import { loginUser, clearError } from '../../store/slices/authSlice.js';
+import { loginUser, clearError, clearTempPasswordFlag } from '../../store/slices/authSlice.js';
 
 import { Button } from '../../components/common/Button.jsx';
 import { Input } from '../../components/common/Input.jsx';
@@ -28,7 +28,7 @@ export const LoginScreen = () => {
   const dispatch = useDispatch();
   const t = useTranslation();
 
-  const { isLoading, error } = useSelector((state) => state.auth);
+  const { isLoading, error, hasTempPassword } = useSelector((state) => state.auth);
   const [showPassword, setShowPassword] = useState(false);
 
   const {
@@ -62,13 +62,51 @@ export const LoginScreen = () => {
       const result = await dispatch(loginUser(data));
 
       if (loginUser.fulfilled.match(result)) {
-        Toast.show({
-          type: 'success',
-          text1: t('auth.loginSuccess'),
-          text2: t('auth.welcomeBackMsg'),
-          visibilityTime: 3000,
-          topOffset: 60,
-        });
+        // Check if user logged in with temporary password
+        const hasTempPwd = !!result.payload?.tokens?.temp_password_warning;
+
+        if (hasTempPwd) {
+          // Show warning alert and prompt to change password
+          Alert.alert(
+            t('auth.tempPasswordWarning').split('.')[0],
+            t('auth.tempPasswordWarning'),
+            [
+              {
+                text: t('auth.changePassword'),
+                onPress: () => {
+                  // Navigation to change password will be handled by app after login
+                  Toast.show({
+                    type: 'info',
+                    text1: t('auth.loginSuccess'),
+                    text2: t('auth.tempPasswordWarning'),
+                    visibilityTime: 5000,
+                    topOffset: 60,
+                  });
+                },
+              },
+              {
+                text: t('common.ok'),
+                onPress: () => {
+                  Toast.show({
+                    type: 'success',
+                    text1: t('auth.loginSuccess'),
+                    text2: t('auth.welcomeBackMsg'),
+                    visibilityTime: 3000,
+                    topOffset: 60,
+                  });
+                },
+              },
+            ]
+          );
+        } else {
+          Toast.show({
+            type: 'success',
+            text1: t('auth.loginSuccess'),
+            text2: t('auth.welcomeBackMsg'),
+            visibilityTime: 3000,
+            topOffset: 60,
+          });
+        }
         reset();
       }
     } catch (error) {

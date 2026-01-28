@@ -20,10 +20,12 @@ export class AuthService {
       refreshToken: response.refresh_token,
       tokenType: response.token_type,
       expiresIn: response.expires_in,
+      temp_password_warning: response.temp_password_warning || null,
     };
     console.log('🔄 [authService] Transformed tokens:', {
       hasAccessToken: !!tokens.accessToken,
       hasRefreshToken: !!tokens.refreshToken,
+      hasTempPasswordWarning: !!tokens.temp_password_warning,
     });
 
     // Store tokens first so they're available for the next request

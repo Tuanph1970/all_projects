@@ -9,6 +9,7 @@ const initialState = {
   isAuthenticated: false,
   isLoading: false,
   error: null,
+  hasTempPassword: false,
 };
 
 // Async thunks
@@ -203,6 +204,9 @@ const authSlice = createSlice({
       state.isAuthenticated = true;
       state.isLoading = false;
     },
+    clearTempPasswordFlag: (state) => {
+      state.hasTempPassword = false;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -217,6 +221,8 @@ const authSlice = createSlice({
         state.tokens = action.payload.tokens;
         state.isAuthenticated = true;
         state.error = null;
+        // Check if user logged in with temporary password
+        state.hasTempPassword = !!action.payload.tokens?.temp_password_warning;
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.isLoading = false;
@@ -274,6 +280,7 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.isLoading = false;
         state.error = null;
+        state.hasTempPassword = false;
       })
       
       // Switch Role
@@ -351,5 +358,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError, setLoading, hydrate } = authSlice.actions;
+export const { clearError, setLoading, hydrate, clearTempPasswordFlag } = authSlice.actions;
 export default authSlice.reducer;

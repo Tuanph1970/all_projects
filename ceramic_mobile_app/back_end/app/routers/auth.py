@@ -6,14 +6,16 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import (
-    verify_password, 
-    create_access_token, 
+    verify_password,
+    create_access_token,
     create_refresh_token,
     create_email_verification_token,
-    verify_token, 
+    verify_token,
     get_password_hash,
-    generate_password_reset_token
+    generate_password_reset_token,
+    generate_temporary_password
 )
+from app.services.email_service import EmailService
 from app.models.user import User, UserRole
 from app.schemas.user import (
     UserCreate, 
@@ -96,14 +98,15 @@ def get_optional_current_user(
     except:
         return None
 
-# Email sending function placeholder
+# Email sending functions using EmailService
 async def send_verification_email(email: str, token: str):
-    # TODO: Implement actual email sending
-    print(f"Verification email would be sent to {email} with token {token}")
+    """Send email verification link to user"""
+    EmailService.send_verification_email(email, token)
 
-async def send_password_reset_email(email: str, token: str):
-    # TODO: Implement actual email sending  
-    print(f"Password reset email would be sent to {email} with token {token}")
+
+async def send_temporary_password_email(email: str, password: str, expiry_hours: int):
+    """Send temporary password to user"""
+    EmailService.send_temporary_password_email(email, password, expiry_hours)
 
 @router.post("/register", response_model=UserResponse)
 async def register_user(
@@ -151,42 +154,62 @@ async def register_user(
 
 @router.post("/login", response_model=Token)
 def login_for_access_token(
-    user_credentials: UserLogin, 
+    user_credentials: UserLogin,
     db: Session = Depends(get_db)
 ):
     user = db.query(User).filter(User.username == user_credentials.username).first()
-    
+
     if not user or not verify_password(user_credentials.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
+    # Check if user has a temporary password that has expired
+    if (user.password_reset_token == "TEMP_PASSWORD_ACTIVE" and
+            user.password_reset_expires and
+            user.password_reset_expires < datetime.utcnow()):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Your temporary password has expired. Please request a new password reset.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Account is deactivated"
         )
-    
+
     # Create tokens
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username}, 
+        data={"sub": user.username},
         expires_delta=access_token_expires
     )
     refresh_token = create_refresh_token(data={"sub": user.username})
-    
+
     # Update last login
     user.last_login = datetime.utcnow()
+
+    # Check if user logged in with temporary password - include flag in response
+    is_temp_password = user.password_reset_token == "TEMP_PASSWORD_ACTIVE"
+
     db.commit()
-    
-    return {
+
+    response = {
         "access_token": access_token,
-        "refresh_token": refresh_token, 
+        "refresh_token": refresh_token,
         "token_type": "bearer",
         "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     }
+
+    # Add warning if using temporary password
+    if is_temp_password:
+        response["temp_password_warning"] = "You are using a temporary password. Please change your password immediately."
+
+    return response
 
 @router.post("/refresh", response_model=Token)
 def refresh_access_token(token_refresh: TokenRefresh, db: Session = Depends(get_db)):
@@ -267,38 +290,74 @@ async def forgot_password(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
+    """
+    Forgot password endpoint.
+
+    Generates a temporary random password valid for 5 hours.
+    The temporary password is sent to the user's email.
+    User can login with this temporary password and should change it immediately.
+    """
     user = db.query(User).filter(User.email == password_reset_request.email).first()
     if not user:
         # Don't reveal if email exists for security
-        return {"message": "If the email exists, a password reset link has been sent"}
-    
-    reset_token = generate_password_reset_token()
-    user.password_reset_token = reset_token
-    user.password_reset_expires = datetime.utcnow() + timedelta(hours=1)
+        return {"message": "If the email exists, a temporary password has been sent"}
+
+    # Generate a temporary password
+    temporary_password = generate_temporary_password(length=12)
+
+    # Hash and save the temporary password
+    user.hashed_password = get_password_hash(temporary_password)
+
+    # Set expiration time for the temporary password (5 hours)
+    expiry_hours = settings.PASSWORD_RESET_EXPIRE_HOURS
+    user.password_reset_expires = datetime.utcnow() + timedelta(hours=expiry_hours)
+
+    # Store a flag that this is a temporary password (using reset token field)
+    user.password_reset_token = "TEMP_PASSWORD_ACTIVE"
+
     db.commit()
-    
-    background_tasks.add_task(send_password_reset_email, user.email, reset_token)
-    
-    return {"message": "If the email exists, a password reset link has been sent"}
+
+    # Send the temporary password via email
+    background_tasks.add_task(
+        send_temporary_password_email,
+        user.email,
+        temporary_password,
+        expiry_hours
+    )
+
+    return {"message": "If the email exists, a temporary password has been sent"}
 
 @router.post("/reset-password")
 def reset_password(password_reset: PasswordReset, db: Session = Depends(get_db)):
+    """
+    Reset password endpoint (kept for backwards compatibility).
+
+    Note: The primary forgot password flow now uses temporary passwords.
+    This endpoint is kept for any legacy reset token links.
+    """
+    # Skip the special temp password marker
+    if password_reset.token == "TEMP_PASSWORD_ACTIVE":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid reset token. Please use your temporary password to login."
+        )
+
     user = db.query(User).filter(
         User.password_reset_token == password_reset.token,
         User.password_reset_expires > datetime.utcnow()
     ).first()
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired reset token"
         )
-    
+
     user.hashed_password = get_password_hash(password_reset.new_password)
     user.password_reset_token = None
     user.password_reset_expires = None
     db.commit()
-    
+
     return {"message": "Password reset successfully"}
 
 @router.get("/me", response_model=UserResponse)

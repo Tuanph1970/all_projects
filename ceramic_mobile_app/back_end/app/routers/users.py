@@ -63,6 +63,12 @@ def change_password(
 
     # Update password (new_password is already validated by the schema)
     current_user.hashed_password = get_password_hash(password_data.new_password)
+
+    # Clear temporary password flag if it was set
+    if current_user.password_reset_token == "TEMP_PASSWORD_ACTIVE":
+        current_user.password_reset_token = None
+        current_user.password_reset_expires = None
+
     db.commit()
 
     return {"message": "Password changed successfully"}

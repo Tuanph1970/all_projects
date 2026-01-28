@@ -92,3 +92,49 @@ def verify_token(token: str, expected_type: str = "access") -> Optional[Dict[str
 def generate_password_reset_token() -> str:
     """Generate a secure random token for password reset"""
     return secrets.token_urlsafe(32)
+
+
+def generate_temporary_password(length: int = 12) -> str:
+    """
+    Generate a secure random temporary password.
+
+    The password will contain:
+    - At least one uppercase letter
+    - At least one lowercase letter
+    - At least one digit
+    - At least one special character
+
+    Args:
+        length: Length of the password (minimum 8, default 12)
+
+    Returns:
+        A secure random password string
+    """
+    import string
+
+    if length < 8:
+        length = 8
+
+    # Define character sets
+    uppercase = string.ascii_uppercase
+    lowercase = string.ascii_lowercase
+    digits = string.digits
+    special = "!@#$%&*"
+
+    # Ensure at least one character from each required set
+    password_chars = [
+        secrets.choice(uppercase),
+        secrets.choice(lowercase),
+        secrets.choice(digits),
+        secrets.choice(special),
+    ]
+
+    # Fill the rest with random characters from all sets
+    all_chars = uppercase + lowercase + digits + special
+    for _ in range(length - 4):
+        password_chars.append(secrets.choice(all_chars))
+
+    # Shuffle the password characters
+    secrets.SystemRandom().shuffle(password_chars)
+
+    return ''.join(password_chars)

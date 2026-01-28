@@ -57,6 +57,7 @@ const ForgotPasswordScreen = () => {
           type: 'success',
           text1: t('auth.resetEmailSent'),
           text2: t('auth.checkEmailReset'),
+          visibilityTime: 5000,
         });
         reset();
         navigation.navigate('Login');

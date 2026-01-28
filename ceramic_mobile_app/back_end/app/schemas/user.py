@@ -75,6 +75,7 @@ class Token(BaseModel):
     refresh_token: str
     token_type: str
     expires_in: int
+    temp_password_warning: Optional[str] = None
 
 class TokenRefresh(BaseModel):
     refresh_token: str
