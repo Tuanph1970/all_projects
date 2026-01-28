@@ -290,12 +290,21 @@ show_port_status() {
     fi
 }
 
+# Function to remove Docker build cache
+remove_build_cache() {
+    print_header "Removing Docker Build Cache"
+
+    print_color $BLUE "Removing build cache..."
+    docker builder prune -af 2>/dev/null || true
+    print_color $GREEN "✓ Build cache removed"
+}
+
 # Function to run Docker system prune
 docker_system_prune() {
     print_header "Docker System Cleanup"
 
     print_color $BLUE "Running Docker system prune..."
-    docker system prune -f 2>/dev/null || true
+    docker system prune -af 2>/dev/null || true
     print_color $GREEN "✓ Docker system cleaned"
 }
 
@@ -351,8 +360,9 @@ main() {
     print_color $WHITE "  4. Optionally remove Docker volumes (DATA LOSS!)"
     print_color $WHITE "  5. Remove dangling Docker images"
     print_color $WHITE "  6. Optionally remove all Docker images"
-    print_color $WHITE "  7. Kill processes on deployment ports"
-    print_color $WHITE "  8. Run Docker system prune"
+    print_color $WHITE "  7. Remove Docker build cache"
+    print_color $WHITE "  8. Kill processes on deployment ports"
+    print_color $WHITE "  9. Run Docker system prune"
     echo
 
     if [ "$FORCE_MODE" = true ]; then
@@ -382,6 +392,7 @@ main() {
     remove_docker_volumes
     remove_dangling_images
     remove_all_images
+    remove_build_cache
     kill_all_ports
     docker_system_prune
 

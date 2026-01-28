@@ -156,8 +156,8 @@ show_project_info() {
                      "API Port: 8002 | DB Port: 3308 | Redis: 6379"
             ;;
         stock)
-            print_box "Stock Predict Backend" \
-                     "API Port: 8004 | Dashboard: 8084 | Grafana: 3100"
+            print_box "Stock Predict Full-Stack" \
+                     "API: 8004 | Frontend: 3004 | MySQL: 3309 | Grafana: 3100"
             ;;
         math)
             print_box "Mathematics Mobile Backend" \
@@ -265,15 +265,20 @@ deploy_project() {
             fi
             ;;
         stock)
-            # Stock has its own deploy script with local compose files
-            if [ -f "docker-compose.yml" ] && [ -f "docker-compose.local.yml" ]; then
-                print_color $YELLOW "🚀 Starting Stock services..."
+            # Stock uses full-stack compose file (API + Frontend + MySQL)
+            local fullstack_compose="$BASE_DIR/stockpredict/docker-compose.full-stack.yml"
+            if [ -f "$fullstack_compose" ]; then
+                print_color $YELLOW "🚀 Starting Stock Predict Full-Stack (API + Frontend + MySQL)..."
+                cd "$BASE_DIR/stockpredict"
+                $COMPOSE_CMD -f docker-compose.full-stack.yml -p "$project_name" up -d $build_args
+            elif [ -f "docker-compose.yml" ] && [ -f "docker-compose.local.yml" ]; then
+                print_color $YELLOW "🚀 Starting Stock services (backend only)..."
                 $COMPOSE_CMD -f docker-compose.yml -f docker-compose.local.yml -p "$project_name" up -d $build_args
             elif [ -f "docker-compose.yml" ]; then
                 print_color $YELLOW "🚀 Starting Stock services (base only)..."
                 $COMPOSE_CMD -f docker-compose.yml -p "$project_name" up -d $build_args
             else
-                print_color $RED "docker-compose.yml not found in $project_dir"
+                print_color $RED "docker-compose files not found"
                 return 1
             fi
             ;;
@@ -444,13 +449,16 @@ main() {
 
         if [[ " ${SELECTED_PROJECTS[@]} " =~ " stock " ]]; then
             echo
-            print_color $WHITE "  ┌─ Stock Predict ──────────────────────────────────────┐"
+            print_color $WHITE "  ┌─ Stock Predict Full-Stack ──────────────────────────────┐"
+            print_color $YELLOW "  │ Frontend App:       http://localhost:3004"
             print_color $YELLOW "  │ API Gateway:        http://localhost:8004"
             print_color $YELLOW "  │ Traefik Dashboard:  http://localhost:8084"
             print_color $YELLOW "  │ Stock API:          http://localhost:8004/stock_helper/api/v2/"
+            print_color $YELLOW "  │ MySQL:              localhost:3309"
             print_color $YELLOW "  │ Grafana:            http://localhost:3100"
-            print_color $YELLOW "  │ RabbitMQ:           http://localhost:15672"
-            print_color $WHITE "  └─────────────────────────────────────────────────────┘"
+            print_color $YELLOW "  │ RabbitMQ:           http://localhost:15674"
+            print_color $YELLOW "  │ Jaeger:             http://localhost:16686"
+            print_color $WHITE "  └─────────────────────────────────────────────────────────┘"
         fi
 
         if [[ " ${SELECTED_PROJECTS[@]} " =~ " math " ]]; then

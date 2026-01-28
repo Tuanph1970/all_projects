@@ -14,29 +14,32 @@
  */
 
 // Gateway base URL (Traefik API Gateway)
-const API_GATEWAY_URL = process.env.REACT_APP_API_URL || 'http://localhost';
+// For Docker deployment: REACT_APP_API_URL=http://localhost:8004
+// All requests go through Traefik which routes to the appropriate microservice
+const API_GATEWAY_URL = process.env.REACT_APP_API_URL || 'http://localhost:8004';
 
-// Base URLs for different services (direct access to microservices)
+// Base URLs for different services (all through API Gateway)
 export const API_BASE_URLS = {
   // External services (not through gateway)
-  CHAT_SERVICE: process.env.REACT_APP_CHAT_SERVICE_URL || 'http://localhost:3005',
-  FILE_SERVICE: process.env.REACT_APP_FILE_SERVICE_URL || 'http://localhost:3005',
+  CHAT_SERVICE: process.env.REACT_APP_CHAT_SERVICE_URL || `${API_GATEWAY_URL}`,
+  FILE_SERVICE: process.env.REACT_APP_FILE_SERVICE_URL || `${API_GATEWAY_URL}`,
 
-  // Microservices direct access with stock_helper prefix
+  // All microservices accessed through Traefik API Gateway (port 8004)
+  // Traefik routes based on path prefix to the appropriate backend service
   GATEWAY: API_GATEWAY_URL,
-  AUTH_API: `${API_GATEWAY_URL}:8007/stock_helper/api/v2/auth`,
-  STOCK_API: `${API_GATEWAY_URL}:8001/stock_helper/api/v2`,
-  COMPANIES_API: `${API_GATEWAY_URL}:8001/stock_helper/api/v2/companies`,
-  MARKET_API: `${API_GATEWAY_URL}:8001/stock_helper/api/v2/market`,
-  PORTFOLIO_API: `${API_GATEWAY_URL}:8003/stock_helper/api/v2/portfolio`,
-  ALERTS_API: `${API_GATEWAY_URL}:8003/stock_helper/api/v2/alerts`,
-  ANALYSIS_API: `${API_GATEWAY_URL}:8004/stock_helper/api/v2/analysis`,
-  INDUSTRIES_API: `${API_GATEWAY_URL}:8001/stock_helper/api/v2/industries`,
-  PREDICT_API: `${API_GATEWAY_URL}:8002/stock_helper/api/v2/predict`,
-  MODELS_API: `${API_GATEWAY_URL}:8002/stock_helper/api/v2/models`,
-  SOLUTIONS_API: `${API_GATEWAY_URL}:8002/stock_helper/api/v2/solutions`,
-  AI_API: `${API_GATEWAY_URL}:8005/stock_helper/api/v2/ai`,
-  CHATBOT_API: `${API_GATEWAY_URL}:8006/stock_helper/api/v2/chatbot`,
+  AUTH_API: `${API_GATEWAY_URL}/stock_helper/api/v2/auth`,
+  STOCK_API: `${API_GATEWAY_URL}/stock_helper/api/v2`,
+  COMPANIES_API: `${API_GATEWAY_URL}/stock_helper/api/v2/companies`,
+  MARKET_API: `${API_GATEWAY_URL}/stock_helper/api/v2/market`,
+  PORTFOLIO_API: `${API_GATEWAY_URL}/stock_helper/api/v2/portfolio`,
+  ALERTS_API: `${API_GATEWAY_URL}/stock_helper/api/v2/alerts`,
+  ANALYSIS_API: `${API_GATEWAY_URL}/stock_helper/api/v2/analysis`,
+  INDUSTRIES_API: `${API_GATEWAY_URL}/stock_helper/api/v2/industries`,
+  PREDICT_API: `${API_GATEWAY_URL}/stock_helper/api/v2/predict`,
+  MODELS_API: `${API_GATEWAY_URL}/stock_helper/api/v2/models`,
+  SOLUTIONS_API: `${API_GATEWAY_URL}/stock_helper/api/v2/solutions`,
+  AI_API: `${API_GATEWAY_URL}/stock_helper/api/v2/ai`,
+  CHATBOT_API: `${API_GATEWAY_URL}/stock_helper/api/v2/chat`,
 
   // Legacy API (fallback - Django monolith)
   LEGACY_API: `${API_GATEWAY_URL}/api/v1`

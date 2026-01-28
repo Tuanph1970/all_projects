@@ -1,0 +1,635 @@
+# =============================================================================
+# Stock Predict Full-Stack Deployment
+# =============================================================================
+# This file deploys the complete Stock Predict solution:
+#   - Backend API (Microservices)
+#   - Frontend React App
+#   - MySQL Database
+#   - Supporting services (Redis, RabbitMQ, Traefik, etc.)
+#
+# Port Allocation (to avoid conflicts with other projects):
+#   - API Gateway: 8004 (HTTP), 8444 (HTTPS)
+#   - Traefik Dashboard: 8084
+#   - Frontend: 3004
+#   - MySQL: 3309
+#   - Redis: 6382
+#   - RabbitMQ: 5674 (AMQP), 15674 (Management)
+#   - Grafana: 3100
+#   - Prometheus: 9094
+#   - Jaeger: 16686
+#
+# Usage:
+#   docker compose -f docker-compose.full-stack.yml up -d --build
+#
+# =============================================================================
+
+services:
+  # =============================================================================
+  # API GATEWAY - Traefik
+  # =============================================================================
+  traefik:
+    image: traefik:v3.2
+    container_name: stock_traefik
+    command:
+      - "--api.insecure=true"
+      - "--api.dashboard=true"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.constraints=Label(`traefik.project`,`stock`)"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--accesslog=true"
+      - "--accesslog.format=json"
+      - "--log.level=INFO"
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.buckets=0.1,0.3,1.2,5.0"
+    ports:
+      - "8004:80"     # API Gateway
+      - "8444:443"    # HTTPS
+      - "8084:8080"   # Traefik dashboard
+    volumes:
+      - ./stock_microservices/traefik:/etc/traefik/dynamic:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - stock-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-dashboard.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.stock-dashboard.service=api@internal"
+
+  # =============================================================================
+  # FRONTEND - React App
+  # =============================================================================
+  frontend:
+    build:
+      context: ./stock_react_javascript/stock-react-app
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_API_URL=http://localhost:8004
+    container_name: stock_frontend
+    environment:
+      - NODE_ENV=production
+    ports:
+      - "3004:80"
+    networks:
+      - stock-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-frontend.rule=Host(`stock.localhost`) || PathPrefix(`/app`)"
+      - "traefik.http.routers.stock-frontend.entrypoints=web"
+      - "traefik.http.routers.stock-frontend.priority=5"
+      - "traefik.http.services.stock-frontend.loadbalancer.server.port=80"
+
+  # =============================================================================
+  # DATABASE - MySQL
+  # =============================================================================
+  mysql:
+    image: mysql:8.0
+    container_name: stock_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-Mysql_2025}
+      MYSQL_USER: ${MYSQL_USER:-stockuser}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-stockpass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-defaultdb}
+    ports:
+      - "3309:3306"   # Unique port to avoid conflicts
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./stock_microservices/mysql/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - stock-network
+    restart: unless-stopped
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-Mysql_2025}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # =============================================================================
+  # MESSAGE BROKER - RabbitMQ
+  # =============================================================================
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: stock_rabbitmq
+    hostname: stock_rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-stockuser}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-stockpass}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/stock}
+    ports:
+      - "5674:5672"   # AMQP (unique port)
+      - "15674:15672" # Management UI (unique port)
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./stock_microservices/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./stock_microservices/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+    networks:
+      - stock-network
+    restart: unless-stopped
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-rabbitmq.rule=Host(`rabbitmq.stock.localhost`)"
+      - "traefik.http.routers.stock-rabbitmq.entrypoints=web"
+      - "traefik.http.services.stock-rabbitmq.loadbalancer.server.port=15672"
+
+  # =============================================================================
+  # CACHE - Redis
+  # =============================================================================
+  redis:
+    image: redis:7.2-alpine
+    container_name: stock_redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6382:6379"   # Unique port to avoid conflicts
+    volumes:
+      - redis_data:/data
+    networks:
+      - stock-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =============================================================================
+  # OBSERVABILITY - Prometheus
+  # =============================================================================
+  prometheus:
+    image: prom/prometheus:v2.50.0
+    container_name: stock_prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9094:9090"   # Unique port to avoid conflicts
+    volumes:
+      - ./stock_microservices/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./stock_microservices/monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - stock-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-prometheus.rule=Host(`prometheus.stock.localhost`)"
+      - "traefik.http.routers.stock-prometheus.entrypoints=web"
+      - "traefik.http.services.stock-prometheus.loadbalancer.server.port=9090"
+
+  # =============================================================================
+  # OBSERVABILITY - Grafana
+  # =============================================================================
+  grafana:
+    image: grafana/grafana:10.3.1
+    container_name: stock_grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: "http://grafana.localhost"
+    ports:
+      - "${GRAFANA_PORT:-3100}:3000"
+    volumes:
+      - ./stock_microservices/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    networks:
+      - stock-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-grafana.rule=Host(`grafana.stock.localhost`)"
+      - "traefik.http.routers.stock-grafana.entrypoints=web"
+      - "traefik.http.services.stock-grafana.loadbalancer.server.port=3000"
+
+  # =============================================================================
+  # OBSERVABILITY - Jaeger (Distributed Tracing)
+  # =============================================================================
+  jaeger:
+    image: jaegertracing/all-in-one:1.54
+    container_name: stock_jaeger
+    environment:
+      COLLECTOR_ZIPKIN_HOST_PORT: ":9411"
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "6831:6831/udp"  # Jaeger thrift compact
+      - "16686:16686"    # Jaeger UI
+      - "4317:4317"      # OTLP gRPC
+      - "4318:4318"      # OTLP HTTP
+    networks:
+      - stock-network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-jaeger.rule=Host(`jaeger.stock.localhost`)"
+      - "traefik.http.routers.stock-jaeger.entrypoints=web"
+      - "traefik.http.services.stock-jaeger.loadbalancer.server.port=16686"
+
+  # =============================================================================
+  # MICROSERVICES
+  # =============================================================================
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ./stock_microservices
+      dockerfile: services/auth-service/Dockerfile
+    container_name: stock_auth_service
+    environment:
+      - SERVICE_NAME=auth-service
+      - SERVICE_VERSION=1.0.0
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DEBUG=${DEBUG:-0}
+      - API_PREFIX=stock_helper
+      - DATABASE_HOST=mysql
+      - DATABASE_PORT=3306
+      - DATABASE_USER=${MYSQL_USER:-stockuser}
+      - DATABASE_PASSWORD=${MYSQL_PASSWORD:-stockpass}
+      - DATABASE_NAME=${MYSQL_DATABASE:-defaultdb}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-stockuser}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-stockpass}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/stock}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
+      - JWT_ALGORITHM=HS256
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+      - TRACING_ENABLED=true
+      - TRACING_JAEGER_HOST=jaeger
+      - TRACING_JAEGER_PORT=6831
+    expose:
+      - "8007"
+    networks:
+      - stock-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8007/health/live')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-auth.rule=PathPrefix(`/stock_helper/api/v2/auth`)"
+      - "traefik.http.routers.stock-auth.entrypoints=web"
+      - "traefik.http.routers.stock-auth.priority=10"
+      - "traefik.http.services.stock-auth.loadbalancer.server.port=8007"
+
+  # Stock Data Service
+  stock-data-service:
+    build:
+      context: ./stock_microservices
+      dockerfile: services/stock-data-service/Dockerfile
+    container_name: stock_data_service
+    environment:
+      - SERVICE_NAME=stock-data-service
+      - SERVICE_VERSION=1.0.0
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DEBUG=${DEBUG:-0}
+      - API_PREFIX=stock_helper
+      - DATABASE_HOST=mysql
+      - DATABASE_PORT=3306
+      - DATABASE_USER=${MYSQL_USER:-stockuser}
+      - DATABASE_PASSWORD=${MYSQL_PASSWORD:-stockpass}
+      - DATABASE_NAME=${MYSQL_DATABASE:-defaultdb}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-stockuser}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-stockpass}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/stock}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - VNSTOCK_DATA_SOURCE=${VNSTOCK_DATA_SOURCE:-VCI}
+      - TRACING_ENABLED=true
+      - TRACING_JAEGER_HOST=jaeger
+      - TRACING_JAEGER_PORT=6831
+    expose:
+      - "8001"
+    networks:
+      - stock-network
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8001/health/live')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-stocks.rule=PathPrefix(`/stock_helper/api/v2/companies`) || PathPrefix(`/stock_helper/api/v2/stocks`) || PathPrefix(`/stock_helper/api/v2/market`) || PathPrefix(`/stock_helper/api/v2/industries`)"
+      - "traefik.http.routers.stock-stocks.entrypoints=web"
+      - "traefik.http.routers.stock-stocks.priority=10"
+      - "traefik.http.services.stock-stocks.loadbalancer.server.port=8001"
+
+  # Portfolio Service
+  portfolio-service:
+    build:
+      context: ./stock_microservices
+      dockerfile: services/portfolio-service/Dockerfile
+    container_name: stock_portfolio_service
+    environment:
+      - SERVICE_NAME=portfolio-service
+      - SERVICE_VERSION=1.0.0
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DEBUG=${DEBUG:-0}
+      - API_PREFIX=stock_helper
+      - DATABASE_HOST=mysql
+      - DATABASE_PORT=3306
+      - DATABASE_USER=${MYSQL_USER:-stockuser}
+      - DATABASE_PASSWORD=${MYSQL_PASSWORD:-stockpass}
+      - DATABASE_NAME=${MYSQL_DATABASE:-defaultdb}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-stockuser}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-stockpass}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/stock}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
+      - JWT_ALGORITHM=HS256
+      - AUTH_SERVICE_URL=http://auth-service:8007
+      - STOCK_DATA_SERVICE_URL=http://stock-data-service:8001
+      - TRACING_ENABLED=true
+      - TRACING_JAEGER_HOST=jaeger
+      - TRACING_JAEGER_PORT=6831
+    expose:
+      - "8003"
+    networks:
+      - stock-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8003/health/live')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-portfolio.rule=PathPrefix(`/stock_helper/api/v2/portfolio`)"
+      - "traefik.http.routers.stock-portfolio.entrypoints=web"
+      - "traefik.http.routers.stock-portfolio.priority=10"
+      - "traefik.http.services.stock-portfolio.loadbalancer.server.port=8003"
+
+  # Prediction Service
+  prediction-service:
+    build:
+      context: ./stock_microservices
+      dockerfile: services/prediction-service/Dockerfile
+    container_name: stock_prediction_service
+    environment:
+      - SERVICE_NAME=prediction-service
+      - SERVICE_VERSION=1.0.0
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DEBUG=${DEBUG:-0}
+      - API_PREFIX=stock_helper
+      - DATABASE_HOST=mysql
+      - DATABASE_PORT=3306
+      - DATABASE_USER=${MYSQL_USER:-stockuser}
+      - DATABASE_PASSWORD=${MYSQL_PASSWORD:-stockpass}
+      - DATABASE_NAME=${MYSQL_DATABASE:-defaultdb}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-stockuser}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-stockpass}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/stock}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
+      - JWT_ALGORITHM=HS256
+      - STOCK_DATA_SERVICE_URL=http://stock-data-service:8001
+      - MODEL_PATH=/app/models
+      - TRACING_ENABLED=true
+      - TRACING_JAEGER_HOST=jaeger
+      - TRACING_JAEGER_PORT=6831
+    expose:
+      - "8002"
+    volumes:
+      - prediction_models:/app/models
+    networks:
+      - stock-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      stock-data-service:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8002/health/live')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-predictions.rule=PathPrefix(`/stock_helper/api/v2/predictions`) || PathPrefix(`/stock_helper/api/v2/predict`) || PathPrefix(`/stock_helper/api/v2/models`) || PathPrefix(`/stock_helper/api/v2/solutions`)"
+      - "traefik.http.routers.stock-predictions.entrypoints=web"
+      - "traefik.http.routers.stock-predictions.priority=10"
+      - "traefik.http.services.stock-predictions.loadbalancer.server.port=8002"
+
+  # Analysis Service
+  analysis-service:
+    build:
+      context: ./stock_microservices
+      dockerfile: services/analysis-service/Dockerfile
+    container_name: stock_analysis_service
+    environment:
+      - SERVICE_NAME=analysis-service
+      - SERVICE_VERSION=1.0.0
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DEBUG=${DEBUG:-0}
+      - API_PREFIX=stock_helper
+      - DATABASE_HOST=mysql
+      - DATABASE_PORT=3306
+      - DATABASE_USER=${MYSQL_USER:-stockuser}
+      - DATABASE_PASSWORD=${MYSQL_PASSWORD:-stockpass}
+      - DATABASE_NAME=${MYSQL_DATABASE:-defaultdb}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
+      - STOCK_DATA_SERVICE_URL=http://stock-data-service:8001
+      - TRACING_ENABLED=true
+      - TRACING_JAEGER_HOST=jaeger
+      - TRACING_JAEGER_PORT=6831
+    expose:
+      - "8004"
+    networks:
+      - stock-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      stock-data-service:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8004/health/live')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-analysis.rule=PathPrefix(`/stock_helper/api/v2/analysis`)"
+      - "traefik.http.routers.stock-analysis.entrypoints=web"
+      - "traefik.http.routers.stock-analysis.priority=10"
+      - "traefik.http.services.stock-analysis.loadbalancer.server.port=8004"
+
+  # AI Insights Service
+  ai-insights-service:
+    build:
+      context: ./stock_microservices
+      dockerfile: services/ai-insights-service/Dockerfile
+    container_name: stock_ai_insights_service
+    environment:
+      - SERVICE_NAME=ai-insights-service
+      - SERVICE_VERSION=1.0.0
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DEBUG=${DEBUG:-0}
+      - API_PREFIX=stock_helper
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
+      - STOCK_DATA_SERVICE_URL=http://stock-data-service:8001
+      - ANALYSIS_SERVICE_URL=http://analysis-service:8004
+      - PREDICTION_SERVICE_URL=http://prediction-service:8002
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4}
+    expose:
+      - "8005"
+    networks:
+      - stock-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      stock-data-service:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8005/health/live')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-ai.rule=PathPrefix(`/stock_helper/api/v2/ai`)"
+      - "traefik.http.routers.stock-ai.entrypoints=web"
+      - "traefik.http.routers.stock-ai.priority=10"
+      - "traefik.http.services.stock-ai.loadbalancer.server.port=8005"
+
+  # Chatbot Service
+  chatbot-service:
+    build:
+      context: ./stock_microservices
+      dockerfile: services/chatbot-service/Dockerfile
+    container_name: stock_chatbot_service
+    environment:
+      - SERVICE_NAME=chatbot-service
+      - SERVICE_VERSION=1.0.0
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DEBUG=${DEBUG:-0}
+      - API_PREFIX=stock_helper
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
+      - STOCK_DATA_SERVICE_URL=http://stock-data-service:8001
+      - ANALYSIS_SERVICE_URL=http://analysis-service:8004
+      - PREDICTION_SERVICE_URL=http://prediction-service:8002
+      - AI_INSIGHTS_SERVICE_URL=http://ai-insights-service:8005
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    expose:
+      - "8006"
+    networks:
+      - stock-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      stock-data-service:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8006/health/live')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-chatbot.rule=PathPrefix(`/stock_helper/api/v2/chat`)"
+      - "traefik.http.routers.stock-chatbot.entrypoints=web"
+      - "traefik.http.routers.stock-chatbot.priority=10"
+      - "traefik.http.services.stock-chatbot.loadbalancer.server.port=8006"
+
+networks:
+  stock-network:
+    driver: bridge
+    name: stock-network
+
+volumes:
+  mysql_data:
+    name: stock-mysql-data
+  rabbitmq_data:
+    name: stock-rabbitmq-data
+  redis_data:
+    name: stock-redis-data
+  prometheus_data:
+    name: stock-prometheus-data
+  grafana_data:
+    name: stock-grafana-data
+  prediction_models:
+    name: stock-prediction-models

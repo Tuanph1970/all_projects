@@ -24,6 +24,7 @@ redis>=5.0.0
 # VNStock for Vietnam stock data
 vnstock>=3.3.1
 ipython>=8.0.0  # Required by vnstock
+pytz>=2024.1  # Required by vnstock for timezone handling
 
 # Data processing
 pandas>=2.0.0

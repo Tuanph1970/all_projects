@@ -211,7 +211,10 @@ http:
           - "X-Correlation-ID"
         accessControlAllowOriginList:
           - "http://localhost:3000"
+          - "http://localhost:3004"
+          - "http://localhost:8004"
           - "http://localhost:8080"
+          - "http://stock.localhost"
           - "https://*.stock-helper.com"
         accessControlMaxAge: 86400
         addVaryHeader: true
