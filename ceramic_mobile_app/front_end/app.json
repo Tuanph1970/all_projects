@@ -26,7 +26,8 @@
       "package": "com.ceramicmarketplace.app",
       "permissions": [
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "usesCleartextTraffic": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
