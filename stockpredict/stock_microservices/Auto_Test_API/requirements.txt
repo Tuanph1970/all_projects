@@ -1,0 +1,33 @@
+# Auto_Test_API - API Testing Framework Requirements
+# Python 3.9+
+
+# HTTP Client
+requests>=2.31.0
+httpx>=0.25.0
+
+# Testing Framework
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-html>=4.1.0
+pytest-xdist>=3.5.0
+
+# Async Support
+aiohttp>=3.9.0
+
+# Configuration
+python-dotenv>=1.0.0
+
+# Data Validation
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Utilities
+colorama>=0.4.6
+rich>=13.7.0
+faker>=22.0.0
+
+# Logging
+structlog>=23.2.0
+
+# Report Generation
+allure-pytest>=2.13.0
