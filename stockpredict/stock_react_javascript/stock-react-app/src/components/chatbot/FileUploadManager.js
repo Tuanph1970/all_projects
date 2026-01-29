@@ -3,49 +3,51 @@ import axios from "axios";
 import DataTable from 'react-data-table-component'
 import { Button, ButtonGroup } from "react-bootstrap";
 import FileUploader from "../WebControl/FileUploader";
+import { API_BASE_URLS } from '../../constants/api';
 
-
+// Use centralized API configuration for file service
+const FILE_SERVICE_URL = API_BASE_URLS.FILE_SERVICE;
 
 const deleteFile = (id)=>{
   try {
     const data = {
         "id":id
-    }       
-    axios.post('http://127.0.0.1:3005/delete_file',data).then((res)=>console.log(res));
+    }
+    axios.post(`${FILE_SERVICE_URL}/delete_file`,data).then((res)=>console.log(res));
   } catch (error) {
- 
+
   } finally {
-   
-} 
+
+}
 
 }
 const processFile = (id) => {
   try {
        const data = {
            "id":id
-       }       
-       axios.post('http://127.0.0.1:3005/process_file',data).then((res)=>console.log(res));
+       }
+       axios.post(`${FILE_SERVICE_URL}/process_file`,data).then((res)=>console.log(res));
   } catch (error) {
-    
+
   } finally {
-      
+
   }
-  
-  
+
+
 
 }
 const FileUploadManager = () =>{
-    
+
     const [fileListData, setFileListData] = useState([]);
     const [isLoading,setIsLoading] = useState([])
     function refreshUpload() {
-         setIsLoading(true) 
+         setIsLoading(true)
          getFileUploadList();
     }
-    
+
     const getFileUploadList = async() =>{
-      try {      
-        await axios.get('http://127.0.0.1:3005/upload_files').then((res) =>{
+      try {
+        await axios.get(`${FILE_SERVICE_URL}/upload_files`).then((res) =>{
            
            setFileListData(res.data); 
            setIsLoading(true);

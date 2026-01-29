@@ -351,7 +351,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.project=stock"
-      - "traefik.http.routers.stock-stocks.rule=PathPrefix(`/stock_helper/api/v2/companies`) || PathPrefix(`/stock_helper/api/v2/stocks`) || PathPrefix(`/stock_helper/api/v2/market`) || PathPrefix(`/stock_helper/api/v2/industries`)"
+      - "traefik.http.routers.stock-stocks.rule=PathPrefix(`/stock_helper/api/v2/companies`) || PathPrefix(`/stock_helper/api/v2/stocks`) || PathPrefix(`/stock_helper/api/v2/market`) || PathPrefix(`/stock_helper/api/v2/industries`) || PathPrefix(`/stock_helper/api/v2/priceboards`)"
       - "traefik.http.routers.stock-stocks.entrypoints=web"
       - "traefik.http.routers.stock-stocks.priority=10"
       - "traefik.http.services.stock-stocks.loadbalancer.server.port=8001"

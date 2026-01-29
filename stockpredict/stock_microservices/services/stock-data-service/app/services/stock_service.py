@@ -401,6 +401,32 @@ class StockService:
 
     # ==================== Price Board Operations ====================
 
+    # Stock group symbol mappings
+    STOCK_GROUPS = {
+        "VN30": ["ACB", "BCM", "BID", "BVH", "CTG", "FPT", "GAS", "GVR", "HDB", "HPG",
+                 "MBB", "MSN", "MWG", "PLX", "POW", "SAB", "SHB", "SSB", "SSI", "STB",
+                 "TCB", "TPB", "VCB", "VHM", "VIB", "VIC", "VJC", "VNM", "VPB", "VRE"],
+        "VN100": ["ACB", "BCM", "BID", "BVH", "CTG", "FPT", "GAS", "GVR", "HDB", "HPG",
+                  "MBB", "MSN", "MWG", "PLX", "POW", "SAB", "SHB", "SSB", "SSI", "STB",
+                  "TCB", "TPB", "VCB", "VHM", "VIB", "VIC", "VJC", "VNM", "VPB", "VRE",
+                  "AGG", "ANV", "ASM", "BWE", "CII", "CMG", "DBC", "DCM", "DGC", "DGW",
+                  "DIG", "DPM", "DXG", "ELC", "EVF", "FRT", "GEX", "HAG", "HCM", "HDC",
+                  "HDG", "HHV", "HSG", "HT1", "IDC", "KBC", "KDC", "KDH", "LPB", "MIG",
+                  "MSH", "NLG", "NT2", "NVL", "OCB", "PAN", "PC1", "PDR", "PHR", "PNJ",
+                  "PPC", "PTB", "PVD", "PVS", "PVT", "REE", "SBT", "SCS", "SIP", "SJS",
+                  "SZC", "TCH", "TLG", "TNH", "VCI", "VGC", "VHC", "VIX", "VND", "VOS",
+                  "VPI", "VTP"],
+    }
+
+    # Browser-like headers for Vietcap API
+    VIETCAP_HEADERS = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Origin': 'https://trading.vietcap.com.vn',
+        'Referer': 'https://trading.vietcap.com.vn/'
+    }
+
     async def get_price_board(self, group: str = "VN30") -> List[dict]:
         """
         Get real-time price board data for a stock group.
@@ -411,29 +437,65 @@ class StockService:
         Returns:
             List of price board data with bid/ask, match prices, etc.
         """
+        import httpx
+
         try:
-            # Use VNStock to get price board data
-            stock = self.vnstock.stock(symbol="VN30F1M", source=settings.VNSTOCK_DATA_SOURCE)
-            df = stock.trading.price_board(symbols_list=group)
+            # Get symbols for the group
+            symbols = self.STOCK_GROUPS.get(group.upper(), self.STOCK_GROUPS.get("VN30"))
 
-            if df.empty:
-                logger.warning(f"No price board data for group: {group}")
-                return []
+            # Call Vietcap API directly with browser headers
+            url = "https://trading.vietcap.com.vn/api/price/symbols/getList"
 
-            # Flatten multi-level columns if they exist
-            if isinstance(df.columns, pd.MultiIndex):
-                new_columns = []
-                for column in df.columns:
-                    if column[1] == 'symbol':
-                        new_column = 'symbol'
-                    else:
-                        new_column = column[0] + column[1]
-                    new_columns.append(new_column)
-                df.columns = new_columns
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    url,
+                    json={"symbols": symbols},
+                    headers=self.VIETCAP_HEADERS
+                )
 
-            # Convert to list of dictionaries
-            records = df.to_dict(orient='records')
-            return records
+                if response.status_code != 200:
+                    logger.warning(f"Vietcap API returned {response.status_code} for group: {group}")
+                    return []
+
+                data = response.json()
+
+                if not data:
+                    logger.warning(f"No price board data for group: {group}")
+                    return []
+
+                # Transform response to simplified format
+                records = []
+                for item in data:
+                    listing = item.get("listingInfo", {})
+                    match_price = item.get("matchPrice", {})
+                    bid_ask = item.get("bidAsk", {})
+
+                    record = {
+                        "symbol": listing.get("symbol"),
+                        "refPrice": listing.get("refPrice"),
+                        "ceiling": listing.get("ceiling"),
+                        "floor": listing.get("floor"),
+                        "matchPrice": match_price.get("price"),
+                        "matchQty": match_price.get("qty"),
+                        "matchValue": match_price.get("value"),
+                        "change": match_price.get("change"),
+                        "changePercent": match_price.get("changePercent"),
+                        "totalQty": match_price.get("totalQty"),
+                        "totalValue": match_price.get("totalValue"),
+                        "highest": match_price.get("highest"),
+                        "lowest": match_price.get("lowest"),
+                        "averagePrice": match_price.get("averagePrice"),
+                        "buyQty1": bid_ask.get("bidPrices", [{}])[0].get("qty") if bid_ask.get("bidPrices") else None,
+                        "buyPrice1": bid_ask.get("bidPrices", [{}])[0].get("price") if bid_ask.get("bidPrices") else None,
+                        "sellQty1": bid_ask.get("askPrices", [{}])[0].get("qty") if bid_ask.get("askPrices") else None,
+                        "sellPrice1": bid_ask.get("askPrices", [{}])[0].get("price") if bid_ask.get("askPrices") else None,
+                        "exchange": listing.get("board"),
+                        "tradingStatus": listing.get("tradingStatus"),
+                    }
+                    records.append(record)
+
+                logger.info(f"Fetched price board for {len(records)} symbols in group {group}")
+                return records
 
         except Exception as e:
             logger.error(f"Error fetching price board for group {group}: {e}")

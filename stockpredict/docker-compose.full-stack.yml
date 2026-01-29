@@ -69,7 +69,9 @@ services:
       context: ./stock_react_javascript/stock-react-app
       dockerfile: Dockerfile
       args:
-        - REACT_APP_API_URL=http://localhost:8004
+        # Empty string = use relative URLs (works with nginx on port 80)
+        # Set to http://localhost:8004 for direct Traefik access
+        - REACT_APP_API_URL=
     container_name: stock_frontend
     environment:
       - NODE_ENV=production
@@ -361,7 +363,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.project=stock"
-      - "traefik.http.routers.stock-stocks.rule=PathPrefix(`/stock_helper/api/v2/companies`) || PathPrefix(`/stock_helper/api/v2/stocks`) || PathPrefix(`/stock_helper/api/v2/market`) || PathPrefix(`/stock_helper/api/v2/industries`)"
+      - "traefik.http.routers.stock-stocks.rule=PathPrefix(`/stock_helper/api/v2/companies`) || PathPrefix(`/stock_helper/api/v2/stocks`) || PathPrefix(`/stock_helper/api/v2/market`) || PathPrefix(`/stock_helper/api/v2/industries`) || PathPrefix(`/stock_helper/api/v2/priceboards`)"
       - "traefik.http.routers.stock-stocks.entrypoints=web"
       - "traefik.http.routers.stock-stocks.priority=10"
       - "traefik.http.services.stock-stocks.loadbalancer.server.port=8001"

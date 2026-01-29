@@ -1,5 +1,6 @@
 import axios from "axios";
 import { ChangeEvent,useState } from "react"
+import { API_BASE_URLS } from '../../constants/api';
 
 export default function FileUploader(props){
     const [file,setFile] = useState([]);
@@ -8,7 +9,7 @@ export default function FileUploader(props){
     const handleFileChange = (e) =>{
         if(e.target.files){
             setFile(e.target.files[0]);
-        } 
+        }
 
     }
     async function handleFileUpload(){
@@ -18,7 +19,8 @@ export default function FileUploader(props){
         setUploadProgress(0)
         const formData = new FormData();
         formData.append("file",file)
-        const api = "http://127.0.0.1:3005/insert_file"
+        // Use centralized API configuration for file service
+        const api = `${API_BASE_URLS.FILE_SERVICE}/insert_file`
         try {
             await axios.post(api,formData,{
                 headers: {

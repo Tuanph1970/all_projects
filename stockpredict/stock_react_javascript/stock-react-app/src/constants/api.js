@@ -13,16 +13,23 @@
  *   - Chatbot Service: /api/v2/chatbot
  */
 
-// Gateway base URL (Traefik API Gateway)
-// For Docker deployment: REACT_APP_API_URL=http://localhost:8004
-// All requests go through Traefik which routes to the appropriate microservice
-const API_GATEWAY_URL = process.env.REACT_APP_API_URL || 'http://localhost:8004';
+// Gateway base URL (Nginx/Traefik API Gateway)
+// Production (nginx port 80): REACT_APP_API_URL= (empty for relative URLs)
+// Development (direct Traefik): REACT_APP_API_URL=http://localhost:8004
+// All requests go through nginx → Traefik → microservices
+const API_GATEWAY_URL = process.env.REACT_APP_API_URL !== undefined
+  ? process.env.REACT_APP_API_URL
+  : 'http://localhost:8004';
 
 // Base URLs for different services (all through API Gateway)
 export const API_BASE_URLS = {
-  // External services (not through gateway)
-  CHAT_SERVICE: process.env.REACT_APP_CHAT_SERVICE_URL || `${API_GATEWAY_URL}`,
-  FILE_SERVICE: process.env.REACT_APP_FILE_SERVICE_URL || `${API_GATEWAY_URL}`,
+  // External services - use gateway URL if env var is empty or undefined
+  CHAT_SERVICE: process.env.REACT_APP_CHAT_SERVICE_URL !== undefined
+    ? process.env.REACT_APP_CHAT_SERVICE_URL
+    : API_GATEWAY_URL,
+  FILE_SERVICE: process.env.REACT_APP_FILE_SERVICE_URL !== undefined
+    ? process.env.REACT_APP_FILE_SERVICE_URL
+    : API_GATEWAY_URL,
 
   // All microservices accessed through Traefik API Gateway (port 8004)
   // Traefik routes based on path prefix to the appropriate backend service

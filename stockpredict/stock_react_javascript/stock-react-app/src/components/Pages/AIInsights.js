@@ -34,9 +34,12 @@ import {
   rsi
 } from "react-financial-charts";
 
+import { API_BASE_URLS } from '../../constants/api';
+
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
-const API_BASE_URL = 'http://localhost:8000/stock/api';
+// Use centralized API configuration - AI endpoints
+const API_BASE_URL = API_BASE_URLS.AI_API;
 
 export const AIInsights = () => {
   const [selectedStock, setSelectedStock] = useState('VIC');
@@ -64,7 +67,7 @@ export const AIInsights = () => {
 
   const fetchAvailableIndicators = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/ai/insights/indicators/available/`);
+      const response = await axios.get(`${API_BASE_URL}/insights/indicators/available/`);
       if (response.data.status === 'success') {
         setAvailableIndicators(response.data.data.indicators_by_category);
       }
@@ -78,7 +81,7 @@ export const AIInsights = () => {
     setError(null);
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/ai/insights/comprehensive/`, {
+      const response = await axios.post(`${API_BASE_URL}/insights/comprehensive/`, {
         symbol: selectedStock,
         start_date: dateRange.start,
         end_date: dateRange.end,
@@ -112,7 +115,7 @@ export const AIInsights = () => {
     setChartLoading(true);
     try {
       // Try to fetch from the API endpoint
-      const response = await axios.post(`${API_BASE_URL}/ai/insights/indicators/data/`, {
+      const response = await axios.post(`${API_BASE_URL}/insights/indicators/data/`, {
         symbol: selectedStock,
         start_date: dateRange.start,
         end_date: dateRange.end,
@@ -221,7 +224,7 @@ export const AIInsights = () => {
       setChartLoading(true);
       try {
         // Try to fetch from the API endpoint
-        const response = await axios.post(`${API_BASE_URL}/ai/insights/indicators/data/`, {
+        const response = await axios.post(`${API_BASE_URL}/insights/indicators/data/`, {
           symbol: selectedStock,
           start_date: dateRange.start,
           end_date: dateRange.end,
