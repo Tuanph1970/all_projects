@@ -108,6 +108,13 @@ services:
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - ENVIRONMENT=${ENVIRONMENT:-production}
+      # SMTP Email Configuration
+      - SMTP_SERVER=${SMTP_SERVER:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-noreply@ceramicmarketplace.com}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-Ceramic Marketplace}
     depends_on:
       redis:
         condition: service_healthy

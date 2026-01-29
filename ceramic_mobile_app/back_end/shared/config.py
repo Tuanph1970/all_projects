@@ -27,6 +27,14 @@ class Settings(BaseSettings):
     # Email verification
     EMAIL_VERIFICATION_EXPIRE_HOURS: int = 24
 
+    # Email Configuration (SMTP)
+    SMTP_SERVER: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = "noreply@ceramicmarketplace.com"
+    SMTP_FROM_NAME: str = "Ceramic Marketplace"
+
     # Password requirements
     MIN_PASSWORD_LENGTH: int = 8
 

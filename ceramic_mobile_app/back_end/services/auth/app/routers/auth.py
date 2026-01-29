@@ -18,6 +18,7 @@ from shared.security import (
     generate_password_reset_token
 )
 from shared.models.user import User, UserRole
+from shared.email_service import EmailService
 from app.schemas.user import (
     UserCreate,
     UserResponse,
@@ -109,15 +110,41 @@ def get_optional_current_user(
         return None
 
 
-# Email sending function placeholder
+# Email sending functions using EmailService
 async def send_verification_email(email: str, token: str):
-    # TODO: Implement actual email sending
-    print(f"Verification email would be sent to {email} with token {token}")
+    """Send verification email to user"""
+    try:
+        success = EmailService.send_verification_email(email, token)
+        if success:
+            print(f"✅ Verification email sent to {email}")
+        else:
+            print(f"❌ Failed to send verification email to {email}")
+    except Exception as e:
+        print(f"❌ Error sending verification email to {email}: {e}")
 
 
 async def send_password_reset_email(email: str, token: str):
-    # TODO: Implement actual email sending
-    print(f"Password reset email would be sent to {email} with token {token}")
+    """Send password reset email to user"""
+    try:
+        success = EmailService.send_password_reset_email(email, token)
+        if success:
+            print(f"✅ Password reset email sent to {email}")
+        else:
+            print(f"❌ Failed to send password reset email to {email}")
+    except Exception as e:
+        print(f"❌ Error sending password reset email to {email}: {e}")
+
+
+async def send_temporary_password_email(email: str, temporary_password: str):
+    """Send temporary password email to user"""
+    try:
+        success = EmailService.send_temporary_password_email(email, temporary_password)
+        if success:
+            print(f"✅ Temporary password email sent to {email}")
+        else:
+            print(f"❌ Failed to send temporary password email to {email}")
+    except Exception as e:
+        print(f"❌ Error sending temporary password email to {email}: {e}")
 
 
 @router.post("/register", response_model=UserResponse)
@@ -292,20 +319,29 @@ async def forgot_password(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
-    """Request password reset"""
+    """Request password reset - sends temporary password via email"""
+    import secrets
+    import string
+
     user = db.query(User).filter(User.email == password_reset_request.email).first()
     if not user:
         # Don't reveal if email exists for security
-        return {"message": "If the email exists, a password reset link has been sent"}
+        return {"message": "If the email exists, a temporary password has been sent"}
 
-    reset_token = generate_password_reset_token()
-    user.password_reset_token = reset_token
-    user.password_reset_expires = datetime.utcnow() + timedelta(hours=1)
+    # Generate a temporary password (12 characters, mix of letters and digits)
+    alphabet = string.ascii_letters + string.digits
+    temporary_password = ''.join(secrets.choice(alphabet) for _ in range(12))
+
+    # Hash and save the temporary password
+    user.hashed_password = get_password_hash(temporary_password)
+    user.password_reset_token = None  # Clear any existing reset token
+    user.password_reset_expires = None
     db.commit()
 
-    background_tasks.add_task(send_password_reset_email, user.email, reset_token)
+    # Send temporary password via email
+    background_tasks.add_task(send_temporary_password_email, user.email, temporary_password)
 
-    return {"message": "If the email exists, a password reset link has been sent"}
+    return {"message": "If the email exists, a temporary password has been sent"}
 
 
 @router.post("/reset-password")
