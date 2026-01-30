@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Image, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Image, TouchableOpacity, Linking } from 'react-native';
 import {
   Text,
   Appbar,
@@ -20,12 +20,14 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { logoutUser, getCurrentUser } from '../../store/slices/authSlice.js';
 import { colors, spacing, typography } from '../../constants/theme.js';
+import { useTranslation } from '@i18n';
 import LanguageToggle from '../../components/common/LanguageToggle';
 import sellerProfileService from '../../services/sellerProfileService.js';
 
 export const SellerProfileScreen = () => {
   const navigation = useNavigation();
   const dispatch = useDispatch();
+  const t = useTranslation();
   const { user, loading } = useSelector((state) => state.auth);
 
   const [sellerProfile, setSellerProfile] = useState(null);
@@ -75,17 +77,32 @@ export const SellerProfileScreen = () => {
 
   const handleLogout = () => {
     Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
+      t('auth.logout'),
+      t('auth.logoutConfirm'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Logout',
+          text: t('auth.logout'),
           style: 'destructive',
           onPress: () => dispatch(logoutUser())
         }
       ]
     );
+  };
+
+  const handleFeedback = async () => {
+    const feedbackUrl = 'https://forms.gle/8kAyV9jE9PRrphh9A';
+    try {
+      const canOpen = await Linking.canOpenURL(feedbackUrl);
+      if (canOpen) {
+        await Linking.openURL(feedbackUrl);
+      } else {
+        Alert.alert(t('common.error'), t('profile.cannotOpenLink'));
+      }
+    } catch (error) {
+      console.error('Error opening feedback form:', error);
+      Alert.alert(t('common.error'), t('profile.cannotOpenLink'));
+    }
   };
 
   const handleEditProfile = () => {
@@ -432,12 +449,21 @@ export const SellerProfileScreen = () => {
           />
           <Divider />
           <List.Item
-            title="Request Verification"
-            description="Verify your business for trusted seller badge"
+            title={t('sellerProfile.requestVerification')}
+            description={t('sellerProfile.requestVerificationDesc')}
             left={props => <List.Icon {...props} icon="check-decagram" />}
             right={props => <List.Icon {...props} icon="chevron-right" />}
             onPress={handleOpenVerificationModal}
             testID="request-verification-button"
+          />
+          <Divider />
+          <List.Item
+            title={t('profile.appFeedback')}
+            description={t('profile.appFeedbackDesc')}
+            left={props => <List.Icon {...props} icon="message-draw" />}
+            right={props => <List.Icon {...props} icon="chevron-right" />}
+            onPress={handleFeedback}
+            testID="seller-feedback-button"
           />
         </Card>
 

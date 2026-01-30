@@ -61,6 +61,16 @@ class CompanyListResponse(BaseModel):
     industry_name: Optional[str] = None
 
 
+class CompanyListingResponse(BaseModel):
+    """Company listing from vnstock (live data)"""
+    symbol: str
+    name: str
+    exchange: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class CompanyDetailResponse(BaseModel):
     """Detailed company response with current price"""
     id: int

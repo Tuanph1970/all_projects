@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from app.models.schemas import (
     CompanyResponse,
     CompanyDetailResponse,
+    CompanyListingResponse,
     HistoricalDataResponse,
     TopMoverResponse,
     SearchResult,
@@ -64,20 +65,57 @@ async def get_companies(
 
 @router.get(
     "/companies/all",
-    response_model=List[CompanyResponse],
-    summary="Get all companies (no pagination)",
+    response_model=List[CompanyListingResponse],
+    summary="Get all companies from VNStock (live)",
 )
 async def get_all_companies(
-    exchange: Optional[str] = Query(None, description="Filter by exchange"),
     stock_service: StockService = Depends(get_stock_service),
 ):
-    """Get all companies without pagination (use with caution)."""
-    companies, _, _ = await stock_service.get_all_companies(
-        page=1,
-        page_size=2000,
-        exchange=exchange,
-    )
-    return companies
+    """
+    Get all listed companies from VNStock (live data).
+
+    This endpoint fetches company data directly from VNStock API,
+    providing the most up-to-date listing of all Vietnamese stocks.
+    """
+    return await stock_service.get_all_companies_live()
+
+
+@router.get(
+    "/companies/group/{group}",
+    response_model=List[CompanyListingResponse],
+    summary="Get companies by stock group (live)",
+)
+async def get_companies_by_group(
+    group: str,
+    stock_service: StockService = Depends(get_stock_service),
+):
+    """
+    Get companies by stock group from VNStock (live data).
+
+    - **group**: Stock group (VN30, VN100, HOSE, HNX, UPCOM, etc.)
+
+    Returns list of symbols in the specified group.
+    """
+    return await stock_service.get_companies_by_group_live(group=group)
+
+
+@router.get(
+    "/stocks/search",
+    response_model=List[CompanyListingResponse],
+    summary="Search companies (live)",
+)
+async def search_companies(
+    q: str = Query(..., min_length=1, description="Search query"),
+    limit: int = Query(20, ge=1, le=50, description="Max results"),
+    stock_service: StockService = Depends(get_stock_service),
+):
+    """
+    Search companies by symbol or name from VNStock (live data).
+
+    - **q**: Search query (symbol or name)
+    - **limit**: Maximum number of results
+    """
+    return await stock_service.search_companies_live(query=q, limit=limit)
 
 
 @router.get(
@@ -130,25 +168,6 @@ async def get_historical_data(
             detail=f"Company not found: {symbol}",
         )
     return data
-
-
-@router.get(
-    "/stocks/search",
-    response_model=List[SearchResult],
-    summary="Search companies",
-)
-async def search_companies(
-    q: str = Query(..., min_length=1, description="Search query"),
-    limit: int = Query(20, ge=1, le=50, description="Max results"),
-    stock_service: StockService = Depends(get_stock_service),
-):
-    """
-    Search companies by symbol or name.
-
-    - **q**: Search query (symbol or name)
-    - **limit**: Maximum number of results
-    """
-    return await stock_service.search_companies(query=q, limit=limit)
 
 
 # ==================== Top Movers Endpoints ====================

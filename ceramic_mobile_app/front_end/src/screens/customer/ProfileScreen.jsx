@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, Linking } from 'react-native';
 import { Text, Appbar, Avatar, List, Card, Button, Divider } from 'react-native-paper';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
@@ -50,6 +50,21 @@ export const ProfileScreen = () => {
   const handleSupport = () => {
     // TODO: Navigate to support screen
     console.log('Navigate to support');
+  };
+
+  const handleFeedback = async () => {
+    const feedbackUrl = 'https://forms.gle/fbskcMj2UxZj7Vqn6';
+    try {
+      const canOpen = await Linking.canOpenURL(feedbackUrl);
+      if (canOpen) {
+        await Linking.openURL(feedbackUrl);
+      } else {
+        Alert.alert(t('common.error'), t('profile.cannotOpenLink'));
+      }
+    } catch (error) {
+      console.error('Error opening feedback form:', error);
+      Alert.alert(t('common.error'), t('profile.cannotOpenLink'));
+    }
   };
 
   return (
@@ -127,6 +142,15 @@ export const ProfileScreen = () => {
             left={props => <List.Icon {...props} icon="help-circle" />}
             right={props => <List.Icon {...props} icon="chevron-right" />}
             onPress={handleSupport}
+          />
+          <Divider />
+          <List.Item
+            title={t('profile.appFeedback')}
+            description={t('profile.appFeedbackDesc')}
+            left={props => <List.Icon {...props} icon="message-draw" />}
+            right={props => <List.Icon {...props} icon="chevron-right" />}
+            onPress={handleFeedback}
+            testID="profile-feedback-button"
           />
         </Card>
 

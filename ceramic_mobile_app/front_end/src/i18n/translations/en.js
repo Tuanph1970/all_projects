@@ -132,6 +132,15 @@ export default {
     contactUs: 'Contact Us',
     username: 'Username',
     defaultEmail: 'email@example.com',
+    appFeedback: 'App FeedBack',
+    appFeedbackDesc: 'Share your feedback to help us improve',
+    cannotOpenLink: 'Unable to open the link. Please try again later.',
+  },
+
+  // Seller Profile Screen
+  sellerProfile: {
+    requestVerification: 'Request Verification',
+    requestVerificationDesc: 'Verify your business for trusted seller badge',
   },
 
   // Search Screen

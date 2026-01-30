@@ -14,6 +14,7 @@ from app.models.domain import Company, StockPrice, Industry
 from app.models.schemas import (
     CompanyResponse,
     CompanyDetailResponse,
+    CompanyListingResponse,
     StockPriceResponse,
     HistoricalDataResponse,
     TopMoverResponse,
@@ -136,6 +137,104 @@ class StockService:
             )
             for c in companies
         ]
+
+    # ==================== Live Company Data from VNStock ====================
+
+    async def get_all_companies_live(self) -> List[CompanyListingResponse]:
+        """
+        Get all companies from vnstock (live data).
+        This fetches directly from vnstock API, not from database.
+        """
+        try:
+            stock = self.vnstock.stock(symbol="VNM", source=settings.VNSTOCK_DATA_SOURCE)
+            df = stock.listing.all_symbols()
+
+            if df is None or df.empty:
+                logger.warning("No companies returned from vnstock")
+                return []
+
+            companies = [
+                CompanyListingResponse(
+                    symbol=row["symbol"],
+                    name=row.get("organ_name", row.get("organName", "")),
+                    exchange=None,  # all_symbols doesn't provide exchange
+                )
+                for _, row in df.iterrows()
+            ]
+
+            logger.info(f"Fetched {len(companies)} companies from vnstock")
+            return companies
+
+        except Exception as e:
+            logger.error(f"Error fetching companies from vnstock: {e}")
+            return []
+
+    async def get_companies_by_group_live(self, group: str = "VN30") -> List[CompanyListingResponse]:
+        """
+        Get companies by stock group from vnstock (live data).
+
+        Args:
+            group: Stock group (VN30, VN100, HOSE, HNX, UPCOM, etc.)
+        """
+        try:
+            stock = self.vnstock.stock(symbol="VNM", source=settings.VNSTOCK_DATA_SOURCE)
+
+            # symbols_by_group returns a Series, not DataFrame
+            symbols = stock.listing.symbols_by_group(group.upper())
+
+            if symbols is None or len(symbols) == 0:
+                logger.warning(f"No companies returned for group {group}")
+                return []
+
+            # Convert Series to list of CompanyListingResponse
+            companies = [
+                CompanyListingResponse(
+                    symbol=symbol,
+                    name="",  # symbols_by_group only returns symbols, not names
+                    exchange=group.upper() if group.upper() in ["HOSE", "HNX", "UPCOM"] else None,
+                )
+                for symbol in symbols
+            ]
+
+            logger.info(f"Fetched {len(companies)} companies for group {group}")
+            return companies
+
+        except Exception as e:
+            logger.error(f"Error fetching companies by group {group}: {e}")
+            return []
+
+    async def search_companies_live(self, query: str, limit: int = 20) -> List[CompanyListingResponse]:
+        """
+        Search companies from vnstock (live data).
+        Searches through all listed companies by symbol or name.
+        """
+        try:
+            # Get all companies first
+            all_companies = await self.get_all_companies_live()
+
+            if not all_companies:
+                return []
+
+            query_upper = query.upper()
+            query_lower = query.lower()
+
+            # Filter by symbol or name match
+            matched = []
+            for company in all_companies:
+                symbol_match = query_upper in company.symbol.upper()
+                name_match = query_lower in company.name.lower() if company.name else False
+
+                if symbol_match or name_match:
+                    matched.append(company)
+
+                if len(matched) >= limit:
+                    break
+
+            return matched
+
+        except Exception as e:
+            logger.error(f"Error searching companies: {e}")
+            return []
 
     # ==================== Historical Data Operations ====================
 

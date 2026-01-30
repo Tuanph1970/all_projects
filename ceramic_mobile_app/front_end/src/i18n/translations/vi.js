@@ -132,6 +132,15 @@ export default {
     contactUs: 'Liên hệ với chúng tôi',
     username: 'Tên người dùng',
     defaultEmail: 'email@example.com',
+    appFeedback: 'Góp ý ứng dụng',
+    appFeedbackDesc: 'Chia sẻ góp ý để giúp chúng tôi cải thiện',
+    cannotOpenLink: 'Không thể mở liên kết. Vui lòng thử lại sau.',
+  },
+
+  // Seller Profile Screen
+  sellerProfile: {
+    requestVerification: 'Yêu cầu xác minh',
+    requestVerificationDesc: 'Xác minh doanh nghiệp để nhận huy hiệu người bán uy tín',
   },
 
   // Search Screen
