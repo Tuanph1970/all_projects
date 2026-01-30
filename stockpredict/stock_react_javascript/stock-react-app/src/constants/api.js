@@ -226,7 +226,7 @@ export const API_ENDPOINTS = {
   AI_MARKET_OVERVIEW: `${API_BASE_URLS.AI_API}/market-overview`,
   AI_BATCH: `${API_BASE_URLS.AI_API}/batch`,
   AI_TRENDING: `${API_BASE_URLS.AI_API}/trending`,
-  AI_PORTFOLIO_INSIGHTS: `${API_BASE_URLS.AI_API}/portfolio-insights`,
+  AI_PORTFOLIO_INSIGHTS: `${API_BASE_URLS.AI_API}/portfolio-insight`,
   AI_SECTORS: `${API_BASE_URLS.AI_API}/sectors`,
   AI_CAPABILITIES: `${API_BASE_URLS.AI_API}/capabilities`,
   AI_INDICATORS_AVAILABLE: `${API_BASE_URLS.AI_API}/indicators/available`,

@@ -270,17 +270,39 @@ export const stockAPI = {
 
   getPortfolio: async () => {
     try {
-      const response = await fetch(API_ENDPOINTS.PORTFOLIO_DEFAULT, {
+      // First get the default portfolio
+      const portfolioResponse = await fetch(API_ENDPOINTS.PORTFOLIO_DEFAULT, {
         method: 'GET',
         headers: getAuthHeaders()
       });
 
-      if (!response.ok) {
+      if (!portfolioResponse.ok) {
         throw new Error('Failed to fetch portfolio');
       }
 
-      const data = await response.json();
-      return data;
+      const portfolio = await portfolioResponse.json();
+      const portfolioId = portfolio.id;
+
+      // Then fetch the holdings for that portfolio
+      const holdingsResponse = await fetch(API_ENDPOINTS.PORTFOLIO_HOLDINGS(portfolioId), {
+        method: 'GET',
+        headers: getAuthHeaders()
+      });
+
+      if (!holdingsResponse.ok) {
+        throw new Error('Failed to fetch portfolio holdings');
+      }
+
+      const holdings = await holdingsResponse.json();
+      // Transform holdings to match Dashboard expected format
+      return (holdings || []).map(h => ({
+        symbol: h.symbol,
+        name: h.company_name || h.symbol,
+        shares: h.shares || 0,
+        avgPrice: h.average_price || 0,
+        currentPrice: h.current_price || h.average_price || 0,
+        change: h.gain_loss_percent ? `${h.gain_loss_percent >= 0 ? '+' : ''}${h.gain_loss_percent.toFixed(2)}%` : '0.00%'
+      }));
     } catch (error) {
       console.error('Error fetching portfolio:', error);
       return [];
@@ -611,10 +633,19 @@ export const stockAPI = {
 
   getProspectiveStocks: async () => {
     try {
+      // Screener requires filters array - use filters for prospective stocks criteria
       const response = await fetch(API_ENDPOINTS.ANALYSIS_SCREENER, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ type: 'prospective' })
+        body: JSON.stringify({
+          filters: [
+            { field: 'pe_ratio', operator: 'lt', value: 20 },
+            { field: 'change_percent', operator: 'gt', value: 0 }
+          ],
+          sort_by: 'change_percent',
+          sort_order: 'desc',
+          limit: 10
+        })
       });
 
       if (!response.ok) {
@@ -622,7 +653,20 @@ export const stockAPI = {
       }
 
       const data = await response.json();
-      return data;
+      // Transform screener response to expected format
+      if (data && data.stocks && Array.isArray(data.stocks)) {
+        return data.stocks.map(s => ({
+          symbol: s.symbol,
+          name: s.name || s.symbol,
+          price: s.price || 0,
+          peRatio: s.pe_ratio || 0,
+          epsGrowth2Y: 0,
+          netProfitGrowth2Y: 0,
+          news: 'Based on technical screening criteria',
+          sector: s.sector || 'Unknown'
+        }));
+      }
+      return [];
     } catch (error) {
       console.error('Error fetching prospective stocks:', error);
       // Fallback to mock data based on fundamental analysis criteria
