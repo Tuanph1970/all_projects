@@ -2,10 +2,12 @@ import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import sellerAnalyticsService from '../../services/sellerAnalyticsService.js';
+import { useLanguage } from '@i18n';
 
 const screenWidth = Dimensions.get('window').width;
 
 const RevenueTrendChart = ({ data, detailed = false }) => {
+  const { formatCurrency } = useLanguage();
   const chartConfig = {
     backgroundColor: '#ffffff',
     backgroundGradientFrom: '#ffffff',
@@ -88,12 +90,6 @@ const RevenueTrendChart = ({ data, detailed = false }) => {
     if (rate > 0) return '#10B981';
     if (rate < 0) return '#EF4444';
     return '#6B7280';
-  };
-
-  const formatCurrency = (amount) => {
-    return sellerAnalyticsService.formatCurrency 
-      ? sellerAnalyticsService.formatCurrency(amount)
-      : `$${amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   };
 
   const formatPercentage = (value) => {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Dimensions, ScrollView, ActivityIndicator } from 'react-native';
 import { Surface, Text, SegmentedButtons } from 'react-native-paper';
 import { colors, spacing, typography, borderRadius } from '../../constants/theme.js';
+import sellerAnalyticsService from '../../services/sellerAnalyticsService.js';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -18,19 +19,26 @@ export const SalesChart = ({ days = 30 }) => {
   const loadChartData = async () => {
     try {
       setLoading(true);
-      // Mock data for now - replace with actual service call
-      const mockData = {
-        data: [
-          { date: '2024-01-01', revenue: 1200000, orders: 15, quantity: 25 },
-          { date: '2024-01-02', revenue: 890000, orders: 12, quantity: 18 },
-          { date: '2024-01-03', revenue: 1450000, orders: 18, quantity: 32 },
-          { date: '2024-01-04', revenue: 980000, orders: 14, quantity: 22 },
-          { date: '2024-01-05', revenue: 1670000, orders: 21, quantity: 38 },
-        ]
-      };
-      setChartData(mockData);
+      const response = await sellerAnalyticsService.getRevenueTrends(days, granularity);
+
+      // Transform API response to chart data format
+      if (response && response.trends && response.trends.length > 0) {
+        const chartData = {
+          data: response.trends.map(item => ({
+            date: item.period,
+            revenue: item.revenue || 0,
+            orders: item.orders || 0,
+            quantity: item.items_sold || 0
+          }))
+        };
+        setChartData(chartData);
+      } else {
+        // No data available
+        setChartData(null);
+      }
     } catch (error) {
       console.error('Failed to load chart data:', error);
+      setChartData(null);
     } finally {
       setLoading(false);
     }

@@ -21,10 +21,12 @@ import {
 import { useRoute, useNavigation } from '@react-navigation/native';
 import orderFulfillmentService from '../../services/orderFulfillmentService.js';
 import { colors, spacing, typography } from '../../constants/theme.js';
+import { useLanguage } from '@i18n';
 
 export const OrderDetailsScreen = () => {
   const route = useRoute();
   const navigation = useNavigation();
+  const { formatCurrency } = useLanguage();
   const { orderId } = route.params;
   
   // State
@@ -184,10 +186,6 @@ export const OrderDetailsScreen = () => {
       case 'REFUNDED': return colors.outline;
       default: return colors.outline;
     }
-  };
-
-  const formatCurrency = (amount) => {
-    return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const formatDate = (dateString) => {

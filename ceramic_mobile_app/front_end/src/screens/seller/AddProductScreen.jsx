@@ -18,7 +18,7 @@ import {
   Surface,
 } from 'react-native-paper';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import * as ImagePicker from 'expo-image-picker';
+import ImageCropPicker from 'react-native-image-crop-picker';
 import { colors, spacing, typography } from '../../constants/theme.js';
 import { API_BASE_URL } from '../../constants/config.js';
 import sellerService from '../../services/sellerService.js';
@@ -56,7 +56,6 @@ export const AddProductScreen = () => {
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    requestPermissions();
     if (isEditMode) {
       loadProductData();
     }
@@ -155,18 +154,32 @@ export const AddProductScreen = () => {
     }
   };
 
-  const requestPermissions = async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          'Permission Required',
-          'Sorry, we need camera roll permissions to upload images.'
-        );
-      }
-    } catch (error) {
-      console.error('Error requesting permissions:', error);
-    }
+  // Cropper configuration for highly visible CROP button
+  const cropperConfig = {
+    width: 800,
+    height: 600,
+    cropping: true,
+    // Bright orange toolbar for high visibility of CROP button
+    cropperToolbarColor: '#FF6B00',
+    // White text/icons on toolbar for maximum contrast
+    cropperToolbarWidgetColor: '#FFFFFF',
+    // Orange accent for active elements
+    cropperActiveWidgetColor: '#FF6B00',
+    cropperStatusBarColor: '#E55D00',
+    cropperToolbarTitle: 'Crop Image',
+    // Show helpful guidelines
+    showCropGuidelines: true,
+    showCropFrame: true,
+    enableRotationGesture: true,
+    freeStyleCropEnabled: false,
+    // iOS-specific: Make Done/Cancel buttons visible
+    cropperChooseText: 'CROP',
+    cropperCancelText: 'Cancel',
+    cropperChooseColor: '#FFFFFF',
+    cropperCancelColor: '#FFFFFF',
+    // Image quality
+    compressImageQuality: 0.8,
+    mediaType: 'photo',
   };
 
   const handleInputChange = (field, value) => {
@@ -191,17 +204,24 @@ export const AddProductScreen = () => {
         return;
       }
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
+      const image = await ImageCropPicker.openPicker({
+        ...cropperConfig,
       });
 
-      if (!result.canceled && result.assets.length > 0) {
-        setImages(prev => [...prev, result.assets[0]]);
+      if (image && image.path) {
+        setImages(prev => [...prev, {
+          uri: image.path,
+          width: image.width,
+          height: image.height,
+          mimeType: image.mime,
+          fileName: image.path.split('/').pop(),
+        }]);
       }
     } catch (error) {
+      // User cancelled - not an error
+      if (error.code === 'E_PICKER_CANCELLED') {
+        return;
+      }
       console.error('Error picking image:', error);
       Alert.alert('Error', 'Failed to pick image. Please try again.');
     }
@@ -214,25 +234,24 @@ export const AddProductScreen = () => {
         return;
       }
 
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          'Permission Required',
-          'Camera permission is required to take photos.'
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
+      const image = await ImageCropPicker.openCamera({
+        ...cropperConfig,
       });
 
-      if (!result.canceled && result.assets.length > 0) {
-        setImages(prev => [...prev, result.assets[0]]);
+      if (image && image.path) {
+        setImages(prev => [...prev, {
+          uri: image.path,
+          width: image.width,
+          height: image.height,
+          mimeType: image.mime,
+          fileName: image.path.split('/').pop(),
+        }]);
       }
     } catch (error) {
+      // User cancelled - not an error
+      if (error.code === 'E_PICKER_CANCELLED') {
+        return;
+      }
       console.error('Error taking photo:', error);
       Alert.alert('Error', 'Failed to capture photo. Please try again.');
     }

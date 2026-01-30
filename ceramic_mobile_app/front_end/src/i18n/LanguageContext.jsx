@@ -102,6 +102,25 @@ export const LanguageProvider = ({ children }) => {
     return interpolate(translation, params);
   }, [language]);
 
+  /**
+   * Format currency based on current language
+   * @param {number} value - Amount to format
+   * @returns {string} - Formatted currency string
+   */
+  const formatCurrency = useCallback((value) => {
+    if (value === undefined || value === null) {
+      return language === LANGUAGES.VI ? '0 ₫' : '$0.00';
+    }
+
+    if (language === LANGUAGES.VI) {
+      // Vietnamese: 1.234.567 ₫
+      return `${value.toLocaleString('vi-VN')} ₫`;
+    } else {
+      // English: $1,234.56
+      return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+  }, [language]);
+
   const value = {
     language,
     isEnglish: language === LANGUAGES.EN,
@@ -109,6 +128,7 @@ export const LanguageProvider = ({ children }) => {
     changeLanguage,
     toggleLanguage,
     t,
+    formatCurrency,
     isLoading,
   };
 

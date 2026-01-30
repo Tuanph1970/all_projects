@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Surface, Text, Card, Avatar, Chip, SegmentedButtons } from 'react-native-paper';
 import { colors, spacing, typography, borderRadius, shadows } from '../../constants/theme.js';
+import sellerAnalyticsService from '../../services/sellerAnalyticsService.js';
 
 export const TopProductsList = ({
   days = 30,
@@ -19,38 +20,31 @@ export const TopProductsList = ({
   const loadTopProducts = async () => {
     try {
       setLoading(true);
-      // Mock data for now - replace with actual service call
-      const mockProducts = [
-        {
-          id: '1',
-          name: 'Ceramic Vase Premium',
-          price: 299000,
-          total_revenue: 8970000,
-          order_count: 30,
-          quantity_sold: 45,
-          avg_rating: 4.8,
-          review_count: 24,
-          stock: 12,
-          is_featured: true,
-          image: 'https://via.placeholder.com/80'
-        },
-        {
-          id: '2', 
-          name: 'Handmade Pottery Set',
-          price: 450000,
-          total_revenue: 6750000,
-          order_count: 15,
-          quantity_sold: 15,
-          avg_rating: 4.6,
-          review_count: 12,
-          stock: 3,
-          is_featured: false,
-          image: 'https://via.placeholder.com/80'
-        }
-      ];
-      setProducts(mockProducts);
+      const response = await sellerAnalyticsService.getTopProducts(days, metric, limit);
+
+      // Transform API response to component format
+      if (response && response.products && response.products.length > 0) {
+        const formattedProducts = response.products.map(product => ({
+          id: product.product_id?.toString() || product.id?.toString(),
+          name: product.name || product.product_name,
+          price: product.price || 0,
+          total_revenue: product.total_revenue || 0,
+          order_count: product.order_count || 0,
+          quantity_sold: product.quantity_sold || 0,
+          avg_rating: product.avg_rating || 0,
+          review_count: product.review_count || 0,
+          stock: product.stock || product.stock_quantity || 0,
+          is_featured: product.is_featured || false,
+          image: product.image_url || product.image || null
+        }));
+        setProducts(formattedProducts);
+      } else {
+        // No products available
+        setProducts([]);
+      }
     } catch (error) {
       console.error('Failed to load top products:', error);
+      setProducts([]);
     } finally {
       setLoading(false);
     }

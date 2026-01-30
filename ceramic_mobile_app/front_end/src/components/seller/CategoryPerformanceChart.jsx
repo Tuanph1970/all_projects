@@ -3,10 +3,12 @@ import { View, Text, StyleSheet, FlatList, Dimensions, ActivityIndicator } from 
 import { Surface } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { colors, spacing, typography, borderRadius, shadows } from '../../constants/theme.js';
+import { useLanguage } from '@i18n';
 
 const screenWidth = Dimensions.get('window').width;
 
 export const CategoryPerformanceChart = ({ data }) => {
+  const { formatCurrency } = useLanguage();
   const chartConfig = {
     backgroundColor: colors.surface,
     backgroundGradientFrom: colors.surface,
@@ -61,10 +63,6 @@ export const CategoryPerformanceChart = ({ data }) => {
       return `${(num / 1000).toFixed(1)}K`;
     }
     return num.toString();
-  };
-
-  const formatCurrency = (amount) => {
-    return `${amount.toLocaleString('vi-VN')} ₫`;
   };
 
   const renderCategoryItem = ({ item, index }) => {

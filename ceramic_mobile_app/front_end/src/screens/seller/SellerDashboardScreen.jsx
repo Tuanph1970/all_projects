@@ -7,10 +7,10 @@ import SalesChart from '../../components/seller/SalesChart.jsx';
 import TopProductsList from '../../components/seller/TopProductsList.jsx';
 import { colors, spacing, typography } from '../../constants/theme.js';
 import sellerService, { DashboardOverview, InventoryAlert } from '../../services/sellerService.js';
-import { useTranslation } from '@i18n';
+import { useLanguage } from '@i18n';
 
 export const SellerDashboardScreen = () => {
-  const t = useTranslation();
+  const { t, formatCurrency } = useLanguage();
   const [overview, setOverview] = useState(null);
   const [inventoryAlerts, setInventoryAlerts] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -49,13 +49,6 @@ export const SellerDashboardScreen = () => {
   const showSnackbar = (message) => {
     setSnackbarMessage(message);
     setSnackbarVisible(true);
-  };
-
-  const formatCurrency = (value) => {
-    if (value === undefined || value === null) {
-      return '$0.00';
-    }
-    return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const getAlertCount = () => {

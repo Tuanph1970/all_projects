@@ -3,6 +3,7 @@ import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Surface, Text, Button, Divider } from 'react-native-paper';
 import { OrderStatusBadge } from './OrderStatusBadge.jsx';
 import { colors, spacing, typography } from '../../constants/theme.js';
+import { useLanguage } from '@i18n';
 
 const OrderStatus = {
   PENDING: 'PENDING',
@@ -14,18 +15,13 @@ const OrderStatus = {
   REFUNDED: 'REFUNDED'
 };
 
-export const OrderCard = ({ 
-  order, 
+export const OrderCard = ({
+  order,
   onPress,
   onQuickAction,
   showQuickActions = true
 }) => {
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
-  };
+  const { formatCurrency } = useLanguage();
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {

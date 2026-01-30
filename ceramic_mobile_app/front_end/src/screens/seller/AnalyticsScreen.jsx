@@ -4,13 +4,13 @@ import { Text, Appbar, Card, ActivityIndicator, Chip, Divider, ProgressBar } fro
 import { useNavigation } from '@react-navigation/native';
 import { colors, spacing, typography } from '../../constants/theme.js';
 import sellerAnalyticsService from '../../services/sellerAnalyticsService.js';
-import { useTranslation } from '@i18n';
+import { useLanguage } from '@i18n';
 
 const { width } = Dimensions.get('window');
 
 export const AnalyticsScreen = () => {
   const navigation = useNavigation();
-  const t = useTranslation();
+  const { t, formatCurrency } = useLanguage();
 
   // State
   const [loading, setLoading] = useState(true);
@@ -79,11 +79,6 @@ export const AnalyticsScreen = () => {
 
   const handlePeriodChange = (period) => {
     setSelectedPeriod(period);
-  };
-
-  const formatCurrency = (amount) => {
-    if (amount == null) return '$0.00';
-    return `$${Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const formatPercentage = (value) => {
