@@ -13,8 +13,8 @@ const LoginForm = () => {
     currentPassword: '',
     newPassword: ''
   });
-  const [message, setMessage] = useState('');
   const { login, register, resetPassword, changePassword, loading } = useAuth();
+  const [message, setMessage] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,8 +29,13 @@ const LoginForm = () => {
           return;
         }
         const result = await register(formData.username, formData.email, formData.password);
-        setMessage(result.message);
-        setFormType('login');
+        // Explicitly set success message from result
+        const successMsg = result.message || 'Đăng ký thành công! Vui lòng đăng nhập.';
+        setMessage(successMsg);
+        // Switch to login form after showing message
+        setTimeout(() => {
+          setFormType('login');
+        }, 2000);
       } else if (formType === 'forgot') {
         const result = await resetPassword(formData.email);
         setMessage(result.message);
@@ -185,7 +190,7 @@ const LoginForm = () => {
           )}
 
           {message && (
-            <div className={`auth-message ${message.includes('successful') || message.includes('sent') ? 'success' : 'error'}`}>
+            <div className={`auth-message ${message.includes('successful') || message.includes('sent') || message.includes('thành công') ? 'success' : 'error'}`}>
               {message}
             </div>
           )}

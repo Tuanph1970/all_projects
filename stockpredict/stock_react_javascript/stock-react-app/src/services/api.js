@@ -76,13 +76,20 @@ export const authAPI = {
       });
 
       if (!response.ok) {
-        throw new Error('Registration failed');
+        // Try to get error message from response
+        try {
+          const errorData = await response.json();
+          throw new Error(errorData.message || errorData.detail || 'Đăng ký thất bại');
+        } catch {
+          throw new Error('Đăng ký thất bại');
+        }
       }
 
-      const data = await response.json();
-      return { message: 'Registration successful' };
+      // Registration successful
+      return { message: 'Đăng ký thành công! Vui lòng đăng nhập.' };
     } catch (error) {
-      throw new Error('Registration failed');
+      // Re-throw with meaningful message
+      throw new Error(error.message || 'Đăng ký thất bại');
     }
   },
 

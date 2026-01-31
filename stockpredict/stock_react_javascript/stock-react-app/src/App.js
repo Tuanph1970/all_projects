@@ -20,10 +20,10 @@ import './styles/performance.css';
 
 
 const AppContent = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, isInitializing } = useAuth();
 
-  // Show loading state while validating token
-  if (loading) {
+  // Only show loading state during initial token validation, not during login/register
+  if (isInitializing) {
     return (
       <div style={{
         display: 'flex',

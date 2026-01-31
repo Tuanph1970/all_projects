@@ -5,14 +5,15 @@ const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true); // Start with true to validate token
+  const [loading, setLoading] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true); // Only for initial token validation
 
   useEffect(() => {
     const validateStoredToken = async () => {
       const token = localStorage.getItem('token');
 
       if (!token) {
-        setLoading(false);
+        setIsInitializing(false);
         return;
       }
 
@@ -26,7 +27,7 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
       }
 
-      setLoading(false);
+      setIsInitializing(false);
     };
 
     validateStoredToken();
@@ -55,7 +56,8 @@ export const AuthProvider = ({ children }) => {
   const register = async (username, email, password) => {
     setLoading(true);
     try {
-      return await authAPI.register(username, email, password);
+      const result = await authAPI.register(username, email, password);
+      return result;
     } finally {
       setLoading(false);
     }
@@ -86,7 +88,8 @@ export const AuthProvider = ({ children }) => {
     register,
     resetPassword,
     changePassword,
-    loading
+    loading,
+    isInitializing
   };
 
   return (

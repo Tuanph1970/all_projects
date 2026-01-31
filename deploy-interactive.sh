@@ -37,6 +37,7 @@ ENV_FILE="$BASE_DIR/.deploy-env"
 
 # Deployment settings
 BUILD_FLAG=""
+NO_CACHE_FLAG=""
 SELECTED_PROJECTS=()
 
 # Function to print colored output
@@ -250,6 +251,11 @@ deploy_project() {
     if [ -n "$BUILD_FLAG" ]; then
         build_args="--build"
         print_color $YELLOW "🔨 Building images..."
+
+        # If no-cache is requested, we need to build separately first
+        if [ -n "$NO_CACHE_FLAG" ]; then
+            print_color $YELLOW "🔨 Building with --no-cache (this may take longer)..."
+        fi
     fi
 
     # Deploy based on project type
@@ -257,6 +263,11 @@ deploy_project() {
         ceramic)
             # Ceramic uses its own deploy script or docker-compose
             if [ -f "docker-compose.yml" ]; then
+                # Build with --no-cache if requested
+                if [ -n "$NO_CACHE_FLAG" ] && [ -n "$BUILD_FLAG" ]; then
+                    print_color $YELLOW "🔨 Building Ceramic with --no-cache..."
+                    $COMPOSE_CMD -f docker-compose.yml -p "$project_name" build --no-cache
+                fi
                 print_color $YELLOW "🚀 Starting Ceramic services..."
                 $COMPOSE_CMD -f docker-compose.yml -p "$project_name" up -d $build_args
             else
@@ -268,13 +279,28 @@ deploy_project() {
             # Stock uses full-stack compose file (API + Frontend + MySQL)
             local fullstack_compose="$BASE_DIR/stockpredict/docker-compose.full-stack.yml"
             if [ -f "$fullstack_compose" ]; then
-                print_color $YELLOW "🚀 Starting Stock Predict Full-Stack (API + Frontend + MySQL)..."
                 cd "$BASE_DIR/stockpredict"
+                # Build with --no-cache if requested
+                if [ -n "$NO_CACHE_FLAG" ] && [ -n "$BUILD_FLAG" ]; then
+                    print_color $YELLOW "🔨 Building Stock Predict with --no-cache..."
+                    $COMPOSE_CMD -f docker-compose.full-stack.yml -p "$project_name" build --no-cache
+                fi
+                print_color $YELLOW "🚀 Starting Stock Predict Full-Stack (API + Frontend + MySQL)..."
                 $COMPOSE_CMD -f docker-compose.full-stack.yml -p "$project_name" up -d $build_args
             elif [ -f "docker-compose.yml" ] && [ -f "docker-compose.local.yml" ]; then
+                # Build with --no-cache if requested
+                if [ -n "$NO_CACHE_FLAG" ] && [ -n "$BUILD_FLAG" ]; then
+                    print_color $YELLOW "🔨 Building Stock services with --no-cache..."
+                    $COMPOSE_CMD -f docker-compose.yml -f docker-compose.local.yml -p "$project_name" build --no-cache
+                fi
                 print_color $YELLOW "🚀 Starting Stock services (backend only)..."
                 $COMPOSE_CMD -f docker-compose.yml -f docker-compose.local.yml -p "$project_name" up -d $build_args
             elif [ -f "docker-compose.yml" ]; then
+                # Build with --no-cache if requested
+                if [ -n "$NO_CACHE_FLAG" ] && [ -n "$BUILD_FLAG" ]; then
+                    print_color $YELLOW "🔨 Building Stock services with --no-cache..."
+                    $COMPOSE_CMD -f docker-compose.yml -p "$project_name" build --no-cache
+                fi
                 print_color $YELLOW "🚀 Starting Stock services (base only)..."
                 $COMPOSE_CMD -f docker-compose.yml -p "$project_name" up -d $build_args
             else
@@ -285,6 +311,11 @@ deploy_project() {
         math)
             # Math uses docker-compose.yml
             if [ -f "docker-compose.yml" ]; then
+                # Build with --no-cache if requested
+                if [ -n "$NO_CACHE_FLAG" ] && [ -n "$BUILD_FLAG" ]; then
+                    print_color $YELLOW "🔨 Building Math with --no-cache..."
+                    $COMPOSE_CMD -f docker-compose.yml -p "$project_name" build --no-cache
+                fi
                 print_color $YELLOW "🚀 Starting Math services..."
                 $COMPOSE_CMD -f docker-compose.yml -p "$project_name" up -d $build_args
             else
@@ -325,6 +356,11 @@ show_deployment_summary() {
     print_color $MAGENTA "Build Option:"
     if [ -n "$BUILD_FLAG" ]; then
         print_color $GREEN "  ✓ Build images before deployment"
+        if [ -n "$NO_CACHE_FLAG" ]; then
+            print_color $GREEN "  ✓ Using --no-cache (fresh build)"
+        else
+            print_color $YELLOW "  ○ Using cached layers"
+        fi
     else
         print_color $YELLOW "  ○ Use existing images"
     fi
@@ -375,6 +411,14 @@ main() {
     if ask_yes_no "Do you want to build images before deployment?" "n"; then
         BUILD_FLAG="--build"
         print_color $GREEN "✓ Images will be built before deployment"
+
+        # Ask about no-cache (only if building)
+        if ask_yes_no "Do you want to build with --no-cache (fresh build, ignores cache)?" "n"; then
+            NO_CACHE_FLAG="--no-cache"
+            print_color $GREEN "✓ Build will use --no-cache (fresh build)"
+        else
+            print_color $YELLOW "○ Using cached layers"
+        fi
     else
         print_color $YELLOW "○ Using existing images"
     fi
