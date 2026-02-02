@@ -9,6 +9,7 @@ from app.services.analysis_service import AnalysisService
 from app.models.schemas import (
     TechnicalAnalysisResponse, FundamentalAnalysisResponse,
     ScreenerRequest, ScreenerResponse, ScreenerConfigCreate, ScreenerConfigResponse,
+    ScreenerFilter, FilterOperator,
     StockComparisonRequest, StockComparisonResponse, StockComparisonItem,
     IndustryAnalysisResponse, CombinedAnalysisResponse,
     TopSignalsResponse, SignalStock, QuickSummaryResponse, SignalType
@@ -57,6 +58,44 @@ async def run_screener(
         sort_order=data.sort_order,
         limit=data.limit,
         offset=data.offset
+    )
+
+
+@router.get("/screener", response_model=ScreenerResponse)
+async def get_default_screener(
+    exchange: str = Query(None, description="Filter by exchange (HOSE, HNX, UPCOM)"),
+    min_price: float = Query(None, description="Minimum price"),
+    max_price: float = Query(None, description="Maximum price"),
+    min_volume: float = Query(None, description="Minimum volume"),
+    min_market_cap: float = Query(None, description="Minimum market cap"),
+    limit: int = Query(50, description="Number of results"),
+    offset: int = Query(0, description="Offset for pagination"),
+    sort_by: str = Query("symbol", description="Sort by field"),
+    sort_order: str = Query("asc", description="Sort order (asc/desc)"),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get default screened stocks with optional query parameters"""
+    service = AnalysisService(db)
+
+    # Build filters from query parameters using ScreenerFilter objects
+    filters = []
+    if exchange and exchange != 'ALL':
+        filters.append(ScreenerFilter(field="exchange", operator=FilterOperator.EQ, value=exchange))
+    if min_price is not None:
+        filters.append(ScreenerFilter(field="price", operator=FilterOperator.GTE, value=min_price))
+    if max_price is not None:
+        filters.append(ScreenerFilter(field="price", operator=FilterOperator.LTE, value=max_price))
+    if min_volume is not None:
+        filters.append(ScreenerFilter(field="volume", operator=FilterOperator.GTE, value=min_volume))
+    if min_market_cap is not None:
+        filters.append(ScreenerFilter(field="market_cap", operator=FilterOperator.GTE, value=min_market_cap))
+
+    return await service.run_screener(
+        filters=filters,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        limit=limit,
+        offset=offset
     )
 
 
