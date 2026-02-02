@@ -569,25 +569,50 @@ class StockService:
                     match_price = item.get("matchPrice", {})
                     bid_ask = item.get("bidAsk", {})
 
+                    # Get bid prices (3 levels) - API returns 'volume' not 'qty'
+                    bid_prices = bid_ask.get("bidPrices", [])
+                    ask_prices = bid_ask.get("askPrices", [])
+
+                    # Calculate change and changePercent if not provided
+                    current_price = match_price.get("matchPrice")
+                    ref_price = listing.get("refPrice")
+                    change = None
+                    change_percent = None
+                    if current_price and ref_price and ref_price > 0:
+                        change = current_price - ref_price
+                        change_percent = round((change / ref_price) * 100, 2)
+
                     record = {
                         "symbol": listing.get("symbol"),
-                        "refPrice": listing.get("refPrice"),
+                        "refPrice": ref_price,
                         "ceiling": listing.get("ceiling"),
                         "floor": listing.get("floor"),
-                        "matchPrice": match_price.get("price"),
-                        "matchQty": match_price.get("qty"),
-                        "matchValue": match_price.get("value"),
-                        "change": match_price.get("change"),
-                        "changePercent": match_price.get("changePercent"),
-                        "totalQty": match_price.get("totalQty"),
-                        "totalValue": match_price.get("totalValue"),
+                        # Match price data - updated field names
+                        "matchPrice": current_price,
+                        "matchQty": match_price.get("matchVol"),
+                        "matchValue": match_price.get("accumulatedValue"),
+                        "change": change,
+                        "changePercent": change_percent,
+                        "totalQty": match_price.get("accumulatedVolume"),
+                        "totalValue": match_price.get("accumulatedValue"),
                         "highest": match_price.get("highest"),
                         "lowest": match_price.get("lowest"),
-                        "averagePrice": match_price.get("averagePrice"),
-                        "buyQty1": bid_ask.get("bidPrices", [{}])[0].get("qty") if bid_ask.get("bidPrices") else None,
-                        "buyPrice1": bid_ask.get("bidPrices", [{}])[0].get("price") if bid_ask.get("bidPrices") else None,
-                        "sellQty1": bid_ask.get("askPrices", [{}])[0].get("qty") if bid_ask.get("askPrices") else None,
-                        "sellPrice1": bid_ask.get("askPrices", [{}])[0].get("price") if bid_ask.get("askPrices") else None,
+                        "openPrice": match_price.get("openPrice"),
+                        "averagePrice": match_price.get("avgMatchPrice"),
+                        # Bid prices (3 levels) - 'volume' is the correct field name
+                        "buyPrice1": bid_prices[0].get("price") if len(bid_prices) > 0 else None,
+                        "buyQty1": bid_prices[0].get("volume") if len(bid_prices) > 0 else None,
+                        "buyPrice2": bid_prices[1].get("price") if len(bid_prices) > 1 else None,
+                        "buyQty2": bid_prices[1].get("volume") if len(bid_prices) > 1 else None,
+                        "buyPrice3": bid_prices[2].get("price") if len(bid_prices) > 2 else None,
+                        "buyQty3": bid_prices[2].get("volume") if len(bid_prices) > 2 else None,
+                        # Ask/Sell prices (3 levels)
+                        "sellPrice1": ask_prices[0].get("price") if len(ask_prices) > 0 else None,
+                        "sellQty1": ask_prices[0].get("volume") if len(ask_prices) > 0 else None,
+                        "sellPrice2": ask_prices[1].get("price") if len(ask_prices) > 1 else None,
+                        "sellQty2": ask_prices[1].get("volume") if len(ask_prices) > 1 else None,
+                        "sellPrice3": ask_prices[2].get("price") if len(ask_prices) > 2 else None,
+                        "sellQty3": ask_prices[2].get("volume") if len(ask_prices) > 2 else None,
                         "exchange": listing.get("board"),
                         "tradingStatus": listing.get("tradingStatus"),
                     }

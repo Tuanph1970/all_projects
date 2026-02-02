@@ -86,60 +86,72 @@ function Table({
     </table>
   );
 }
-function getFontColorFromProps(value, cellProps) {
-    const current_value = parseFloat(value);
-    const ceiling = parseFloat(cellProps.row.original.listingceiling);
-    const ref_value = parseFloat(cellProps.row.original.listingref_price);
-    const floor_value = parseFloat(cellProps.row.original.listingfloor);
+// colorValue: the value used to determine the color (usually a price)
+// displayValue: the value to display (optional, defaults to colorValue)
+function getFontColorFromProps(colorValue, cellProps, displayValue = null) {
+    const color_val = parseFloat(colorValue);
+    const display_val = displayValue !== null ? displayValue : colorValue;
+    const ceiling = parseFloat(cellProps.row.original.ceiling);
+    const ref_value = parseFloat(cellProps.row.original.refPrice);
+    const floor_value = parseFloat(cellProps.row.original.floor);
 
-    // Handle missing or invalid data
-    if (isNaN(current_value) || isNaN(ceiling) || isNaN(ref_value) || isNaN(floor_value)) {
+    // Handle missing or invalid data for display value
+    if (display_val === null || display_val === undefined || display_val === '') {
         return (
             <span style={{ color: "white" }}>
-                {value || "N/A"}
+                N/A
             </span>
         );
     }
 
-    if (current_value === ceiling) {
+    // Handle missing or invalid data for color determination
+    if (isNaN(color_val) || isNaN(ceiling) || isNaN(ref_value) || isNaN(floor_value)) {
+        return (
+            <span style={{ color: "white" }}>
+                {display_val}
+            </span>
+        );
+    }
+
+    if (color_val === ceiling) {
      return (
        <span style={{ color:"magenta" }}>
-       {current_value}
+       {display_val}
        </span>
      );
    }
-   else if((current_value < ceiling) && (current_value > ref_value)){
+   else if((color_val < ceiling) && (color_val > ref_value)){
      return (
        <span style={{ color:"#00BFFF" }}>
-       {current_value}
+       {display_val}
        </span>
      );
    }
-   else if(current_value === ref_value)  {
+   else if(color_val === ref_value)  {
      return(
      <span style={{ color:"yellow" }}>
-     {current_value}
+     {display_val}
      </span>
      );
 
    }
-   else if((current_value < ref_value) && (current_value > floor_value))  {
+   else if((color_val < ref_value) && (color_val > floor_value))  {
      return(
      <span style={{ color:"red" }}>
-     {current_value}
+     {display_val}
      </span>
      );
    }
-   else if(current_value === floor_value){
+   else if(color_val === floor_value){
      return(
        <span style={{ color:"#00FF00" }}>
-       {current_value}
+       {display_val}
        </span>
      );
    }
    else return(
      <span style={{ color:"white" }}>
-     {current_value}
+     {display_val}
      </span>
    );
  }
@@ -162,8 +174,8 @@ function getFontColorFromProps(value, cellProps) {
             },
             {
             Header: "Trần",
-            accessor: "listingceiling",
-            key: "listingceiling",
+            accessor: "ceiling",
+            key: "ceiling",
             Cell: (props) => {
               return (
                 <span style={{ color: "magenta" }}>
@@ -174,8 +186,8 @@ function getFontColorFromProps(value, cellProps) {
             },
             {
             Header: "Sàn",
-            accessor: "listingfloor",
-            key: "listingfloor",
+            accessor: "floor",
+            key: "floor",
             Cell: (props) => {
               return (
                 <span style={{ color: "#00FF00" }}>
@@ -186,8 +198,8 @@ function getFontColorFromProps(value, cellProps) {
             },
             {
                 Header: "TC",
-                accessor: "listingref_price",
-                key:"listingref_price",
+                accessor: "refPrice",
+                key:"refPrice",
                 Cell: (props) => {
                   return (
                     <span style={{ color: "yellow" }}>
@@ -202,34 +214,34 @@ function getFontColorFromProps(value, cellProps) {
             columns: [
             {
               Header: "Giá 3",
-              accessor: "bid_askbid_3_price",              
+              accessor: "buyPrice3",
               Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) }
             },
             {
               Header: "KL3",
-              accessor: "bid_askbid_3_volume",
-              Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.bid_askbid_3_price,cellProps) }
+              accessor: "buyQty3",
+              Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.buyPrice3, cellProps, cellProps.value) }
             },
             {
               Header: "Giá 2",
-              accessor: "bid_askbid_2_price",
+              accessor: "buyPrice2",
               Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) }
             },
             {
             Header: "KL2",
-            accessor: "bid_askbid_2_volume",
-            Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.bid_askbid_2_price,cellProps) }
+            accessor: "buyQty2",
+            Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.buyPrice2, cellProps, cellProps.value) }
             },
             {
               Header: "Giá 1",
-              accessor: "bid_askbid_1_price",
+              accessor: "buyPrice1",
               Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) }
             },
             {
               Header: "KL1",
-              accessor: "bid_askbid_1_volume",
-              Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.bid_askbid_1_price,cellProps) }
-              
+              accessor: "buyQty1",
+              Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.buyPrice1, cellProps, cellProps.value) }
+
             },
             ],
             },
@@ -239,24 +251,23 @@ function getFontColorFromProps(value, cellProps) {
             columns: [
             {
             Header: "Giá khớp",
-            accessor: "matchmatch_price",
+            accessor: "matchPrice",
             Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) }
-            
 
             },
             {
             Header: "KL Khớp",
-            accessor: "matchmatch_vol",
-            Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.matchmatch_price,cellProps) }
+            accessor: "matchQty",
+            Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.matchPrice, cellProps, cellProps.value) }
 
             },
             {
             Header: "+/-",
-            accessor: "matchvol_variation",
+            accessor: "change",
             },
             {
             Header: "+/-(%)",
-            accessor: "matchvol_percent",
+            accessor: "changePercent",
             },
             ],
             },
@@ -267,54 +278,54 @@ function getFontColorFromProps(value, cellProps) {
             columns: [
             {
                 Header: "Giá 1",
-                accessor: "bid_askask_1_price",
+                accessor: "sellPrice1",
                 Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps)},
-            
+
             },
             {
             Header: "KL 1",
-            accessor: "bid_askask_1_volume",
-            Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.bid_askask_1_price,cellProps) }
+            accessor: "sellQty1",
+            Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.sellPrice1, cellProps, cellProps.value) }
             },
             {
             Header: "Giá 2",
-            accessor: "bid_askask_2_price",
+            accessor: "sellPrice2",
             Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) },
             },
             {
             Header: "KL 2",
-            accessor: "bid_askask_2_volume",
-            Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.bid_askask_2_price,cellProps) }
+            accessor: "sellQty2",
+            Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.sellPrice2, cellProps, cellProps.value) }
             },
             {
             Header: "Giá 3",
-            accessor: "bid_askask_3_price",
+            accessor: "sellPrice3",
             Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) },
             },
             {
             Header: "KL 3",
-            accessor: "bid_askask_3_volume",
-            Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.bid_askask_3_price,cellProps) }
+            accessor: "sellQty3",
+            Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.sellPrice3, cellProps, cellProps.value) }
             },
-            ], 
+            ],
             },
             {
             Header: "Tổng KL",
-            accessor: "matchaccumulated_volume",
+            accessor: "totalQty",
             },
             {
             Header: "Mở cửa",
-            accessor: "matchopen_price",
+            accessor: "openPrice",
             Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) },
             },
             {
             Header: "Cao nhất",
-            accessor: "matchhighest",
+            accessor: "highest",
             Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) },
             },
             {
             Header: "Thấp nhất",
-            accessor: "matchlowest",
+            accessor: "lowest",
             Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) },
             },
             ],
