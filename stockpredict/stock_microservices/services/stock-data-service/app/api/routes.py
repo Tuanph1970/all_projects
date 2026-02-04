@@ -226,19 +226,19 @@ async def get_industries(
 
 
 @router.get(
-    "/industries/{industry_id}/companies",
-    response_model=List[CompanyResponse],
+    "/industries/{industry_code}/companies",
+    response_model=PaginatedResponse[CompanyResponse],
     summary="Get companies by industry",
 )
 async def get_companies_by_industry(
-    industry_id: int,
+    industry_code: str,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     stock_service: StockService = Depends(get_stock_service),
 ):
-    """Get all companies in a specific industry."""
-    return await stock_service.get_companies_by_industry(
-        industry_id=industry_id,
+    """Get all companies in a specific industry by ICB code."""
+    return await stock_service.get_companies_by_industry_code(
+        industry_code=industry_code,
         page=page,
         page_size=page_size,
     )

@@ -86,6 +86,7 @@ class ScreenerRequest(BaseModel):
 class ScreenerStock(BaseModel):
     symbol: str
     name: Optional[str]
+    exchange: Optional[str] = None
     price: float
     change_percent: float
     volume: int

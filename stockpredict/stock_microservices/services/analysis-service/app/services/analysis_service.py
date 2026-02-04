@@ -327,18 +327,53 @@ class AnalysisService:
             stocks = [ScreenerStock(**s) for s in cached.results[offset:offset + limit]]
             return ScreenerResponse(total=cached.total_matches, stocks=stocks, generated_at=cached.created_at)
 
-        # Fetch all stocks from stock-data-service
+        # Fetch stocks from stock-data-service priceboards endpoint
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{settings.STOCK_DATA_SERVICE_URL}/{settings.API_PREFIX}/api/v2/stocks/screener",
-                    params={"limit": 500},
-                    timeout=60.0
-                )
-                if response.status_code != 200:
-                    return ScreenerResponse(total=0, stocks=[], generated_at=datetime.now())
+                # Get data from multiple stock groups for comprehensive coverage
+                all_stocks = []
+                groups = ["VN30", "VN100", "HOSE", "HNX"]
 
-                stocks_data = response.json().get("stocks", [])
+                for group in groups:
+                    response = await client.get(
+                        f"{settings.STOCK_DATA_SERVICE_URL}/{settings.API_PREFIX}/api/v2/priceboards",
+                        params={"group": group},
+                        timeout=60.0
+                    )
+                    if response.status_code == 200:
+                        group_stocks = response.json()
+                        if isinstance(group_stocks, list):
+                            all_stocks.extend(group_stocks)
+
+                # Remove duplicates by symbol
+                seen_symbols = set()
+                # Map exchange codes to standard names
+                exchange_map = {"HSX": "HOSE", "HNX": "HNX", "UPCOM": "UPCOM"}
+
+                stocks_data = []
+                for stock in all_stocks:
+                    symbol = stock.get("symbol")
+                    if symbol and symbol not in seen_symbols:
+                        seen_symbols.add(symbol)
+                        # Map priceboards fields to screener fields
+                        raw_exchange = stock.get("exchange", "")
+                        mapped_exchange = exchange_map.get(raw_exchange, raw_exchange)
+                        stocks_data.append({
+                            "symbol": symbol,
+                            "name": stock.get("name", symbol),
+                            "price": stock.get("matchPrice", 0),
+                            "change_percent": stock.get("changePercent", 0),
+                            "volume": stock.get("totalQty", 0),
+                            "market_cap": stock.get("market_cap"),
+                            "exchange": mapped_exchange,
+                            "pe_ratio": stock.get("pe_ratio"),
+                            "rsi": stock.get("rsi"),
+                            "signal": stock.get("signal")
+                        })
+
+                if not stocks_data:
+                    logger.warning("No stocks data fetched from priceboards")
+                    return ScreenerResponse(total=0, stocks=[], generated_at=datetime.now())
 
                 # Apply filters
                 filtered = self._apply_filters(stocks_data, filters)
@@ -355,6 +390,7 @@ class AnalysisService:
                 stocks = [ScreenerStock(
                     symbol=s.get("symbol", ""),
                     name=s.get("name"),
+                    exchange=s.get("exchange"),
                     price=s.get("price", 0),
                     change_percent=s.get("change_percent", 0),
                     volume=s.get("volume", 0),

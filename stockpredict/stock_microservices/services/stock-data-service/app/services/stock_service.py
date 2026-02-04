@@ -21,6 +21,7 @@ from app.models.schemas import (
     SearchResult,
     MarketIndexResponse,
     IndustryResponse,
+    PaginatedResponse,
 )
 from app.repositories.stock_repository import StockRepository
 
@@ -60,6 +61,37 @@ class StockService:
             exchange=exchange,
             industry_id=industry_id,
         )
+
+        # If database is empty, fallback to live data from vnstock
+        if total == 0 and not exchange and not industry_id:
+            logger.info("Database empty, fetching live company data from vnstock")
+            live_companies = await self.get_all_companies_live()
+            total = len(live_companies)
+            total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+
+            # Paginate live data
+            paginated = live_companies[skip:skip + page_size]
+
+            responses = [
+                CompanyResponse(
+                    id=0,
+                    symbol=c.symbol,
+                    name=c.name,
+                    name_en=None,
+                    exchange=c.exchange,
+                    industry_id=None,
+                    industry_name=None,
+                    listing_date=None,
+                    outstanding_shares=None,
+                    market_cap=None,
+                    website=None,
+                    description=None,
+                    is_active=True,
+                    is_tradeable=True,
+                )
+                for c in paginated
+            ]
+            return responses, total, total_pages
 
         total_pages = (total + page_size - 1) // page_size
 
@@ -352,6 +384,11 @@ class StockService:
         """Get top gaining stocks"""
         results = await self.repository.get_top_gainers(limit)
 
+        # If database is empty, fallback to live data
+        if not results:
+            logger.info("Database empty, fetching live top gainers from price board")
+            return await self._get_top_movers_live(limit=limit, sort_by="gainers")
+
         return [
             TopMoverResponse(
                 symbol=company.symbol,
@@ -368,6 +405,11 @@ class StockService:
     async def get_top_losers(self, limit: int = 10) -> List[TopMoverResponse]:
         """Get top losing stocks"""
         results = await self.repository.get_top_losers(limit)
+
+        # If database is empty, fallback to live data
+        if not results:
+            logger.info("Database empty, fetching live top losers from price board")
+            return await self._get_top_movers_live(limit=limit, sort_by="losers")
 
         return [
             TopMoverResponse(
@@ -386,6 +428,11 @@ class StockService:
         """Get most active stocks by volume"""
         results = await self.repository.get_top_volume(limit)
 
+        # If database is empty, fallback to live data
+        if not results:
+            logger.info("Database empty, fetching live most active from price board")
+            return await self._get_top_movers_live(limit=limit, sort_by="volume")
+
         return [
             TopMoverResponse(
                 symbol=company.symbol,
@@ -399,11 +446,103 @@ class StockService:
             for company, price in results
         ]
 
+    async def _get_top_movers_live(self, limit: int = 10, sort_by: str = "gainers") -> List[TopMoverResponse]:
+        """
+        Get top movers from live price board data.
+
+        Args:
+            limit: Number of results to return
+            sort_by: "gainers" for top gainers, "losers" for top losers, "volume" for most active
+        """
+        try:
+            # Fetch price board for VN100 to get a broader market view
+            price_data = await self.get_price_board(group="VN100")
+
+            if not price_data:
+                # Fallback to VN30 if VN100 fails
+                price_data = await self.get_price_board(group="VN30")
+
+            if not price_data:
+                logger.warning("No price board data available")
+                return []
+
+            # Get company names for enrichment
+            company_names = {}
+            try:
+                stock = self.vnstock.stock(symbol="VNM", source=settings.VNSTOCK_DATA_SOURCE)
+                all_symbols_df = stock.listing.all_symbols()
+                if all_symbols_df is not None and not all_symbols_df.empty:
+                    for _, row in all_symbols_df.iterrows():
+                        symbol = row.get("symbol", "")
+                        name = row.get("organ_name", row.get("organName", ""))
+                        if symbol and name:
+                            company_names[symbol] = name
+            except Exception as e:
+                logger.warning(f"Could not load company names: {e}")
+
+            # Filter out entries without valid price data
+            valid_data = [
+                item for item in price_data
+                if item.get("matchPrice") and item.get("changePercent") is not None
+            ]
+
+            # Sort based on criteria
+            if sort_by == "gainers":
+                # Sort by change percent descending, filter positive changes
+                sorted_data = sorted(
+                    [d for d in valid_data if (d.get("changePercent") or 0) > 0],
+                    key=lambda x: x.get("changePercent", 0),
+                    reverse=True
+                )
+            elif sort_by == "losers":
+                # Sort by change percent ascending, filter negative changes
+                sorted_data = sorted(
+                    [d for d in valid_data if (d.get("changePercent") or 0) < 0],
+                    key=lambda x: x.get("changePercent", 0),
+                    reverse=False
+                )
+            else:  # volume
+                # Sort by total volume descending
+                sorted_data = sorted(
+                    valid_data,
+                    key=lambda x: x.get("totalQty", 0) or 0,
+                    reverse=True
+                )
+
+            # Take top N results
+            top_results = sorted_data[:limit]
+
+            # Convert to TopMoverResponse
+            movers = []
+            for item in top_results:
+                symbol = item.get("symbol", "")
+                movers.append(TopMoverResponse(
+                    symbol=symbol,
+                    name=company_names.get(symbol, symbol),
+                    exchange=item.get("exchange", "HOSE"),
+                    close=item.get("matchPrice", 0),
+                    change=item.get("change", 0) or 0,
+                    change_percent=item.get("changePercent", 0) or 0,
+                    volume=item.get("totalQty", 0) or 0,
+                ))
+
+            logger.info(f"Fetched {len(movers)} {sort_by} from live price board")
+            return movers
+
+        except Exception as e:
+            logger.error(f"Error fetching top movers from live data: {e}")
+            return []
+
     # ==================== Industry Operations ====================
 
     async def get_all_industries(self) -> List[IndustryResponse]:
         """Get all industries"""
         industries = await self.repository.get_all_industries()
+
+        # If database is empty, fallback to live data from vnstock
+        if not industries:
+            logger.info("Database empty, fetching live industry data from vnstock")
+            return await self.get_all_industries_live()
 
         return [
             IndustryResponse(
@@ -416,6 +555,100 @@ class StockService:
             )
             for i in industries
         ]
+
+    async def get_all_industries_live(self) -> List[IndustryResponse]:
+        """
+        Get all industries from vnstock (live data).
+        Uses symbols_by_industries() to extract unique industries since
+        industries_icb() is not available for all data sources.
+        """
+        try:
+            stock = self.vnstock.stock(symbol="VNM", source=settings.VNSTOCK_DATA_SOURCE)
+
+            # Try industries_icb() first, fallback to symbols_by_industries()
+            try:
+                df = stock.listing.industries_icb()
+                if df is not None and not df.empty:
+                    industries = []
+                    for idx, row in df.iterrows():
+                        industry = IndustryResponse(
+                            id=idx + 1,
+                            code=str(row.get("icb_code", row.get("icbCode", ""))),
+                            name=row.get("icb_name", row.get("icbName", "")),
+                            name_en=row.get("en_icb_name", row.get("enIcbName", None)),
+                            description=None,
+                            level=int(row.get("level", 1)) if row.get("level") is not None else 1,
+                        )
+                        industries.append(industry)
+                    logger.info(f"Fetched {len(industries)} industries from industries_icb()")
+                    return industries
+            except Exception as icb_error:
+                logger.warning(f"industries_icb() not available: {icb_error}, trying symbols_by_industries()")
+
+            # Fallback: Use symbols_by_industries() and extract unique industries
+            df = stock.listing.symbols_by_industries()
+
+            if df is None or df.empty:
+                logger.warning("No data returned from vnstock symbols_by_industries")
+                return []
+
+            # Log columns for debugging
+            logger.info(f"symbols_by_industries columns: {df.columns.tolist()}")
+
+            # Extract unique industries from the data
+            # Look for icb_code2/icb_name2 (level 2 industries) as they are broader categories
+            industries = []
+            seen_codes = set()
+
+            # Determine which columns to use for industry extraction
+            code_col = None
+            name_col = None
+            name_en_col = None
+
+            for col in ['industry_code', 'icb_code2', 'icb_code3', 'icb_code']:
+                if col in df.columns:
+                    code_col = col
+                    break
+
+            for col in ['industry_name', 'icb_name2', 'icb_name3', 'icb_name']:
+                if col in df.columns:
+                    name_col = col
+                    break
+
+            for col in ['industry_name_en', 'en_icb_name2', 'en_icb_name3', 'en_icb_name']:
+                if col in df.columns:
+                    name_en_col = col
+                    break
+
+            if code_col is None or name_col is None:
+                logger.warning(f"Could not find industry columns. Available: {df.columns.tolist()}")
+                return []
+
+            idx = 1
+            for _, row in df.iterrows():
+                code = str(row.get(code_col, ""))
+                if code and code not in seen_codes:
+                    seen_codes.add(code)
+                    industry = IndustryResponse(
+                        id=idx,
+                        code=code,
+                        name=row.get(name_col, ""),
+                        name_en=row.get(name_en_col, None) if name_en_col else None,
+                        description=None,
+                        level=2 if 'icb_code2' in code_col else 3,
+                    )
+                    industries.append(industry)
+                    idx += 1
+
+            # Sort by code
+            industries.sort(key=lambda x: x.code)
+
+            logger.info(f"Extracted {len(industries)} unique industries from symbols_by_industries()")
+            return industries
+
+        except Exception as e:
+            logger.error(f"Error fetching industries from vnstock: {e}")
+            return []
 
     async def get_companies_by_industry(
         self,
@@ -449,6 +682,206 @@ class StockService:
             )
             for c in companies
         ]
+
+    async def get_companies_by_industry_code(
+        self,
+        industry_code: str,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> PaginatedResponse[CompanyResponse]:
+        """
+        Get companies in an industry by ICB code.
+        Falls back to vnstock live data when database is empty.
+        """
+        # First try to get from database
+        skip = (page - 1) * page_size
+
+        # Try to find industry by code in database
+        industry = await self.repository.get_industry_by_code(industry_code)
+
+        if industry:
+            companies = await self.repository.get_companies_by_industry(
+                industry_id=industry.id,
+                skip=skip,
+                limit=page_size,
+            )
+            total = len(companies)  # This is simplified, ideally get count from repo
+            total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+
+            items = [
+                CompanyResponse(
+                    id=c.id,
+                    symbol=c.symbol,
+                    name=c.name,
+                    name_en=c.name_en,
+                    exchange=c.exchange,
+                    industry_id=c.industry_id,
+                    listing_date=c.listing_date,
+                    outstanding_shares=c.outstanding_shares,
+                    market_cap=c.market_cap,
+                    website=c.website,
+                    description=c.description,
+                    is_active=c.is_active,
+                    is_tradeable=c.is_tradeable,
+                )
+                for c in companies
+            ]
+
+            return PaginatedResponse(
+                items=items,
+                total=total,
+                page=page,
+                page_size=page_size,
+                total_pages=total_pages,
+            )
+
+        # Fallback to live data from vnstock
+        logger.info(f"Database empty for industry {industry_code}, fetching live data from vnstock")
+        return await self.get_companies_by_industry_code_live(
+            industry_code=industry_code,
+            page=page,
+            page_size=page_size,
+        )
+
+    async def get_companies_by_industry_code_live(
+        self,
+        industry_code: str,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> PaginatedResponse[CompanyResponse]:
+        """
+        Get companies by industry code from vnstock (live data).
+        Uses symbols_by_industries() method and enriches with company names from all_symbols().
+        """
+        try:
+            stock = self.vnstock.stock(symbol="VNM", source=settings.VNSTOCK_DATA_SOURCE)
+            df = stock.listing.symbols_by_industries()
+
+            if df is None or df.empty:
+                logger.warning("No data returned from vnstock symbols_by_industries")
+                return PaginatedResponse(
+                    items=[],
+                    total=0,
+                    page=page,
+                    page_size=page_size,
+                    total_pages=0,
+                )
+
+            # Log columns for debugging
+            logger.info(f"get_companies_by_industry_code_live columns: {df.columns.tolist()}")
+
+            # Filter by industry code - check various possible column names
+            icb_col = None
+            for col in ['industry_code', 'icb_code', 'icbCode', 'icb_code3', 'icb_code2', 'icb_code4']:
+                if col in df.columns:
+                    icb_col = col
+                    break
+
+            if icb_col is None:
+                logger.warning(f"Could not find ICB code column in dataframe. Columns: {df.columns.tolist()}")
+                return PaginatedResponse(
+                    items=[],
+                    total=0,
+                    page=page,
+                    page_size=page_size,
+                    total_pages=0,
+                )
+
+            # Filter by industry code (match start of code for hierarchical matching)
+            filtered_df = df[df[icb_col].astype(str).str.startswith(str(industry_code))]
+
+            if filtered_df.empty:
+                logger.warning(f"No companies found for industry code: {industry_code}")
+                return PaginatedResponse(
+                    items=[],
+                    total=0,
+                    page=page,
+                    page_size=page_size,
+                    total_pages=0,
+                )
+
+            total = len(filtered_df)
+            total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+
+            # Paginate
+            skip = (page - 1) * page_size
+            paginated_df = filtered_df.iloc[skip:skip + page_size]
+
+            # Try to get company names from all_symbols() for enrichment
+            company_names = {}
+            try:
+                all_symbols_df = stock.listing.all_symbols()
+                if all_symbols_df is not None and not all_symbols_df.empty:
+                    for _, sym_row in all_symbols_df.iterrows():
+                        symbol = sym_row.get("symbol", "")
+                        name = sym_row.get("organ_name", sym_row.get("organName", ""))
+                        if symbol and name:
+                            company_names[symbol] = name
+                    logger.info(f"Loaded {len(company_names)} company names for enrichment")
+            except Exception as e:
+                logger.warning(f"Could not load company names for enrichment: {e}")
+
+            # Determine column names for industry data
+            name_col = None
+            for col in ['industry_name', 'icb_name', 'icb_name2', 'icb_name3']:
+                if col in df.columns:
+                    name_col = col
+                    break
+
+            companies = []
+            for idx, row in paginated_df.iterrows():
+                symbol = row.get("symbol", row.get("ticker", ""))
+
+                # Get industry name from the available column
+                industry_name = row.get(name_col, "") if name_col else ""
+
+                # Get industry code value
+                ind_code = str(row.get(icb_col, "")) if icb_col else ""
+
+                # Get company name from enrichment data or use symbol
+                company_name = company_names.get(symbol, symbol)
+
+                company = CompanyResponse(
+                    id=0,
+                    symbol=symbol,
+                    name=company_name,
+                    name_en=None,
+                    exchange=row.get("exchange", None),
+                    industry_id=None,
+                    industry_name=industry_name,
+                    icb_name2=industry_name,  # Use same industry name for display
+                    icb_name3=ind_code,  # Show industry code in level 3
+                    icb_name4=None,
+                    com_type_code=row.get("com_type_code", None),
+                    listing_date=None,
+                    outstanding_shares=None,
+                    market_cap=None,
+                    website=None,
+                    description=None,
+                    is_active=True,
+                    is_tradeable=True,
+                )
+                companies.append(company)
+
+            logger.info(f"Fetched {len(companies)} companies for industry {industry_code} from vnstock")
+
+            return PaginatedResponse(
+                items=companies,
+                total=total,
+                page=page,
+                page_size=page_size,
+                total_pages=total_pages,
+            )
+
+        except Exception as e:
+            logger.error(f"Error fetching companies by industry from vnstock: {e}")
+            return PaginatedResponse(
+                items=[],
+                total=0,
+                page=page,
+                page_size=page_size,
+                total_pages=0,
+            )
 
     # ==================== Market Index Operations ====================
 

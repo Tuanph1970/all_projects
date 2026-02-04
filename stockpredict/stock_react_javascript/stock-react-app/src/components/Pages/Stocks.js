@@ -81,7 +81,6 @@ export const StockScreener = () => {
     min_price: '',
     max_price: '',
     min_volume: '',
-    min_market_cap: '',
     limit: 50
   });
   const [availableCriteria, setAvailableCriteria] = useState(null);
@@ -117,8 +116,8 @@ export const StockScreener = () => {
           parsedData = JSON.parse(result.data);
         }
 
-        // Validate and clean the data
-        const data = parsedData.data || parsedData || [];
+        // Validate and clean the data - API returns 'stocks' array
+        const data = parsedData.stocks || parsedData.data || parsedData || [];
 
         const cleanedData = data.map(stock => ({
           ...stock,
@@ -167,12 +166,52 @@ export const StockScreener = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const payload = Object.entries(criteria).reduce((acc, [key, value]) => {
-        if (value !== '') {
-          acc[key] = value;
-        }
-        return acc;
-      }, {});
+      // Build filters array in the format expected by backend ScreenerRequest
+      const filters = [];
+
+      // Exchange filter
+      if (criteria.exchange && criteria.exchange !== 'ALL') {
+        filters.push({
+          field: 'exchange',
+          operator: 'eq',
+          value: criteria.exchange
+        });
+      }
+
+      // Min price filter
+      if (criteria.min_price && criteria.min_price !== '') {
+        filters.push({
+          field: 'price',
+          operator: 'gte',
+          value: parseFloat(criteria.min_price)
+        });
+      }
+
+      // Max price filter
+      if (criteria.max_price && criteria.max_price !== '') {
+        filters.push({
+          field: 'price',
+          operator: 'lte',
+          value: parseFloat(criteria.max_price)
+        });
+      }
+
+      // Min volume filter
+      if (criteria.min_volume && criteria.min_volume !== '') {
+        filters.push({
+          field: 'volume',
+          operator: 'gte',
+          value: parseInt(criteria.min_volume)
+        });
+      }
+
+      const payload = {
+        filters: filters,
+        sort_by: 'symbol',
+        sort_order: 'asc',
+        limit: parseInt(criteria.limit) || 50,
+        offset: 0
+      };
 
       const result = await httpClient.post(API_ENDPOINTS.ANALYSIS_SCREENER, payload);
 
@@ -183,8 +222,8 @@ export const StockScreener = () => {
           parsedData = JSON.parse(result.data);
         }
 
-        // Validate and clean the data
-        const data = parsedData.data || parsedData || [];
+        // Validate and clean the data - API returns 'stocks' array
+        const data = parsedData.stocks || parsedData.data || parsedData || [];
 
         const cleanedData = data.map(stock => ({
           ...stock,
@@ -280,16 +319,6 @@ export const StockScreener = () => {
           </div>
 
           <div className="criteria-item">
-            <label>Vốn hóa tối thiểu</label>
-            <input
-              type="number"
-              value={criteria.min_market_cap}
-              onChange={(e) => handleCriteriaChange('min_market_cap', e.target.value)}
-              placeholder="0"
-            />
-          </div>
-
-          <div className="criteria-item">
             <label>Giới hạn</label>
             <input
               type="number"
@@ -322,7 +351,6 @@ export const StockScreener = () => {
                 <th className="th-exchange">Sàn</th>
                 <th className="th-price">Giá</th>
                 <th className="th-volume">Khối lượng</th>
-                <th className="th-marketcap">Vốn hóa</th>
                 <th className="th-change">Thay đổi %</th>
               </tr>
             </thead>
@@ -338,7 +366,6 @@ export const StockScreener = () => {
                   </td>
                   <td className="td-price">{stock.price !== null && stock.price !== undefined ? stock.price.toLocaleString() : 'N/A'}</td>
                   <td className="td-volume">{stock.volume !== null && stock.volume !== undefined ? stock.volume.toLocaleString() : 'N/A'}</td>
-                  <td className="td-marketcap">{stock.marketCap !== null && stock.marketCap !== undefined ? stock.marketCap.toLocaleString() : 'N/A'}</td>
                   <td className={`td-change ${stock.change !== null && stock.change >= 0 ? 'positive' : stock.change !== null && stock.change < 0 ? 'negative' : ''}`}>
                     {stock.change !== null && stock.change !== undefined
                       ? <span className="change-value">{stock.change >= 0 ? '▲' : '▼'} {Math.abs(stock.change).toFixed(2)}%</span>
@@ -407,7 +434,7 @@ export const StocksByIndustry = () => {
         }
 
         // Map field names similar to StockScreener
-        const data = parsedData.data || parsedData || [];
+        const data = parsedData.items || parsedData.data || parsedData || [];
 
         // Helper function to validate and clean numeric values
         const validateNumber = (value) => {
@@ -473,8 +500,8 @@ export const StocksByIndustry = () => {
           >
             <option value="">Chọn một ngành...</option>
             {industries.map((industry, index) => (
-              <option key={index} value={industry.icb_code || index}>
-                {industry.en_icb_name || industry.icb_name || `Industry ${index + 1}`}
+              <option key={index} value={industry.code || industry.icb_code || index}>
+                {industry.name_en || industry.en_icb_name || industry.name || industry.icb_name || `Industry ${index + 1}`}
               </option>
             ))}
           </select>

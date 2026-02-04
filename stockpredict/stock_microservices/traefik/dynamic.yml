@@ -18,7 +18,7 @@ http:
         - cors
 
     stock-data-service:
-      rule: "PathPrefix(`/stock_helper/api/v2/stocks`) || PathPrefix(`/stock_helper/api/v2/companies`) || PathPrefix(`/stock_helper/api/v2/market`)"
+      rule: "PathPrefix(`/stock_helper/api/v2/stocks`) || PathPrefix(`/stock_helper/api/v2/companies`) || PathPrefix(`/stock_helper/api/v2/market`) || PathPrefix(`/stock_helper/api/v2/industries`)"
       service: stock-data-service
       entryPoints:
         - web
@@ -40,7 +40,7 @@ http:
         - jwt-auth
 
     analysis-service:
-      rule: "PathPrefix(`/stock_helper/api/v2/analysis`) || PathPrefix(`/stock_helper/api/v2/industries`)"
+      rule: "PathPrefix(`/stock_helper/api/v2/analysis`)"
       service: analysis-service
       entryPoints:
         - web

@@ -63,26 +63,27 @@ const customStyles = {
 const columns = [
     {
         name: 'Mã CP',
-        selector: row => row.ticker,
+        selector: row => row.symbol || row.ticker,
         sortable: true,
         cell: row => (
-            <span className="symbol-cell symbol-active">{row.ticker}</span>
+            <span className="symbol-cell symbol-active">{row.symbol || row.ticker}</span>
         ),
     },
     {
         name: 'Tên công ty',
-        selector: row => row.short_name,
+        selector: row => row.name || row.short_name,
         sortable: true,
         cell: row => (
-            <span className="company-name-cell">{row.short_name}</span>
+            <span className="company-name-cell">{row.name || row.short_name}</span>
         ),
     },
     {
         name: 'Thay đổi',
-        selector: row => row.variation,
+        selector: row => row.change_percent || row.variation,
         sortable: true,
         cell: row => {
-            const variation = typeof row.variation === 'number' ? row.variation : parseFloat(row.variation) || 0;
+            const change = row.change_percent || row.variation || 0;
+            const variation = typeof change === 'number' ? change : parseFloat(change) || 0;
             const isPositive = variation >= 0;
             return (
                 <span className={`change-cell ${isPositive ? 'positive' : 'negative'}`}>
@@ -114,15 +115,14 @@ const columns = [
         right: true,
     },
     {
-        name: 'Vốn hóa',
-        selector: row => row.MarketCap,
+        name: 'Sàn GD',
+        selector: row => row.exchange,
         sortable: true,
         cell: row => (
-            <span className="marketcap-cell">
-                {typeof row.MarketCap === 'number' ? row.MarketCap.toLocaleString() : row.MarketCap}
+            <span className="exchange-cell">
+                {row.exchange || 'N/A'}
             </span>
         ),
-        right: true,
     },
 ];
 

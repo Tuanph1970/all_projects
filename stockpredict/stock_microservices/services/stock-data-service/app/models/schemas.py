@@ -38,9 +38,13 @@ class CompanyResponse(BaseModel):
     symbol: str
     name: str
     name_en: Optional[str] = None
-    exchange: str
+    exchange: Optional[str] = None
     industry_id: Optional[int] = None
     industry_name: Optional[str] = None
+    icb_name2: Optional[str] = None
+    icb_name3: Optional[str] = None
+    icb_name4: Optional[str] = None
+    com_type_code: Optional[str] = None
     listing_date: Optional[date] = None
     outstanding_shares: Optional[int] = None
     market_cap: Optional[int] = None
@@ -57,7 +61,7 @@ class CompanyListResponse(BaseModel):
     """Simplified company list response"""
     symbol: str
     name: str
-    exchange: str
+    exchange: Optional[str] = None
     industry_name: Optional[str] = None
 
 

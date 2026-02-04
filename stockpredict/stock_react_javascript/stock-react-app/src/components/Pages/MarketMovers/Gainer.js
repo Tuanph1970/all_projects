@@ -63,29 +63,32 @@ const customStyles = {
 const columns = [
     {
         name: 'Mã CP',
-        selector: row => row.ticker,
+        selector: row => row.symbol || row.ticker,
         sortable: true,
         cell: row => (
-            <span className="symbol-cell symbol-gainer">{row.ticker}</span>
+            <span className="symbol-cell symbol-gainer">{row.symbol || row.ticker}</span>
         ),
     },
     {
         name: 'Tên công ty',
-        selector: row => row.short_name,
+        selector: row => row.name || row.short_name,
         sortable: true,
         cell: row => (
-            <span className="company-name-cell">{row.short_name}</span>
+            <span className="company-name-cell">{row.name || row.short_name}</span>
         ),
     },
     {
         name: 'Thay đổi',
-        selector: row => row.variation,
+        selector: row => row.change_percent || row.variation,
         sortable: true,
-        cell: row => (
-            <span className="change-cell positive">
-                ▲ {typeof row.variation === 'number' ? row.variation.toFixed(2) : row.variation}%
-            </span>
-        ),
+        cell: row => {
+            const change = row.change_percent || row.variation || 0;
+            return (
+                <span className="change-cell positive">
+                    ▲ {typeof change === 'number' ? change.toFixed(2) : change}%
+                </span>
+            );
+        },
     },
     {
         name: 'Giá CP',
@@ -110,15 +113,14 @@ const columns = [
         right: true,
     },
     {
-        name: 'Vốn hóa',
-        selector: row => row.MarketCap,
+        name: 'Sàn GD',
+        selector: row => row.exchange,
         sortable: true,
         cell: row => (
-            <span className="marketcap-cell">
-                {typeof row.MarketCap === 'number' ? row.MarketCap.toLocaleString() : row.MarketCap}
+            <span className="exchange-cell">
+                {row.exchange || 'N/A'}
             </span>
         ),
-        right: true,
     },
 ];
 
