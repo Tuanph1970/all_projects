@@ -69,7 +69,7 @@ export const API_ENDPOINTS = {
   // ==========================================
   // STOCK DATA SERVICE ENDPOINTS (/api/v2/stocks, /api/v2/companies)
   // ==========================================
-  STOCK_SEARCH: `${API_BASE_URLS.STOCK_API}/search`,
+  STOCK_SEARCH: `${API_BASE_URLS.STOCK_API}/stocks/search`,
   STOCK_DETAIL: (symbol) => `${API_BASE_URLS.STOCK_API}/${symbol}`,
   STOCK_HISTORY: (symbol) => `${API_BASE_URLS.STOCK_API}/${symbol}/history`,
 
@@ -226,6 +226,7 @@ export const API_ENDPOINTS = {
   AI_MARKET_OVERVIEW: `${API_BASE_URLS.AI_API}/market-overview`,
   AI_BATCH: `${API_BASE_URLS.AI_API}/batch`,
   AI_TRENDING: `${API_BASE_URLS.AI_API}/trending`,
+  AI_RECOMMENDATIONS: `${API_BASE_URLS.AI_API}/recommendations`,
   AI_PORTFOLIO_INSIGHTS: `${API_BASE_URLS.AI_API}/portfolio-insight`,
   AI_SECTORS: `${API_BASE_URLS.AI_API}/sectors`,
   AI_CAPABILITIES: `${API_BASE_URLS.AI_API}/capabilities`,

@@ -184,15 +184,15 @@ async def compare_stocks(
                 stocks.append(StockComparisonItem(
                     symbol=symbol.upper(),
                     name=fundamental.company_name,
-                    price=technical.current_price,
-                    change_percent=0.0,  # Would come from quote
+                    price=technical.current_price.price if technical.current_price else 0,
+                    change_percent=technical.current_price.change_percent if technical.current_price else 0.0,
                     technical_score=technical.technical_score,
                     fundamental_score=fundamental.fundamental_score,
                     overall_signal=technical.overall_signal,
                     metrics={
                         "rsi": next((i.value for i in technical.indicators if i.name == "RSI"), None),
-                        "pe_ratio": next((m.value for m in fundamental.valuation if m.name == "P/E"), None),
-                        "roe": next((m.value for m in fundamental.profitability if m.name == "ROE"), None),
+                        "pe_ratio": fundamental.financial_ratios.pe if fundamental.financial_ratios else None,
+                        "roe": fundamental.financial_ratios.roe if fundamental.financial_ratios else None,
                     }
                 ))
         except Exception:
@@ -385,9 +385,9 @@ async def get_quick_summary(
     return QuickSummaryResponse(
         symbol=symbol.upper(),
         name=fundamental.company_name if fundamental else None,
-        price=technical.current_price,
-        change_percent=0.0,
-        volume=0,
+        price=technical.current_price.price if technical.current_price else 0,
+        change_percent=technical.current_price.change_percent if technical.current_price else 0.0,
+        volume=technical.current_price.volume or 0 if technical.current_price else 0,
         technical_signal=technical.overall_signal,
         technical_score=technical.technical_score,
         fundamental_rating=fundamental.overall_rating if fundamental else "N/A",

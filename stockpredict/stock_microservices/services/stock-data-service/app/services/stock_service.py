@@ -22,6 +22,12 @@ from app.models.schemas import (
     MarketIndexResponse,
     IndustryResponse,
     PaginatedResponse,
+    CompanyFinancialsResponse,
+    FinancialRatiosData,
+    GrowthMetricsData,
+    IncomeStatementData,
+    BalanceSheetData,
+    CashFlowData,
 )
 from app.repositories.stock_repository import StockRepository
 
@@ -277,48 +283,127 @@ class StockService:
         end_date: Optional[date] = None,
     ) -> Optional[HistoricalDataResponse]:
         """Get historical price data for a symbol"""
-        company = await self.repository.get_company_by_symbol(symbol)
-        if not company:
-            return None
-
         # Default to last 1 year
         if not end_date:
             end_date = date.today()
         if not start_date:
             start_date = end_date - timedelta(days=365)
 
-        prices = await self.repository.get_historical_prices(
-            company_id=company.id,
-            start_date=start_date,
-            end_date=end_date,
-        )
+        company = await self.repository.get_company_by_symbol(symbol)
 
-        # Sort by date ascending
-        prices.sort(key=lambda x: x.date)
-
-        price_responses = [
-            StockPriceResponse(
-                date=p.date,
-                open=p.open,
-                high=p.high,
-                low=p.low,
-                close=p.close,
-                volume=p.volume,
-                value=p.value,
-                adj_close=p.adj_close,
-                change=p.change,
-                change_percent=p.change_percent,
+        if company:
+            # Try to get from database first
+            prices = await self.repository.get_historical_prices(
+                company_id=company.id,
+                start_date=start_date,
+                end_date=end_date,
             )
-            for p in prices
-        ]
 
-        return HistoricalDataResponse(
-            symbol=company.symbol,
-            name=company.name,
-            exchange=company.exchange,
-            data=price_responses,
-            count=len(price_responses),
-        )
+            if prices:
+                # Sort by date ascending
+                prices.sort(key=lambda x: x.date)
+
+                price_responses = [
+                    StockPriceResponse(
+                        date=p.date,
+                        open=p.open,
+                        high=p.high,
+                        low=p.low,
+                        close=p.close,
+                        volume=p.volume,
+                        value=p.value,
+                        adj_close=p.adj_close,
+                        change=p.change,
+                        change_percent=p.change_percent,
+                    )
+                    for p in prices
+                ]
+
+                return HistoricalDataResponse(
+                    symbol=company.symbol,
+                    name=company.name,
+                    exchange=company.exchange,
+                    data=price_responses,
+                    count=len(price_responses),
+                )
+
+        # Fallback: Fetch live data directly from vnstock
+        logger.info(f"Database empty for {symbol}, fetching live historical data from vnstock")
+        return await self._get_historical_data_live(symbol, start_date, end_date)
+
+    async def _get_historical_data_live(
+        self,
+        symbol: str,
+        start_date: date,
+        end_date: date,
+    ) -> Optional[HistoricalDataResponse]:
+        """
+        Fetch historical data directly from vnstock API.
+        Used as fallback when database is empty.
+        """
+        try:
+            stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
+            df = stock.quote.history(
+                start=start_date.strftime("%Y-%m-%d"),
+                end=end_date.strftime("%Y-%m-%d"),
+            )
+
+            if df is None or df.empty:
+                logger.warning(f"No historical data returned from vnstock for {symbol}")
+                return None
+
+            # Get company name from listing data
+            company_name = symbol.upper()
+            try:
+                all_symbols_df = stock.listing.all_symbols()
+                if all_symbols_df is not None and not all_symbols_df.empty:
+                    match = all_symbols_df[all_symbols_df["symbol"] == symbol.upper()]
+                    if not match.empty:
+                        company_name = match.iloc[0].get("organ_name", match.iloc[0].get("organName", symbol.upper()))
+            except Exception as e:
+                logger.warning(f"Could not fetch company name for {symbol}: {e}")
+
+            # Convert DataFrame to StockPriceResponse list
+            price_responses = []
+            for _, row in df.iterrows():
+                # Handle different date column names
+                row_date = row.get("time", row.name)
+                if hasattr(row_date, "date"):
+                    row_date = row_date.date()
+                elif isinstance(row_date, str):
+                    row_date = datetime.strptime(row_date, "%Y-%m-%d").date()
+
+                price_responses.append(
+                    StockPriceResponse(
+                        date=row_date,
+                        open=float(row.get("open", 0)),
+                        high=float(row.get("high", 0)),
+                        low=float(row.get("low", 0)),
+                        close=float(row.get("close", 0)),
+                        volume=int(row.get("volume", 0)),
+                        value=None,
+                        adj_close=None,
+                        change=None,
+                        change_percent=None,
+                    )
+                )
+
+            # Sort by date ascending
+            price_responses.sort(key=lambda x: x.date)
+
+            logger.info(f"Fetched {len(price_responses)} historical records from vnstock for {symbol}")
+
+            return HistoricalDataResponse(
+                symbol=symbol.upper(),
+                name=company_name,
+                exchange=None,
+                data=price_responses,
+                count=len(price_responses),
+            )
+
+        except Exception as e:
+            logger.error(f"Error fetching historical data from vnstock for {symbol}: {e}")
+            return None
 
     async def fetch_and_save_historical_data(
         self,
@@ -1057,3 +1142,276 @@ class StockService:
         except Exception as e:
             logger.error(f"Error fetching price board for group {group}: {e}")
             return []
+
+    # ==================== Financial Data Operations ====================
+
+    async def get_company_financials(self, symbol: str) -> Optional[CompanyFinancialsResponse]:
+        """
+        Get financial ratios and metrics for a company from vnstock.
+
+        Args:
+            symbol: Stock symbol (e.g., TCB, VNM)
+
+        Returns:
+            CompanyFinancialsResponse with financial ratios and metrics
+        """
+        try:
+            stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
+
+            # Get company name
+            company_name = symbol.upper()
+            try:
+                all_symbols_df = stock.listing.all_symbols()
+                if all_symbols_df is not None and not all_symbols_df.empty:
+                    match = all_symbols_df[all_symbols_df["symbol"] == symbol.upper()]
+                    if not match.empty:
+                        company_name = match.iloc[0].get("organ_name", match.iloc[0].get("organName", symbol.upper()))
+            except Exception as e:
+                logger.warning(f"Could not fetch company name for {symbol}: {e}")
+
+            # Initialize response with defaults
+            financials = CompanyFinancialsResponse(
+                symbol=symbol.upper(),
+                company_name=company_name,
+            )
+
+            # Initialize nested structures
+            financial_ratios = FinancialRatiosData()
+            growth_metrics = GrowthMetricsData()
+            income_statement = IncomeStatementData()
+            balance_sheet = BalanceSheetData()
+            cash_flow = CashFlowData()
+
+            # Try to get financial ratios from vnstock
+            try:
+                ratio_df = stock.finance.ratio(period="quarter", lang="en")
+
+                if ratio_df is not None and not ratio_df.empty:
+                    latest = ratio_df.iloc[0] if len(ratio_df) > 0 else None
+
+                    if latest is not None:
+                        # Extract ratios
+                        pe = self._get_multilevel_value(latest, 'P/E')
+                        pb = self._get_multilevel_value(latest, 'P/B')
+                        ps = self._get_multilevel_value(latest, 'P/S')
+                        roe = self._get_multilevel_value(latest, 'ROE (%)')
+                        roa = self._get_multilevel_value(latest, 'ROA (%)')
+                        eps = self._get_multilevel_value(latest, 'EPS (VND)')
+                        bvps = self._get_multilevel_value(latest, 'BVPS (VND)')
+                        de = self._get_multilevel_value(latest, 'Debt/Equity')
+                        npm = self._get_multilevel_value(latest, 'Net Profit Margin (%)')
+                        mcap = self._get_multilevel_value(latest, 'Market Capital (Bn. VND)')
+
+                        # Convert to percentage if needed
+                        if roe is not None and roe < 1:
+                            roe = roe * 100
+                        if roa is not None and roa < 1:
+                            roa = roa * 100
+                        if npm is not None and npm < 1:
+                            npm = npm * 100
+
+                        # Set flat fields
+                        financials.pe_ratio = pe
+                        financials.pb_ratio = pb
+                        financials.ps_ratio = ps
+                        financials.roe = roe
+                        financials.roa = roa
+                        financials.eps = eps
+                        financials.book_value_per_share = bvps
+                        financials.debt_to_equity = de
+                        financials.profit_margin = npm
+                        financials.market_cap = mcap
+
+                        # Set nested financial_ratios
+                        financial_ratios.pe = pe
+                        financial_ratios.pb = pb
+                        financial_ratios.ps = ps
+                        financial_ratios.roe = roe
+                        financial_ratios.roa = roa
+                        financial_ratios.debtToEquity = de
+                        financial_ratios.netMargin = npm
+
+                        # Set EPS in income statement
+                        income_statement.eps = eps
+
+                        logger.info(f"Fetched financial ratios for {symbol}: PE={pe}, ROE={roe}")
+
+            except Exception as ratio_error:
+                logger.warning(f"Could not fetch financial ratios for {symbol}: {ratio_error}")
+
+            # Try to get income statement for revenue, net income, and growth
+            try:
+                is_df = stock.finance.income_statement(period="quarter", lang="en")
+
+                if is_df is not None and not is_df.empty and len(is_df) > 0:
+                    latest_is = is_df.iloc[0]
+
+                    # Get revenue and income data
+                    revenue = self._get_simple_value(latest_is, 'Revenue (Bn. VND)')
+                    net_income = self._get_simple_value(latest_is, 'Attribute to parent company (Bn. VND)')
+                    revenue_yoy = self._get_simple_value(latest_is, 'Revenue YoY (%)')
+                    earnings_yoy = self._get_simple_value(latest_is, 'Attribute to parent company YoY (%)')
+
+                    # Convert YoY to percentage
+                    if revenue_yoy is not None:
+                        revenue_yoy = revenue_yoy * 100 if abs(revenue_yoy) < 10 else revenue_yoy
+                    if earnings_yoy is not None:
+                        earnings_yoy = earnings_yoy * 100 if abs(earnings_yoy) < 10 else earnings_yoy
+
+                    # Set income statement
+                    income_statement.revenue = revenue
+                    income_statement.netIncome = net_income
+
+                    # Set growth metrics
+                    growth_metrics.revenueGrowth = revenue_yoy
+                    growth_metrics.earningsGrowth = earnings_yoy
+                    financials.revenue_growth = revenue_yoy
+                    financials.earnings_growth = earnings_yoy
+
+                    logger.info(f"Fetched income statement for {symbol}: Revenue={revenue}, NetIncome={net_income}")
+
+            except Exception as is_error:
+                logger.warning(f"Could not fetch income statement for {symbol}: {is_error}")
+
+            # Try to get balance sheet for assets, liabilities, equity
+            try:
+                bs_df = stock.finance.balance_sheet(period="quarter", lang="en")
+
+                if bs_df is not None and not bs_df.empty and len(bs_df) > 0:
+                    latest_bs = bs_df.iloc[0]
+
+                    total_assets = self._get_simple_value(latest_bs, 'TOTAL ASSETS (Bn. VND)')
+                    cash = self._get_simple_value(latest_bs, 'Cash and cash equivalents (Bn. VND)')
+
+                    # For banks, liabilities = total assets - equity (need to find equity column)
+                    # Look for equity and liabilities columns
+                    total_equity = None
+                    total_liabilities = None
+
+                    # Try different column names for equity
+                    for col in latest_bs.index:
+                        col_str = str(col).lower()
+                        if 'equity' in col_str and 'total' in col_str:
+                            total_equity = self._get_simple_value(latest_bs, col)
+                            break
+                        elif "owner" in col_str and "equity" in col_str:
+                            total_equity = self._get_simple_value(latest_bs, col)
+
+                    # Calculate liabilities if we have assets and equity
+                    if total_assets and total_equity:
+                        total_liabilities = total_assets - total_equity
+
+                    balance_sheet.totalAssets = total_assets
+                    balance_sheet.totalLiabilities = total_liabilities
+                    balance_sheet.totalEquity = total_equity
+                    balance_sheet.cash = cash
+
+                    logger.info(f"Fetched balance sheet for {symbol}: Assets={total_assets}, Cash={cash}")
+
+            except Exception as bs_error:
+                logger.warning(f"Could not fetch balance sheet for {symbol}: {bs_error}")
+
+            # Try to get cash flow statement
+            try:
+                cf_df = stock.finance.cash_flow(period="quarter", lang="en")
+
+                if cf_df is not None and not cf_df.empty and len(cf_df) > 0:
+                    latest_cf = cf_df.iloc[0]
+
+                    operating_cf = self._get_simple_value(latest_cf, 'Net Cash Flows from Operating Activities before BIT')
+                    investing_cf = self._get_simple_value(latest_cf, 'Net Cash Flows from Investing Activities')
+                    financing_cf = self._get_simple_value(latest_cf, 'Cash flows from financial activities')
+                    net_cf = self._get_simple_value(latest_cf, 'Net increase/decrease in cash and cash equivalents')
+
+                    cash_flow.operatingCashFlow = operating_cf
+                    cash_flow.investingCashFlow = investing_cf
+                    cash_flow.financingCashFlow = financing_cf
+                    cash_flow.netCashFlow = net_cf
+
+                    # Calculate free cash flow (Operating - CapEx)
+                    capex = self._get_simple_value(latest_cf, 'Purchase of fixed assets')
+                    if operating_cf is not None and capex is not None:
+                        cash_flow.freeCashFlow = operating_cf + capex  # capex is negative
+
+                    logger.info(f"Fetched cash flow for {symbol}: Operating={operating_cf}, Net={net_cf}")
+
+            except Exception as cf_error:
+                logger.warning(f"Could not fetch cash flow for {symbol}: {cf_error}")
+
+            # Set nested structures
+            financials.financial_ratios = financial_ratios
+            financials.growth_metrics = growth_metrics
+            financials.income_statement = income_statement
+            financials.balance_sheet = balance_sheet
+            financials.cash_flow = cash_flow
+
+            return financials
+
+        except Exception as e:
+            logger.error(f"Error fetching financials for {symbol}: {e}")
+            return None
+
+    def _get_ratio_value(self, row: pd.Series, possible_names: list) -> Optional[float]:
+        """
+        Helper to extract a ratio value from a DataFrame row.
+        Tries multiple possible column names.
+        """
+        for name in possible_names:
+            if name in row.index:
+                value = row[name]
+                if pd.notna(value):
+                    try:
+                        return float(value)
+                    except (ValueError, TypeError):
+                        continue
+        return None
+
+    def _get_multilevel_value(self, row: pd.Series, metric_name: str) -> Optional[float]:
+        """
+        Helper to extract a value from a DataFrame row with multi-level columns.
+        vnstock uses tuple column names like ('Category', 'Metric Name').
+        """
+        for col in row.index:
+            # Handle tuple column names
+            if isinstance(col, tuple):
+                if metric_name in col[1] or col[1] == metric_name:
+                    value = row[col]
+                    if pd.notna(value):
+                        try:
+                            return float(value)
+                        except (ValueError, TypeError):
+                            continue
+            # Handle simple column names
+            elif col == metric_name or metric_name in str(col):
+                value = row[col]
+                if pd.notna(value):
+                    try:
+                        return float(value)
+                    except (ValueError, TypeError):
+                        continue
+        return None
+
+    def _get_simple_value(self, row: pd.Series, col_name: str) -> Optional[float]:
+        """
+        Helper to extract a value from a DataFrame row with simple column names.
+        Tries exact match first, then partial match.
+        """
+        # Try exact match
+        if col_name in row.index:
+            value = row[col_name]
+            if pd.notna(value):
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    pass
+
+        # Try partial match
+        for col in row.index:
+            if col_name.lower() in str(col).lower():
+                value = row[col]
+                if pd.notna(value):
+                    try:
+                        return float(value)
+                    except (ValueError, TypeError):
+                        continue
+        return None

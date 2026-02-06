@@ -26,10 +26,51 @@ class TechnicalIndicator(BaseModel):
     description: Optional[str] = None
 
 
+class CurrentPriceData(BaseModel):
+    """Current price data with OHLCV"""
+    price: float
+    open: Optional[float] = None
+    high: Optional[float] = None
+    low: Optional[float] = None
+    volume: Optional[int] = None
+    change: Optional[float] = None
+    change_percent: Optional[float] = None
+
+
+class MovingAverages(BaseModel):
+    """Moving averages data"""
+    SMA_20: Optional[float] = None
+    SMA_50: Optional[float] = None
+    SMA_200: Optional[float] = None
+    EMA_12: Optional[float] = None
+    EMA_26: Optional[float] = None
+
+
+class TradingAnalysis(BaseModel):
+    """Trading recommendation based on technical analysis"""
+    recommendation: str  # BUY, SELL, HOLD, STRONG_BUY, STRONG_SELL
+    score: float
+    confidence: float
+    reasons: List[str] = []
+
+
+class ChartData(BaseModel):
+    """Historical data for charts"""
+    dates: List[str]
+    prices: List[float]
+    volumes: List[int]
+    opens: List[float] = []
+    highs: List[float] = []
+    lows: List[float] = []
+
+
 class TechnicalAnalysisResponse(BaseModel):
     symbol: str
-    current_price: float
+    current_price: CurrentPriceData
     indicators: List[TechnicalIndicator]
+    moving_averages: Optional[MovingAverages] = None
+    trading_analysis: Optional[TradingAnalysis] = None
+    chart_data: Optional[ChartData] = None
     overall_signal: SignalType
     signal_strength: float
     technical_score: float
@@ -47,13 +88,88 @@ class FundamentalMetric(BaseModel):
     rating: Optional[str] = None
 
 
+class CompanyInfo(BaseModel):
+    """Company information for fundamental analysis"""
+    name: Optional[str] = None
+    marketCap: Optional[float] = None
+    industry: Optional[str] = None
+    sector: Optional[str] = None
+    exchange: Optional[str] = None
+
+
+class ValuationFactor(BaseModel):
+    """Valuation factor"""
+    factor: str
+    value: str
+    status: str
+
+
+class ValuationSummary(BaseModel):
+    """Valuation summary"""
+    status: str
+    score: float
+    factors: List[ValuationFactor] = []
+
+
+class FinancialRatios(BaseModel):
+    """Financial ratios"""
+    pe: Optional[float] = None
+    pb: Optional[float] = None
+    ps: Optional[float] = None
+    roe: Optional[float] = None
+    roa: Optional[float] = None
+    debtToEquity: Optional[float] = None
+    currentRatio: Optional[float] = None
+    quickRatio: Optional[float] = None
+    grossMargin: Optional[float] = None
+    operatingMargin: Optional[float] = None
+    netMargin: Optional[float] = None
+
+
+class GrowthMetrics(BaseModel):
+    """Growth metrics"""
+    revenueGrowth: Optional[float] = None
+    earningsGrowth: Optional[float] = None
+    epsGrowth: Optional[float] = None
+
+
+class IncomeStatement(BaseModel):
+    """Income statement data"""
+    revenue: Optional[float] = None
+    grossProfit: Optional[float] = None
+    operatingIncome: Optional[float] = None
+    netIncome: Optional[float] = None
+    eps: Optional[float] = None
+
+
+class BalanceSheet(BaseModel):
+    """Balance sheet data"""
+    totalAssets: Optional[float] = None
+    totalLiabilities: Optional[float] = None
+    totalEquity: Optional[float] = None
+    cash: Optional[float] = None
+    longTermDebt: Optional[float] = None
+
+
+class CashFlow(BaseModel):
+    """Cash flow data"""
+    operatingCashFlow: Optional[float] = None
+    investingCashFlow: Optional[float] = None
+    financingCashFlow: Optional[float] = None
+    freeCashFlow: Optional[float] = None
+    netCashFlow: Optional[float] = None
+
+
 class FundamentalAnalysisResponse(BaseModel):
     symbol: str
-    company_name: Optional[str]
-    valuation: List[FundamentalMetric]
-    profitability: List[FundamentalMetric]
-    growth: List[FundamentalMetric]
-    financial_health: List[FundamentalMetric]
+    company_name: Optional[str] = None
+    company_info: Optional[CompanyInfo] = None
+    valuation_summary: Optional[ValuationSummary] = None
+    financial_ratios: Optional[FinancialRatios] = None
+    growth_metrics: Optional[GrowthMetrics] = None
+    income_statement: Optional[IncomeStatement] = None
+    balance_sheet: Optional[BalanceSheet] = None
+    cash_flow: Optional[CashFlow] = None
     fundamental_score: float
     overall_rating: str
     generated_at: datetime

@@ -14,7 +14,10 @@ from app.models.domain import AnalysisType
 from app.models.schemas import (
     TechnicalAnalysisResponse, TechnicalIndicator, SignalType,
     FundamentalAnalysisResponse, FundamentalMetric,
-    ScreenerResponse, ScreenerStock, ScreenerFilter
+    ScreenerResponse, ScreenerStock, ScreenerFilter,
+    CurrentPriceData, MovingAverages, TradingAnalysis, ChartData,
+    CompanyInfo, ValuationSummary, ValuationFactor, FinancialRatios,
+    GrowthMetrics, IncomeStatement, BalanceSheet, CashFlow
 )
 
 settings = get_settings()
@@ -135,10 +138,33 @@ class AnalysisService:
         # Check cache
         cached = await self.repo.get_cached_analysis(symbol, AnalysisType.TECHNICAL)
         if cached:
+            cached_price = cached.sma_20 or 0
             return TechnicalAnalysisResponse(
                 symbol=symbol,
-                current_price=cached.sma_20 or 0,
+                current_price=CurrentPriceData(
+                    price=cached_price,
+                    open=None,
+                    high=None,
+                    low=None,
+                    volume=None,
+                    change=None,
+                    change_percent=None
+                ),
                 indicators=[],
+                moving_averages=MovingAverages(
+                    SMA_20=cached.sma_20,
+                    SMA_50=cached.sma_50,
+                    SMA_200=None,
+                    EMA_12=None,
+                    EMA_26=None
+                ),
+                trading_analysis=TradingAnalysis(
+                    recommendation=cached.overall_signal.upper() if cached.overall_signal else "HOLD",
+                    score=cached.technical_score or 0,
+                    confidence=cached.signal_strength or 0.5,
+                    reasons=[]
+                ),
+                chart_data=None,
                 overall_signal=SignalType(cached.overall_signal) if cached.overall_signal else SignalType.HOLD,
                 signal_strength=cached.signal_strength or 0.5,
                 technical_score=cached.technical_score or 0,
@@ -214,10 +240,78 @@ class AnalysisService:
             resistance_levels=resistances
         )
 
+        # Get latest OHLCV data
+        latest_row = df.iloc[-1]
+        open_price = float(latest_row.get("open", current_price)) if "open" in df.columns else None
+        high_price = float(latest_row.get("high", current_price)) if "high" in df.columns else None
+        low_price = float(latest_row.get("low", current_price)) if "low" in df.columns else None
+        volume = int(latest_row.get("volume", 0)) if "volume" in df.columns else None
+
+        # Calculate change
+        if len(df) >= 2:
+            prev_close = float(df.iloc[-2]["close"])
+            change = current_price - prev_close
+            change_percent = (change / prev_close) * 100 if prev_close != 0 else 0
+        else:
+            change = None
+            change_percent = None
+
+        # Calculate additional moving averages
+        sma_200 = float(prices.rolling(200).mean().iloc[-1]) if len(prices) >= 200 else None
+        ema_12 = float(prices.ewm(span=12).mean().iloc[-1])
+        ema_26 = float(prices.ewm(span=26).mean().iloc[-1])
+
+        # Build chart data
+        chart_data = ChartData(
+            dates=[d.strftime("%Y-%m-%d") for d in df["date"].tolist()],
+            prices=[float(p) for p in prices.tolist()],
+            volumes=[int(v) for v in df["volume"].tolist()] if "volume" in df.columns else [],
+            opens=[float(o) for o in df["open"].tolist()] if "open" in df.columns else [],
+            highs=[float(h) for h in df["high"].tolist()] if "high" in df.columns else [],
+            lows=[float(l) for l in df["low"].tolist()] if "low" in df.columns else []
+        )
+
+        # Build trading recommendation reasons
+        reasons = []
+        if rsi < 30:
+            reasons.append("RSI indicates oversold conditions")
+        elif rsi > 70:
+            reasons.append("RSI indicates overbought conditions")
+        if macd > macd_signal:
+            reasons.append("MACD bullish crossover")
+        else:
+            reasons.append("MACD bearish crossover")
+        if current_price > sma_20:
+            reasons.append("Price above 20-day SMA")
+        if current_price > sma_50:
+            reasons.append("Price above 50-day SMA")
+
         return TechnicalAnalysisResponse(
             symbol=symbol.upper(),
-            current_price=current_price,
+            current_price=CurrentPriceData(
+                price=round(current_price, 2),
+                open=round(open_price, 2) if open_price else None,
+                high=round(high_price, 2) if high_price else None,
+                low=round(low_price, 2) if low_price else None,
+                volume=volume,
+                change=round(change, 2) if change else None,
+                change_percent=round(change_percent, 2) if change_percent else None
+            ),
             indicators=indicators,
+            moving_averages=MovingAverages(
+                SMA_20=round(sma_20, 2),
+                SMA_50=round(sma_50, 2),
+                SMA_200=round(sma_200, 2) if sma_200 else None,
+                EMA_12=round(ema_12, 2),
+                EMA_26=round(ema_26, 2)
+            ),
+            trading_analysis=TradingAnalysis(
+                recommendation=signal.value.upper().replace("_", " "),
+                score=float(score),
+                confidence=round(strength, 2),
+                reasons=reasons
+            ),
+            chart_data=chart_data,
             overall_signal=signal,
             signal_strength=strength,
             technical_score=score,
@@ -237,42 +331,112 @@ class AnalysisService:
                     timeout=30.0
                 )
                 if response.status_code != 200:
+                    logger.warning(f"Failed to fetch financials for {symbol}: {response.status_code}")
                     return None
 
                 data = response.json()
 
-                valuation = [
-                    FundamentalMetric(name="P/E Ratio", value=data.get("pe_ratio"), rating=self._rate_pe(data.get("pe_ratio"))),
-                    FundamentalMetric(name="P/B Ratio", value=data.get("pb_ratio")),
-                    FundamentalMetric(name="EV/EBITDA", value=data.get("ev_ebitda")),
-                ]
+                # Build company info
+                company_info = CompanyInfo(
+                    name=data.get("company_name"),
+                    marketCap=data.get("market_cap"),
+                    industry=None,
+                    sector=None,
+                    exchange=None
+                )
 
-                profitability = [
-                    FundamentalMetric(name="ROE", value=data.get("roe"), rating=self._rate_roe(data.get("roe"))),
-                    FundamentalMetric(name="ROA", value=data.get("roa")),
-                    FundamentalMetric(name="Profit Margin", value=data.get("profit_margin")),
-                ]
-
-                growth = [
-                    FundamentalMetric(name="Revenue Growth", value=data.get("revenue_growth")),
-                    FundamentalMetric(name="Earnings Growth", value=data.get("earnings_growth")),
-                ]
-
-                financial_health = [
-                    FundamentalMetric(name="Current Ratio", value=data.get("current_ratio")),
-                    FundamentalMetric(name="Debt to Equity", value=data.get("debt_to_equity")),
-                ]
-
+                # Calculate valuation score and build valuation summary
                 score = self._calculate_fundamental_score(data)
                 rating = "undervalued" if score > 70 else ("overvalued" if score < 40 else "fair")
+
+                valuation_factors = []
+                pe = data.get("pe_ratio")
+                if pe is not None:
+                    pe_status = "undervalued" if pe < 15 else ("overvalued" if pe > 25 else "fair")
+                    valuation_factors.append(ValuationFactor(factor="P/E", value=f"{pe:.2f}", status=pe_status))
+
+                pb = data.get("pb_ratio")
+                if pb is not None:
+                    pb_status = "undervalued" if pb < 1.5 else ("overvalued" if pb > 3 else "fair")
+                    valuation_factors.append(ValuationFactor(factor="P/B", value=f"{pb:.2f}", status=pb_status))
+
+                roe = data.get("roe")
+                if roe is not None:
+                    roe_status = "strong" if roe > 15 else ("weak" if roe < 5 else "fair")
+                    valuation_factors.append(ValuationFactor(factor="ROE", value=f"{roe:.2f}%", status=roe_status))
+
+                valuation_summary = ValuationSummary(
+                    status=rating,
+                    score=score,
+                    factors=valuation_factors
+                )
+
+                # Get nested data from stock-data-service response
+                fr_data = data.get("financial_ratios") or {}
+                gm_data = data.get("growth_metrics") or {}
+                is_data = data.get("income_statement") or {}
+                bs_data = data.get("balance_sheet") or {}
+                cf_data = data.get("cash_flow") or {}
+
+                # Build financial ratios - use nested data if available, fallback to flat
+                financial_ratios = FinancialRatios(
+                    pe=fr_data.get("pe") or data.get("pe_ratio"),
+                    pb=fr_data.get("pb") or data.get("pb_ratio"),
+                    ps=fr_data.get("ps") or data.get("ps_ratio"),
+                    roe=fr_data.get("roe") or data.get("roe"),
+                    roa=fr_data.get("roa") or data.get("roa"),
+                    debtToEquity=fr_data.get("debtToEquity") or data.get("debt_to_equity"),
+                    currentRatio=fr_data.get("currentRatio") or data.get("current_ratio"),
+                    quickRatio=fr_data.get("quickRatio") or data.get("quick_ratio"),
+                    grossMargin=fr_data.get("grossMargin") or data.get("gross_margin"),
+                    operatingMargin=fr_data.get("operatingMargin") or data.get("operating_margin"),
+                    netMargin=fr_data.get("netMargin") or data.get("profit_margin")
+                )
+
+                # Build growth metrics
+                growth_metrics = GrowthMetrics(
+                    revenueGrowth=gm_data.get("revenueGrowth") or data.get("revenue_growth"),
+                    earningsGrowth=gm_data.get("earningsGrowth") or data.get("earnings_growth"),
+                    epsGrowth=gm_data.get("epsGrowth")
+                )
+
+                # Build income statement
+                income_statement = IncomeStatement(
+                    revenue=is_data.get("revenue"),
+                    grossProfit=is_data.get("grossProfit"),
+                    operatingIncome=is_data.get("operatingIncome"),
+                    netIncome=is_data.get("netIncome"),
+                    eps=is_data.get("eps") or data.get("eps")
+                )
+
+                # Build balance sheet
+                balance_sheet = BalanceSheet(
+                    totalAssets=bs_data.get("totalAssets"),
+                    totalLiabilities=bs_data.get("totalLiabilities"),
+                    totalEquity=bs_data.get("totalEquity"),
+                    cash=bs_data.get("cash"),
+                    longTermDebt=bs_data.get("longTermDebt")
+                )
+
+                # Build cash flow
+                cash_flow = CashFlow(
+                    operatingCashFlow=cf_data.get("operatingCashFlow"),
+                    investingCashFlow=cf_data.get("investingCashFlow"),
+                    financingCashFlow=cf_data.get("financingCashFlow"),
+                    freeCashFlow=cf_data.get("freeCashFlow"),
+                    netCashFlow=cf_data.get("netCashFlow")
+                )
 
                 return FundamentalAnalysisResponse(
                     symbol=symbol.upper(),
                     company_name=data.get("company_name"),
-                    valuation=valuation,
-                    profitability=profitability,
-                    growth=growth,
-                    financial_health=financial_health,
+                    company_info=company_info,
+                    valuation_summary=valuation_summary,
+                    financial_ratios=financial_ratios,
+                    growth_metrics=growth_metrics,
+                    income_statement=income_statement,
+                    balance_sheet=balance_sheet,
+                    cash_flow=cash_flow,
                     fundamental_score=score,
                     overall_rating=rating,
                     generated_at=datetime.now()

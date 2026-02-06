@@ -455,13 +455,15 @@ export const TechnicalAnalysis = () => {
   const prepareChartData = useCallback(() => {
     if (!analysisData?.chart_data) return [];
 
-    return analysisData.chart_data.dates.map((date, index) => ({
+    const { dates, prices, volumes, opens, highs, lows } = analysisData.chart_data;
+
+    return dates.map((date, index) => ({
       date: new Date(date),
-      open: analysisData.chart_data.prices[index] * (1 - Math.random() * 0.02),
-      high: analysisData.chart_data.prices[index] * (1 + Math.random() * 0.01),
-      low: analysisData.chart_data.prices[index] * (1 - Math.random() * 0.01),
-      close: analysisData.chart_data.prices[index],
-      volume: analysisData.chart_data.volumes[index] || 0
+      open: opens?.[index] ?? prices[index],
+      high: highs?.[index] ?? prices[index],
+      low: lows?.[index] ?? prices[index],
+      close: prices[index],
+      volume: volumes?.[index] ?? 0
     }));
   }, [analysisData]);
 

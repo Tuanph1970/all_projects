@@ -14,7 +14,11 @@ from app.models.schemas import (
     BatchInsightRequest, BatchInsightResponse, BatchInsightItem,
     TrendingResponse, TrendingTopic,
     PortfolioInsightRequest, PortfolioInsightResponse, HoldingInsight,
-    SectorsResponse, SectorInsight
+    SectorsResponse, SectorInsight,
+    # Comprehensive insights
+    AvailableIndicatorsResponse,
+    IndicatorDataRequest, IndicatorDataResponse,
+    ComprehensiveInsightsRequest, ComprehensiveInsightsResponse
 )
 
 router = APIRouter()
@@ -195,6 +199,20 @@ async def get_trending(
     )
 
 
+@router.get("/recommendations")
+@router.post("/recommendations")
+async def get_stock_recommendations(
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """
+    Get AI-powered stock recommendations based on real technical analysis.
+    Analyzes top market stocks and generates BUY/HOLD/SELL recommendations.
+    """
+    service = InsightsService()
+    recommendations = await service.get_stock_recommendations()
+    return {"recommendations": recommendations}
+
+
 @router.post("/portfolio-insight", response_model=PortfolioInsightResponse)
 async def get_portfolio_insight(
     data: PortfolioInsightRequest,
@@ -326,3 +344,90 @@ async def get_sectors_insight(
         market_rotation="Growth sectors favored, defensive sectors stable",
         generated_at=datetime.now()
     )
+
+
+# ==========================================
+# Comprehensive AI Insights Endpoints
+# ==========================================
+
+@router.get("/insights/indicators/available")
+@router.get("/insights/indicators/available/")
+async def get_available_indicators(
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """Get list of available technical indicators by category"""
+    service = InsightsService()
+    result = service.get_available_indicators()
+
+    # Format response for frontend compatibility
+    indicators_by_category = {}
+    for cat in result.categories:
+        indicators_by_category[cat.category] = cat.indicators
+
+    return {
+        "status": "success",
+        "data": {
+            "indicators_by_category": indicators_by_category,
+            "categories": [cat.model_dump() for cat in result.categories],
+            "total_indicators": result.total_indicators
+        }
+    }
+
+
+@router.post("/insights/indicators/data")
+@router.post("/insights/indicators/data/")
+async def get_indicator_data(
+    data: IndicatorDataRequest,
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """Get historical price data with calculated technical indicators"""
+    service = InsightsService()
+    result = await service.get_indicator_data(
+        symbol=data.symbol,
+        start_date=data.start_date,
+        end_date=data.end_date,
+        indicators=data.indicators
+    )
+
+    # Format response for frontend compatibility
+    return {
+        "status": result.status,
+        "symbol": result.symbol,
+        "data": [point.model_dump() for point in result.data],
+        "count": result.count
+    }
+
+
+@router.post("/insights/comprehensive")
+@router.post("/insights/comprehensive/")
+async def get_comprehensive_insights(
+    data: ComprehensiveInsightsRequest,
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """
+    Generate comprehensive AI insights based on real technical analysis.
+
+    Returns:
+    - AI Score (pattern, sentiment, risk, prediction components)
+    - Sentiment Analysis (based on technical indicators)
+    - Risk Assessment (volatility, VaR, risk factors)
+    - Pattern Recognition (detected chart patterns)
+    - Price Predictions (from ML models)
+    """
+    service = InsightsService()
+    result = await service.get_comprehensive_insights(
+        symbol=data.symbol,
+        start_date=data.start_date,
+        end_date=data.end_date,
+        indicators=data.selected_indicators
+    )
+
+    # Format response for frontend compatibility
+    return {
+        "status": result.status,
+        "data": {
+            "symbol": result.symbol,
+            "insights": result.insights.model_dump() if result.insights else None,
+            "generated_at": result.generated_at.isoformat()
+        }
+    }

@@ -17,6 +17,7 @@ from app.models.schemas import (
     PaginatedResponse,
     MessageResponse,
     ErrorResponse,
+    CompanyFinancialsResponse,
 )
 from app.services.stock_service import StockService
 from app.api.dependencies import get_stock_service
@@ -166,6 +167,32 @@ async def get_historical_data(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Company not found: {symbol}",
+        )
+    return data
+
+
+@router.get(
+    "/companies/{symbol}/financials",
+    response_model=CompanyFinancialsResponse,
+    responses={404: {"model": ErrorResponse}},
+    summary="Get company financial ratios",
+)
+async def get_company_financials(
+    symbol: str,
+    stock_service: StockService = Depends(get_stock_service),
+):
+    """
+    Get financial ratios and metrics for a company.
+
+    - **symbol**: Stock symbol (e.g., TCB, VNM, FPT)
+
+    Returns P/E, P/B, ROE, ROA, EPS, and other financial metrics.
+    """
+    data = await stock_service.get_company_financials(symbol=symbol)
+    if not data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Financial data not found for: {symbol}",
         )
     return data
 

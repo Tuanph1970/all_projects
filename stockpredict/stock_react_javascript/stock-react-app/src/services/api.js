@@ -244,7 +244,8 @@ export const authAPI = {
 export const stockAPI = {
   searchStock: async (query) => {
     try {
-      const response = await fetch(`${API_ENDPOINTS.STOCK_SEARCH}?query=${encodeURIComponent(query)}`, {
+      // Backend expects parameter 'q' not 'query'
+      const response = await fetch(`${API_ENDPOINTS.STOCK_SEARCH}?q=${encodeURIComponent(query)}`, {
         method: 'GET',
         headers: getAuthHeaders()
       });
@@ -257,15 +258,18 @@ export const stockAPI = {
       return data;
     } catch (error) {
       console.error('Error searching stocks:', error);
-      // Fallback to mock data if API fails
+      // Fallback to Vietnamese mock data if API fails
       const mockStocks = [
-        { symbol: 'AAPL', name: 'Apple Inc.', price: 175.43 },
-        { symbol: 'GOOGL', name: 'Alphabet Inc.', price: 2547.12 },
-        { symbol: 'MSFT', name: 'Microsoft Corporation', price: 338.54 },
-        { symbol: 'TSLA', name: 'Tesla Inc.', price: 242.68 },
-        { symbol: 'AMZN', name: 'Amazon.com Inc.', price: 3367.52 },
-        { symbol: 'NVDA', name: 'NVIDIA Corporation', price: 465.89 },
-        { symbol: 'META', name: 'Meta Platforms Inc.', price: 326.78 }
+        { symbol: 'VIC', name: 'Vingroup Joint Stock Company', price: 42500 },
+        { symbol: 'VNM', name: 'Vietnam Dairy Products JSC', price: 72000 },
+        { symbol: 'VCB', name: 'Vietcombank', price: 89000 },
+        { symbol: 'TCB', name: 'Techcombank', price: 35000 },
+        { symbol: 'FPT', name: 'FPT Corporation', price: 125000 },
+        { symbol: 'HPG', name: 'Hoa Phat Group JSC', price: 26500 },
+        { symbol: 'MWG', name: 'Mobile World Investment Corp', price: 52000 },
+        { symbol: 'VHM', name: 'Vinhomes JSC', price: 45000 },
+        { symbol: 'MSN', name: 'Masan Group Corporation', price: 78000 },
+        { symbol: 'VRE', name: 'Vincom Retail JSC', price: 24500 }
       ];
 
       return mockStocks.filter(stock =>
@@ -597,10 +601,10 @@ export const stockAPI = {
 
   getRecommendations: async () => {
     try {
-      const response = await fetch(API_ENDPOINTS.AI_PORTFOLIO_INSIGHTS, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ type: 'recommendations' })
+      // Call the new real recommendations endpoint
+      const response = await fetch(API_ENDPOINTS.AI_RECOMMENDATIONS, {
+        method: 'GET',
+        headers: getAuthHeaders()
       });
 
       if (!response.ok) {
@@ -611,28 +615,14 @@ export const stockAPI = {
       return data.recommendations || data;
     } catch (error) {
       console.error('Error fetching recommendations:', error);
-      // Fallback to mock data if API fails
+      // Fallback - try to show loading state or minimal info
       return [
         {
-          type: 'BUY',
-          symbol: 'VIC',
-          name: 'Vingroup Joint Stock Company',
-          reason: 'Strong technical indicators with RSI showing oversold conditions. Vietnam market leader in real estate.',
-          confidence: 87
-        },
-        {
           type: 'HOLD',
-          symbol: 'VNM',
-          name: 'Vietnam Dairy Products Joint Stock Company',
-          reason: 'Mixed signals from technical analysis. Wait for clearer trend before action.',
-          confidence: 64
-        },
-        {
-          type: 'SELL',
-          symbol: 'TCB',
-          name: 'Techcombank',
-          reason: 'Overbought conditions with high P/E ratio. Consider taking profits.',
-          confidence: 72
+          symbol: 'N/A',
+          name: 'Loading recommendations...',
+          reason: 'Please wait while we analyze the market. If this persists, check if the AI service is running.',
+          confidence: 0
         }
       ];
     }

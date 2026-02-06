@@ -164,3 +164,163 @@ class SectorsResponse(BaseModel):
     worst_sector: str
     market_rotation: str
     generated_at: datetime
+
+
+# ==========================================
+# Comprehensive AI Insights Schemas
+# ==========================================
+
+class IndicatorCategory(BaseModel):
+    """Available indicators in a category"""
+    category: str
+    indicators: List[str]
+    description: str
+
+
+class AvailableIndicatorsResponse(BaseModel):
+    """Response for available indicators endpoint"""
+    categories: List[IndicatorCategory]
+    total_indicators: int
+
+
+class IndicatorDataRequest(BaseModel):
+    """Request for indicator data"""
+    symbol: str = Field(..., max_length=20)
+    start_date: str  # YYYY-MM-DD
+    end_date: str    # YYYY-MM-DD
+    indicators: Dict[str, str]  # {category: indicator_name}
+
+
+class IndicatorDataPoint(BaseModel):
+    """Single data point with indicators"""
+    date: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int
+    # Trend indicators
+    macd: Optional[float] = None
+    macd_signal: Optional[float] = None
+    macd_histogram: Optional[float] = None
+    ema_12: Optional[float] = None
+    ema_26: Optional[float] = None
+    sma_20: Optional[float] = None
+    sma_50: Optional[float] = None
+    wma_20: Optional[float] = None
+    # Momentum indicators
+    rsi: Optional[float] = None
+    stoch_k: Optional[float] = None
+    stoch_d: Optional[float] = None
+    mfi: Optional[float] = None
+    # Volatility indicators
+    bb_upper: Optional[float] = None
+    bb_middle: Optional[float] = None
+    bb_lower: Optional[float] = None
+    atr: Optional[float] = None
+    # Volume indicators
+    obv: Optional[float] = None
+    vwap: Optional[float] = None
+
+
+class IndicatorDataResponse(BaseModel):
+    """Response for indicator data endpoint"""
+    status: str
+    symbol: str
+    data: List[IndicatorDataPoint]
+    count: int
+
+
+class AIScoreComponent(BaseModel):
+    """AI score breakdown"""
+    overall_score: float
+    confidence_level: str
+    pattern_score: float
+    sentiment_score: float
+    risk_score: float
+    prediction_score: float
+
+
+class SentimentAnalysis(BaseModel):
+    """Sentiment analysis result"""
+    sentiment_type: str  # bullish, bearish, neutral
+    score: float  # -1 to 1
+    confidence: float  # 0 to 1
+    news_count: int
+    summary: str
+
+
+class RiskFactor(BaseModel):
+    """Individual risk factor"""
+    factor: str
+    level: str  # low, medium, high
+    description: str
+
+
+class RiskAssessment(BaseModel):
+    """Risk assessment result"""
+    risk_level: str  # low, medium, high, very_high
+    volatility: float
+    beta: Optional[float]
+    var_95: float  # Value at Risk 95%
+    risk_score: float  # 0-100
+    factors: List[RiskFactor]
+
+
+class PatternResult(BaseModel):
+    """Pattern recognition result"""
+    pattern_name: str
+    pattern_type: str  # bullish, bearish, neutral
+    confidence: float
+    signal_strength: str  # weak, moderate, strong
+    description: str
+
+
+class PatternRecognition(BaseModel):
+    """Pattern recognition analysis"""
+    summary: str
+    patterns: List[PatternResult]
+
+
+class PredictionModel(BaseModel):
+    """Single model prediction"""
+    model_name: str
+    predicted_price: float
+    predicted_change: float
+    confidence: float
+    direction: str  # up, down, neutral
+    lower_bound: float
+    upper_bound: float
+
+
+class PricePrediction(BaseModel):
+    """Price prediction from multiple models"""
+    random_forest: Optional[PredictionModel] = None
+    xgboost: Optional[PredictionModel] = None
+    ensemble: Optional[PredictionModel] = None
+    model_comparison: str
+
+
+class ComprehensiveInsightsRequest(BaseModel):
+    """Request for comprehensive insights"""
+    symbol: str = Field(..., max_length=20)
+    start_date: str  # YYYY-MM-DD
+    end_date: str    # YYYY-MM-DD
+    selected_indicators: Dict[str, str]  # {category: indicator_name}
+
+
+class ComprehensiveInsights(BaseModel):
+    """Comprehensive AI insights"""
+    ai_score: AIScoreComponent
+    sentiment_analysis: SentimentAnalysis
+    risk_assessment: RiskAssessment
+    pattern_recognition: PatternRecognition
+    price_prediction: PricePrediction
+
+
+class ComprehensiveInsightsResponse(BaseModel):
+    """Response for comprehensive insights endpoint"""
+    status: str
+    symbol: str
+    insights: ComprehensiveInsights
+    generated_at: datetime
