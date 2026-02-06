@@ -341,9 +341,8 @@ export const stockAPI = {
         headers: getAuthHeaders(),
         body: JSON.stringify({
           symbol: symbol,
-          company_name: companyName,
-          transaction_type: 'buy',
-          shares: shares,
+          type: 'buy',
+          quantity: shares,
           price: price
         })
       });
@@ -499,32 +498,33 @@ export const stockAPI = {
 
   getPortfolioStockOption: async () => {
     try {
-      const portfolioResponse = await fetch(API_ENDPOINTS.PORTFOLIO_DEFAULT, {
-        method: 'GET',
-        headers: getAuthHeaders()
-      });
-
-      if (!portfolioResponse.ok) {
-        throw new Error('Failed to get portfolio');
-      }
-
-      const portfolio = await portfolioResponse.json();
-      const portfolioId = portfolio.id;
-
-      const response = await fetch(API_ENDPOINTS.PORTFOLIO_HOLDINGS(portfolioId), {
+      // Fetch available stocks from priceboards API (VN30 stocks with real-time prices)
+      const response = await fetch(`${API_ENDPOINTS.PRICEBOARDS}?group=VN30`, {
         method: 'GET',
         headers: getAuthHeaders()
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch portfolio holdings');
+        throw new Error('Failed to fetch stock options');
       }
 
       const data = await response.json();
-      return data;
+
+      // Transform priceboard data to stock options format
+      if (Array.isArray(data)) {
+        return data.map(stock => ({
+          symbol: stock.symbol,
+          name: stock.name || stock.symbol,
+          price: stock.matchPrice || stock.close || 0,
+          change: stock.change || 0,
+          changePercent: stock.changePercent || 0
+        })).filter(stock => stock.symbol && stock.price > 0);
+      }
+
+      return [];
     } catch (error) {
-      console.error('Error fetching portfolio holdings:', error);
-      return { total_stocks: 0, total_value: 0 };
+      console.error('Error fetching stock options:', error);
+      return [];
     }
   },
 
@@ -542,17 +542,28 @@ export const stockAPI = {
       const portfolio = await portfolioResponse.json();
       const portfolioId = portfolio.id;
 
-      const response = await fetch(API_ENDPOINTS.PORTFOLIO_SUMMARY(portfolioId), {
+      // Fetch holdings list instead of summary
+      const response = await fetch(API_ENDPOINTS.PORTFOLIO_HOLDINGS(portfolioId), {
         method: 'GET',
         headers: getAuthHeaders()
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch portfolio performance');
+        throw new Error('Failed to fetch portfolio holdings');
       }
 
-      const data = await response.json();
-      return data;
+      const holdings = await response.json();
+      // Transform holdings to expected format
+      return Array.isArray(holdings) ? holdings.map(h => ({
+        symbol: h.symbol,
+        company_name: h.company_name || h.symbol,
+        shares: h.quantity,
+        average_price: h.average_price,
+        current_price: h.current_price,
+        current_value: h.current_value || (h.quantity * (h.current_price || h.average_price || 0)),
+        gain_loss: h.profit_loss || 0,
+        gain_loss_percent: h.profit_loss_percent || 0
+      })) : [];
     } catch (error) {
       console.error('Error fetching portfolio performance:', error);
       return [];
@@ -573,17 +584,62 @@ export const stockAPI = {
       const portfolio = await portfolioResponse.json();
       const portfolioId = portfolio.id;
 
-      const response = await fetch(`${API_ENDPOINTS.PORTFOLIO_SUMMARY(portfolioId)}?timeframe=${timeframe}`, {
-        method: 'GET',
-        headers: getAuthHeaders()
-      });
+      // Fetch both summary and holdings for complete metrics
+      const [summaryResponse, holdingsResponse] = await Promise.all([
+        fetch(`${API_ENDPOINTS.PORTFOLIO_SUMMARY(portfolioId)}?timeframe=${timeframe}`, {
+          method: 'GET',
+          headers: getAuthHeaders()
+        }),
+        fetch(API_ENDPOINTS.PORTFOLIO_HOLDINGS(portfolioId), {
+          method: 'GET',
+          headers: getAuthHeaders()
+        })
+      ]);
 
-      if (!response.ok) {
+      if (!summaryResponse.ok) {
         throw new Error('Failed to fetch portfolio metrics');
       }
 
-      const data = await response.json();
-      return data;
+      const summary = await summaryResponse.json();
+      const holdings = holdingsResponse.ok ? await holdingsResponse.json() : [];
+
+      // Calculate portfolio distribution
+      const totalValue = summary.current_value || 0;
+      const distribution = Array.isArray(holdings) ? holdings.map(h => ({
+        symbol: h.symbol,
+        value: h.current_value || 0,
+        allocation: totalValue > 0 ? ((h.current_value || 0) / totalValue) * 100 : 0
+      })) : [];
+
+      // Transform top/worst performers
+      const topPerformer = summary.top_performers && summary.top_performers.length > 0
+        ? {
+            symbol: summary.top_performers[0].symbol,
+            company_name: summary.top_performers[0].company_name || summary.top_performers[0].symbol,
+            value: summary.top_performers[0].current_value || 0,
+            gain_loss_percent: summary.top_performers[0].profit_loss_percent || 0
+          }
+        : null;
+
+      const worstPerformer = summary.worst_performers && summary.worst_performers.length > 0
+        ? {
+            symbol: summary.worst_performers[0].symbol,
+            company_name: summary.worst_performers[0].company_name || summary.worst_performers[0].symbol,
+            value: summary.worst_performers[0].current_value || 0,
+            gain_loss_percent: summary.worst_performers[0].profit_loss_percent || 0
+          }
+        : null;
+
+      return {
+        total_value: summary.current_value || 0,
+        total_cost: summary.total_invested || 0,
+        total_gain_loss: summary.total_profit_loss || 0,
+        total_gain_loss_percent: summary.total_profit_loss_percent || 0,
+        total_stocks: summary.total_holdings || 0,
+        top_performer: topPerformer,
+        worst_performer: worstPerformer,
+        portfolio_distribution: distribution
+      };
     } catch (error) {
       console.error('Error fetching portfolio metrics:', error);
       return {
@@ -864,8 +920,43 @@ export const analysisAPI = {
 
 /**
  * Alerts API
- * Routes to Portfolio Service (Alerts) via /api/v2/alerts
+ * Routes to Portfolio Service (Alerts) via /api/v2/portfolio/alerts
  */
+
+// Helper to transform alert from backend (snake_case) to frontend (camelCase)
+const transformAlertResponse = (alert) => ({
+  id: alert.id,
+  userId: alert.user_id,
+  symbol: alert.symbol,
+  companyName: alert.company_name || alert.symbol,
+  alertType: alert.alert_type === 'above' ? 'price_above' : alert.alert_type === 'below' ? 'price_below' : alert.alert_type,
+  targetPrice: alert.target_price,
+  targetPercent: alert.target_percent,
+  currentPrice: alert.current_price || 0,
+  isActive: alert.is_active,
+  triggered: alert.is_triggered,
+  triggeredAt: alert.triggered_at,
+  notes: alert.notes,
+  createdAt: alert.created_at ? new Date(alert.created_at).toLocaleDateString('vi-VN') : null,
+  updatedAt: alert.updated_at
+});
+
+// Helper to transform alert CREATE request from frontend (camelCase) to backend (snake_case)
+const transformAlertCreateRequest = (alertData) => ({
+  symbol: alertData.symbol,
+  alert_type: alertData.alertType === 'price_above' ? 'above' : alertData.alertType === 'price_below' ? 'below' : alertData.alertType,
+  target_price: parseFloat(alertData.targetPrice) || null,
+  is_active: alertData.isActive !== false,
+  notes: alertData.notes || null
+});
+
+// Helper to transform alert UPDATE request (only allowed fields)
+const transformAlertUpdateRequest = (alertData) => ({
+  target_price: parseFloat(alertData.targetPrice) || null,
+  is_active: alertData.isActive !== false,
+  notes: alertData.notes || null
+});
+
 export const alertsAPI = {
   getAlerts: async () => {
     try {
@@ -879,7 +970,8 @@ export const alertsAPI = {
       }
 
       const data = await response.json();
-      return data;
+      // Transform each alert from snake_case to camelCase
+      return Array.isArray(data) ? data.map(transformAlertResponse) : [];
     } catch (error) {
       console.error('Error fetching alerts:', error);
       return [];
@@ -891,16 +983,16 @@ export const alertsAPI = {
       const response = await fetch(API_ENDPOINTS.ALERT_CREATE, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify(alertData)
+        body: JSON.stringify(transformAlertCreateRequest(alertData))
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create alert');
+        throw new Error(errorData.detail || errorData.error || 'Failed to create alert');
       }
 
       const data = await response.json();
-      return data;
+      return transformAlertResponse(data);
     } catch (error) {
       throw new Error('Failed to create alert: ' + error.message);
     }
@@ -911,16 +1003,16 @@ export const alertsAPI = {
       const response = await fetch(API_ENDPOINTS.ALERT_UPDATE(alertId), {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify(alertData)
+        body: JSON.stringify(transformAlertUpdateRequest(alertData))
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update alert');
+        throw new Error(errorData.detail || errorData.error || 'Failed to update alert');
       }
 
       const data = await response.json();
-      return data;
+      return transformAlertResponse(data);
     } catch (error) {
       throw new Error('Failed to update alert: ' + error.message);
     }
@@ -934,12 +1026,13 @@ export const alertsAPI = {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete alert');
+        const errorText = await response.text();
+        const errorData = errorText ? JSON.parse(errorText) : {};
+        throw new Error(errorData.detail || errorData.error || 'Failed to delete alert');
       }
 
-      const data = await response.json();
-      return data;
+      // DELETE returns 204 No Content - no body to parse
+      return { success: true };
     } catch (error) {
       throw new Error('Failed to delete alert: ' + error.message);
     }

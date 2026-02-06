@@ -89,23 +89,23 @@ const Alerts = () => {
 
   const handleEdit = (alert) => {
     setEditingAlert(alert);
-    
+
     // Check if the alert's symbol is in user's current holdings
     const isSymbolInHoldings = userHoldings.some(h => h.symbol === alert.symbol);
-    
+
     if (isSymbolInHoldings) {
       setSelectedSymbol(alert.symbol);
     } else {
       // Symbol not in current holdings, clear selected symbol to show manual input
       setSelectedSymbol('');
     }
-    
+
     setFormData({
-      symbol: alert.symbol,
-      companyName: alert.companyName,
-      alertType: alert.alertType,
-      targetPrice: alert.targetPrice.toString(),
-      isActive: alert.isActive,
+      symbol: alert.symbol || '',
+      companyName: alert.companyName || '',
+      alertType: alert.alertType || 'price_above',
+      targetPrice: alert.targetPrice != null ? alert.targetPrice.toString() : '',
+      isActive: alert.isActive !== false,
       notes: alert.notes || ''
     });
     setShowAddForm(true);

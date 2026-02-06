@@ -39,7 +39,7 @@ export const API_BASE_URLS = {
   COMPANIES_API: `${API_GATEWAY_URL}/stock_helper/api/v2/companies`,
   MARKET_API: `${API_GATEWAY_URL}/stock_helper/api/v2/market`,
   PORTFOLIO_API: `${API_GATEWAY_URL}/stock_helper/api/v2/portfolio`,
-  ALERTS_API: `${API_GATEWAY_URL}/stock_helper/api/v2/alerts`,
+  ALERTS_API: `${API_GATEWAY_URL}/stock_helper/api/v2/portfolio/alerts`,
   ANALYSIS_API: `${API_GATEWAY_URL}/stock_helper/api/v2/analysis`,
   INDUSTRIES_API: `${API_GATEWAY_URL}/stock_helper/api/v2/industries`,
   PREDICT_API: `${API_GATEWAY_URL}/stock_helper/api/v2/predict`,
