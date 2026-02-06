@@ -104,11 +104,18 @@ async def metrics_middleware(request: Request, call_next):
     return response
 
 
-# Include API routes
+# Include API routes for /predict path
 app.include_router(
     router,
     prefix=f"/{settings.API_PREFIX}/api/v2/predict",
     tags=["Predictions"]
+)
+
+# Also include routes for /models path (for model management endpoints)
+app.include_router(
+    router,
+    prefix=f"/{settings.API_PREFIX}/api/v2/models",
+    tags=["Models"]
 )
 
 

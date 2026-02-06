@@ -354,3 +354,77 @@ async def get_trained_solutions(
     # TODO: Implement trained solutions storage
     # For now, return empty list - users will train new models
     return []
+
+
+# ==========================================
+# Model Types Endpoints (for model management)
+# ==========================================
+
+@router.get("/types")
+@router.get("/types/")
+async def get_model_types():
+    """Get all available model types with their sub-models"""
+    # Returns model types in the format expected by the frontend
+    # This matches the structure from webapi's get_all_model_types
+    return [
+        {
+            "name": "BlockRNN",
+            "sub_model": [
+                {"name": "LSTM"},
+                {"name": "GRU"},
+                {"name": "RNN"}
+            ]
+        },
+        {
+            "name": "RNN",
+            "sub_model": [
+                {"name": "LSTM"},
+                {"name": "GRU"},
+                {"name": "Vanilla"}
+            ]
+        },
+        {
+            "name": "TCN",
+            "sub_model": []
+        },
+        {
+            "name": "Transformer",
+            "sub_model": []
+        },
+        {
+            "name": "TFT",
+            "sub_model": []
+        },
+        {
+            "name": "NBeats",
+            "sub_model": []
+        },
+        {
+            "name": "NHits",
+            "sub_model": []
+        },
+        {
+            "name": "DLinear",
+            "sub_model": []
+        },
+        {
+            "name": "NLinear",
+            "sub_model": []
+        },
+        {
+            "name": "XGBoost",
+            "sub_model": []
+        },
+        {
+            "name": "LightGBM",
+            "sub_model": []
+        },
+        {
+            "name": "RandomForest",
+            "sub_model": []
+        },
+        {
+            "name": "CatBoost",
+            "sub_model": []
+        }
+    ]
