@@ -67,9 +67,9 @@ app = FastAPI(
     title="Prediction Service",
     description="Microservice for ML-based stock price predictions",
     version=settings.SERVICE_VERSION,
-    docs_url=f"/{settings.API_PREFIX}/api/v2/predictions/docs",
-    redoc_url=f"/{settings.API_PREFIX}/api/v2/predictions/redoc",
-    openapi_url=f"/{settings.API_PREFIX}/api/v2/predictions/openapi.json",
+    docs_url=f"/{settings.API_PREFIX}/api/v2/predict/docs",
+    redoc_url=f"/{settings.API_PREFIX}/api/v2/predict/redoc",
+    openapi_url=f"/{settings.API_PREFIX}/api/v2/predict/openapi.json",
     lifespan=lifespan
 )
 
@@ -107,7 +107,7 @@ async def metrics_middleware(request: Request, call_next):
 # Include API routes
 app.include_router(
     router,
-    prefix=f"/{settings.API_PREFIX}/api/v2/predictions",
+    prefix=f"/{settings.API_PREFIX}/api/v2/predict",
     tags=["Predictions"]
 )
 
@@ -150,7 +150,7 @@ async def metrics():
 
 
 # Service info endpoint
-@app.get(f"/{settings.API_PREFIX}/api/v2/predictions/info")
+@app.get(f"/{settings.API_PREFIX}/api/v2/predict/info")
 async def service_info():
     """Service information"""
     return {
@@ -164,11 +164,11 @@ async def service_info():
             "lookback_period": settings.LOOKBACK_PERIOD
         },
         "endpoints": {
-            "predict": f"/{settings.API_PREFIX}/api/v2/predictions/predict",
-            "models": f"/{settings.API_PREFIX}/api/v2/predictions/models",
-            "train": f"/{settings.API_PREFIX}/api/v2/predictions/models/train",
-            "backtest": f"/{settings.API_PREFIX}/api/v2/predictions/backtest",
-            "compare": f"/{settings.API_PREFIX}/api/v2/predictions/compare"
+            "predict": f"/{settings.API_PREFIX}/api/v2/predict/predict",
+            "models": f"/{settings.API_PREFIX}/api/v2/predict/models",
+            "train": f"/{settings.API_PREFIX}/api/v2/predict/models/train",
+            "backtest": f"/{settings.API_PREFIX}/api/v2/predict/backtest",
+            "compare": f"/{settings.API_PREFIX}/api/v2/predict/compare"
         }
     }
 

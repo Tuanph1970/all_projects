@@ -49,12 +49,32 @@ const SimulationDashboard = () => {
 
   const loadTickers = async () => {
     try {
-      // Uses httpClient for authenticated request (requires JWT token)
-      const result = await httpClient.get('/stock/api/predict/solution/tickers/');
-      if (result.success) {
-        setTickers(result.data || []);
+      // First get the default portfolio
+      const portfolioResult = await httpClient.get(API_ENDPOINTS.PORTFOLIO_DEFAULT);
+      if (!portfolioResult.success || !portfolioResult.data) {
+        console.error("Error loading default portfolio:", portfolioResult.error);
+        setTickers([]);
+        return;
+      }
+
+      const portfolioId = portfolioResult.data.id;
+
+      // Then fetch holdings from the portfolio
+      const holdingsResult = await httpClient.get(API_ENDPOINTS.PORTFOLIO_HOLDINGS(portfolioId));
+      if (holdingsResult.success && Array.isArray(holdingsResult.data)) {
+        // Map holdings to expected format {ticker, name}
+        const tickerList = holdingsResult.data.map(holding => ({
+          ticker: holding.symbol,
+          name: holding.company_name || holding.symbol
+        }));
+        setTickers(tickerList);
+
+        // Auto-select first ticker if available
+        if (tickerList.length > 0 && !formData.ticker) {
+          setFormData(prev => ({ ...prev, ticker: tickerList[0].ticker }));
+        }
       } else {
-        console.error("Error loading tickers:", result.error);
+        console.error("Error loading holdings:", holdingsResult.error);
         setTickers([]);
       }
     } catch (err) {

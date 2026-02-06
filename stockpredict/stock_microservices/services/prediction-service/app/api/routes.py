@@ -313,3 +313,44 @@ async def get_supported_models():
             }
         ]
     }
+
+
+# ==========================================
+# Simulation Endpoints
+# ==========================================
+
+@router.get("/simulation/models")
+async def get_simulation_models():
+    """Get list of available ML models for simulation"""
+    return [
+        {
+            "model_type": "XGBoost",
+            "description": "Gradient boosting ensemble, good for structured data"
+        },
+        {
+            "model_type": "LightGBM",
+            "description": "Fast gradient boosting, efficient with large datasets"
+        },
+        {
+            "model_type": "Random Forest",
+            "description": "Ensemble of decision trees, robust and interpretable"
+        },
+        {
+            "model_type": "Linear Regression",
+            "description": "Simple baseline model, fast and interpretable"
+        },
+        {
+            "model_type": "LSTM",
+            "description": "Deep learning model for sequential data"
+        }
+    ]
+
+
+@router.get("/simulation/trained-solutions")
+async def get_trained_solutions(
+    current_user: dict = Depends(get_current_user_optional)
+):
+    """Get list of user's trained solutions for simulation"""
+    # TODO: Implement trained solutions storage
+    # For now, return empty list - users will train new models
+    return []
