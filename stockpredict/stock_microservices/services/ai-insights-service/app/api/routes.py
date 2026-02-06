@@ -360,9 +360,35 @@ async def get_available_indicators(
     result = service.get_available_indicators()
 
     # Format response for frontend compatibility
+    # Frontend expects objects with 'name' property, not just strings
     indicators_by_category = {}
+    indicator_descriptions = {
+        # Trend indicators
+        "MACD": "Moving Average Convergence Divergence",
+        "EMA": "Exponential Moving Average",
+        "SMA": "Simple Moving Average",
+        "WMA": "Weighted Moving Average",
+        # Momentum indicators
+        "RSI": "Relative Strength Index",
+        "Stochastic": "Stochastic Oscillator",
+        "MFI": "Money Flow Index",
+        # Volatility indicators
+        "BB": "Bollinger Bands",
+        "ATR": "Average True Range",
+        # Volume indicators
+        "OBV": "On Balance Volume",
+        "VWAP": "Volume Weighted Average Price",
+    }
+
     for cat in result.categories:
-        indicators_by_category[cat.category] = cat.indicators
+        # Convert string list to list of objects with name and description
+        indicators_by_category[cat.category] = [
+            {
+                "name": indicator,
+                "description": indicator_descriptions.get(indicator, indicator)
+            }
+            for indicator in cat.indicators
+        ]
 
     return {
         "status": "success",
@@ -390,11 +416,23 @@ async def get_indicator_data(
     )
 
     # Format response for frontend compatibility
+    # Include indicators metadata so the chart knows which panels to render
+    indicators_metadata = {}
+    if data.indicators:
+        # data.indicators is Dict[str, str] like {"trend": "MACD", "momentum": "RSI", ...}
+        for category in ['trend', 'momentum', 'volatility', 'volume']:
+            if category in data.indicators and data.indicators[category]:
+                indicators_metadata[category] = {
+                    'name': data.indicators[category],
+                    'description': f'{data.indicators[category]} Indicator'
+                }
+
     return {
         "status": result.status,
         "symbol": result.symbol,
         "data": [point.model_dump() for point in result.data],
-        "count": result.count
+        "count": result.count,
+        "indicators": indicators_metadata
     }
 
 

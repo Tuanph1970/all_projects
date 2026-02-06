@@ -34,7 +34,7 @@ import {
   rsi
 } from "react-financial-charts";
 
-import { API_BASE_URLS } from '../../constants/api';
+import { API_BASE_URLS, API_ENDPOINTS } from '../../constants/api';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
@@ -42,7 +42,8 @@ const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 const API_BASE_URL = API_BASE_URLS.AI_API;
 
 export const AIInsights = () => {
-  const [selectedStock, setSelectedStock] = useState('VIC');
+  const [selectedStock, setSelectedStock] = useState('');
+  const [portfolioStocks, setPortfolioStocks] = useState([]);
   const [selectedIndicators, setSelectedIndicators] = useState({
     trend: 'MACD',
     momentum: 'RSI',
@@ -61,9 +62,78 @@ export const AIInsights = () => {
   const [indicatorData, setIndicatorData] = useState(null);
   const [chartLoading, setChartLoading] = useState(false);
 
+  // Fetch portfolio holdings for stock dropdown
+  const fetchPortfolioHoldings = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        // If not logged in, use default stocks
+        setPortfolioStocks([
+          { symbol: 'VIC', name: 'Vingroup JSC' },
+          { symbol: 'VNM', name: 'Vietnam Dairy Products' },
+          { symbol: 'VCB', name: 'Vietcombank' },
+          { symbol: 'FPT', name: 'FPT Corporation' },
+          { symbol: 'HPG', name: 'Hoa Phat Group' }
+        ]);
+        setSelectedStock('VIC');
+        return;
+      }
+
+      // First get default portfolio
+      const portfolioResponse = await fetch(API_ENDPOINTS.PORTFOLIO_DEFAULT, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!portfolioResponse.ok) {
+        throw new Error('Failed to fetch portfolio');
+      }
+
+      const portfolioData = await portfolioResponse.json();
+      const portfolioId = portfolioData.id;
+
+      // Then get holdings
+      const holdingsResponse = await fetch(API_ENDPOINTS.PORTFOLIO_HOLDINGS(portfolioId), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (!holdingsResponse.ok) {
+        throw new Error('Failed to fetch holdings');
+      }
+
+      const holdings = await holdingsResponse.json();
+
+      if (Array.isArray(holdings) && holdings.length > 0) {
+        const stocks = holdings.map(h => ({
+          symbol: h.symbol,
+          name: h.company_name || h.symbol
+        }));
+        setPortfolioStocks(stocks);
+        setSelectedStock(stocks[0].symbol);
+      } else {
+        // Fallback to default stocks if no holdings
+        setPortfolioStocks([
+          { symbol: 'VIC', name: 'Vingroup JSC' },
+          { symbol: 'VNM', name: 'Vietnam Dairy Products' },
+          { symbol: 'VCB', name: 'Vietcombank' }
+        ]);
+        setSelectedStock('VIC');
+      }
+    } catch (err) {
+      console.error('Failed to fetch portfolio holdings:', err);
+      // Fallback to default stocks
+      setPortfolioStocks([
+        { symbol: 'VIC', name: 'Vingroup JSC' },
+        { symbol: 'VNM', name: 'Vietnam Dairy Products' },
+        { symbol: 'VCB', name: 'Vietcombank' }
+      ]);
+      setSelectedStock('VIC');
+    }
+  }, []);
+
   useEffect(() => {
     fetchAvailableIndicators();
-  }, []);
+    fetchPortfolioHoldings();
+  }, [fetchPortfolioHoldings]);
 
   const fetchAvailableIndicators = async () => {
     try {
@@ -123,7 +193,8 @@ export const AIInsights = () => {
       });
 
       if (response.data.status === 'success') {
-        setIndicatorData(response.data.data);
+        // Store entire response object so indicatorData.data works correctly
+        setIndicatorData(response.data);
       }
     } catch (err) {
       console.error('Failed to fetch indicator data, using mock data:', err);
@@ -232,12 +303,13 @@ export const AIInsights = () => {
         });
 
         if (response.data.status === 'success') {
-          setIndicatorData(response.data.data);
+          // Store entire response object so indicatorData.data works correctly
+          setIndicatorData(response.data);
         }
       } catch (err) {
         console.error('Failed to fetch indicator data, using mock data:', err);
 
-        // Generate mock data for demonstration
+        // Generate mock data for demonstration (returns object with data property)
         const mockData = generateMockIndicatorData(dateRange.start, dateRange.end, selectedIndicators);
         setIndicatorData(mockData);
       } finally {
@@ -1054,13 +1126,21 @@ export const AIInsights = () => {
                 <tr className="border-b border-gray-100">
                   <td className="py-2 text-gray-500 w-1/6">Stock Symbol</td>
                   <td className="py-2 w-1/6">
-                    <input
-                      type="text"
+                    <select
                       value={selectedStock}
-                      onChange={(e) => setSelectedStock(e.target.value.toUpperCase())}
+                      onChange={(e) => setSelectedStock(e.target.value)}
                       className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      placeholder="e.g., VIC"
-                    />
+                    >
+                      {portfolioStocks.length === 0 ? (
+                        <option value="">Loading...</option>
+                      ) : (
+                        portfolioStocks.map(stock => (
+                          <option key={stock.symbol} value={stock.symbol}>
+                            {stock.symbol} - {stock.name}
+                          </option>
+                        ))
+                      )}
+                    </select>
                   </td>
                   <td className="py-2 text-gray-500 w-1/6">Start Date</td>
                   <td className="py-2 w-1/6">
@@ -1240,19 +1320,19 @@ export const AIInsights = () => {
                       insights.risk_assessment.risk_level === 'low' ? 'text-green-600' :
                       insights.risk_assessment.risk_level === 'medium' ? 'text-yellow-600' :
                       insights.risk_assessment.risk_level === 'high' ? 'text-orange-600' : 'text-red-600'
-                    }`}>{insights.risk_assessment.risk_level.toUpperCase()}</td>
+                    }`}>{insights.risk_assessment.risk_level?.toUpperCase() || 'N/A'}</td>
                     <td className="py-2 text-gray-500 w-1/6">Risk Score</td>
-                    <td className="py-2 font-semibold w-1/6">{insights.risk_assessment.risk_score.toFixed(2)}</td>
+                    <td className="py-2 font-semibold w-1/6">{insights.risk_assessment.risk_score?.toFixed(1) || 'N/A'}</td>
                     <td className="py-2 text-gray-500 w-1/6">Volatility</td>
-                    <td className="py-2 font-semibold text-purple-600 w-1/6">{(insights.risk_assessment.volatility * 100).toFixed(1)}%</td>
+                    <td className="py-2 font-semibold text-purple-600 w-1/6">{insights.risk_assessment.volatility?.toFixed(1) || 'N/A'}%</td>
                   </tr>
                   <tr>
                     <td className="py-2 text-gray-500">Beta</td>
-                    <td className="py-2 font-semibold">{insights.risk_assessment.beta.toFixed(2)}</td>
+                    <td className="py-2 font-semibold">{insights.risk_assessment.beta?.toFixed(2) || 'N/A'}</td>
                     <td className="py-2 text-gray-500">VaR (95%)</td>
-                    <td className="py-2 font-semibold text-red-600">{(insights.risk_assessment.var_95 * 100).toFixed(1)}%</td>
+                    <td className="py-2 font-semibold text-red-600">{insights.risk_assessment.var_95?.toFixed(2) || 'N/A'}</td>
                     <td className="py-2 text-gray-500">Factors</td>
-                    <td className="py-2 text-xs text-gray-600">{insights.risk_assessment.factors.length} identified</td>
+                    <td className="py-2 text-xs text-gray-600">{insights.risk_assessment.factors?.length || 0} identified</td>
                   </tr>
                 </tbody>
               </table>
@@ -1260,9 +1340,12 @@ export const AIInsights = () => {
                 <div className="mt-3 pt-3 border-t border-gray-200">
                   <div className="flex flex-wrap gap-2">
                     {insights.risk_assessment.factors.map((factor, index) => (
-                      <span key={index} className="inline-flex items-center px-2 py-1 bg-white rounded text-xs text-gray-700">
-                        <AlertTriangle className="w-3 h-3 text-yellow-500 mr-1" />
-                        {factor}
+                      <span key={index} className="inline-flex items-center px-2 py-1 bg-white rounded text-xs text-gray-700" title={factor.description || ''}>
+                        <AlertTriangle className={`w-3 h-3 mr-1 ${
+                          factor.level === 'high' ? 'text-red-500' :
+                          factor.level === 'medium' ? 'text-yellow-500' : 'text-green-500'
+                        }`} />
+                        {factor.factor || factor}
                       </span>
                     ))}
                   </div>
@@ -1295,14 +1378,14 @@ export const AIInsights = () => {
                             return (
                               <React.Fragment key={offset}>
                                 <td className="py-2 text-gray-500 w-1/6">
-                                  <div className="flex items-center">
+                                  <div className="flex items-center" title={pattern.description || ''}>
                                     {isBullish && <TrendingUp className="w-3 h-3 text-green-500 mr-1" />}
                                     {isBearish && <TrendingDown className="w-3 h-3 text-red-500 mr-1" />}
-                                    {pattern.pattern_type.replace('_', ' ')}
+                                    {pattern.pattern_name || pattern.pattern_type.replace('_', ' ')}
                                   </div>
                                 </td>
                                 <td className={`py-2 font-semibold w-1/6 ${isBullish ? 'text-green-600' : isBearish ? 'text-red-600' : 'text-blue-600'}`}>
-                                  {Math.round(pattern.confidence * 100)}% <span className="text-gray-400 text-xs">({Math.round(pattern.signal_strength * 100)}%)</span>
+                                  {Math.round(pattern.confidence * 100)}% <span className="text-gray-400 text-xs">({pattern.signal_strength})</span>
                                 </td>
                               </React.Fragment>
                             );
@@ -1329,24 +1412,39 @@ export const AIInsights = () => {
                   {insights.price_prediction.random_forest && (
                     <tr className="border-b border-gray-100">
                       <td className="py-2 text-gray-500 w-1/6">Random Forest</td>
-                      <td className="py-2 font-bold text-blue-600 w-1/6">${insights.price_prediction.random_forest.predicted_price.toFixed(2)}</td>
-                      <td className="py-2 text-gray-500 w-1/6">R² Score</td>
-                      <td className="py-2 font-semibold w-1/6">{(insights.price_prediction.random_forest.accuracy_score * 100).toFixed(1)}%</td>
+                      <td className="py-2 font-bold text-blue-600 w-1/6">{insights.price_prediction.random_forest.predicted_price?.toFixed(2) || 'N/A'}</td>
                       <td className="py-2 text-gray-500 w-1/6">Confidence</td>
+                      <td className="py-2 font-semibold w-1/6">{((insights.price_prediction.random_forest.confidence || 0) * 100).toFixed(1)}%</td>
+                      <td className="py-2 text-gray-500 w-1/6">Range</td>
                       <td className="py-2 font-semibold text-green-600 w-1/6">
-                        ${insights.price_prediction.random_forest.confidence_interval[0].toFixed(2)} - ${insights.price_prediction.random_forest.confidence_interval[1].toFixed(2)}
+                        {insights.price_prediction.random_forest.lower_bound?.toFixed(2) || 'N/A'} - {insights.price_prediction.random_forest.upper_bound?.toFixed(2) || 'N/A'}
                       </td>
                     </tr>
                   )}
                   {insights.price_prediction.xgboost && (
-                    <tr>
+                    <tr className="border-b border-gray-100">
                       <td className="py-2 text-gray-500">XGBoost</td>
-                      <td className="py-2 font-bold text-purple-600">${insights.price_prediction.xgboost.predicted_price.toFixed(2)}</td>
-                      <td className="py-2 text-gray-500">R² Score</td>
-                      <td className="py-2 font-semibold">{(insights.price_prediction.xgboost.accuracy_score * 100).toFixed(1)}%</td>
+                      <td className="py-2 font-bold text-purple-600">{insights.price_prediction.xgboost.predicted_price?.toFixed(2) || 'N/A'}</td>
                       <td className="py-2 text-gray-500">Confidence</td>
+                      <td className="py-2 font-semibold">{((insights.price_prediction.xgboost.confidence || 0) * 100).toFixed(1)}%</td>
+                      <td className="py-2 text-gray-500">Range</td>
                       <td className="py-2 font-semibold text-green-600">
-                        ${insights.price_prediction.xgboost.confidence_interval[0].toFixed(2)} - ${insights.price_prediction.xgboost.confidence_interval[1].toFixed(2)}
+                        {insights.price_prediction.xgboost.lower_bound?.toFixed(2) || 'N/A'} - {insights.price_prediction.xgboost.upper_bound?.toFixed(2) || 'N/A'}
+                      </td>
+                    </tr>
+                  )}
+                  {insights.price_prediction.ensemble && (
+                    <tr>
+                      <td className="py-2 text-gray-500">Ensemble</td>
+                      <td className="py-2 font-bold text-green-600">{insights.price_prediction.ensemble.predicted_price?.toFixed(2) || 'N/A'}</td>
+                      <td className="py-2 text-gray-500">Confidence</td>
+                      <td className="py-2 font-semibold">{((insights.price_prediction.ensemble.confidence || 0) * 100).toFixed(1)}%</td>
+                      <td className="py-2 text-gray-500">Direction</td>
+                      <td className={`py-2 font-semibold ${
+                        insights.price_prediction.ensemble.direction === 'up' ? 'text-green-600' :
+                        insights.price_prediction.ensemble.direction === 'down' ? 'text-red-600' : 'text-gray-600'
+                      }`}>
+                        {insights.price_prediction.ensemble.direction?.toUpperCase() || 'N/A'}
                       </td>
                     </tr>
                   )}
