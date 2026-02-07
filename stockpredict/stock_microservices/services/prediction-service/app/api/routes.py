@@ -1,8 +1,11 @@
 """Prediction Service API Routes"""
+import json
+import logging
 from typing import List, Optional
 from datetime import datetime, date
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 
 from app.api.dependencies import get_db, get_current_user_optional, get_current_user, require_admin
 from app.services.prediction_service import PredictionService
@@ -15,6 +18,17 @@ from app.models.schemas import (
     FeatureImportanceResponse, AccuracyReport, ModelHealthStatus,
     ModelType, TrainingLogResponse
 )
+
+logger = logging.getLogger(__name__)
+
+# Valid model type names (lowercase) mapped to proper case
+MODEL_TYPE_MAP = {
+    'blockrnn': 'BlockRNN', 'rnn': 'RNN', 'tcn': 'TCN',
+    'transformer': 'Transformer', 'tft': 'TFT', 'nbeats': 'NBeats',
+    'nhits': 'NHits', 'dlinear': 'DLinear', 'nlinear': 'NLinear',
+    'xgboost': 'XGBoost', 'lightgbm': 'LightGBM',
+    'randomforest': 'RandomForest', 'catboost': 'CatBoost', 'tide': 'TiDE'
+}
 
 router = APIRouter()
 
@@ -428,3 +442,359 @@ async def get_model_types():
             "sub_model": []
         }
     ]
+
+
+# ==========================================
+# Model Instance Management Endpoints
+# (WebAPI-compatible endpoints for ModelList.js)
+# ==========================================
+
+@router.get("/all")
+@router.get("/all/")
+async def get_all_model_instances(
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """Get all model instances (compatible with webapi's get_models endpoint)"""
+    try:
+        if current_user and current_user.get("user_id"):
+            user_id = str(current_user["user_id"])
+            result = await db.execute(
+                text("SELECT id, model_name, model_type, model_sub_type, status, "
+                     "file_path, created_at, updated_at, created_by "
+                     "FROM model_instances WHERE user_id = :user_id ORDER BY id DESC"),
+                {"user_id": user_id}
+            )
+        else:
+            result = await db.execute(
+                text("SELECT id, model_name, model_type, model_sub_type, status, "
+                     "file_path, created_at, updated_at, created_by "
+                     "FROM model_instances ORDER BY id DESC")
+            )
+        rows = result.mappings().all()
+        return [dict(row) for row in rows]
+    except Exception as e:
+        logger.warning(f"Failed to fetch model instances: {e}")
+        return []
+
+
+@router.get("/parameters")
+@router.get("/parameters/")
+async def get_model_parameter_fields(
+    db: AsyncSession = Depends(get_db)
+):
+    """Get model parameter field definitions from tbl_model_field.
+
+    Returns pivoted data: one object per model_type_ with field_name->field_type mappings.
+    Frontend expects: [{"model_type_": "BlockRNN", "input_chunk_length": "text", ...}, ...]
+    """
+    try:
+        result = await db.execute(
+            text("SELECT model_type_, field_name, field_type FROM tbl_model_field ORDER BY model_type_, display_order")
+        )
+        rows = result.mappings().all()
+        # Pivot: group by model_type_, field_name becomes key, field_type becomes value
+        pivoted = {}
+        for row in rows:
+            mt = row["model_type_"]
+            if mt not in pivoted:
+                pivoted[mt] = {"model_type_": mt}
+            pivoted[mt][row["field_name"]] = row["field_type"]
+        return list(pivoted.values())
+    except Exception as e:
+        logger.warning(f"Failed to fetch model parameter fields: {e}")
+        return []
+
+
+@router.get("/parameters/default-values")
+@router.get("/parameters/default-values/")
+async def get_model_default_values(
+    db: AsyncSession = Depends(get_db)
+):
+    """Get default parameter values for all model types from tbl_model_defaul_value.
+
+    Returns pivoted data: one object per model_type_ with field_name->default_value mappings.
+    Frontend expects: [{"model_type_": "BlockRNN", "input_chunk_length": "14", ...}, ...]
+    """
+    try:
+        result = await db.execute(
+            text("SELECT model_type_, field_name, default_value FROM tbl_model_defaul_value ORDER BY model_type_")
+        )
+        rows = result.mappings().all()
+        # Pivot: group by model_type_, field_name becomes key, default_value becomes value
+        pivoted = {}
+        for row in rows:
+            mt = row["model_type_"]
+            if mt not in pivoted:
+                pivoted[mt] = {"model_type_": mt}
+            pivoted[mt][row["field_name"]] = row["default_value"]
+        return list(pivoted.values())
+    except Exception as e:
+        logger.warning(f"Failed to fetch default parameter values: {e}")
+        return []
+
+
+@router.get("/params/options")
+@router.get("/params/options/")
+async def get_parameter_options(
+    db: AsyncSession = Depends(get_db)
+):
+    """Get available options for model parameters from tbl_param_option"""
+    try:
+        result = await db.execute(
+            text("SELECT param_name, GROUP_CONCAT(option_value) as options "
+                 "FROM tbl_param_option GROUP BY param_name")
+        )
+        rows = result.mappings().all()
+        return [dict(row) for row in rows]
+    except Exception as e:
+        logger.warning(f"Failed to fetch parameter options: {e}")
+        return []
+
+
+@router.get("/{model_id_or_type}")
+async def get_model_instance_by_id(
+    model_id_or_type: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """Get a model instance by ID from model_instances table.
+
+    The frontend calls GET /models/{id} to load model config for editing.
+    We check if the path param is numeric (model ID) vs a model type name.
+    """
+    # Only handle numeric IDs - let other paths fall through to 404
+    if not model_id_or_type.isdigit():
+        raise HTTPException(status_code=404, detail=f"Model not found: {model_id_or_type}")
+
+    model_id = int(model_id_or_type)
+    try:
+        result = await db.execute(
+            text("SELECT id, model_name, model_type, model_sub_type, status, "
+                 "config_json, file_path, created_at, updated_at, created_by, user_id "
+                 "FROM model_instances WHERE id = :model_id"),
+            {"model_id": model_id}
+        )
+        row = result.mappings().first()
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Model instance {model_id} not found")
+
+        data = dict(row)
+        # Parse config_json and merge into response so the edit form gets all fields
+        if data.get("config_json"):
+            try:
+                config = json.loads(data["config_json"])
+                data.update(config)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return data
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch model instance {model_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch model: {str(e)}")
+
+
+@router.delete("/{model_id_str}")
+async def delete_model_instance(
+    model_id_str: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """Delete a model instance by ID, including associated files on disk.
+
+    Cleanup covers:
+    - The file at file_path (stored in DB)
+    - User model directory: {MODEL_PATH}/{user_id}/model_{id}.*
+    - Versioned snapshots: {MODEL_PATH}/{user_id}/model_{id}_versions/
+    """
+    import os
+    import shutil
+    from app.config import get_settings
+
+    if not model_id_str.isdigit():
+        raise HTTPException(status_code=404, detail=f"Model not found: {model_id_str}")
+
+    model_id = int(model_id_str)
+    settings = get_settings()
+    deleted_files = []
+
+    try:
+        # Fetch model info before deleting (need file_path and user_id for cleanup)
+        result = await db.execute(
+            text("SELECT id, file_path, user_id, model_name FROM model_instances WHERE id = :model_id"),
+            {"model_id": model_id}
+        )
+        row = result.mappings().first()
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Model instance {model_id} not found")
+
+        file_path = row.get("file_path")
+        user_id = str(row.get("user_id", ""))
+        model_name = row.get("model_name", "")
+
+        # 1. Delete the specific file_path stored in DB
+        if file_path:
+            abs_path = os.path.join(settings.MODEL_PATH, file_path)
+            if os.path.exists(abs_path):
+                os.remove(abs_path)
+                deleted_files.append(abs_path)
+                logger.info(f"Deleted model file: {abs_path}")
+                # Remove parent dir if empty
+                parent = os.path.dirname(abs_path)
+                if parent and os.path.isdir(parent) and not os.listdir(parent):
+                    os.rmdir(parent)
+                    deleted_files.append(parent)
+
+        # 2. Clean up user model files matching model_{id}.* pattern
+        if user_id:
+            user_dir = os.path.join(settings.MODEL_PATH, user_id)
+            if os.path.isdir(user_dir):
+                for fname in os.listdir(user_dir):
+                    if fname.startswith(f"model_{model_id}.") or fname.startswith(f"model_{model_id}_"):
+                        fpath = os.path.join(user_dir, fname)
+                        if os.path.isfile(fpath):
+                            os.remove(fpath)
+                            deleted_files.append(fpath)
+                            logger.info(f"Deleted model file: {fpath}")
+
+                # 3. Delete versioned snapshots directory
+                versions_dir = os.path.join(user_dir, f"model_{model_id}_versions")
+                if os.path.isdir(versions_dir):
+                    shutil.rmtree(versions_dir)
+                    deleted_files.append(versions_dir)
+                    logger.info(f"Deleted versions directory: {versions_dir}")
+
+                # 4. Delete model_name subdirectory if it exists and contains model files
+                if model_name:
+                    model_name_dir = os.path.join(user_dir, model_name)
+                    if os.path.isdir(model_name_dir):
+                        shutil.rmtree(model_name_dir)
+                        deleted_files.append(model_name_dir)
+                        logger.info(f"Deleted model name directory: {model_name_dir}")
+
+        # Delete from database
+        await db.execute(
+            text("DELETE FROM model_instances WHERE id = :model_id"),
+            {"model_id": model_id}
+        )
+        await db.commit()
+
+        return {
+            "message": "Model deleted successfully",
+            "model_id": model_id,
+            "deleted_files": len(deleted_files)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to delete model instance {model_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete model: {str(e)}")
+
+
+@router.post("/{model_type_name}")
+async def create_model_by_type(
+    model_type_name: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """Create a model instance by type (compatible with webapi's type-specific endpoints)"""
+    model_type = MODEL_TYPE_MAP.get(model_type_name.lower())
+    if not model_type:
+        raise HTTPException(status_code=404, detail=f"Unknown model type: {model_type_name}")
+
+    data = await request.json()
+    user_id = str(current_user["user_id"]) if current_user else "default_user"
+    model_name = data.get('model_name', f'{model_type} Model')
+    model_sub_type = data.get('model_sub_type', data.get('model', ''))
+
+    # Extract configuration parameters (exclude metadata fields)
+    parameters = {k: v for k, v in data.items()
+                  if k not in ['model_name', 'model_type', 'model_sub_type']}
+
+    try:
+        config_json = json.dumps(parameters)
+        result = await db.execute(
+            text("INSERT INTO model_instances "
+                 "(model_name, model_type, model_sub_type, user_id, status, "
+                 "config_json, created_by, created_at, updated_at) "
+                 "VALUES (:model_name, :model_type, :model_sub_type, :user_id, 'created', "
+                 ":config_json, :created_by, NOW(), NOW())"),
+            {
+                "model_name": model_name,
+                "model_type": model_type,
+                "model_sub_type": model_sub_type,
+                "user_id": user_id,
+                "config_json": config_json,
+                "created_by": user_id
+            }
+        )
+        await db.commit()
+        model_id = result.lastrowid
+
+        return {
+            "model_id": model_id,
+            "model_name": model_name,
+            "model_type": model_type,
+            "model_sub_type": model_sub_type,
+            "status": "created",
+            "configuration": parameters
+        }
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to create model: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create model: {str(e)}")
+
+
+@router.put("/{model_type_name}")
+async def update_model_by_type(
+    model_type_name: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """Update a model instance by type (compatible with webapi's type-specific endpoints)"""
+    model_type = MODEL_TYPE_MAP.get(model_type_name.lower())
+    if not model_type:
+        raise HTTPException(status_code=404, detail=f"Unknown model type: {model_type_name}")
+
+    data = await request.json()
+    model_id = data.get('model_id')
+    if not model_id:
+        raise HTTPException(status_code=400, detail="model_id is required")
+
+    model_name = data.get('model_name')
+    model_sub_type = data.get('model_sub_type', data.get('model', ''))
+
+    # Extract configuration parameters (exclude metadata fields)
+    parameters = {k: v for k, v in data.items()
+                  if k not in ['model_name', 'model_type', 'model_sub_type', 'model_id']}
+
+    try:
+        config_json = json.dumps(parameters)
+        await db.execute(
+            text("UPDATE model_instances SET model_name = :model_name, "
+                 "model_sub_type = :model_sub_type, config_json = :config_json, "
+                 "updated_at = NOW() WHERE id = :model_id"),
+            {
+                "model_name": model_name,
+                "model_sub_type": model_sub_type,
+                "config_json": config_json,
+                "model_id": model_id
+            }
+        )
+        await db.commit()
+
+        return {
+            "model_id": model_id,
+            "model_name": model_name,
+            "model_sub_type": model_sub_type,
+            "status": "updated",
+            "configuration": parameters
+        }
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to update model: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update model: {str(e)}")
