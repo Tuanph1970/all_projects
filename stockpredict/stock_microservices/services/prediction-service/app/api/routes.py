@@ -552,6 +552,220 @@ async def get_parameter_options(
         return []
 
 
+# ==========================================
+# Technical Indicators Endpoints
+# IMPORTANT: Must be declared BEFORE catch-all /{model_id_or_type} routes
+# ==========================================
+
+@router.get("/indicators")
+@router.get("/indicators/")
+async def get_all_indicators(
+    db: AsyncSession = Depends(get_db)
+):
+    """Get all technical indicators grouped by category"""
+    try:
+        result = await db.execute(
+            text("SELECT id, name, type, description, calculation_function, default_parameters "
+                 "FROM technical_indicators ORDER BY type, name")
+        )
+        rows = result.mappings().all()
+
+        grouped = {
+            'trend': [], 'momentum': [], 'volatility': [], 'volume': [],
+            'support_resistance': [], 'price_transform': [], 'bill_williams': []
+        }
+
+        for row in rows:
+            params = json.loads(row['default_parameters']) if row['default_parameters'] else {}
+            indicator = {
+                'id': row['id'],
+                'name': row['name'],
+                'type': row['type'],
+                'description': row['description'],
+                'calculation_function': row['calculation_function'],
+                'default_parameters': params
+            }
+            category = row['type']
+            if category in grouped:
+                grouped[category].append(indicator)
+            else:
+                grouped[category] = [indicator]
+
+        return grouped
+    except Exception as e:
+        logger.error(f"Failed to fetch indicators: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch indicators: {str(e)}")
+
+
+@router.get("/indicators/type/{indicator_type}")
+@router.get("/indicators/type/{indicator_type}/")
+async def get_indicators_by_type(
+    indicator_type: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get indicators filtered by type"""
+    try:
+        result = await db.execute(
+            text("SELECT id, name, type, description, calculation_function, default_parameters "
+                 "FROM technical_indicators WHERE type = :indicator_type ORDER BY name"),
+            {"indicator_type": indicator_type}
+        )
+        rows = result.mappings().all()
+        return [{
+            'id': row['id'],
+            'name': row['name'],
+            'type': row['type'],
+            'description': row['description'],
+            'calculation_function': row['calculation_function'],
+            'default_parameters': json.loads(row['default_parameters']) if row['default_parameters'] else {}
+        } for row in rows]
+    except Exception as e:
+        logger.error(f"Failed to fetch indicators by type: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch indicators: {str(e)}")
+
+
+@router.get("/indicators/{indicator_id}")
+@router.get("/indicators/{indicator_id}/")
+async def get_indicator_by_id(
+    indicator_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get specific indicator details"""
+    try:
+        result = await db.execute(
+            text("SELECT id, name, type, description, calculation_function, default_parameters "
+                 "FROM technical_indicators WHERE id = :indicator_id"),
+            {"indicator_id": indicator_id}
+        )
+        row = result.mappings().first()
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Indicator {indicator_id} not found")
+        return {
+            'id': row['id'],
+            'name': row['name'],
+            'type': row['type'],
+            'description': row['description'],
+            'calculation_function': row['calculation_function'],
+            'default_parameters': json.loads(row['default_parameters']) if row['default_parameters'] else {}
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch indicator: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch indicator: {str(e)}")
+
+
+@router.post("/indicators")
+@router.post("/indicators/")
+async def create_indicator(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """Create a new technical indicator"""
+    data = await request.json()
+    name = data.get('name')
+    indicator_type = data.get('type')
+    description = data.get('description', '')
+    calculation_function = data.get('calculation_function', '')
+    default_parameters = data.get('default_parameters', {})
+
+    if not name or not indicator_type:
+        raise HTTPException(status_code=400, detail="name and type are required")
+
+    try:
+        params_json = json.dumps(default_parameters) if isinstance(default_parameters, dict) else default_parameters
+        result = await db.execute(
+            text("INSERT INTO technical_indicators (name, type, description, calculation_function, default_parameters) "
+                 "VALUES (:name, :type, :description, :calc_func, :params)"),
+            {"name": name, "type": indicator_type, "description": description,
+             "calc_func": calculation_function, "params": params_json}
+        )
+        await db.commit()
+        return {
+            'id': result.lastrowid,
+            'name': name,
+            'type': indicator_type,
+            'description': description,
+            'calculation_function': calculation_function,
+            'default_parameters': default_parameters
+        }
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to create indicator: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create indicator: {str(e)}")
+
+
+@router.put("/indicators/{indicator_id}")
+@router.put("/indicators/{indicator_id}/")
+async def update_indicator(
+    indicator_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """Update an existing technical indicator"""
+    data = await request.json()
+    updates = []
+    values = {"indicator_id": indicator_id}
+
+    for field in ['name', 'type', 'description', 'calculation_function']:
+        if field in data:
+            updates.append(f"{field} = :{field}")
+            values[field] = data[field]
+
+    if 'default_parameters' in data:
+        updates.append("default_parameters = :default_parameters")
+        values['default_parameters'] = json.dumps(data['default_parameters']) if isinstance(data['default_parameters'], dict) else data['default_parameters']
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    try:
+        query = f"UPDATE technical_indicators SET {', '.join(updates)} WHERE id = :indicator_id"
+        result = await db.execute(text(query), values)
+        await db.commit()
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail=f"Indicator {indicator_id} not found")
+        return {"message": "Indicator updated", "id": indicator_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to update indicator: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update indicator: {str(e)}")
+
+
+@router.delete("/indicators/{indicator_id}")
+@router.delete("/indicators/{indicator_id}/")
+async def delete_indicator(
+    indicator_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """Delete a technical indicator"""
+    try:
+        result = await db.execute(
+            text("DELETE FROM technical_indicators WHERE id = :indicator_id"),
+            {"indicator_id": indicator_id}
+        )
+        await db.commit()
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail=f"Indicator {indicator_id} not found")
+        return {"message": "Indicator deleted", "id": indicator_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to delete indicator: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete indicator: {str(e)}")
+
+
+# ==========================================
+# Catch-all Model Instance Endpoints
+# IMPORTANT: These must come AFTER all specific routes
+# ==========================================
+
 @router.get("/{model_id_or_type}")
 async def get_model_instance_by_id(
     model_id_or_type: str,

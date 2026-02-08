@@ -7,7 +7,10 @@ const IndicatorsList = () => {
     trend: [],
     momentum: [],
     volatility: [],
-    volume: []
+    volume: [],
+    support_resistance: [],
+    price_transform: [],
+    bill_williams: []
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -47,7 +50,10 @@ const IndicatorsList = () => {
       trend: '📈',
       momentum: '⚡',
       volatility: '📊',
-      volume: '📦'
+      volume: '📦',
+      support_resistance: '📐',
+      price_transform: '🔄',
+      bill_williams: '🐊'
     };
     return icons[category] || '📊';
   };
@@ -57,9 +63,25 @@ const IndicatorsList = () => {
       trend: '#3b82f6',
       momentum: '#f59e0b',
       volatility: '#ef4444',
-      volume: '#10b981'
+      volume: '#10b981',
+      support_resistance: '#8b5cf6',
+      price_transform: '#ec4899',
+      bill_williams: '#06b6d4'
     };
     return colors[category] || '#6b7280';
+  };
+
+  const getCategoryLabel = (category) => {
+    const labels = {
+      trend: 'Trend',
+      momentum: 'Momentum',
+      volatility: 'Volatility',
+      volume: 'Volume',
+      support_resistance: 'Support/Resistance',
+      price_transform: 'Price Transform',
+      bill_williams: 'Bill Williams'
+    };
+    return labels[category] || category.charAt(0).toUpperCase() + category.slice(1);
   };
 
   const handleAddNew = () => {
@@ -231,7 +253,7 @@ const IndicatorsList = () => {
 
       {/* Category Tabs */}
       <div className="category-tabs">
-        {['trend', 'momentum', 'volatility', 'volume'].map((category) => (
+        {['trend', 'momentum', 'volatility', 'volume', 'support_resistance', 'price_transform', 'bill_williams'].map((category) => (
           <button
             key={category}
             className={`category-tab ${selectedCategory === category ? 'active' : ''}`}
@@ -245,7 +267,7 @@ const IndicatorsList = () => {
           >
             <span className="category-icon">{getCategoryIcon(category)}</span>
             <span className="category-name">
-              {category.charAt(0).toUpperCase() + category.slice(1)}
+              {getCategoryLabel(category)}
             </span>
             <span className="category-count">
               {indicators[category]?.length || 0}
@@ -316,7 +338,7 @@ const IndicatorsList = () => {
                   color: 'white'
                 }}
               >
-                {selectedCategory.toUpperCase()}
+                {getCategoryLabel(selectedCategory)}
               </span>
             </div>
             <div className="details-section">
@@ -368,6 +390,9 @@ const IndicatorsList = () => {
                   <option value="momentum">Momentum</option>
                   <option value="volatility">Volatility</option>
                   <option value="volume">Volume</option>
+                  <option value="support_resistance">Support/Resistance</option>
+                  <option value="price_transform">Price Transform</option>
+                  <option value="bill_williams">Bill Williams</option>
                 </select>
               </div>
 
@@ -461,6 +486,9 @@ const IndicatorsList = () => {
                   <option value="momentum">Momentum</option>
                   <option value="volatility">Volatility</option>
                   <option value="volume">Volume</option>
+                  <option value="support_resistance">Support/Resistance</option>
+                  <option value="price_transform">Price Transform</option>
+                  <option value="bill_williams">Bill Williams</option>
                 </select>
               </div>
 

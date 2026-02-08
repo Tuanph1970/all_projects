@@ -89,6 +89,34 @@ WEBAPI_TABLES_SQL = [
         INDEX idx_param_name (param_name)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
+    """
+    CREATE TABLE IF NOT EXISTS technical_indicators (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        description TEXT,
+        calculation_function VARCHAR(200),
+        default_parameters LONGTEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_type (type),
+        UNIQUE KEY uk_name (name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS solution_indicators (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        solution_id INT NOT NULL,
+        indicator_id INT NOT NULL,
+        indicator_category VARCHAR(50) NOT NULL,
+        covariate_type VARCHAR(20) DEFAULT 'past',
+        parameters LONGTEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_solution_id (solution_id),
+        UNIQUE KEY uk_solution_category (solution_id, indicator_category)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
 ]
 
 
@@ -348,6 +376,76 @@ SEED_DATA_SQL = [
     ('model_sub_type', 'RNN', 'Vanilla RNN', 3),
     ('activation', 'relu', 'ReLU activation', 1),
     ('activation', 'gelu', 'GELU activation', 2)""",
+
+    # ---- technical_indicators: seed data for technical indicators ----
+    # Trend indicators
+    """INSERT IGNORE INTO technical_indicators (name, type, description, calculation_function, default_parameters) VALUES
+    ('SMA', 'trend', 'Simple Moving Average', 'calculate_sma', '{"period": 20}'),
+    ('EMA', 'trend', 'Exponential Moving Average', 'calculate_ema', '{"period": 20}'),
+    ('WMA', 'trend', 'Weighted Moving Average', 'calculate_wma', '{"period": 20}'),
+    ('DEMA', 'trend', 'Double Exponential Moving Average', 'calculate_dema', '{"period": 20}'),
+    ('TEMA', 'trend', 'Triple Exponential Moving Average', 'calculate_tema', '{"period": 20}'),
+    ('MACD', 'trend', 'Moving Average Convergence Divergence', 'calculate_macd', '{"fast_period": 12, "slow_period": 26, "signal_period": 9}'),
+    ('ADX', 'trend', 'Average Directional Index', 'calculate_adx', '{"period": 14}'),
+    ('PSAR', 'trend', 'Parabolic SAR', 'calculate_psar', '{"step": 0.02, "max_step": 0.2}'),
+    ('SUPERTREND', 'trend', 'Supertrend Indicator', 'calculate_supertrend', '{"period": 10, "multiplier": 3}'),
+    ('ICHIMOKU', 'trend', 'Ichimoku Cloud', 'calculate_ichimoku', '{"tenkan_period": 9, "kijun_period": 26, "senkou_b_period": 52}'),
+    ('AROON', 'trend', 'Aroon Indicator', 'calculate_aroon', '{"period": 25}'),
+    ('VORTEX', 'trend', 'Vortex Indicator', 'calculate_vortex', '{"period": 14}')""",
+    # Momentum indicators
+    """INSERT IGNORE INTO technical_indicators (name, type, description, calculation_function, default_parameters) VALUES
+    ('RSI', 'momentum', 'Relative Strength Index', 'calculate_rsi', '{"period": 14}'),
+    ('STOCH', 'momentum', 'Stochastic Oscillator', 'calculate_stochastic', '{"k_period": 14, "d_period": 3}'),
+    ('STOCH_RSI', 'momentum', 'Stochastic RSI', 'calculate_stochastic_rsi', '{"period": 14, "smooth_k": 3, "smooth_d": 3}'),
+    ('CCI', 'momentum', 'Commodity Channel Index', 'calculate_cci', '{"period": 20}'),
+    ('WILLIAMS_R', 'momentum', 'Williams %R', 'calculate_williams_r', '{"period": 14}'),
+    ('ROC', 'momentum', 'Rate of Change', 'calculate_roc', '{"period": 12}'),
+    ('MOM', 'momentum', 'Momentum Indicator', 'calculate_momentum', '{"period": 10}'),
+    ('TSI', 'momentum', 'True Strength Index', 'calculate_tsi', '{"long_period": 25, "short_period": 13, "signal_period": 13}'),
+    ('UO', 'momentum', 'Ultimate Oscillator', 'calculate_ultimate_oscillator', '{"short_period": 7, "medium_period": 14, "long_period": 28}'),
+    ('AO', 'momentum', 'Awesome Oscillator', 'calculate_awesome_oscillator', '{"fast_period": 5, "slow_period": 34}')""",
+    # Volatility indicators
+    """INSERT IGNORE INTO technical_indicators (name, type, description, calculation_function, default_parameters) VALUES
+    ('BB', 'volatility', 'Bollinger Bands', 'calculate_bollinger_bands', '{"period": 20, "std": 2}'),
+    ('ATR', 'volatility', 'Average True Range', 'calculate_atr', '{"period": 14}'),
+    ('KELTNER', 'volatility', 'Keltner Channel', 'calculate_keltner_channel', '{"period": 20, "multiplier": 2.0}'),
+    ('DONCHIAN', 'volatility', 'Donchian Channel', 'calculate_donchian_channel', '{"period": 20}'),
+    ('STDDEV', 'volatility', 'Standard Deviation', 'calculate_std_dev', '{"period": 20}'),
+    ('HV', 'volatility', 'Historical Volatility', 'calculate_historical_volatility', '{"period": 20}')""",
+    # Volume indicators
+    """INSERT IGNORE INTO technical_indicators (name, type, description, calculation_function, default_parameters) VALUES
+    ('VOLUME', 'volume', 'Trading Volume', 'calculate_volume', '{}'),
+    ('OBV', 'volume', 'On Balance Volume', 'calculate_obv', '{}'),
+    ('VWAP', 'volume', 'Volume Weighted Average Price', 'calculate_vwap', '{}'),
+    ('MFI', 'volume', 'Money Flow Index', 'calculate_mfi', '{"period": 14}'),
+    ('AD', 'volume', 'Accumulation/Distribution Line', 'calculate_ad', '{}'),
+    ('CMF', 'volume', 'Chaikin Money Flow', 'calculate_cmf', '{"period": 20}'),
+    ('CHO', 'volume', 'Chaikin Oscillator', 'calculate_chaikin_oscillator', '{"fast_period": 3, "slow_period": 10}'),
+    ('VOSC', 'volume', 'Volume Oscillator', 'calculate_volume_oscillator', '{"fast_period": 5, "slow_period": 10}'),
+    ('EOM', 'volume', 'Ease of Movement', 'calculate_eom', '{"period": 14}'),
+    ('FI', 'volume', 'Force Index', 'calculate_force_index', '{"period": 13}'),
+    ('NVI', 'volume', 'Negative Volume Index', 'calculate_nvi', '{}'),
+    ('PVI', 'volume', 'Positive Volume Index', 'calculate_pvi', '{}'),
+    ('Volume_MA', 'volume', 'Volume Moving Average', 'calculate_volume_ma', '{"period": 20}')""",
+    # Support & Resistance indicators
+    """INSERT IGNORE INTO technical_indicators (name, type, description, calculation_function, default_parameters) VALUES
+    ('PIVOT', 'support_resistance', 'Pivot Points', 'calculate_pivot_points', '{"type": "standard"}'),
+    ('FIB_RET', 'support_resistance', 'Fibonacci Retracement', 'calculate_fibonacci_retracement', '{}'),
+    ('FIB_EXT', 'support_resistance', 'Fibonacci Extension', 'calculate_fibonacci_extension', '{}')""",
+    # Price Transform indicators
+    """INSERT IGNORE INTO technical_indicators (name, type, description, calculation_function, default_parameters) VALUES
+    ('HEIKIN_ASHI', 'price_transform', 'Heikin Ashi Candles', 'calculate_heikin_ashi', '{}'),
+    ('RENKO', 'price_transform', 'Renko Chart', 'calculate_renko', '{"box_size": 1}'),
+    ('TP', 'price_transform', 'Typical Price', 'calculate_typical_price', '{}'),
+    ('MP', 'price_transform', 'Median Price', 'calculate_median_price', '{}'),
+    ('WC', 'price_transform', 'Weighted Close', 'calculate_weighted_close', '{}')""",
+    # Bill Williams indicators
+    """INSERT IGNORE INTO technical_indicators (name, type, description, calculation_function, default_parameters) VALUES
+    ('ALLIGATOR', 'bill_williams', 'Williams Alligator', 'calculate_alligator', '{"jaw_period": 13, "teeth_period": 8, "lips_period": 5}'),
+    ('FRACTALS', 'bill_williams', 'Williams Fractals', 'calculate_fractals', '{}'),
+    ('GATOR', 'bill_williams', 'Gator Oscillator', 'calculate_gator_oscillator', '{"jaw_period": 13, "teeth_period": 8, "lips_period": 5}'),
+    ('MFI_BW', 'bill_williams', 'Market Facilitation Index (Bill Williams)', 'calculate_mfi_bw', '{}'),
+    ('AC', 'bill_williams', 'Accelerator Oscillator', 'calculate_accelerator_oscillator', '{"fast_period": 5, "slow_period": 34}')""",
 ]
 
 settings = get_settings()
