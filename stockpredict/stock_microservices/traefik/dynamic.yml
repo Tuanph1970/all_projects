@@ -18,7 +18,7 @@ http:
         - cors
 
     stock-data-service:
-      rule: "PathPrefix(`/stock_helper/api/v2/stocks`) || PathPrefix(`/stock_helper/api/v2/companies`) || PathPrefix(`/stock_helper/api/v2/market`) || PathPrefix(`/stock_helper/api/v2/industries`)"
+      rule: "PathPrefix(`/stock_helper/api/v2/stocks`) || PathPrefix(`/stock_helper/api/v2/companies`) || PathPrefix(`/stock_helper/api/v2/market`) || PathPrefix(`/stock_helper/api/v2/industries`) || PathPrefix(`/stock_helper/api/v2/priceboards`)"
       service: stock-data-service
       entryPoints:
         - web
@@ -129,7 +129,7 @@ http:
         healthCheck:
           path: /health/live
           interval: 10s
-          timeout: 3s
+          timeout: 5s
 
     portfolio-service:
       loadBalancer:

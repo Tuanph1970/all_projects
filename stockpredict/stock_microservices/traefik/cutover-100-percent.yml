@@ -135,7 +135,7 @@ http:
         healthCheck:
           path: /health/live
           interval: 5s
-          timeout: 3s
+          timeout: 5s
 
     portfolio-microservice:
       loadBalancer:

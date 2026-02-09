@@ -11,6 +11,7 @@ import logging
 
 from app.config import get_settings
 from app.api.routes import router
+from app.api.solution_routes import solution_router
 from app.api.dependencies import engine
 from app.models.domain import Base
 
@@ -115,6 +116,27 @@ WEBAPI_TABLES_SQL = [
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_solution_id (solution_id),
         UNIQUE KEY uk_solution_category (solution_id, indicator_category)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS tbl_solution (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        solution_name VARCHAR(255) NOT NULL,
+        model_id INT NOT NULL,
+        ticker VARCHAR(20) NOT NULL,
+        created_by VARCHAR(100),
+        user_id VARCHAR(100),
+        created_date VARCHAR(50),
+        updated_date VARCHAR(50),
+        updated_by VARCHAR(100),
+        start_training_date VARCHAR(50),
+        end_training_date VARCHAR(50),
+        train_status VARCHAR(50) DEFAULT 'not_trained',
+        solution_status INT DEFAULT 0,
+        status INT DEFAULT 1,
+        train_validation_ratio FLOAT DEFAULT 0.8,
+        INDEX idx_user_id (user_id),
+        INDEX idx_model_id (model_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
 ]
@@ -569,6 +591,13 @@ app.include_router(
     router,
     prefix=f"/{settings.API_PREFIX}/api/v2/models",
     tags=["Models"]
+)
+
+# Solution management routes (/solutions path)
+app.include_router(
+    solution_router,
+    prefix=f"/{settings.API_PREFIX}/api/v2/solutions",
+    tags=["Solutions"]
 )
 
 
