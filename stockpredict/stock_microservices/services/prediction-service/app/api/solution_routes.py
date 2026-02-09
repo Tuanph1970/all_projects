@@ -460,7 +460,9 @@ async def get_solution_indicators(
     db: AsyncSession = Depends(get_db),
     current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
-    """Get indicators assigned to a solution.
+    """Get indicators assigned to a solution, grouped by category.
+    Returns format expected by frontend IndicatorSelector:
+    { trend: {id, covariate_type, parameters, name, ...}, momentum: {...}, ... }
     Matches webapi: view_indicators.get_solution_indicators
     """
     try:
@@ -476,24 +478,40 @@ async def get_solution_indicators(
             {"solution_id": solution_id}
         )
         rows = result.mappings().all()
-        indicators = []
+
+        # Group by category for frontend consumption
+        grouped = {}
         for row in rows:
             ind = dict(row)
-            if ind.get("parameters"):
+            params = ind.get("parameters")
+            if params and isinstance(params, str):
                 try:
-                    ind["parameters"] = json.loads(ind["parameters"])
+                    params = json.loads(params)
                 except (json.JSONDecodeError, TypeError):
                     pass
-            if ind.get("default_parameters"):
+            default_params = ind.get("default_parameters")
+            if default_params and isinstance(default_params, str):
                 try:
-                    ind["default_parameters"] = json.loads(ind["default_parameters"])
+                    default_params = json.loads(default_params)
                 except (json.JSONDecodeError, TypeError):
                     pass
-            indicators.append(ind)
-        return indicators
+
+            category = ind.get("indicator_category")
+            if category:
+                grouped[category] = {
+                    "id": ind.get("indicator_id"),
+                    "name": ind.get("name"),
+                    "type": ind.get("type"),
+                    "description": ind.get("description"),
+                    "covariate_type": ind.get("covariate_type", "past"),
+                    "parameters": params or {},
+                    "default_parameters": default_params or {},
+                }
+
+        return grouped
     except Exception as e:
         logger.error(f"Failed to fetch solution indicators: {e}")
-        return []
+        return {}
 
 
 @solution_router.post("/{solution_id}/indicators/set")
@@ -505,10 +523,33 @@ async def set_solution_indicators(
     current_user: dict = Depends(get_current_user)
 ):
     """Set all indicators for a solution (replaces existing).
+    Frontend sends: {trend_indicator: {id, covariate_type, parameters}, momentum_indicator: {...}, ...}
     Matches webapi: view_indicators.set_solution_indicators
     """
     data = await request.json()
-    indicators = data.get("indicators", [])
+
+    # Parse frontend format: {trend_indicator: {...}, momentum_indicator: {...}, ...}
+    category_map = {
+        "trend_indicator": "trend",
+        "momentum_indicator": "momentum",
+        "volatility_indicator": "volatility",
+        "volume_indicator": "volume",
+    }
+
+    indicators = []
+    for key, category in category_map.items():
+        ind_data = data.get(key)
+        if ind_data and ind_data.get("id"):
+            indicators.append({
+                "indicator_id": ind_data["id"],
+                "indicator_category": category,
+                "covariate_type": ind_data.get("covariate_type", "past"),
+                "parameters": ind_data.get("parameters", {}),
+            })
+
+    # Also support array format: {indicators: [{indicator_id, indicator_category, ...}]}
+    if not indicators and "indicators" in data:
+        indicators = data["indicators"]
 
     try:
         # Delete existing indicators for this solution
