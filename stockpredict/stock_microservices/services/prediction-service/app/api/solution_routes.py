@@ -4,22 +4,29 @@ Provides CRUD endpoints for prediction solutions, matching the v2 frontend API.
 References webapi/views_solution.py and webapi/repositories/predict_solution_repository.py
 for database schema and business logic.
 """
+import asyncio
 import json
 import logging
-import threading
+import os
 import time as time_module
 from typing import Optional, Dict, List
 from datetime import datetime
 
 import httpx
+import joblib
 import numpy as np
 import pandas as pd
 import ta
+import xgboost as xgb
+import lightgbm as lgb
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
-from app.api.dependencies import get_db, get_current_user_optional, get_current_user
+from app.api.dependencies import get_db, get_current_user_optional, get_current_user, async_session_factory
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -29,6 +36,456 @@ solution_router = APIRouter()
 
 # Global dictionary to track training status (matches webapi pattern)
 training_status = {}
+
+# Model type mapping: DARTS neural network types -> scikit-learn/gradient boosting models
+# Since DARTS is not installed in this microservice, we use available ML models
+DARTS_TO_ML_MAP = {
+    'BlockRNN': 'xgboost',
+    'RNNModel': 'lightgbm',
+    'TCNModel': 'xgboost',
+    'TransformerModel': 'lightgbm',
+    'NBEATSModel': 'random_forest',
+    'TFTModel': 'lightgbm',
+    'NBeats': 'random_forest',
+    'NHits': 'xgboost',
+    'DLinear': 'lightgbm',
+    'NLinear': 'lightgbm',
+    'TiDE': 'xgboost',
+    'XGBoost': 'xgboost',
+    'LightGBM': 'lightgbm',
+    'RandomForest': 'random_forest',
+    'CatBoost': 'xgboost',
+    'LinearRegression': 'linear_regression',
+}
+
+
+def _create_ml_model(model_type: str, model_sub_type: str = '', config_json=None):
+    """Create an ML model based on model type mapping."""
+    ml_type = DARTS_TO_ML_MAP.get(model_type, 'xgboost')
+
+    config = {}
+    if config_json:
+        try:
+            config = json.loads(config_json) if isinstance(config_json, str) else config_json
+        except (json.JSONDecodeError, TypeError):
+            config = {}
+
+    if ml_type == 'xgboost':
+        return xgb.XGBRegressor(
+            n_estimators=config.get('n_estimators', 200),
+            max_depth=config.get('max_depth', 6),
+            learning_rate=config.get('learning_rate', 0.1),
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=42,
+            verbosity=0
+        )
+    elif ml_type == 'lightgbm':
+        return lgb.LGBMRegressor(
+            n_estimators=config.get('n_estimators', 200),
+            max_depth=config.get('max_depth', 6),
+            learning_rate=config.get('learning_rate', 0.1),
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=42,
+            verbose=-1
+        )
+    elif ml_type == 'random_forest':
+        return RandomForestRegressor(
+            n_estimators=config.get('n_estimators', 200),
+            max_depth=config.get('max_depth', 10),
+            random_state=42,
+            n_jobs=-1
+        )
+    else:
+        return LinearRegression()
+
+
+def _prepare_indicator_features(df: pd.DataFrame, indicator_rows: list) -> tuple:
+    """Calculate indicator features and return (feature_df, indicator_data_by_date).
+
+    Returns:
+        feature_df: DataFrame with indicator columns
+        indicator_data_by_date: dict mapping date_str -> {col: value} for chart merge
+    """
+    feature_df = pd.DataFrame(index=df.index)
+    indicator_data_by_date = {}
+
+    for row in indicator_rows:
+        ind = dict(row)
+        name = ind.get('name', '')
+        code = INDICATOR_NAME_MAP.get(name, name)
+
+        params = ind.get('parameters')
+        if params and isinstance(params, str):
+            try:
+                params = json.loads(params)
+            except (json.JSONDecodeError, TypeError):
+                params = {}
+        if not params:
+            default_params = ind.get('default_parameters')
+            if default_params and isinstance(default_params, str):
+                try:
+                    params = json.loads(default_params)
+                except (json.JSONDecodeError, TypeError):
+                    params = {}
+            elif isinstance(default_params, dict):
+                params = default_params
+            else:
+                params = {}
+
+        indicator_data = _calculate_indicator(df, code, params)
+        if not indicator_data:
+            continue
+
+        ind_df = pd.DataFrame(indicator_data)
+        if 'date' in ind_df.columns:
+            ind_df['date'] = pd.to_datetime(ind_df['date'])
+            ind_df = ind_df.set_index('date')
+
+        for col in ind_df.columns:
+            if col != 'date':
+                try:
+                    feature_df[col] = pd.to_numeric(ind_df[col], errors='coerce')
+                except Exception:
+                    pass
+
+        for item in indicator_data:
+            date_key = item.get('date', '')
+            if date_key not in indicator_data_by_date:
+                indicator_data_by_date[date_key] = {}
+            for k, v in item.items():
+                if k != 'date' and v is not None:
+                    indicator_data_by_date[date_key][k] = v
+
+    return feature_df, indicator_data_by_date
+
+
+async def _run_training(solution_id: int, train_params: dict):
+    """Background async training task with real ML model training."""
+    try:
+        training_status[solution_id] = {
+            "status": "training",
+            "message": "Loading solution data...",
+            "progress": 5,
+            "started_at": time_module.time()
+        }
+
+        async with async_session_factory() as db:
+            # Step 1: Load solution
+            result = await db.execute(
+                text("SELECT * FROM tbl_solution WHERE id = :id"),
+                {"id": solution_id}
+            )
+            solution = result.mappings().first()
+            if not solution:
+                training_status[solution_id] = {
+                    "status": "failed", "error": "Solution not found",
+                    "failed_at": time_module.time()
+                }
+                return
+
+            ticker = solution['ticker']
+            model_id = solution['model_id']
+
+            # Step 2: Load model instance
+            result = await db.execute(
+                text("SELECT * FROM model_instances WHERE id = :id"),
+                {"id": model_id}
+            )
+            model_instance = result.mappings().first()
+            if not model_instance:
+                training_status[solution_id] = {
+                    "status": "failed", "error": f"Model instance {model_id} not found",
+                    "failed_at": time_module.time()
+                }
+                return
+
+            training_status[solution_id]["message"] = "Loading indicators..."
+            training_status[solution_id]["progress"] = 10
+
+            # Step 3: Get solution indicators
+            result = await db.execute(
+                text("""
+                    SELECT si.indicator_id, si.indicator_category, si.covariate_type, si.parameters,
+                           ti.name, ti.type, ti.default_parameters, ti.calculation_function
+                    FROM solution_indicators si
+                    LEFT JOIN technical_indicators ti ON si.indicator_id = ti.id
+                    WHERE si.solution_id = :solution_id
+                """),
+                {"solution_id": solution_id}
+            )
+            indicator_rows = [dict(r) for r in result.mappings().all()]
+
+            training_status[solution_id]["message"] = f"Fetching price data for {ticker}..."
+            training_status[solution_id]["progress"] = 15
+
+            # Step 4: Fetch OHLC data from stock-data-service
+            start_date = train_params.get('start_date')
+            end_date = train_params.get('end_date')
+            train_ratio = float(train_params.get('train_ratio', 0.8))
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                url = f"{settings.STOCK_DATA_SERVICE_URL}/stock_helper/api/v2/companies/{ticker}/historical-data"
+                resp = await client.get(url, params={"start_date": start_date, "end_date": end_date})
+                if resp.status_code != 200:
+                    training_status[solution_id] = {
+                        "status": "failed",
+                        "error": f"Failed to fetch price data for {ticker} (HTTP {resp.status_code})",
+                        "failed_at": time_module.time()
+                    }
+                    return
+                price_response = resp.json()
+
+            if isinstance(price_response, dict) and "data" in price_response:
+                price_list = price_response["data"]
+            elif isinstance(price_response, list):
+                price_list = price_response
+            else:
+                price_list = []
+
+            if not price_list:
+                training_status[solution_id] = {
+                    "status": "failed",
+                    "error": f"No price data for {ticker} in range {start_date} to {end_date}",
+                    "failed_at": time_module.time()
+                }
+                return
+
+            logger.info(f"Training solution {solution_id}: loaded {len(price_list)} price records for {ticker}")
+
+            df = pd.DataFrame(price_list)
+            if 'time' in df.columns:
+                df['date'] = pd.to_datetime(df['time'])
+            elif 'date' in df.columns:
+                df['date'] = pd.to_datetime(df['date'])
+            df = df.set_index('date').sort_index()
+            df = df[['open', 'high', 'low', 'close', 'volume']].copy()
+            df = df.apply(pd.to_numeric, errors='coerce')
+            df = df.dropna()
+
+            training_status[solution_id]["message"] = "Calculating technical indicators..."
+            training_status[solution_id]["progress"] = 25
+
+            # Step 5: Calculate indicator features
+            indicator_feature_df, indicator_data_by_date = _prepare_indicator_features(df, indicator_rows)
+
+            # Build feature DataFrame
+            feature_df = pd.DataFrame(index=df.index)
+            feature_df['close'] = df['close']
+
+            # Price-based features
+            feature_df['returns'] = df['close'].pct_change()
+            feature_df['log_returns'] = np.log(df['close'] / df['close'].shift(1))
+            feature_df['high_low_ratio'] = df['high'] / df['low']
+            feature_df['close_open_ratio'] = df['close'] / df['open']
+
+            for lag in [1, 2, 3, 5, 10]:
+                feature_df[f'close_lag_{lag}'] = df['close'].shift(lag)
+                feature_df[f'returns_lag_{lag}'] = feature_df['returns'].shift(lag)
+
+            # Volatility
+            feature_df['volatility_5'] = feature_df['returns'].rolling(5).std()
+            feature_df['volatility_20'] = feature_df['returns'].rolling(20).std()
+
+            # Volume features
+            if 'volume' in df.columns:
+                feature_df['volume_sma_20'] = df['volume'].rolling(20).mean()
+                feature_df['volume_ratio'] = df['volume'] / feature_df['volume_sma_20']
+
+            # Add indicator features
+            for col in indicator_feature_df.columns:
+                feature_df[col] = indicator_feature_df[col]
+
+            # Target: next day's close price
+            feature_df['target'] = feature_df['close'].shift(-1)
+
+            # Drop NaN rows
+            feature_df = feature_df.dropna()
+
+            if len(feature_df) < 30:
+                training_status[solution_id] = {
+                    "status": "failed",
+                    "error": f"Insufficient data: only {len(feature_df)} usable data points after feature preparation (need at least 30)",
+                    "failed_at": time_module.time()
+                }
+                return
+
+            training_status[solution_id]["message"] = "Training model..."
+            training_status[solution_id]["progress"] = 40
+
+            # Step 6: Prepare training data
+            feature_cols = [col for col in feature_df.columns if col not in ['close', 'target']]
+            X = feature_df[feature_cols].values
+            y = feature_df['target'].values
+
+            split_idx = int(len(X) * train_ratio)
+            X_train, X_val = X[:split_idx], X[split_idx:]
+            y_train, y_val = y[:split_idx], y[split_idx:]
+
+            logger.info(f"Training solution {solution_id}: {len(X_train)} train, {len(X_val)} val, {len(feature_cols)} features")
+
+            # Step 7: Create and train model
+            model_type = model_instance['model_type'] if model_instance else 'BlockRNN'
+            model_sub_type = model_instance.get('model_sub_type', '') if model_instance else ''
+            config_json = model_instance.get('config_json') if model_instance else None
+
+            ml_model = _create_ml_model(model_type, model_sub_type, config_json)
+
+            # Run CPU-bound training in thread executor
+            await asyncio.to_thread(ml_model.fit, X_train, y_train)
+
+            training_status[solution_id]["message"] = "Evaluating model..."
+            training_status[solution_id]["progress"] = 70
+
+            # Step 8: Evaluate
+            y_pred_val = ml_model.predict(X_val)
+            rmse = float(np.sqrt(mean_squared_error(y_val, y_pred_val)))
+            mae = float(mean_absolute_error(y_val, y_pred_val))
+            r2 = float(r2_score(y_val, y_pred_val))
+
+            if len(y_val) > 1:
+                actual_dir = np.sign(y_val[1:] - y_val[:-1])
+                pred_dir = np.sign(y_pred_val[1:] - y_pred_val[:-1])
+                direction_accuracy = float(np.mean(actual_dir == pred_dir) * 100)
+            else:
+                direction_accuracy = 0.0
+
+            logger.info(f"Training solution {solution_id}: RMSE={rmse:.4f}, MAE={mae:.4f}, R2={r2:.4f}, Dir={direction_accuracy:.1f}%")
+
+            training_status[solution_id]["message"] = "Saving model..."
+            training_status[solution_id]["progress"] = 80
+
+            # Step 9: Save model to disk
+            os.makedirs(settings.MODEL_PATH, exist_ok=True)
+            model_file = f"{settings.MODEL_PATH}/solution_{solution_id}_model.joblib"
+            joblib.dump({
+                'model': ml_model,
+                'feature_cols': feature_cols,
+                'model_type': model_type,
+                'ml_type': DARTS_TO_ML_MAP.get(model_type, 'xgboost'),
+                'ticker': ticker,
+                'trained_at': datetime.now().isoformat(),
+            }, model_file)
+
+            logger.info(f"Model saved to {model_file}")
+
+            # Step 10: Update database
+            training_status[solution_id]["message"] = "Updating database..."
+            training_status[solution_id]["progress"] = 85
+
+            metrics_json = json.dumps({
+                'rmse': rmse, 'mae': mae, 'r2': r2,
+                'direction_accuracy': direction_accuracy,
+                'training_samples': int(len(X_train)),
+                'validation_samples': int(len(X_val)),
+                'features_used': len(feature_cols)
+            })
+
+            await db.execute(
+                text("""
+                    UPDATE model_instances
+                    SET status='trained', file_path=:file_path,
+                        training_metrics_json=:metrics, last_training_date=NOW()
+                    WHERE id = :model_id
+                """),
+                {"file_path": model_file, "metrics": metrics_json, "model_id": model_id}
+            )
+
+            await db.execute(
+                text("""
+                    UPDATE tbl_solution
+                    SET train_status='trained', solution_status=1,
+                        start_training_date=:start_date, end_training_date=:end_date
+                    WHERE id = :solution_id
+                """),
+                {"start_date": start_date, "end_date": end_date, "solution_id": solution_id}
+            )
+            await db.commit()
+
+            training_status[solution_id]["message"] = "Generating predictions..."
+            training_status[solution_id]["progress"] = 90
+
+            # Step 11: Generate predictions for chart
+            all_pred = ml_model.predict(X)
+
+            predictions = []
+            dates_list = feature_df.index.tolist()
+            for i, d in enumerate(dates_list):
+                date_str = d.strftime('%Y-%m-%d')
+                is_validation = i >= split_idx
+
+                point = {
+                    'date': date_str,
+                    'actual_price': float(feature_df['close'].iloc[i]),
+                    'predicted_price': float(all_pred[i]) if is_validation else None,
+                    'close': float(feature_df['close'].iloc[i]),
+                    'open': float(df.loc[d, 'open']) if d in df.index else None,
+                    'high': float(df.loc[d, 'high']) if d in df.index else None,
+                    'low': float(df.loc[d, 'low']) if d in df.index else None,
+                    'volume': float(df.loc[d, 'volume']) if d in df.index else None,
+                }
+
+                # Merge indicator values for chart display
+                date_iso = d.isoformat()
+                if date_iso in indicator_data_by_date:
+                    point.update(indicator_data_by_date[date_iso])
+                elif date_str in indicator_data_by_date:
+                    point.update(indicator_data_by_date[date_str])
+
+                predictions.append(point)
+
+            # Step 12: Compute prediction dates (business days)
+            last_training_date = dates_list[-1]
+            output_chunk_length = 10
+
+            pred_start = last_training_date + pd.Timedelta(days=1)
+            while pred_start.weekday() >= 5:
+                pred_start += pd.Timedelta(days=1)
+
+            pred_end = pred_start
+            bdays = 0
+            while bdays < output_chunk_length - 1:
+                pred_end += pd.Timedelta(days=1)
+                if pred_end.weekday() < 5:
+                    bdays += 1
+
+            prediction_dates = {
+                'prediction_start_date': pred_start.strftime('%Y-%m-%d'),
+                'prediction_end_date': pred_end.strftime('%Y-%m-%d'),
+                'output_chunk_length': output_chunk_length,
+                'training_end_date': end_date
+            }
+
+            # Step 13: Store completed result
+            training_status[solution_id] = {
+                "status": "completed",
+                "completed_at": time_module.time(),
+                "message": f"Training completed! RMSE: {rmse:.4f}",
+                "result": {
+                    "rmse": rmse,
+                    "mae": mae,
+                    "r2": r2,
+                    "direction_accuracy": direction_accuracy,
+                    "predictions": predictions,
+                    "prediction_dates": prediction_dates,
+                    "training_status": "completed",
+                    "model_id": model_id,
+                    "training_samples": int(len(X_train)),
+                    "validation_samples": int(len(X_val)),
+                }
+            }
+
+            logger.info(f"Training completed for solution {solution_id}: RMSE={rmse:.4f}, {len(predictions)} data points")
+
+    except Exception as e:
+        logger.error(f"Training failed for solution {solution_id}: {e}", exc_info=True)
+        training_status[solution_id] = {
+            "status": "failed",
+            "failed_at": time_module.time(),
+            "error": str(e),
+            "message": f"Training failed: {str(e)}"
+        }
 
 
 # ==========================================
@@ -382,7 +839,7 @@ async def train_solution(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Start training a solution asynchronously.
+    """Start training a solution asynchronously with real ML model.
     Matches webapi: views_solution.train_solution
     """
     data = await request.json()
@@ -390,6 +847,9 @@ async def train_solution(
 
     if not solution_id:
         raise HTTPException(status_code=400, detail="Solution ID is required")
+
+    # Normalize to int for consistent dict key
+    solution_id = int(solution_id)
 
     # Check if already training
     if solution_id in training_status:
@@ -404,23 +864,20 @@ async def train_solution(
     # Mark as training
     training_status[solution_id] = {
         "status": "training",
-        "message": "Training in progress...",
+        "message": "Initializing training...",
         "progress": 0,
         "started_at": time_module.time()
     }
 
-    # TODO: Implement actual training logic
-    # For now, mark as completed after a brief delay
-    def mock_training():
-        time_module.sleep(2)
-        training_status[solution_id] = {
-            "status": "completed",
-            "message": "Training completed successfully",
-            "completed_at": time_module.time()
-        }
+    # Launch real training in background
+    train_params = {
+        'start_date': data.get('start_date'),
+        'end_date': data.get('end_date'),
+        'validation': data.get('validation', False),
+        'train_ratio': data.get('train_ratio', 0.8),
+    }
 
-    thread = threading.Thread(target=mock_training, daemon=True)
-    thread.start()
+    asyncio.create_task(_run_training(solution_id, train_params))
 
     return {
         "message": "Training started successfully",
