@@ -1,4 +1,5 @@
 """Portfolio Service - Business Logic"""
+import logging
 from typing import Optional, List
 from datetime import datetime
 import httpx
@@ -15,6 +16,7 @@ from app.models.schemas import (
 )
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class PortfolioService:
@@ -149,6 +151,17 @@ class PortfolioService:
                 is_watchlist_only=data.is_watchlist_only
             )
 
+        # Fire-and-forget: trigger stock-data-service to ensure company exists and sync historical data
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    f"{settings.STOCK_DATA_SERVICE_URL}/{settings.API_PREFIX}/api/v2/stocks/{data.symbol}/ensure-and-sync",
+                    timeout=120.0,
+                )
+                logger.info(f"Triggered ensure-and-sync for {data.symbol}")
+        except Exception as e:
+            logger.warning(f"Failed to trigger ensure-and-sync for {data.symbol}: {e}")
+
         return HoldingResponse.model_validate(holding) if holding else None
 
     async def get_holdings(self, portfolio_id: int, user_id: int, watchlist_only: Optional[bool] = None) -> List[HoldingResponse]:
@@ -274,6 +287,18 @@ class PortfolioService:
                         quantity=new_quantity,
                         total_cost=new_total_cost
                     )
+
+        # Fire-and-forget: trigger stock-data-service to ensure company exists and sync historical data
+        if tx_type == TransactionType.BUY:
+            try:
+                async with httpx.AsyncClient() as client:
+                    await client.post(
+                        f"{settings.STOCK_DATA_SERVICE_URL}/{settings.API_PREFIX}/api/v2/stocks/{data.symbol}/ensure-and-sync",
+                        timeout=120.0,
+                    )
+                    logger.info(f"Triggered ensure-and-sync for {data.symbol}")
+            except Exception as e:
+                logger.warning(f"Failed to trigger ensure-and-sync for {data.symbol}: {e}")
 
         return TransactionResponse.model_validate(transaction)
 

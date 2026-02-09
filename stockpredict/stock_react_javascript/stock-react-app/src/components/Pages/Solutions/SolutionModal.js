@@ -1989,7 +1989,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
               </div>
 
               {/* Compact Form Controls in Single Row */}
-              <Row className="mb-2 g-2 align-items-end">
+              <Row className="mb-2 g-2 align-items-start">
                 <Col md={3}>
                   <Form.Group>
                     <Form.Label style={{fontSize: '0.85rem', marginBottom: '2px'}}>End Date *</Form.Label>

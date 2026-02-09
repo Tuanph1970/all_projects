@@ -274,6 +274,68 @@ class StockService:
             logger.error(f"Error searching companies: {e}")
             return []
 
+    # ==================== Ensure Company & Sync ====================
+
+    async def ensure_company_and_sync(self, symbol: str) -> dict:
+        """
+        Ensure a company record exists in DB and sync historical price data.
+        Used when a user adds a stock to their portfolio.
+
+        Returns dict with status info: {"created": bool, "synced": int, "skipped": bool}
+        """
+        symbol = symbol.upper()
+        company = await self.repository.get_company_by_symbol(symbol)
+
+        if company and company.last_synced_at:
+            # Skip if synced within the last 24 hours
+            hours_since_sync = (datetime.utcnow() - company.last_synced_at).total_seconds() / 3600
+            if hours_since_sync < 24:
+                logger.info(f"Skipping sync for {symbol}, last synced {hours_since_sync:.1f}h ago")
+                return {"created": False, "synced": 0, "skipped": True}
+
+        created = False
+        if not company:
+            # Fetch company info from vnstock and create record
+            logger.info(f"Company {symbol} not found in DB, creating from vnstock")
+            try:
+                stock = self.vnstock.stock(symbol=symbol, source=settings.VNSTOCK_DATA_SOURCE)
+                all_symbols_df = stock.listing.all_symbols()
+
+                company_name = symbol
+                exchange = "HOSE"
+                if all_symbols_df is not None and not all_symbols_df.empty:
+                    match = all_symbols_df[all_symbols_df["symbol"] == symbol]
+                    if not match.empty:
+                        company_name = match.iloc[0].get("organ_name", match.iloc[0].get("organName", symbol))
+                        exchange = match.iloc[0].get("exchange", "HOSE") or "HOSE"
+
+                company = await self.repository.create_company(
+                    symbol=symbol,
+                    name=company_name,
+                    exchange=exchange,
+                )
+                created = True
+                logger.info(f"Created company record for {symbol}: {company_name}")
+            except Exception as e:
+                logger.error(f"Failed to create company record for {symbol}: {e}")
+                raise
+
+        # Sync 5 years of historical data (matching monolith DEFAULT_YEARS_HISTORY = 5)
+        end_date = date.today()
+        start_date = end_date - timedelta(days=365 * 5)
+
+        try:
+            count = await self.fetch_and_save_historical_data(
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+            )
+            logger.info(f"Synced {count} historical records for {symbol}")
+            return {"created": created, "synced": count, "skipped": False}
+        except Exception as e:
+            logger.error(f"Failed to sync historical data for {symbol}: {e}")
+            raise
+
     # ==================== Historical Data Operations ====================
 
     async def get_historical_data(

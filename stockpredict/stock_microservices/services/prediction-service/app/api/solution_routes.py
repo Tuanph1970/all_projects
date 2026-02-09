@@ -8,10 +8,13 @@ import json
 import logging
 import threading
 import time as time_module
-from typing import Optional
+from typing import Optional, Dict, List
 from datetime import datetime
 
 import httpx
+import numpy as np
+import pandas as pd
+import ta
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
@@ -586,6 +589,324 @@ async def set_solution_indicators(
         raise HTTPException(status_code=500, detail=f"Failed to set indicators: {str(e)}")
 
 
+# ==========================================
+# Indicator Calculation
+# Matches webapi: view_indicators.calculate_solution_indicators
+# ==========================================
+
+# Mapping from DB indicator names to short codes (matches webapi indicator_service.py)
+INDICATOR_NAME_MAP = {
+    'SMA': 'SMA', 'Simple Moving Average': 'SMA',
+    'EMA': 'EMA', 'Exponential Moving Average': 'EMA',
+    'WMA': 'WMA', 'Weighted Moving Average': 'WMA',
+    'DEMA': 'DEMA', 'TEMA': 'TEMA',
+    'MACD': 'MACD', 'Moving Average Convergence Divergence': 'MACD',
+    'ADX': 'ADX', 'Average Directional Index': 'ADX',
+    'PSAR': 'PSAR', 'Parabolic SAR': 'PSAR',
+    'SUPERTREND': 'SUPERTREND', 'ICHIMOKU': 'ICHIMOKU',
+    'AROON': 'AROON', 'VORTEX': 'VORTEX',
+    'RSI': 'RSI', 'Relative Strength Index': 'RSI',
+    'STOCH': 'STOCH', 'Stochastic Oscillator': 'STOCH',
+    'STOCH_RSI': 'STOCH_RSI', 'CCI': 'CCI', 'Commodity Channel Index': 'CCI',
+    'WILLIAMS_R': 'WILLIAMS_R', 'Williams %R': 'WILLIAMS_R',
+    'ROC': 'ROC', 'Rate of Change': 'ROC',
+    'MOM': 'MOM', 'Momentum Indicator': 'MOM',
+    'TSI': 'TSI', 'UO': 'UO', 'AO': 'AO',
+    'BB': 'BB', 'Bollinger Bands': 'BB',
+    'ATR': 'ATR', 'Average True Range': 'ATR',
+    'KELTNER': 'KELTNER', 'DONCHIAN': 'DONCHIAN',
+    'STDDEV': 'STDDEV', 'HV': 'HV',
+    'VOLUME': 'VOLUME', 'OBV': 'OBV', 'On Balance Volume': 'OBV',
+    'VWAP': 'VWAP', 'MFI': 'MFI', 'Money Flow Index': 'MFI',
+    'AD': 'AD', 'CMF': 'CMF', 'CHO': 'CHO', 'VOSC': 'VOSC',
+    'EOM': 'EOM', 'FI': 'FI', 'NVI': 'NVI', 'PVI': 'PVI',
+    'Volume_MA': 'Volume_MA',
+}
+
+
+def _safe_val(v):
+    """Convert numpy types to native Python types for JSON serialization."""
+    if v is None or (isinstance(v, float) and np.isnan(v)):
+        return None
+    if pd.isna(v):
+        return None
+    return float(v)
+
+
+def _calculate_indicator(df: pd.DataFrame, code: str, params: dict) -> List[Dict]:
+    """Calculate a single technical indicator. Matches webapi/services/advanced_technical_indicators.py"""
+    result = []
+    dates = df.index
+
+    try:
+        if code == 'SMA':
+            values = ta.trend.SMAIndicator(df['close'], window=params.get('period', 20)).sma_indicator()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'sma': _safe_val(values.iloc[i])})
+        elif code == 'EMA':
+            values = ta.trend.EMAIndicator(df['close'], window=params.get('period', 20)).ema_indicator()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'ema': _safe_val(values.iloc[i])})
+        elif code == 'WMA':
+            values = ta.trend.WMAIndicator(df['close'], window=params.get('period', 20)).wma()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'wma': _safe_val(values.iloc[i])})
+        elif code == 'MACD':
+            m = ta.trend.MACD(df['close'], window_fast=params.get('fast_period', 12),
+                              window_slow=params.get('slow_period', 26), window_sign=params.get('signal_period', 9))
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(),
+                               'macd': _safe_val(m.macd().iloc[i]),
+                               'signal': _safe_val(m.macd_signal().iloc[i]),
+                               'histogram': _safe_val(m.macd_diff().iloc[i])})
+        elif code == 'ADX':
+            adx = ta.trend.ADXIndicator(df['high'], df['low'], df['close'], window=params.get('period', 14))
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(),
+                               'adx': _safe_val(adx.adx().iloc[i])})
+        elif code == 'PSAR':
+            values = ta.trend.PSARIndicator(df['high'], df['low'], df['close'],
+                                            step=params.get('step', 0.02), max_step=params.get('max_step', 0.2)).psar()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'psar': _safe_val(values.iloc[i])})
+        elif code == 'RSI':
+            values = ta.momentum.RSIIndicator(df['close'], window=params.get('period', 14)).rsi()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'rsi': _safe_val(values.iloc[i])})
+        elif code == 'STOCH':
+            s = ta.momentum.StochasticOscillator(df['high'], df['low'], df['close'],
+                                                  window=params.get('k_period', 14), smooth_window=params.get('d_period', 3))
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(),
+                               'stoch_k': _safe_val(s.stoch().iloc[i]),
+                               'stoch_d': _safe_val(s.stoch_signal().iloc[i])})
+        elif code == 'CCI':
+            values = ta.trend.CCIIndicator(df['high'], df['low'], df['close'], window=params.get('period', 20)).cci()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'cci': _safe_val(values.iloc[i])})
+        elif code == 'WILLIAMS_R':
+            values = ta.momentum.WilliamsRIndicator(df['high'], df['low'], df['close'],
+                                                     lbp=params.get('period', 14)).williams_r()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'williams_r': _safe_val(values.iloc[i])})
+        elif code == 'ROC':
+            values = ta.momentum.ROCIndicator(df['close'], window=params.get('period', 12)).roc()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'roc': _safe_val(values.iloc[i])})
+        elif code == 'BB':
+            std_val = params.get('std_dev', params.get('std', 2))
+            bb = ta.volatility.BollingerBands(df['close'], window=params.get('period', 20), window_dev=std_val)
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(),
+                               'bb_upper': _safe_val(bb.bollinger_hband().iloc[i]),
+                               'bb_middle': _safe_val(bb.bollinger_mavg().iloc[i]),
+                               'bb_lower': _safe_val(bb.bollinger_lband().iloc[i])})
+        elif code == 'ATR':
+            values = ta.volatility.AverageTrueRange(df['high'], df['low'], df['close'],
+                                                     window=params.get('period', 14)).average_true_range()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'atr': _safe_val(values.iloc[i])})
+        elif code == 'KELTNER':
+            kc = ta.volatility.KeltnerChannel(df['high'], df['low'], df['close'],
+                                               window=params.get('period', 20), window_atr=params.get('period', 20))
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(),
+                               'kc_upper': _safe_val(kc.keltner_channel_hband().iloc[i]),
+                               'kc_middle': _safe_val(kc.keltner_channel_mband().iloc[i]),
+                               'kc_lower': _safe_val(kc.keltner_channel_lband().iloc[i])})
+        elif code == 'DONCHIAN':
+            dc = ta.volatility.DonchianChannel(df['high'], df['low'], df['close'], window=params.get('period', 20))
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(),
+                               'dc_upper': _safe_val(dc.donchian_channel_hband().iloc[i]),
+                               'dc_middle': _safe_val(dc.donchian_channel_mband().iloc[i]),
+                               'dc_lower': _safe_val(dc.donchian_channel_lband().iloc[i])})
+        elif code == 'OBV':
+            values = ta.volume.OnBalanceVolumeIndicator(df['close'], df['volume']).on_balance_volume()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'obv': _safe_val(values.iloc[i])})
+        elif code == 'MFI':
+            values = ta.volume.MFIIndicator(df['high'], df['low'], df['close'], df['volume'],
+                                             window=params.get('period', 14)).money_flow_index()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'mfi': _safe_val(values.iloc[i])})
+        elif code == 'CMF':
+            values = ta.volume.ChaikinMoneyFlowIndicator(df['high'], df['low'], df['close'], df['volume'],
+                                                          window=params.get('period', 20)).chaikin_money_flow()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'cmf': _safe_val(values.iloc[i])})
+        elif code == 'VOLUME':
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'volume': float(df['volume'].iloc[i])})
+        elif code == 'VWAP':
+            values = ta.volume.VolumeWeightedAveragePrice(df['high'], df['low'], df['close'], df['volume']).volume_weighted_average_price()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'vwap': _safe_val(values.iloc[i])})
+        elif code == 'STDDEV':
+            values = df['close'].rolling(window=params.get('period', 20)).std()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'stddev': _safe_val(values.iloc[i])})
+        elif code == 'HV':
+            log_returns = np.log(df['close'] / df['close'].shift(1))
+            values = log_returns.rolling(window=params.get('period', 20)).std() * np.sqrt(252)
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'hv': _safe_val(values.iloc[i])})
+        elif code == 'MOM':
+            values = df['close'] - df['close'].shift(params.get('period', 10))
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'mom': _safe_val(values.iloc[i])})
+        elif code == 'AD':
+            values = ta.volume.AccDistIndexIndicator(df['high'], df['low'], df['close'], df['volume']).acc_dist_index()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'ad': _safe_val(values.iloc[i])})
+        else:
+            # Fallback: return close price as the value
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'value': float(df['close'].iloc[i])})
+    except Exception as e:
+        logger.warning(f"Failed to calculate {code}: {e}, falling back to close price")
+        for i, d in enumerate(dates):
+            result.append({'date': d.isoformat(), 'value': float(df['close'].iloc[i])})
+
+    return result
+
+
+@solution_router.post("/{solution_id}/indicators/calculate")
+@solution_router.post("/{solution_id}/indicators/calculate/")
+async def calculate_solution_indicators(
+    solution_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """Calculate all indicators for a solution.
+    Matches webapi: view_indicators.calculate_solution_indicators
+    POST body: {symbol, start_date, end_date}
+    """
+    data = await request.json()
+    symbol = data.get("symbol", "")
+    start_date = data.get("start_date", "")
+    end_date = data.get("end_date", "")
+
+    if not symbol or not start_date or not end_date:
+        raise HTTPException(status_code=400, detail="symbol, start_date, and end_date are required")
+
+    # 1. Get solution's configured indicators (grouped by category)
+    try:
+        result = await db.execute(
+            text("""
+                SELECT si.indicator_id, si.indicator_category, si.covariate_type, si.parameters,
+                       ti.name, ti.type, ti.default_parameters, ti.calculation_function
+                FROM solution_indicators si
+                LEFT JOIN technical_indicators ti ON si.indicator_id = ti.id
+                WHERE si.solution_id = :solution_id
+            """),
+            {"solution_id": solution_id}
+        )
+        rows = result.mappings().all()
+    except Exception as e:
+        logger.error(f"Failed to get solution indicators: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if not rows:
+        return {}
+
+    # 2. Fetch price data from stock-data-service
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            url = f"{settings.STOCK_DATA_SERVICE_URL}/stock_helper/api/v2/companies/{symbol}/historical-data"
+            resp = await client.get(url, params={"start_date": start_date, "end_date": end_date})
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail=f"Failed to fetch price data for {symbol}")
+            price_data = resp.json()
+    except httpx.HTTPError as e:
+        logger.error(f"Failed to fetch price data: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to fetch price data: {str(e)}")
+
+    # Parse price data into DataFrame
+    if isinstance(price_data, dict) and "data" in price_data:
+        price_list = price_data["data"]
+    elif isinstance(price_data, list):
+        price_list = price_data
+    else:
+        price_list = []
+
+    if not price_list:
+        raise HTTPException(status_code=404, detail=f"No price data for {symbol} in date range")
+
+    df = pd.DataFrame(price_list)
+    # Normalize column names (stock-data-service may use 'time' or 'date')
+    if 'time' in df.columns:
+        df['date'] = pd.to_datetime(df['time'])
+    elif 'date' in df.columns:
+        df['date'] = pd.to_datetime(df['date'])
+    df = df.set_index('date')
+
+    # Ensure required columns exist
+    for col in ['open', 'high', 'low', 'close', 'volume']:
+        if col not in df.columns:
+            raise HTTPException(status_code=500, detail=f"Price data missing column: {col}")
+
+    df = df[['open', 'high', 'low', 'close', 'volume']].copy()
+    df = df.apply(pd.to_numeric, errors='coerce')
+    df = df.dropna()
+
+    # 3. Calculate each indicator
+    calculated_values = {}
+    for row in rows:
+        ind = dict(row)
+        category = ind.get("indicator_category")
+        name = ind.get("name", "")
+
+        # Parse parameters
+        params = ind.get("parameters")
+        if params and isinstance(params, str):
+            try:
+                params = json.loads(params)
+            except (json.JSONDecodeError, TypeError):
+                params = {}
+        if not params:
+            default_params = ind.get("default_parameters")
+            if default_params and isinstance(default_params, str):
+                try:
+                    params = json.loads(default_params)
+                except (json.JSONDecodeError, TypeError):
+                    params = {}
+            elif isinstance(default_params, dict):
+                params = default_params
+            else:
+                params = {}
+
+        # Map name to calculation code
+        code = INDICATOR_NAME_MAP.get(name, name)
+
+        indicator_data = _calculate_indicator(df, code, params)
+
+        calculated_values[category] = {
+            'name': name,
+            'data': indicator_data
+        }
+
+    # 4. Include OHLC price data so frontend can render candlestick charts
+    dates = df.index
+    price_data = []
+    for i, d in enumerate(dates):
+        price_data.append({
+            'date': d.isoformat(),
+            'open': _safe_val(df['open'].iloc[i]),
+            'high': _safe_val(df['high'].iloc[i]),
+            'low': _safe_val(df['low'].iloc[i]),
+            'close': _safe_val(df['close'].iloc[i]),
+            'volume': float(df['volume'].iloc[i]) if pd.notna(df['volume'].iloc[i]) else 0,
+        })
+    calculated_values['price'] = {
+        'name': 'Price',
+        'data': price_data
+    }
+
+    return calculated_values
+
+
 @solution_router.post("/{solution_id}/indicators/add")
 @solution_router.post("/{solution_id}/indicators/add/")
 async def add_solution_indicator(
@@ -674,6 +995,57 @@ async def get_solution_by_id(
     except Exception as e:
         logger.error(f"Failed to fetch solution {solution_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch solution: {str(e)}")
+
+
+@solution_router.put("/{solution_id}")
+async def update_solution_by_id(
+    solution_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Update solution by ID (path param).
+    Delegates to the main update_solution handler.
+    """
+    data = await request.json()
+    data["id"] = solution_id
+    user_id = str(current_user["user_id"])
+    if 'user_id' not in data:
+        data['user_id'] = user_id
+    if 'updated_by' not in data:
+        data['updated_by'] = user_id
+
+    try:
+        await db.execute(
+            text("""
+                UPDATE tbl_solution
+                SET solution_name = :solution_name, model_id = :model_id, ticker = :ticker,
+                    updated_date = :updated_date, updated_by = :updated_by,
+                    start_training_date = :start_training_date,
+                    end_training_date = :end_training_date,
+                    train_validation_ratio = :train_validation_ratio,
+                    user_id = :user_id
+                WHERE id = :id
+            """),
+            {
+                "solution_name": data.get("solution_name"),
+                "model_id": data.get("model_id"),
+                "ticker": data.get("ticker"),
+                "updated_date": data.get("updated_date", datetime.now().strftime("%Y-%m-%d")),
+                "updated_by": data.get("updated_by"),
+                "start_training_date": data.get("start_training_date"),
+                "end_training_date": data.get("end_training_date"),
+                "train_validation_ratio": data.get("train_validation_ratio", 0.8),
+                "user_id": data.get("user_id"),
+                "id": solution_id,
+            }
+        )
+        await db.commit()
+        return data
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Failed to update solution {solution_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update solution: {str(e)}")
 
 
 @solution_router.delete("/{solution_id}")

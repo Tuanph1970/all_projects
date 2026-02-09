@@ -172,6 +172,35 @@ async def get_historical_data(
 
 
 @router.get(
+    "/companies/{symbol}/historical-data",
+    response_model=HistoricalDataResponse,
+    responses={404: {"model": ErrorResponse}},
+    summary="Get historical price data by company",
+)
+async def get_company_historical_data(
+    symbol: str,
+    start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD)"),
+    stock_service: StockService = Depends(get_stock_service),
+):
+    """
+    Get historical OHLCV data via /companies/ path.
+    Matches webapi: views.getAllHistoricalData
+    """
+    data = await stock_service.get_historical_data(
+        symbol=symbol,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    if not data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Company not found: {symbol}",
+        )
+    return data
+
+
+@router.get(
     "/companies/{symbol}/financials",
     response_model=CompanyFinancialsResponse,
     responses={404: {"model": ErrorResponse}},
@@ -324,6 +353,41 @@ async def get_price_board(
 
 
 # ==================== Data Sync Endpoints ====================
+
+@router.post(
+    "/stocks/{symbol}/ensure-and-sync",
+    response_model=MessageResponse,
+    summary="Ensure company exists and sync historical data",
+)
+async def ensure_and_sync_stock(
+    symbol: str,
+    stock_service: StockService = Depends(get_stock_service),
+):
+    """
+    Ensure a company record exists and sync 5 years of historical data.
+    Called by portfolio-service when a user adds a stock to their portfolio.
+
+    - **symbol**: Stock symbol (e.g., TCB, VNM)
+
+    Idempotent: skips sync if data was synced within the last 24 hours.
+    """
+    try:
+        result = await stock_service.ensure_company_and_sync(symbol=symbol)
+        if result["skipped"]:
+            return MessageResponse(
+                message=f"Sync skipped for {symbol.upper()}, data is recent",
+                success=True,
+            )
+        return MessageResponse(
+            message=f"{'Created' if result['created'] else 'Found'} company {symbol.upper()}, synced {result['synced']} records",
+            success=True,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to ensure and sync data for {symbol}: {str(e)}",
+        )
+
 
 @router.post(
     "/stocks/{symbol}/sync",

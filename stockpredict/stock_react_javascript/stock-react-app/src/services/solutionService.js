@@ -116,7 +116,7 @@ class SolutionService {
         id: solutionId
       };
 
-      const response = await httpClient.put(API_ENDPOINTS.SOLUTION_UPDATE, dataWithId);
+      const response = await httpClient.put(API_ENDPOINTS.SOLUTION_UPDATE(solutionId), dataWithId);
 
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to update solution');
