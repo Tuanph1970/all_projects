@@ -243,12 +243,21 @@ const FinancialTrainingChart = ({ data, ticker }) => {
   const hasActual = chartData.some(d => d.actual !== undefined && d.actual !== null && !isNaN(d.actual));
   const hasPredicted = chartData.some(d => d.predicted !== undefined && d.predicted !== null && !isNaN(d.predicted));
   const hasValidation = chartData.some(d => d.validation !== undefined && d.validation !== null && !isNaN(d.validation));
-  const hasSMA20 = chartData.some(d => d.sma_20 !== undefined && d.sma_20 !== null && !isNaN(d.sma_20));
-  const hasSMA50 = chartData.some(d => d.sma_50 !== undefined && d.sma_50 !== null && !isNaN(d.sma_50));
-  const hasEMA12 = chartData.some(d => d.ema_12 !== undefined && d.ema_12 !== null && !isNaN(d.ema_12));
-  const hasBBUpper = chartData.some(d => d.bb_upper !== undefined && d.bb_upper !== null && !isNaN(d.bb_upper));
-  const hasRSI = chartData.some(d => d.rsi !== undefined && d.rsi !== null && !isNaN(d.rsi));
-  const hasMACD = chartData.some(d => d.macd !== undefined && d.macd !== null && !isNaN(d.macd));
+  const hasField = (field) => chartData.some(d => d[field] !== undefined && d[field] !== null && !isNaN(d[field]));
+  const hasSMA20 = hasField('sma_20');
+  const hasSMA50 = hasField('sma_50');
+  const hasEMA12 = hasField('ema_12');
+  const hasDEMA = hasField('dema');
+  const hasTEMA = hasField('tema');
+  const hasWMA = hasField('wma');
+  const hasPSAR = hasField('psar');
+  const hasBBUpper = hasField('bb_upper');
+  const hasRSI = hasField('rsi');
+  const hasMACD = hasField('macd');
+  const hasCCI = hasField('cci');
+  const hasADX = hasField('adx');
+  const hasStoch = hasField('stoch_k');
+  const hasATR = hasField('atr');
   const hasVolume = chartData.some(d => d.volume !== undefined && d.volume !== null && !isNaN(d.volume) && d.volume > 0);
 
   // Setup time scale provider
@@ -277,8 +286,12 @@ const FinancialTrainingChart = ({ data, ticker }) => {
   const priceHeight = 280;
   const oscillatorHeight = hasRSI ? 100 : 0;
   const macdHeight = hasMACD ? 100 : 0;
+  const cciHeight = hasCCI ? 100 : 0;
+  const atrHeight = hasATR ? 80 : 0;
+  const stochHeight = hasStoch ? 100 : 0;
+  const adxHeight = hasADX ? 80 : 0;
   const volumeHeight = hasVolume ? 80 : 0;
-  const totalHeight = priceHeight + oscillatorHeight + macdHeight + volumeHeight + 40;
+  const totalHeight = priceHeight + oscillatorHeight + macdHeight + cciHeight + atrHeight + stochHeight + adxHeight + volumeHeight + 40;
 
   // Calculate panel origins
   let currentY = priceHeight;
@@ -286,6 +299,14 @@ const FinancialTrainingChart = ({ data, ticker }) => {
   currentY += oscillatorHeight;
   const macdOrigin = [0, currentY];
   currentY += macdHeight;
+  const cciOrigin = [0, currentY];
+  currentY += cciHeight;
+  const stochOrigin = [0, currentY];
+  currentY += stochHeight;
+  const adxOrigin = [0, currentY];
+  currentY += adxHeight;
+  const atrOrigin = [0, currentY];
+  currentY += atrHeight;
   const volumeOrigin = [0, currentY];
 
   // Color functions
@@ -337,6 +358,18 @@ const FinancialTrainingChart = ({ data, ticker }) => {
           )}
           {hasEMA12 && (
             <LineSeries yAccessor={d => d.ema_12} strokeStyle="#10b981" strokeWidth={1.5} />
+          )}
+          {hasDEMA && (
+            <LineSeries yAccessor={d => d.dema} strokeStyle="#e11d48" strokeWidth={1.5} />
+          )}
+          {hasTEMA && (
+            <LineSeries yAccessor={d => d.tema} strokeStyle="#7c3aed" strokeWidth={1.5} />
+          )}
+          {hasWMA && (
+            <LineSeries yAccessor={d => d.wma} strokeStyle="#0891b2" strokeWidth={1.5} />
+          )}
+          {hasPSAR && (
+            <LineSeries yAccessor={d => d.psar} strokeStyle="#d97706" strokeWidth={1} strokeDasharray="2,2" />
           )}
 
           {/* Actual Price */}
@@ -486,7 +519,136 @@ const FinancialTrainingChart = ({ data, ticker }) => {
           </Chart>
         )}
 
-        {/* Panel 4: Volume */}
+        {/* Panel: CCI (oscillator centered on 0, typical range -200 to +200) */}
+        {hasCCI && (
+          <Chart
+            id={5}
+            height={cciHeight}
+            yExtents={d => {
+              const v = d.cci;
+              if (v === undefined || v === null || isNaN(v)) return [-200, 200];
+              return [Math.min(v, -200) * 1.1, Math.max(v, 200) * 1.1];
+            }}
+            origin={cciOrigin}
+            padding={{ top: 10, bottom: 10 }}
+          >
+            <XAxis showGridLines />
+            <YAxis tickValues={[-200, -100, 0, 100, 200]} tickFormat={d => d} />
+
+            <StraightLine yValue={100} strokeStyle="#ef4444" strokeDasharray="Dash" />
+            <StraightLine yValue={-100} strokeStyle="#10b981" strokeDasharray="Dash" />
+            <StraightLine yValue={0} strokeStyle="#9ca3af" strokeDasharray="Dot" />
+
+            <LineSeries yAccessor={d => d.cci} strokeStyle="#0ea5e9" strokeWidth={2} />
+
+            <SingleValueTooltip
+              yAccessor={d => d.cci}
+              yLabel="CCI"
+              yDisplayFormat={pricesDisplayFormat}
+              origin={[8, 16]}
+              labelFill="#0ea5e9"
+            />
+
+            <MouseCoordinateY rectWidth={margin.right} displayFormat={pricesDisplayFormat} />
+          </Chart>
+        )}
+
+        {/* Panel: Stochastic Oscillator (0-100 range) */}
+        {hasStoch && (
+          <Chart
+            id={6}
+            height={stochHeight}
+            yExtents={[0, 100]}
+            origin={stochOrigin}
+            padding={{ top: 10, bottom: 10 }}
+          >
+            <XAxis showGridLines />
+            <YAxis tickValues={[20, 50, 80]} tickFormat={d => d} />
+
+            <StraightLine yValue={80} strokeStyle="#ef4444" strokeDasharray="Dash" />
+            <StraightLine yValue={20} strokeStyle="#10b981" strokeDasharray="Dash" />
+
+            <LineSeries yAccessor={d => d.stoch_k} strokeStyle="#2196F3" strokeWidth={2} />
+            <LineSeries yAccessor={d => d.stoch_d} strokeStyle="#FF9800" strokeWidth={2} />
+
+            <SingleValueTooltip
+              yAccessor={d => d.stoch_k}
+              yLabel="%K"
+              yDisplayFormat={percentFormat}
+              origin={[8, 16]}
+              labelFill="#2196F3"
+            />
+            <SingleValueTooltip
+              yAccessor={d => d.stoch_d}
+              yLabel="%D"
+              yDisplayFormat={percentFormat}
+              origin={[80, 16]}
+              labelFill="#FF9800"
+            />
+
+            <MouseCoordinateY rectWidth={margin.right} displayFormat={percentFormat} />
+          </Chart>
+        )}
+
+        {/* Panel: ADX (0-100 range) */}
+        {hasADX && (
+          <Chart
+            id={7}
+            height={adxHeight}
+            yExtents={[0, 100]}
+            origin={adxOrigin}
+            padding={{ top: 10, bottom: 10 }}
+          >
+            <XAxis showGridLines />
+            <YAxis tickValues={[20, 40, 60]} tickFormat={d => d} />
+
+            <StraightLine yValue={25} strokeStyle="#9ca3af" strokeDasharray="Dash" />
+
+            <LineSeries yAccessor={d => d.adx} strokeStyle="#f97316" strokeWidth={2} />
+
+            <SingleValueTooltip
+              yAccessor={d => d.adx}
+              yLabel="ADX"
+              yDisplayFormat={percentFormat}
+              origin={[8, 16]}
+              labelFill="#f97316"
+            />
+
+            <MouseCoordinateY rectWidth={margin.right} displayFormat={percentFormat} />
+          </Chart>
+        )}
+
+        {/* Panel: ATR */}
+        {hasATR && (
+          <Chart
+            id={8}
+            height={atrHeight}
+            yExtents={d => {
+              const v = d.atr;
+              if (v === undefined || v === null || isNaN(v)) return [0, 1];
+              return [0, v * 1.5];
+            }}
+            origin={atrOrigin}
+            padding={{ top: 10, bottom: 10 }}
+          >
+            <XAxis showGridLines />
+            <YAxis tickFormat={pricesDisplayFormat} />
+
+            <LineSeries yAccessor={d => d.atr} strokeStyle="#ec4899" strokeWidth={2} />
+
+            <SingleValueTooltip
+              yAccessor={d => d.atr}
+              yLabel="ATR"
+              yDisplayFormat={pricesDisplayFormat}
+              origin={[8, 16]}
+              labelFill="#ec4899"
+            />
+
+            <MouseCoordinateY rectWidth={margin.right} displayFormat={pricesDisplayFormat} />
+          </Chart>
+        )}
+
+        {/* Panel: Volume */}
         {hasVolume && (
           <Chart
             id={4}
@@ -549,6 +711,30 @@ const FinancialTrainingChart = ({ data, ticker }) => {
               SMA50
             </span>
           )}
+          {hasDEMA && (
+            <span className="d-flex align-items-center gap-1">
+              <span style={{ width: '20px', height: '2px', backgroundColor: '#e11d48', display: 'inline-block' }}></span>
+              DEMA
+            </span>
+          )}
+          {hasTEMA && (
+            <span className="d-flex align-items-center gap-1">
+              <span style={{ width: '20px', height: '2px', backgroundColor: '#7c3aed', display: 'inline-block' }}></span>
+              TEMA
+            </span>
+          )}
+          {hasWMA && (
+            <span className="d-flex align-items-center gap-1">
+              <span style={{ width: '20px', height: '2px', backgroundColor: '#0891b2', display: 'inline-block' }}></span>
+              WMA
+            </span>
+          )}
+          {hasPSAR && (
+            <span className="d-flex align-items-center gap-1">
+              <span style={{ width: '20px', height: '2px', backgroundColor: '#d97706', display: 'inline-block', borderTop: '1px dashed #d97706' }}></span>
+              PSAR
+            </span>
+          )}
           {hasBBUpper && (
             <span className="d-flex align-items-center gap-1">
               <span style={{ width: '20px', height: '2px', backgroundColor: '#ef4444', display: 'inline-block', borderTop: '1px dashed #ef4444' }}></span>
@@ -567,6 +753,32 @@ const FinancialTrainingChart = ({ data, ticker }) => {
               MACD
               <span style={{ width: '20px', height: '2px', backgroundColor: '#FF9800', display: 'inline-block' }}></span>
               Signal
+            </span>
+          )}
+          {hasCCI && (
+            <span className="d-flex align-items-center gap-1">
+              <span style={{ width: '20px', height: '2px', backgroundColor: '#0ea5e9', display: 'inline-block' }}></span>
+              CCI
+            </span>
+          )}
+          {hasStoch && (
+            <span className="d-flex align-items-center gap-1">
+              <span style={{ width: '20px', height: '2px', backgroundColor: '#2196F3', display: 'inline-block' }}></span>
+              %K
+              <span style={{ width: '20px', height: '2px', backgroundColor: '#FF9800', display: 'inline-block' }}></span>
+              %D
+            </span>
+          )}
+          {hasADX && (
+            <span className="d-flex align-items-center gap-1">
+              <span style={{ width: '20px', height: '2px', backgroundColor: '#f97316', display: 'inline-block' }}></span>
+              ADX
+            </span>
+          )}
+          {hasATR && (
+            <span className="d-flex align-items-center gap-1">
+              <span style={{ width: '20px', height: '2px', backgroundColor: '#ec4899', display: 'inline-block' }}></span>
+              ATR
             </span>
           )}
         </div>
@@ -919,6 +1131,10 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
             sma_50: item.sma_50,
             ema_12: item.ema_12 || item.ema,
             wma: item.wma,
+            dema: item.dema,
+            tema: item.tema,
+            psar: item.psar,
+            adx: item.adx,
 
             // Momentum indicators
             rsi: item.rsi,
@@ -926,6 +1142,12 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
             macd: item.macd,
             macd_signal: item.macd_signal || item.signal,
             macd_histogram: item.macd_histogram || item.histogram,
+            cci: item.cci,
+            stoch_k: item.stoch_k,
+            stoch_d: item.stoch_d,
+            williams_r: item.williams_r,
+            roc: item.roc,
+            mom: item.mom,
 
             // Volatility indicators
             atr: item.atr,
@@ -936,9 +1158,11 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
             // Volume indicators
             volume: item.volume,
             volumeColor: volumeColor,
-            volume_sma: item.volume_sma,  // Volume Simple Moving Average
-            vwap: item.vwap,  // Volume Weighted Average Price (price indicator)
-            obv: item.obv  // On-Balance Volume (cumulative volume indicator)
+            volume_sma: item.volume_sma,
+            vwap: item.vwap,
+            obv: item.obv,
+            mfi: item.mfi,
+            cmf: item.cmf
           };
         });
 

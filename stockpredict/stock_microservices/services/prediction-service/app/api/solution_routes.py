@@ -1413,6 +1413,19 @@ def _calculate_indicator(df: pd.DataFrame, code: str, params: dict) -> List[Dict
             values = ta.trend.WMAIndicator(df['close'], window=params.get('period', 20)).wma()
             for i, d in enumerate(dates):
                 result.append({'date': d.isoformat(), 'wma': _safe_val(values.iloc[i])})
+        elif code == 'DEMA':
+            ema1 = ta.trend.EMAIndicator(df['close'], window=params.get('period', 20)).ema_indicator()
+            ema2 = ta.trend.EMAIndicator(ema1, window=params.get('period', 20)).ema_indicator()
+            values = 2 * ema1 - ema2
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'dema': _safe_val(values.iloc[i])})
+        elif code == 'TEMA':
+            ema1 = ta.trend.EMAIndicator(df['close'], window=params.get('period', 20)).ema_indicator()
+            ema2 = ta.trend.EMAIndicator(ema1, window=params.get('period', 20)).ema_indicator()
+            ema3 = ta.trend.EMAIndicator(ema2, window=params.get('period', 20)).ema_indicator()
+            values = 3 * ema1 - 3 * ema2 + ema3
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'tema': _safe_val(values.iloc[i])})
         elif code == 'MACD':
             m = ta.trend.MACD(df['close'], window_fast=params.get('fast_period', 12),
                               window_slow=params.get('slow_period', 26), window_sign=params.get('signal_period', 9))
@@ -1521,6 +1534,92 @@ def _calculate_indicator(df: pd.DataFrame, code: str, params: dict) -> List[Dict
             values = ta.volume.AccDistIndexIndicator(df['high'], df['low'], df['close'], df['volume']).acc_dist_index()
             for i, d in enumerate(dates):
                 result.append({'date': d.isoformat(), 'ad': _safe_val(values.iloc[i])})
+        elif code == 'STOCH_RSI':
+            s = ta.momentum.StochRSIIndicator(df['close'], window=params.get('period', 14),
+                                               smooth1=params.get('smooth1', 3), smooth2=params.get('smooth2', 3))
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(),
+                               'stoch_rsi_k': _safe_val(s.stochrsi_k().iloc[i]),
+                               'stoch_rsi_d': _safe_val(s.stochrsi_d().iloc[i])})
+        elif code == 'TSI':
+            values = ta.momentum.TSIIndicator(df['close'], window_slow=params.get('slow_period', 25),
+                                               window_fast=params.get('fast_period', 13)).tsi()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'tsi': _safe_val(values.iloc[i])})
+        elif code == 'UO':
+            values = ta.momentum.UltimateOscillator(df['high'], df['low'], df['close'],
+                                                      window1=params.get('period1', 7),
+                                                      window2=params.get('period2', 14),
+                                                      window3=params.get('period3', 28)).ultimate_oscillator()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'uo': _safe_val(values.iloc[i])})
+        elif code == 'AO':
+            values = ta.momentum.AwesomeOscillatorIndicator(df['high'], df['low'],
+                                                              window1=params.get('fast_period', 5),
+                                                              window2=params.get('slow_period', 34)).awesome_oscillator()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'ao': _safe_val(values.iloc[i])})
+        elif code == 'SUPERTREND':
+            st = ta.trend.STCIndicator(df['close'], window_slow=params.get('slow_period', 50),
+                                        window_fast=params.get('fast_period', 23), cycle=params.get('cycle', 10))
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'supertrend': _safe_val(st.stc().iloc[i])})
+        elif code == 'AROON':
+            a = ta.trend.AroonIndicator(df['close'], window=params.get('period', 25))
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(),
+                               'aroon_up': _safe_val(a.aroon_up().iloc[i]),
+                               'aroon_down': _safe_val(a.aroon_down().iloc[i])})
+        elif code == 'VORTEX':
+            v = ta.trend.VortexIndicator(df['high'], df['low'], df['close'], window=params.get('period', 14))
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(),
+                               'vortex_pos': _safe_val(v.vortex_indicator_pos().iloc[i]),
+                               'vortex_neg': _safe_val(v.vortex_indicator_neg().iloc[i])})
+        elif code == 'ICHIMOKU':
+            ich = ta.trend.IchimokuIndicator(df['high'], df['low'],
+                                              window1=params.get('tenkan_period', 9),
+                                              window2=params.get('kijun_period', 26),
+                                              window3=params.get('senkou_b_period', 52))
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(),
+                               'ichimoku_conv': _safe_val(ich.ichimoku_conversion_line().iloc[i]),
+                               'ichimoku_base': _safe_val(ich.ichimoku_base_line().iloc[i]),
+                               'ichimoku_a': _safe_val(ich.ichimoku_a().iloc[i]),
+                               'ichimoku_b': _safe_val(ich.ichimoku_b().iloc[i])})
+        elif code == 'CHO':
+            values = ta.volume.ChaikinMoneyFlowIndicator(df['high'], df['low'], df['close'], df['volume'],
+                                                          window=params.get('period', 20)).chaikin_money_flow()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'cho': _safe_val(values.iloc[i])})
+        elif code == 'EOM':
+            values = ta.volume.EaseOfMovementIndicator(df['high'], df['low'], df['volume'],
+                                                        window=params.get('period', 14)).ease_of_movement()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'eom': _safe_val(values.iloc[i])})
+        elif code == 'FI':
+            values = ta.volume.ForceIndexIndicator(df['close'], df['volume'],
+                                                     window=params.get('period', 13)).force_index()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'fi': _safe_val(values.iloc[i])})
+        elif code == 'NVI':
+            values = ta.volume.NegativeVolumeIndexIndicator(df['close'], df['volume']).negative_volume_index()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'nvi': _safe_val(values.iloc[i])})
+        elif code == 'PVI':
+            values = ta.volume.VolumePriceTrendIndicator(df['close'], df['volume']).volume_price_trend()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'pvi': _safe_val(values.iloc[i])})
+        elif code == 'VOSC':
+            short_ma = df['volume'].rolling(window=params.get('short_period', 5)).mean()
+            long_ma = df['volume'].rolling(window=params.get('long_period', 20)).mean()
+            values = ((short_ma - long_ma) / long_ma) * 100
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'vosc': _safe_val(values.iloc[i])})
+        elif code == 'Volume_MA':
+            values = df['volume'].rolling(window=params.get('period', 20)).mean()
+            for i, d in enumerate(dates):
+                result.append({'date': d.isoformat(), 'volume_ma': _safe_val(values.iloc[i])})
         else:
             # Fallback: return close price as the value
             for i, d in enumerate(dates):
