@@ -42,7 +42,7 @@ class PortfolioHolding(Base):
     __tablename__ = "portfolio_holdings"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    portfolio_id = Column(Integer, ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=False)
+    portfolio_id = Column(Integer, ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=False, index=True)
     symbol = Column(String(20), nullable=False, index=True)
     quantity = Column(Integer, default=0)
     average_price = Column(Float, nullable=True)
@@ -63,7 +63,7 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    portfolio_id = Column(Integer, ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=False)
+    portfolio_id = Column(Integer, ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=False, index=True)
     symbol = Column(String(20), nullable=False, index=True)
     transaction_type = Column(SQLEnum(TransactionType), nullable=False)
     quantity = Column(Integer, nullable=False)

@@ -25,19 +25,23 @@ const Holdings = () => {
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [sellData, setSellData] = useState({ shares: '' });
   const [stockOptions, setStockOptions] = useState([]);
+  const [loadingStockOptions, setLoadingStockOptions] = useState(false);
 
   const loadStockOptions = useCallback(async () => {
+    setLoadingStockOptions(true);
     try {
       const result = await portfolioService.getStockOptions();
       if (result.success) {
         setStockOptions(result.data);
       } else {
         console.error('Failed to load stock options:', result.error);
-        setStockOptions([]); // Set empty array as fallback
+        setStockOptions([]);
       }
     } catch (err) {
       console.error('Failed to load stock options:', err);
-      setStockOptions([]); // Set empty array as fallback
+      setStockOptions([]);
+    } finally {
+      setLoadingStockOptions(false);
     }
   }, []);
 
@@ -285,6 +289,7 @@ const Holdings = () => {
         <button
           onClick={() => {
             console.log('Add Stock button clicked');
+            loadStockOptions();
             setShowAddForm(true);
           }}
           className="btn btn-primary"
@@ -336,18 +341,26 @@ const Holdings = () => {
             <div>
               <div className="stock-select-container">
                 <label className="form-label">Chọn cổ phiếu</label>
-                <select
-                  value={selectedSymbol}
-                  onChange={handleStockSelect}
-                  className="form-select"
-                >
-                  <option value="">-- Chọn một cổ phiếu --</option>
-                  {stockOptions.map((stock) => (
-                    <option key={stock.symbol} value={stock.symbol}>
-                      {stock.symbol} - {stock.name} ({formatStockPrice(stock.price)})
-                    </option>
-                  ))}
-                </select>
+                {loadingStockOptions ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', backgroundColor: '#f0f9ff', borderRadius: '0.375rem', border: '1px solid #bae6fd' }}>
+                    <div style={{ width: '20px', height: '20px', border: '3px solid #e2e8f0', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                    <span style={{ color: '#475569', fontSize: '0.875rem' }}>Đang tải danh sách cổ phiếu...</span>
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                  </div>
+                ) : (
+                  <select
+                    value={selectedSymbol}
+                    onChange={handleStockSelect}
+                    className="form-select"
+                  >
+                    <option value="">-- Chọn một cổ phiếu --</option>
+                    {stockOptions.map((stock) => (
+                      <option key={stock.symbol} value={stock.symbol}>
+                        {stock.symbol} - {stock.name} ({formatStockPrice(stock.price)})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {formData.symbol && (

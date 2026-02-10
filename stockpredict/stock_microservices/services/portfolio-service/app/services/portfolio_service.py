@@ -1,4 +1,5 @@
 """Portfolio Service - Business Logic"""
+import asyncio
 import logging
 from typing import Optional, List
 from datetime import datetime
@@ -152,15 +153,7 @@ class PortfolioService:
             )
 
         # Fire-and-forget: trigger stock-data-service to ensure company exists and sync historical data
-        try:
-            async with httpx.AsyncClient() as client:
-                await client.post(
-                    f"{settings.STOCK_DATA_SERVICE_URL}/{settings.API_PREFIX}/api/v2/stocks/{data.symbol}/ensure-and-sync",
-                    timeout=120.0,
-                )
-                logger.info(f"Triggered ensure-and-sync for {data.symbol}")
-        except Exception as e:
-            logger.warning(f"Failed to trigger ensure-and-sync for {data.symbol}: {e}")
+        asyncio.create_task(self._trigger_ensure_and_sync(data.symbol))
 
         return HoldingResponse.model_validate(holding) if holding else None
 
@@ -290,15 +283,7 @@ class PortfolioService:
 
         # Fire-and-forget: trigger stock-data-service to ensure company exists and sync historical data
         if tx_type == TransactionType.BUY:
-            try:
-                async with httpx.AsyncClient() as client:
-                    await client.post(
-                        f"{settings.STOCK_DATA_SERVICE_URL}/{settings.API_PREFIX}/api/v2/stocks/{data.symbol}/ensure-and-sync",
-                        timeout=120.0,
-                    )
-                    logger.info(f"Triggered ensure-and-sync for {data.symbol}")
-            except Exception as e:
-                logger.warning(f"Failed to trigger ensure-and-sync for {data.symbol}: {e}")
+            asyncio.create_task(self._trigger_ensure_and_sync(data.symbol))
 
         return TransactionResponse.model_validate(transaction)
 
@@ -356,6 +341,18 @@ class PortfolioService:
     async def delete_alert(self, alert_id: int, user_id: int) -> bool:
         """Delete a price alert"""
         return await self.repo.delete_alert(alert_id, user_id)
+
+    async def _trigger_ensure_and_sync(self, symbol: str) -> None:
+        """Background task: trigger stock-data-service to ensure company exists and sync data."""
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    f"{settings.STOCK_DATA_SERVICE_URL}/{settings.API_PREFIX}/api/v2/stocks/{symbol}/ensure-and-sync",
+                    timeout=120.0,
+                )
+                logger.info(f"Triggered ensure-and-sync for {symbol}")
+        except Exception as e:
+            logger.warning(f"Failed to trigger ensure-and-sync for {symbol}: {e}")
 
     async def check_alerts(self, user_id: int, price_data: dict) -> List[AlertResponse]:
         """Check and trigger alerts based on current prices"""

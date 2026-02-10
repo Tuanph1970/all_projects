@@ -134,8 +134,8 @@ http:
           - url: "http://stock-data-service:8001"
         healthCheck:
           path: /health/live
-          interval: 5s
-          timeout: 5s
+          interval: 15s
+          timeout: 10s
 
     portfolio-microservice:
       loadBalancer:
