@@ -643,20 +643,35 @@ async def get_predict_tickers(
 @solution_router.get("/models")
 @solution_router.get("/models/")
 async def get_predict_models(
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional)
 ):
     """Get all available models for solution creation.
     Matches webapi: views_solution.get_predict_models
+    Filters by user_id when authenticated.
     """
     try:
-        result = await db.execute(
-            text("""
-                SELECT id, model_name, model_type, model_sub_type,
-                       past_covariate, future_covariate
-                FROM model_instances
-                ORDER BY id DESC
-            """)
-        )
+        if current_user and current_user.get("user_id"):
+            user_id = str(current_user["user_id"])
+            result = await db.execute(
+                text("""
+                    SELECT id, model_name, model_type, model_sub_type,
+                           past_covariate, future_covariate
+                    FROM model_instances
+                    WHERE user_id = :user_id
+                    ORDER BY id DESC
+                """),
+                {"user_id": user_id}
+            )
+        else:
+            result = await db.execute(
+                text("""
+                    SELECT id, model_name, model_type, model_sub_type,
+                           past_covariate, future_covariate
+                    FROM model_instances
+                    ORDER BY id DESC
+                """)
+            )
         rows = result.mappings().all()
         return [dict(row) for row in rows]
     except Exception as e:

@@ -843,6 +843,11 @@ async def delete_model_instance(
         if not row:
             raise HTTPException(status_code=404, detail=f"Model instance {model_id} not found")
 
+        # Verify ownership: only the model owner can delete
+        if current_user and current_user.get("user_id"):
+            if str(row.get("user_id", "")) != str(current_user["user_id"]):
+                raise HTTPException(status_code=403, detail="Not authorized to delete this model")
+
         file_path = row.get("file_path")
         user_id = str(row.get("user_id", ""))
         model_name = row.get("model_name", "")
@@ -987,6 +992,18 @@ async def update_model_by_type(
                   if k not in ['model_name', 'model_type', 'model_sub_type', 'model_id']}
 
     try:
+        # Verify ownership: only the model owner can update
+        if current_user and current_user.get("user_id"):
+            owner_check = await db.execute(
+                text("SELECT user_id FROM model_instances WHERE id = :model_id"),
+                {"model_id": model_id}
+            )
+            owner_row = owner_check.mappings().first()
+            if not owner_row:
+                raise HTTPException(status_code=404, detail=f"Model instance {model_id} not found")
+            if str(owner_row.get("user_id", "")) != str(current_user["user_id"]):
+                raise HTTPException(status_code=403, detail="Not authorized to update this model")
+
         config_json = json.dumps(parameters)
         await db.execute(
             text("UPDATE model_instances SET model_name = :model_name, "

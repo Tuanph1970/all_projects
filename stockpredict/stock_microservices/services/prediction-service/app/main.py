@@ -399,27 +399,6 @@ SEED_DATA_SQL = [
     ('activation', 'relu', 'ReLU activation', 1),
     ('activation', 'gelu', 'GELU activation', 2)""",
 
-    # ---- model_instances: seed all 18 available models ----
-    """INSERT IGNORE INTO model_instances (id, model_type, model_sub_type, model_name, user_id, created_by, status, past_covariate, future_covariate, file_extension) VALUES
-    (1,  'BlockRNN',          'LSTM',          'BlockRNN LSTM Model',            '1', '1', 'created', 0, 0, '.joblib'),
-    (2,  'BlockRNN',          'GRU',           'BlockRNN GRU Model',             '1', '1', 'created', 1, 0, '.joblib'),
-    (3,  'RNNModel',          'LSTM',          'RNN LSTM Model',                 '1', '1', 'created', 1, 0, '.joblib'),
-    (4,  'RNNModel',          'GRU',           'RNN GRU Model',                  '1', '1', 'created', 1, 0, '.joblib'),
-    (5,  'TCNModel',          'TCN',           'TCN Temporal Conv',              '1', '1', 'created', 1, 0, '.joblib'),
-    (6,  'TransformerModel',  'Transformer',   'Transformer Attention',          '1', '1', 'created', 1, 1, '.joblib'),
-    (7,  'NBEATSModel',       'NBEATS',        'N-BEATS Forecast',               '1', '1', 'created', 0, 0, '.joblib'),
-    (8,  'TFTModel',          'TFT',           'Temporal Fusion Transformer',    '1', '1', 'created', 1, 1, '.joblib'),
-    (9,  'NBeats',            'NBEATS',        'N-Beats Block Forecast',         '1', '1', 'created', 0, 0, '.joblib'),
-    (10, 'NHits',             'NHITS',         'N-HiTS Hierarchical',            '1', '1', 'created', 0, 0, '.joblib'),
-    (11, 'DLinear',           'DLinear',       'DLinear Decomposition',          '1', '1', 'created', 1, 1, '.joblib'),
-    (12, 'NLinear',           'NLinear',       'NLinear Simple',                 '1', '1', 'created', 1, 1, '.joblib'),
-    (13, 'TiDE',              'TiDE',          'TiDE Dense Encoder',             '1', '1', 'created', 1, 1, '.joblib'),
-    (14, 'XGBoost',           'XGBoost',       'XGBoost Gradient Boosting',      '1', '1', 'created', 1, 0, '.joblib'),
-    (15, 'LightGBM',          'LightGBM',      'LightGBM Gradient Boosting',    '1', '1', 'created', 1, 0, '.joblib'),
-    (16, 'RandomForest',      'RandomForest',  'Random Forest Ensemble',         '1', '1', 'created', 1, 0, '.joblib'),
-    (17, 'CatBoost',          'CatBoost',      'CatBoost Gradient Boosting',     '1', '1', 'created', 1, 0, '.joblib'),
-    (18, 'LinearRegression',  'Linear',        'Linear Regression Baseline',     '1', '1', 'created', 1, 0, '.joblib')""",
-
     # ---- technical_indicators: seed data for technical indicators ----
     # Trend indicators
     """INSERT IGNORE INTO technical_indicators (name, type, description, calculation_function, default_parameters) VALUES

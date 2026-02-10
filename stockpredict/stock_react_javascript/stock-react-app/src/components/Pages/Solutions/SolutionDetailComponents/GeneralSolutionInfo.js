@@ -2,7 +2,9 @@ import React,{useEffect,useState} from "react";
 import { useForm } from "react-hook-form"
 import httpClient from "../../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../../constants/api";
+import { useRouter } from "../../../../context/RouterContext";
 const GeneralSollutionInfo = (props) =>{
+    const { navigate } = useRouter();
     const [showPastCovariate,setShowPastCovariate] = useState(false)
     const [showFutureCovariate,setShowFutureCovariate] = useState(false)
     const { register,handleSubmit,reset,formState: { errors },watch} = useForm();
@@ -107,9 +109,26 @@ const GeneralSollutionInfo = (props) =>{
         show_covariates(modelId)
         
     }, []);
-    return (        
-        <>        
-        <div className="container">            
+    if (!props.models || props.models.length === 0) {
+        return (
+            <div className="container">
+                <div className="card border-0 shadow p-3 text-center">
+                    <p>No models found. Please create a model first before creating a solution.</p>
+                    <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => navigate('models')}
+                    >
+                        Go to Models
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <>
+        <div className="container">
             <div className="card border-0 shadow p-3">
                 <form onSubmit={handleSubmit(formSubmit)}>
                     <table>
