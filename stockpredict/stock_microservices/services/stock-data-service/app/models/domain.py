@@ -157,3 +157,58 @@ class MarketIndex(Base):
 
     def __repr__(self):
         return f"<MarketIndex(code={self.code}, date={self.date}, close={self.close})>"
+
+
+class PriceBoard(Base):
+    """Cached price board data from Vietcap API"""
+    __tablename__ = "tbl_price_board"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    stock_group = Column(String(20), nullable=False, index=True)
+
+    # Reference prices
+    ref_price = Column(Float, nullable=True)
+    ceiling = Column(Float, nullable=True)
+    floor = Column(Float, nullable=True)
+
+    # Match price data
+    match_price = Column(Float, nullable=True)
+    match_qty = Column(BigInteger, nullable=True)
+    match_value = Column(BigInteger, nullable=True)
+    change = Column(Float, nullable=True)
+    change_percent = Column(Float, nullable=True)
+    total_qty = Column(BigInteger, nullable=True)
+    total_value = Column(BigInteger, nullable=True)
+    highest = Column(Float, nullable=True)
+    lowest = Column(Float, nullable=True)
+    open_price = Column(Float, nullable=True)
+    average_price = Column(Float, nullable=True)
+
+    # Bid prices (3 levels)
+    buy_price_1 = Column(Float, nullable=True)
+    buy_qty_1 = Column(BigInteger, nullable=True)
+    buy_price_2 = Column(Float, nullable=True)
+    buy_qty_2 = Column(BigInteger, nullable=True)
+    buy_price_3 = Column(Float, nullable=True)
+    buy_qty_3 = Column(BigInteger, nullable=True)
+
+    # Ask prices (3 levels)
+    sell_price_1 = Column(Float, nullable=True)
+    sell_qty_1 = Column(BigInteger, nullable=True)
+    sell_price_2 = Column(Float, nullable=True)
+    sell_qty_2 = Column(BigInteger, nullable=True)
+    sell_price_3 = Column(Float, nullable=True)
+    sell_qty_3 = Column(BigInteger, nullable=True)
+
+    # Metadata
+    exchange = Column(String(20), nullable=True)
+    trading_status = Column(String(20), nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_price_board_group_symbol", "stock_group", "symbol", unique=True),
+    )
+
+    def __repr__(self):
+        return f"<PriceBoard(symbol={self.symbol}, group={self.stock_group}, match_price={self.match_price})>"

@@ -1,6 +1,7 @@
 """
 Stock Service - Business logic for stock data operations
 """
+import asyncio
 import logging
 from datetime import datetime, date, timedelta
 from typing import Optional, List, Tuple
@@ -10,7 +11,7 @@ import pandas as pd
 from vnstock import Vnstock
 
 from app.config import get_settings
-from app.models.domain import Company, StockPrice, Industry
+from app.models.domain import Company, StockPrice, Industry, PriceBoard
 from app.models.schemas import (
     CompanyResponse,
     CompanyDetailResponse,
@@ -405,7 +406,8 @@ class StockService:
         """
         try:
             stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
-            df = stock.quote.history(
+            df = await asyncio.to_thread(
+                stock.quote.history,
                 start=start_date.strftime("%Y-%m-%d"),
                 end=end_date.strftime("%Y-%m-%d"),
             )
@@ -417,7 +419,7 @@ class StockService:
             # Get company name from listing data
             company_name = symbol.upper()
             try:
-                all_symbols_df = stock.listing.all_symbols()
+                all_symbols_df = await asyncio.to_thread(stock.listing.all_symbols)
                 if all_symbols_df is not None and not all_symbols_df.empty:
                     match = all_symbols_df[all_symbols_df["symbol"] == symbol.upper()]
                     if not match.empty:
@@ -485,9 +487,10 @@ class StockService:
             start_date = end_date - timedelta(days=365)
 
         try:
-            # Fetch from VNStock
+            # Fetch from VNStock (run in thread to avoid blocking event loop)
             stock = self.vnstock.stock(symbol=symbol, source=settings.VNSTOCK_DATA_SOURCE)
-            df = stock.quote.history(
+            df = await asyncio.to_thread(
+                stock.quote.history,
                 start=start_date.strftime("%Y-%m-%d"),
                 end=end_date.strftime("%Y-%m-%d"),
             )
@@ -1108,102 +1111,211 @@ class StockService:
 
     async def get_price_board(self, group: str = "VN30") -> List[dict]:
         """
-        Get real-time price board data for a stock group.
-
-        Args:
-            group: Stock group (VN30, VN100, HOSE, HNX, etc.)
-
-        Returns:
-            List of price board data with bid/ask, match prices, etc.
+        Get price board data from DB cache.
+        Falls back to live fetch + store if DB is empty for this group.
         """
-        import httpx
+        from sqlalchemy import select
+
+        group_upper = group.upper()
+        session = self.repository.session
+
+        result = await session.execute(
+            select(PriceBoard).where(PriceBoard.stock_group == group_upper)
+        )
+        rows = result.scalars().all()
+
+        if rows:
+            logger.debug(f"Price board DB hit for {group_upper}: {len(rows)} rows")
+            return [self._price_board_row_to_dict(r) for r in rows]
+
+        # DB empty for this group — fetch live, store, then return
+        logger.info(f"Price board DB empty for {group_upper}, fetching live data")
+        count = await self.refresh_price_board(group_upper)
+        if count == 0:
+            return []
+
+        result = await session.execute(
+            select(PriceBoard).where(PriceBoard.stock_group == group_upper)
+        )
+        rows = result.scalars().all()
+        return [self._price_board_row_to_dict(r) for r in rows]
+
+    async def refresh_price_board(self, group: str = "VN30") -> int:
+        """
+        Fetch live data from Vietcap API, delete old rows, insert fresh ones.
+        Returns count of inserted records.
+        """
+        from sqlalchemy import delete as sa_delete
+
+        group_upper = group.upper()
+        logger.info(f"Refreshing price board for {group_upper}")
+
+        records = await self._fetch_price_board_live(group_upper)
+        if not records:
+            logger.warning(f"No live data returned for {group_upper}")
+            return 0
+
+        session = self.repository.session
+
+        # Delete old rows for this group
+        await session.execute(
+            sa_delete(PriceBoard).where(PriceBoard.stock_group == group_upper)
+        )
+
+        # Insert fresh rows
+        for rec in records:
+            row = PriceBoard(
+                symbol=rec["symbol"],
+                stock_group=group_upper,
+                ref_price=rec.get("refPrice"),
+                ceiling=rec.get("ceiling"),
+                floor=rec.get("floor"),
+                match_price=rec.get("matchPrice"),
+                match_qty=rec.get("matchQty"),
+                match_value=rec.get("matchValue"),
+                change=rec.get("change"),
+                change_percent=rec.get("changePercent"),
+                total_qty=rec.get("totalQty"),
+                total_value=rec.get("totalValue"),
+                highest=rec.get("highest"),
+                lowest=rec.get("lowest"),
+                open_price=rec.get("openPrice"),
+                average_price=rec.get("averagePrice"),
+                buy_price_1=rec.get("buyPrice1"),
+                buy_qty_1=rec.get("buyQty1"),
+                buy_price_2=rec.get("buyPrice2"),
+                buy_qty_2=rec.get("buyQty2"),
+                buy_price_3=rec.get("buyPrice3"),
+                buy_qty_3=rec.get("buyQty3"),
+                sell_price_1=rec.get("sellPrice1"),
+                sell_qty_1=rec.get("sellQty1"),
+                sell_price_2=rec.get("sellPrice2"),
+                sell_qty_2=rec.get("sellQty2"),
+                sell_price_3=rec.get("sellPrice3"),
+                sell_qty_3=rec.get("sellQty3"),
+                exchange=rec.get("exchange"),
+                trading_status=rec.get("tradingStatus"),
+            )
+            session.add(row)
+
+        await session.commit()
+        logger.info(f"Refreshed price board for {group_upper}: {len(records)} records")
+        return len(records)
+
+    async def _fetch_price_board_live(self, group: str = "VN30") -> List[dict]:
+        """Fetch live price board data from Vietcap API. Returns list of camelCase dicts.
+        Uses requests (sync) via asyncio.to_thread — more reliable from Docker than httpx async.
+        """
+        import requests as sync_requests
+
+        def _sync_fetch():
+            symbols = self.STOCK_GROUPS.get(group.upper(), self.STOCK_GROUPS.get("VN30"))
+            url = "https://trading.vietcap.com.vn/api/price/symbols/getList"
+            response = sync_requests.post(
+                url,
+                json={"symbols": symbols},
+                headers=self.VIETCAP_HEADERS,
+                timeout=30,
+            )
+            response.raise_for_status()
+            return response.json()
 
         try:
-            # Get symbols for the group
-            symbols = self.STOCK_GROUPS.get(group.upper(), self.STOCK_GROUPS.get("VN30"))
+            data = await asyncio.to_thread(_sync_fetch)
+            if not data:
+                return []
 
-            # Call Vietcap API directly with browser headers
-            url = "https://trading.vietcap.com.vn/api/price/symbols/getList"
+            records = []
+            for item in data:
+                listing = item.get("listingInfo", {})
+                match_price = item.get("matchPrice", {})
+                bid_ask = item.get("bidAsk", {})
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    url,
-                    json={"symbols": symbols},
-                    headers=self.VIETCAP_HEADERS
-                )
+                bid_prices = bid_ask.get("bidPrices", [])
+                ask_prices = bid_ask.get("askPrices", [])
 
-                if response.status_code != 200:
-                    logger.warning(f"Vietcap API returned {response.status_code} for group: {group}")
-                    return []
+                current_price = match_price.get("matchPrice")
+                ref_price = listing.get("refPrice")
+                change = None
+                change_percent = None
+                if current_price and ref_price and ref_price > 0:
+                    change = current_price - ref_price
+                    change_percent = round((change / ref_price) * 100, 2)
 
-                data = response.json()
+                record = {
+                    "symbol": listing.get("symbol"),
+                    "refPrice": ref_price,
+                    "ceiling": listing.get("ceiling"),
+                    "floor": listing.get("floor"),
+                    "matchPrice": current_price,
+                    "matchQty": match_price.get("matchVol"),
+                    "matchValue": match_price.get("accumulatedValue"),
+                    "change": change,
+                    "changePercent": change_percent,
+                    "totalQty": match_price.get("accumulatedVolume"),
+                    "totalValue": match_price.get("accumulatedValue"),
+                    "highest": match_price.get("highest"),
+                    "lowest": match_price.get("lowest"),
+                    "openPrice": match_price.get("openPrice"),
+                    "averagePrice": match_price.get("avgMatchPrice"),
+                    "buyPrice1": bid_prices[0].get("price") if len(bid_prices) > 0 else None,
+                    "buyQty1": bid_prices[0].get("volume") if len(bid_prices) > 0 else None,
+                    "buyPrice2": bid_prices[1].get("price") if len(bid_prices) > 1 else None,
+                    "buyQty2": bid_prices[1].get("volume") if len(bid_prices) > 1 else None,
+                    "buyPrice3": bid_prices[2].get("price") if len(bid_prices) > 2 else None,
+                    "buyQty3": bid_prices[2].get("volume") if len(bid_prices) > 2 else None,
+                    "sellPrice1": ask_prices[0].get("price") if len(ask_prices) > 0 else None,
+                    "sellQty1": ask_prices[0].get("volume") if len(ask_prices) > 0 else None,
+                    "sellPrice2": ask_prices[1].get("price") if len(ask_prices) > 1 else None,
+                    "sellQty2": ask_prices[1].get("volume") if len(ask_prices) > 1 else None,
+                    "sellPrice3": ask_prices[2].get("price") if len(ask_prices) > 2 else None,
+                    "sellQty3": ask_prices[2].get("volume") if len(ask_prices) > 2 else None,
+                    "exchange": listing.get("board"),
+                    "tradingStatus": listing.get("tradingStatus"),
+                }
+                records.append(record)
 
-                if not data:
-                    logger.warning(f"No price board data for group: {group}")
-                    return []
-
-                # Transform response to simplified format
-                records = []
-                for item in data:
-                    listing = item.get("listingInfo", {})
-                    match_price = item.get("matchPrice", {})
-                    bid_ask = item.get("bidAsk", {})
-
-                    # Get bid prices (3 levels) - API returns 'volume' not 'qty'
-                    bid_prices = bid_ask.get("bidPrices", [])
-                    ask_prices = bid_ask.get("askPrices", [])
-
-                    # Calculate change and changePercent if not provided
-                    current_price = match_price.get("matchPrice")
-                    ref_price = listing.get("refPrice")
-                    change = None
-                    change_percent = None
-                    if current_price and ref_price and ref_price > 0:
-                        change = current_price - ref_price
-                        change_percent = round((change / ref_price) * 100, 2)
-
-                    record = {
-                        "symbol": listing.get("symbol"),
-                        "refPrice": ref_price,
-                        "ceiling": listing.get("ceiling"),
-                        "floor": listing.get("floor"),
-                        # Match price data - updated field names
-                        "matchPrice": current_price,
-                        "matchQty": match_price.get("matchVol"),
-                        "matchValue": match_price.get("accumulatedValue"),
-                        "change": change,
-                        "changePercent": change_percent,
-                        "totalQty": match_price.get("accumulatedVolume"),
-                        "totalValue": match_price.get("accumulatedValue"),
-                        "highest": match_price.get("highest"),
-                        "lowest": match_price.get("lowest"),
-                        "openPrice": match_price.get("openPrice"),
-                        "averagePrice": match_price.get("avgMatchPrice"),
-                        # Bid prices (3 levels) - 'volume' is the correct field name
-                        "buyPrice1": bid_prices[0].get("price") if len(bid_prices) > 0 else None,
-                        "buyQty1": bid_prices[0].get("volume") if len(bid_prices) > 0 else None,
-                        "buyPrice2": bid_prices[1].get("price") if len(bid_prices) > 1 else None,
-                        "buyQty2": bid_prices[1].get("volume") if len(bid_prices) > 1 else None,
-                        "buyPrice3": bid_prices[2].get("price") if len(bid_prices) > 2 else None,
-                        "buyQty3": bid_prices[2].get("volume") if len(bid_prices) > 2 else None,
-                        # Ask/Sell prices (3 levels)
-                        "sellPrice1": ask_prices[0].get("price") if len(ask_prices) > 0 else None,
-                        "sellQty1": ask_prices[0].get("volume") if len(ask_prices) > 0 else None,
-                        "sellPrice2": ask_prices[1].get("price") if len(ask_prices) > 1 else None,
-                        "sellQty2": ask_prices[1].get("volume") if len(ask_prices) > 1 else None,
-                        "sellPrice3": ask_prices[2].get("price") if len(ask_prices) > 2 else None,
-                        "sellQty3": ask_prices[2].get("volume") if len(ask_prices) > 2 else None,
-                        "exchange": listing.get("board"),
-                        "tradingStatus": listing.get("tradingStatus"),
-                    }
-                    records.append(record)
-
-                logger.info(f"Fetched price board for {len(records)} symbols in group {group}")
-                return records
+            logger.info(f"Fetched live price board for {len(records)} symbols in group {group}")
+            return records
 
         except Exception as e:
-            logger.error(f"Error fetching price board for group {group}: {e}")
+            logger.error(f"Error fetching live price board for group {group}: {type(e).__name__}: {e}")
             return []
+
+    @staticmethod
+    def _price_board_row_to_dict(row: PriceBoard) -> dict:
+        """Convert a PriceBoard DB row to the camelCase dict the frontend expects."""
+        return {
+            "symbol": row.symbol,
+            "refPrice": row.ref_price,
+            "ceiling": row.ceiling,
+            "floor": row.floor,
+            "matchPrice": row.match_price,
+            "matchQty": row.match_qty,
+            "matchValue": row.match_value,
+            "change": row.change,
+            "changePercent": row.change_percent,
+            "totalQty": row.total_qty,
+            "totalValue": row.total_value,
+            "highest": row.highest,
+            "lowest": row.lowest,
+            "openPrice": row.open_price,
+            "averagePrice": row.average_price,
+            "buyPrice1": row.buy_price_1,
+            "buyQty1": row.buy_qty_1,
+            "buyPrice2": row.buy_price_2,
+            "buyQty2": row.buy_qty_2,
+            "buyPrice3": row.buy_price_3,
+            "buyQty3": row.buy_qty_3,
+            "sellPrice1": row.sell_price_1,
+            "sellQty1": row.sell_qty_1,
+            "sellPrice2": row.sell_price_2,
+            "sellQty2": row.sell_qty_2,
+            "sellPrice3": row.sell_price_3,
+            "sellQty3": row.sell_qty_3,
+            "exchange": row.exchange,
+            "tradingStatus": row.trading_status,
+        }
 
     # ==================== Financial Data Operations ====================
 

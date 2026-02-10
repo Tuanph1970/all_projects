@@ -352,6 +352,32 @@ async def get_price_board(
     return await stock_service.get_price_board(group=group)
 
 
+@router.post(
+    "/priceboards/refresh",
+    response_model=MessageResponse,
+    summary="Refresh price board cache from Vietcap API",
+)
+async def refresh_price_board(
+    group: str = Query("VN30", description="Stock group (VN30, VN100)"),
+    stock_service: StockService = Depends(get_stock_service),
+):
+    """
+    Fetch fresh price board data from Vietcap API and store in DB.
+    Called after login to warm the cache. Slow (~20s) but non-blocking for the caller.
+    """
+    try:
+        count = await stock_service.refresh_price_board(group=group)
+        return MessageResponse(
+            message=f"Refreshed {count} records for {group.upper()}",
+            success=True,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to refresh price board: {str(e)}",
+        )
+
+
 # ==================== Data Sync Endpoints ====================
 
 @router.post(

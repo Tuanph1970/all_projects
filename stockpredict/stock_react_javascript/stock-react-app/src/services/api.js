@@ -309,7 +309,7 @@ export const stockAPI = {
       return (holdings || []).map(h => ({
         symbol: h.symbol,
         name: h.company_name || h.symbol,
-        shares: h.shares || 0,
+        shares: h.quantity || 0,
         avgPrice: h.average_price || 0,
         currentPrice: h.current_price || h.average_price || 0,
         change: h.gain_loss_percent ? `${h.gain_loss_percent >= 0 ? '+' : ''}${h.gain_loss_percent.toFixed(2)}%` : '0.00%'
@@ -652,6 +652,22 @@ export const stockAPI = {
         worst_performer: null,
         portfolio_distribution: []
       };
+    }
+  },
+
+  refreshPriceBoard: async (group = 'VN30') => {
+    try {
+      const response = await fetch(`${API_ENDPOINTS.PRICEBOARDS}/refresh?group=${encodeURIComponent(group)}`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      if (!response.ok) {
+        throw new Error('Failed to refresh price board');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error refreshing price board:', error);
+      throw error;
     }
   },
 

@@ -156,6 +156,7 @@ function getFontColorFromProps(colorValue, cellProps, displayValue = null) {
    );
  }
  const PriceBoard = () => {
+    const [refreshing, setRefreshing] = useState(false);
     const columns = React.useMemo(
         () => [
           {
@@ -332,25 +333,55 @@ function getFontColorFromProps(colorValue, cellProps, displayValue = null) {
             []
       );
     const [data, setData] = useState([])
+
+    const fetchPriceBoard = async () => {
+      try {
+        const result = await httpClient.get(API_ENDPOINTS.PRICEBOARDS);
+        if (result.success && result.data) {
+          setData(result.data);
+        } else {
+          console.error('Error fetching price board data:', result.error);
+        }
+      } catch (error) {
+        console.error('Error fetching price board data:', error);
+      }
+    };
+
     useEffect(() => {
-        const fetchPriceBoard = async () => {
-          try {
-            const result = await httpClient.get(API_ENDPOINTS.PRICEBOARDS);
-            if (result.success && result.data) {
-              console.log('PriceBoard API Response:', result.data);
-              setData(result.data);
-            } else {
-              console.error('Error fetching price board data:', result.error);
-            }
-          } catch (error) {
-            console.error('Error fetching price board data:', error);
-          }
-        };
         fetchPriceBoard();
       },[]);
 
+    const handleRefresh = async () => {
+      setRefreshing(true);
+      try {
+        await httpClient.post(`${API_ENDPOINTS.PRICEBOARDS}/refresh?group=VN30`);
+        await fetchPriceBoard();
+      } catch (error) {
+        console.error('Error refreshing price board:', error);
+      } finally {
+        setRefreshing(false);
+      }
+    };
+
       return (
         <div className="services" style={{ width: '100%', boxSizing: 'border-box' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              style={{
+                padding: '6px 16px',
+                backgroundColor: refreshing ? '#555' : '#1a73e8',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: refreshing ? 'not-allowed' : 'pointer',
+                fontSize: '13px',
+              }}
+            >
+              {refreshing ? 'Đang làm mới...' : 'Làm mới'}
+            </button>
+          </div>
           <Table
             columns={columns}
             data={data}

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authAPI } from '../services/api';
+import { authAPI, stockAPI } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -22,6 +22,8 @@ export const AuthProvider = ({ children }) => {
 
       if (validation.valid && validation.user) {
         setUser(validation.user);
+        // Warm price board cache in background (non-blocking)
+        stockAPI.refreshPriceBoard('VN30').catch(() => {});
       } else {
         // Token is invalid, ensure clean state
         setUser(null);
@@ -39,6 +41,8 @@ export const AuthProvider = ({ children }) => {
       const response = await authAPI.login(username, password);
       localStorage.setItem('token', response.token);
       setUser(response.user);
+      // Warm price board cache in background (non-blocking)
+      stockAPI.refreshPriceBoard('VN30').catch(() => {});
       return response;
     } finally {
       setLoading(false);
