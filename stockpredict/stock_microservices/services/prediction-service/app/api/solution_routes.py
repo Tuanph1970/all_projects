@@ -60,40 +60,75 @@ DARTS_TO_ML_MAP = {
 
 
 def _create_ml_model(model_type: str, model_sub_type: str = '', config_json=None):
-    """Create an ML model based on model type mapping."""
+    """Create an ML model with hyperparameters tuned per model type.
+
+    Each DARTS model type gets a distinct hyperparameter profile so that
+    different model selections in the UI produce genuinely different models.
+    User-provided config_json overrides the defaults.
+    """
     ml_type = DARTS_TO_ML_MAP.get(model_type, 'xgboost')
 
-    config = {}
+    # Per-model-type default hyperparameters (distinct profiles)
+    MODEL_DEFAULTS = {
+        # ── XGBoost variants ──
+        'XGBoost':          {'n_estimators': 200, 'max_depth': 6,  'learning_rate': 0.10, 'subsample': 0.8, 'colsample_bytree': 0.8},
+        'BlockRNN':         {'n_estimators': 300, 'max_depth': 8,  'learning_rate': 0.05, 'subsample': 0.85, 'colsample_bytree': 0.7},
+        'TCNModel':         {'n_estimators': 150, 'max_depth': 10, 'learning_rate': 0.08, 'subsample': 0.75, 'colsample_bytree': 0.9},
+        'NHits':            {'n_estimators': 500, 'max_depth': 5,  'learning_rate': 0.03, 'subsample': 0.9, 'colsample_bytree': 0.6},
+        'TiDE':             {'n_estimators': 100, 'max_depth': 4,  'learning_rate': 0.15, 'subsample': 0.7, 'colsample_bytree': 0.85},
+        'CatBoost':         {'n_estimators': 400, 'max_depth': 7,  'learning_rate': 0.04, 'subsample': 0.8, 'colsample_bytree': 0.75},
+        # ── LightGBM variants ──
+        'LightGBM':         {'n_estimators': 200, 'max_depth': 6,  'learning_rate': 0.10, 'subsample': 0.8, 'colsample_bytree': 0.8, 'num_leaves': 31},
+        'RNNModel':         {'n_estimators': 300, 'max_depth': 8,  'learning_rate': 0.05, 'subsample': 0.85, 'colsample_bytree': 0.7, 'num_leaves': 63},
+        'TransformerModel': {'n_estimators': 400, 'max_depth': 5,  'learning_rate': 0.03, 'subsample': 0.9, 'colsample_bytree': 0.6, 'num_leaves': 127},
+        'TFTModel':         {'n_estimators': 350, 'max_depth': 9,  'learning_rate': 0.04, 'subsample': 0.8, 'colsample_bytree': 0.75, 'num_leaves': 80},
+        'DLinear':          {'n_estimators': 100, 'max_depth': 3,  'learning_rate': 0.15, 'subsample': 0.7, 'colsample_bytree': 0.9, 'num_leaves': 15},
+        'NLinear':          {'n_estimators': 80,  'max_depth': 2,  'learning_rate': 0.20, 'subsample': 0.7, 'colsample_bytree': 0.95, 'num_leaves': 10},
+        # ── RandomForest variants ──
+        'RandomForest':     {'n_estimators': 200, 'max_depth': 10, 'min_samples_split': 5,  'min_samples_leaf': 2},
+        'NBEATSModel':      {'n_estimators': 400, 'max_depth': 15, 'min_samples_split': 3,  'min_samples_leaf': 1},
+        'NBeats':           {'n_estimators': 300, 'max_depth': 12, 'min_samples_split': 4,  'min_samples_leaf': 2},
+    }
+
+    defaults = MODEL_DEFAULTS.get(model_type, {})
+
+    # User config overrides defaults
+    user_config = {}
     if config_json:
         try:
-            config = json.loads(config_json) if isinstance(config_json, str) else config_json
+            user_config = json.loads(config_json) if isinstance(config_json, str) else config_json
         except (json.JSONDecodeError, TypeError):
-            config = {}
+            user_config = {}
+
+    cfg = {**defaults, **user_config}
 
     if ml_type == 'xgboost':
         return xgb.XGBRegressor(
-            n_estimators=config.get('n_estimators', 200),
-            max_depth=config.get('max_depth', 6),
-            learning_rate=config.get('learning_rate', 0.1),
-            subsample=0.8,
-            colsample_bytree=0.8,
+            n_estimators=cfg.get('n_estimators', 200),
+            max_depth=cfg.get('max_depth', 6),
+            learning_rate=cfg.get('learning_rate', 0.1),
+            subsample=cfg.get('subsample', 0.8),
+            colsample_bytree=cfg.get('colsample_bytree', 0.8),
             random_state=42,
             verbosity=0
         )
     elif ml_type == 'lightgbm':
         return lgb.LGBMRegressor(
-            n_estimators=config.get('n_estimators', 200),
-            max_depth=config.get('max_depth', 6),
-            learning_rate=config.get('learning_rate', 0.1),
-            subsample=0.8,
-            colsample_bytree=0.8,
+            n_estimators=cfg.get('n_estimators', 200),
+            max_depth=cfg.get('max_depth', 6),
+            learning_rate=cfg.get('learning_rate', 0.1),
+            num_leaves=cfg.get('num_leaves', 31),
+            subsample=cfg.get('subsample', 0.8),
+            colsample_bytree=cfg.get('colsample_bytree', 0.8),
             random_state=42,
             verbose=-1
         )
     elif ml_type == 'random_forest':
         return RandomForestRegressor(
-            n_estimators=config.get('n_estimators', 200),
-            max_depth=config.get('max_depth', 10),
+            n_estimators=cfg.get('n_estimators', 200),
+            max_depth=cfg.get('max_depth', 10),
+            min_samples_split=cfg.get('min_samples_split', 5),
+            min_samples_leaf=cfg.get('min_samples_leaf', 2),
             random_state=42,
             n_jobs=-1
         )
@@ -159,6 +194,48 @@ def _prepare_indicator_features(df: pd.DataFrame, indicator_rows: list) -> tuple
                     indicator_data_by_date[date_key][k] = v
 
     return feature_df, indicator_data_by_date
+
+
+def _build_feature_df(df: pd.DataFrame, indicator_feature_df: pd.DataFrame) -> pd.DataFrame:
+    """Build feature DataFrame from OHLCV data and indicator features.
+
+    Shared by training and prediction to ensure feature consistency.
+    Does NOT add 'target' column — caller adds that for training.
+
+    Args:
+        df: DataFrame with columns [open, high, low, close, volume], DatetimeIndex
+        indicator_feature_df: DataFrame with indicator columns, same index as df
+
+    Returns:
+        DataFrame with all features (no target), NaN rows NOT dropped (caller decides).
+    """
+    feature_df = pd.DataFrame(index=df.index)
+    feature_df['close'] = df['close']
+
+    # Price-based features
+    feature_df['returns'] = df['close'].pct_change()
+    feature_df['log_returns'] = np.log(df['close'] / df['close'].shift(1))
+    feature_df['high_low_ratio'] = df['high'] / df['low']
+    feature_df['close_open_ratio'] = df['close'] / df['open']
+
+    for lag in [1, 2, 3, 5, 10]:
+        feature_df[f'close_lag_{lag}'] = df['close'].shift(lag)
+        feature_df[f'returns_lag_{lag}'] = feature_df['returns'].shift(lag)
+
+    # Volatility
+    feature_df['volatility_5'] = feature_df['returns'].rolling(5).std()
+    feature_df['volatility_20'] = feature_df['returns'].rolling(20).std()
+
+    # Volume features
+    if 'volume' in df.columns:
+        feature_df['volume_sma_20'] = df['volume'].rolling(20).mean()
+        feature_df['volume_ratio'] = df['volume'] / feature_df['volume_sma_20']
+
+    # Add indicator features
+    for col in indicator_feature_df.columns:
+        feature_df[col] = indicator_feature_df[col]
+
+    return feature_df
 
 
 async def _run_training(solution_id: int, train_params: dict):
@@ -270,32 +347,8 @@ async def _run_training(solution_id: int, train_params: dict):
             # Step 5: Calculate indicator features
             indicator_feature_df, indicator_data_by_date = _prepare_indicator_features(df, indicator_rows)
 
-            # Build feature DataFrame
-            feature_df = pd.DataFrame(index=df.index)
-            feature_df['close'] = df['close']
-
-            # Price-based features
-            feature_df['returns'] = df['close'].pct_change()
-            feature_df['log_returns'] = np.log(df['close'] / df['close'].shift(1))
-            feature_df['high_low_ratio'] = df['high'] / df['low']
-            feature_df['close_open_ratio'] = df['close'] / df['open']
-
-            for lag in [1, 2, 3, 5, 10]:
-                feature_df[f'close_lag_{lag}'] = df['close'].shift(lag)
-                feature_df[f'returns_lag_{lag}'] = feature_df['returns'].shift(lag)
-
-            # Volatility
-            feature_df['volatility_5'] = feature_df['returns'].rolling(5).std()
-            feature_df['volatility_20'] = feature_df['returns'].rolling(20).std()
-
-            # Volume features
-            if 'volume' in df.columns:
-                feature_df['volume_sma_20'] = df['volume'].rolling(20).mean()
-                feature_df['volume_ratio'] = df['volume'] / feature_df['volume_sma_20']
-
-            # Add indicator features
-            for col in indicator_feature_df.columns:
-                feature_df[col] = indicator_feature_df[col]
+            # Build feature DataFrame using shared function
+            feature_df = _build_feature_df(df, indicator_feature_df)
 
             # Target: next day's close price
             feature_df['target'] = feature_df['close'].shift(-1)
@@ -902,11 +955,248 @@ async def predict_solution(
     if not solution_id:
         raise HTTPException(status_code=400, detail="Solution ID is required")
 
-    # TODO: Implement actual prediction logic
-    return {
-        "message": "Prediction not yet implemented in microservice",
-        "solution_id": solution_id
-    }
+    solution_id = int(solution_id)
+    predict_start = data.get("start_date")
+    predict_end = data.get("end_date")
+
+    try:
+        # Step 1: Load solution
+        result = await db.execute(
+            text("SELECT * FROM tbl_solution WHERE id = :id"),
+            {"id": solution_id}
+        )
+        solution = result.mappings().first()
+        if not solution:
+            raise HTTPException(status_code=404, detail=f"Solution {solution_id} not found")
+
+        ticker = solution['ticker']
+        model_id = solution['model_id']
+
+        # Step 2: Load model instance and verify trained
+        result = await db.execute(
+            text("SELECT * FROM model_instances WHERE id = :id"),
+            {"id": model_id}
+        )
+        model_instance = result.mappings().first()
+        if not model_instance:
+            raise HTTPException(status_code=404, detail=f"Model instance {model_id} not found")
+
+        if model_instance['status'] != 'trained':
+            raise HTTPException(
+                status_code=400,
+                detail=f"Model not trained yet (status: {model_instance['status']}). Train the solution first."
+            )
+
+        model_file = model_instance['file_path']
+        if not model_file or not os.path.exists(model_file):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Model file not found at {model_file}. Retrain the solution."
+            )
+
+        # Step 3: Load the saved model
+        saved = joblib.load(model_file)
+        ml_model = saved['model']
+        feature_cols = saved['feature_cols']
+
+        logger.info(f"Prediction: loaded model for solution {solution_id}, {len(feature_cols)} features")
+
+        # Step 4: Load solution indicators
+        result = await db.execute(
+            text("""
+                SELECT si.indicator_id, si.indicator_category, si.covariate_type, si.parameters,
+                       ti.name, ti.type, ti.default_parameters, ti.calculation_function
+                FROM solution_indicators si
+                LEFT JOIN technical_indicators ti ON si.indicator_id = ti.id
+                WHERE si.solution_id = :solution_id
+            """),
+            {"solution_id": solution_id}
+        )
+        indicator_rows = [dict(r) for r in result.mappings().all()]
+
+        # Step 5: Fetch price data (need extra history for lag features)
+        # We need at least 30 extra business days before predict_start for rolling features
+        if predict_start:
+            history_start = (pd.Timestamp(predict_start) - pd.Timedelta(days=60)).strftime('%Y-%m-%d')
+        else:
+            history_start = None
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            url = f"{settings.STOCK_DATA_SERVICE_URL}/stock_helper/api/v2/companies/{ticker}/historical-data"
+            params = {}
+            if history_start:
+                params["start_date"] = history_start
+            if predict_end:
+                params["end_date"] = predict_end
+            resp = await client.get(url, params=params)
+            if resp.status_code != 200:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Failed to fetch price data for {ticker} (HTTP {resp.status_code})"
+                )
+            price_response = resp.json()
+
+        if isinstance(price_response, dict) and "data" in price_response:
+            price_list = price_response["data"]
+        elif isinstance(price_response, list):
+            price_list = price_response
+        else:
+            price_list = []
+
+        if not price_list:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No price data for {ticker}"
+            )
+
+        # Build OHLCV DataFrame
+        df = pd.DataFrame(price_list)
+        if 'time' in df.columns:
+            df['date'] = pd.to_datetime(df['time'])
+        elif 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'])
+        df = df.set_index('date').sort_index()
+        df = df[['open', 'high', 'low', 'close', 'volume']].copy()
+        df = df.apply(pd.to_numeric, errors='coerce')
+        df = df.dropna()
+
+        # Step 6: Build features using shared function
+        indicator_feature_df, _ = _prepare_indicator_features(df, indicator_rows)
+        feature_df = _build_feature_df(df, indicator_feature_df)
+        feature_df = feature_df.dropna()
+
+        # Ensure we have the same columns as training (in same order)
+        missing_cols = [c for c in feature_cols if c not in feature_df.columns]
+        if missing_cols:
+            logger.warning(f"Prediction: missing features {missing_cols}, filling with 0")
+            for c in missing_cols:
+                feature_df[c] = 0.0
+
+        # Step 7: Predict on known period (historical backtest)
+        X_pred = feature_df[feature_cols].values
+        y_pred = ml_model.predict(X_pred)
+
+        # Filter to requested date range for output
+        if predict_start:
+            mask = feature_df.index >= pd.Timestamp(predict_start)
+        else:
+            mask = pd.Series(True, index=feature_df.index)
+
+        actual_prices = []
+        predicted_prices = []
+        dates_in_range = feature_df.index[mask]
+
+        for i_global, d in enumerate(feature_df.index):
+            if not mask.iloc[i_global]:
+                continue
+            date_str = d.strftime('%Y-%m-%d')
+            actual_prices.append({
+                'tradingdate': date_str,
+                'close': float(feature_df['close'].iloc[i_global]),
+            })
+            predicted_prices.append({
+                'tradingdate': date_str,
+                'close': float(y_pred[i_global]),
+            })
+
+        # Step 8: Future predictions (iterative, day-by-day)
+        future_predictions = []
+        output_chunk_length = data.get('predict_days', settings.DEFAULT_PREDICTION_DAYS)
+        output_chunk_length = min(output_chunk_length, settings.MAX_PREDICTION_DAYS)
+
+        # Start from last available date
+        last_date = df.index[-1]
+        last_close = float(df['close'].iloc[-1])
+        last_row = df.iloc[-1].copy()
+
+        # We need a rolling window of df for feature calculation
+        future_df = df.copy()
+
+        for day_i in range(output_chunk_length):
+            # Next business day
+            next_date = last_date + pd.Timedelta(days=1)
+            while next_date.weekday() >= 5:
+                next_date += pd.Timedelta(days=1)
+
+            # Use predicted close as next day's values (simple forward fill for OHLV)
+            new_row = pd.DataFrame({
+                'open': [last_close],
+                'high': [last_close * 1.005],  # small spread estimate
+                'low': [last_close * 0.995],
+                'close': [last_close],
+                'volume': [float(future_df['volume'].tail(5).mean())],
+            }, index=[next_date])
+            future_df = pd.concat([future_df, new_row])
+
+            # Rebuild features on extended df
+            ind_feat_df, _ = _prepare_indicator_features(future_df, indicator_rows)
+            feat_df = _build_feature_df(future_df, ind_feat_df)
+            feat_df = feat_df.dropna()
+
+            if next_date not in feat_df.index:
+                break
+
+            # Ensure column alignment
+            for c in feature_cols:
+                if c not in feat_df.columns:
+                    feat_df[c] = 0.0
+
+            x_next = feat_df.loc[[next_date], feature_cols].values
+            pred_price = float(ml_model.predict(x_next)[0])
+
+            # Update the close price in future_df with actual prediction
+            future_df.loc[next_date, 'close'] = pred_price
+            future_df.loc[next_date, 'open'] = pred_price
+            future_df.loc[next_date, 'high'] = pred_price * 1.005
+            future_df.loc[next_date, 'low'] = pred_price * 0.995
+
+            future_predictions.append({
+                'tradingdate': next_date.strftime('%Y-%m-%d'),
+                'close': pred_price,
+            })
+
+            last_date = next_date
+            last_close = pred_price
+
+        # Step 9: Compute metrics on the backtest period
+        if len(actual_prices) > 1 and len(predicted_prices) > 1:
+            actuals = np.array([p['close'] for p in actual_prices])
+            preds = np.array([p['close'] for p in predicted_prices])
+            rmse = float(np.sqrt(mean_squared_error(actuals, preds)))
+            mae = float(mean_absolute_error(actuals, preds))
+            r2 = float(r2_score(actuals, preds))
+        else:
+            rmse = mae = r2 = None
+
+        # Update solution status
+        await db.execute(
+            text("UPDATE tbl_solution SET train_status='predicted' WHERE id = :id"),
+            {"id": solution_id}
+        )
+        await db.commit()
+
+        return {
+            "solution_id": solution_id,
+            "ticker": ticker,
+            "train_status": "predicted",
+            "actual": actual_prices,
+            "predict": predicted_prices,
+            "future": future_predictions,
+            "metrics": {
+                "rmse": rmse,
+                "mae": mae,
+                "r2": r2,
+            },
+            "predict_start": predict_start,
+            "predict_end": predict_end,
+            "future_days": output_chunk_length,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Prediction failed for solution {solution_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
 
 # ==========================================
