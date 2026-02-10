@@ -489,10 +489,11 @@ async def _run_training(solution_id: int, train_params: dict):
                 predictions.append(point)
 
             # Step 12: Compute prediction dates (business days)
-            last_training_date = dates_list[-1]
+            # pred_start = training end date + 1 business day
+            training_end = pd.Timestamp(end_date)
             output_chunk_length = 10
 
-            pred_start = last_training_date + pd.Timedelta(days=1)
+            pred_start = training_end + pd.Timedelta(days=1)
             while pred_start.weekday() >= 5:
                 pred_start += pd.Timedelta(days=1)
 
@@ -1102,7 +1103,7 @@ async def predict_solution(
         dates_in_range = feature_df.index[mask]
 
         for i_global, d in enumerate(feature_df.index):
-            if not mask.iloc[i_global]:
+            if not mask[i_global]:
                 continue
             date_str = d.strftime('%Y-%m-%d')
             actual_prices.append({
