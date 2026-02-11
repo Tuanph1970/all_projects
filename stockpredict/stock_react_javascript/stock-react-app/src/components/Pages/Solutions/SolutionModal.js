@@ -21,6 +21,8 @@ import {
   SingleValueTooltip,
   lastVisibleItemBasedZoomAnchor
 } from "react-financial-charts";
+import { getXAxisProps, getYAxisProps } from '../../../constants/chartTheme';
+import ChartWrapper from '../../ui/ChartWrapper';
 import IndicatorSelector from './IndicatorSelector';
 import solutionService from '../../../services/solutionService';
 import modelService from '../../../services/modelService';
@@ -94,6 +96,7 @@ const FinancialPredictionChart = ({ data, ticker }) => {
 
   return (
     <div style={{ overflow: 'auto' }}>
+      <ChartWrapper yAxisTitle="Price (VND)" xAxisTitle="Date">
       <ChartCanvas
         height={totalHeight}
         ratio={2}
@@ -116,8 +119,8 @@ const FinancialPredictionChart = ({ data, ticker }) => {
             return values.length > 0 ? [Math.min(...values) * 0.995, Math.max(...values) * 1.005] : [0, 100];
           }}
         >
-          <XAxis showGridLines tickFormat={timeDisplayFormat} />
-          <YAxis showGridLines tickFormat={pricesDisplayFormat} />
+          <XAxis showGridLines tickFormat={timeDisplayFormat} {...getXAxisProps()} />
+          <YAxis showGridLines tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
 
           {/* Actual Price Line */}
           {hasActual && (
@@ -172,6 +175,7 @@ const FinancialPredictionChart = ({ data, ticker }) => {
 
         <CrossHairCursor />
       </ChartCanvas>
+      </ChartWrapper>
 
       {/* Chart Legend */}
       <div className="mt-3 p-3" style={{ backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }}>
@@ -315,6 +319,7 @@ const FinancialTrainingChart = ({ data, ticker }) => {
 
   return (
     <div style={{ overflow: 'auto' }}>
+      <ChartWrapper yAxisTitle="Price (VND)" xAxisTitle="Date">
       <ChartCanvas
         height={totalHeight}
         ratio={2}
@@ -337,8 +342,8 @@ const FinancialTrainingChart = ({ data, ticker }) => {
             return values.length > 0 ? [Math.min(...values) * 0.99, Math.max(...values) * 1.01] : [0, 100];
           }}
         >
-          <XAxis showGridLines />
-          <YAxis showGridLines tickFormat={pricesDisplayFormat} />
+          <XAxis showGridLines {...getXAxisProps()} />
+          <YAxis showGridLines tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
 
           {/* Bollinger Bands - drawn first as background */}
           {hasBBUpper && (
@@ -447,8 +452,8 @@ const FinancialTrainingChart = ({ data, ticker }) => {
             origin={oscillatorOrigin}
             padding={{ top: 10, bottom: 10 }}
           >
-            <XAxis showGridLines />
-            <YAxis tickValues={[30, 50, 70]} tickFormat={d => d} />
+            <XAxis showGridLines {...getXAxisProps()} />
+            <YAxis tickValues={[30, 50, 70]} tickFormat={d => d} {...getYAxisProps()} />
 
             {/* Overbought/Oversold lines */}
             <StraightLine yValue={70} strokeStyle="#ef4444" strokeDasharray="Dash" />
@@ -483,8 +488,8 @@ const FinancialTrainingChart = ({ data, ticker }) => {
             origin={macdOrigin}
             padding={{ top: 10, bottom: 10 }}
           >
-            <XAxis showGridLines />
-            <YAxis tickFormat={pricesDisplayFormat} />
+            <XAxis showGridLines {...getXAxisProps()} />
+            <YAxis tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
 
             <StraightLine yValue={0} strokeStyle="#666666" />
 
@@ -532,8 +537,8 @@ const FinancialTrainingChart = ({ data, ticker }) => {
             origin={cciOrigin}
             padding={{ top: 10, bottom: 10 }}
           >
-            <XAxis showGridLines />
-            <YAxis tickValues={[-200, -100, 0, 100, 200]} tickFormat={d => d} />
+            <XAxis showGridLines {...getXAxisProps()} />
+            <YAxis tickValues={[-200, -100, 0, 100, 200]} tickFormat={d => d} {...getYAxisProps()} />
 
             <StraightLine yValue={100} strokeStyle="#ef4444" strokeDasharray="Dash" />
             <StraightLine yValue={-100} strokeStyle="#10b981" strokeDasharray="Dash" />
@@ -562,8 +567,8 @@ const FinancialTrainingChart = ({ data, ticker }) => {
             origin={stochOrigin}
             padding={{ top: 10, bottom: 10 }}
           >
-            <XAxis showGridLines />
-            <YAxis tickValues={[20, 50, 80]} tickFormat={d => d} />
+            <XAxis showGridLines {...getXAxisProps()} />
+            <YAxis tickValues={[20, 50, 80]} tickFormat={d => d} {...getYAxisProps()} />
 
             <StraightLine yValue={80} strokeStyle="#ef4444" strokeDasharray="Dash" />
             <StraightLine yValue={20} strokeStyle="#10b981" strokeDasharray="Dash" />
@@ -599,8 +604,8 @@ const FinancialTrainingChart = ({ data, ticker }) => {
             origin={adxOrigin}
             padding={{ top: 10, bottom: 10 }}
           >
-            <XAxis showGridLines />
-            <YAxis tickValues={[20, 40, 60]} tickFormat={d => d} />
+            <XAxis showGridLines {...getXAxisProps()} />
+            <YAxis tickValues={[20, 40, 60]} tickFormat={d => d} {...getYAxisProps()} />
 
             <StraightLine yValue={25} strokeStyle="#9ca3af" strokeDasharray="Dash" />
 
@@ -631,8 +636,8 @@ const FinancialTrainingChart = ({ data, ticker }) => {
             origin={atrOrigin}
             padding={{ top: 10, bottom: 10 }}
           >
-            <XAxis showGridLines />
-            <YAxis tickFormat={pricesDisplayFormat} />
+            <XAxis showGridLines {...getXAxisProps()} />
+            <YAxis tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
 
             <LineSeries yAccessor={d => d.atr} strokeStyle="#ec4899" strokeWidth={2} />
 
@@ -657,8 +662,8 @@ const FinancialTrainingChart = ({ data, ticker }) => {
             origin={volumeOrigin}
             padding={{ top: 10, bottom: 10 }}
           >
-            <XAxis showGridLines />
-            <YAxis tickFormat={volumeFormat} />
+            <XAxis showGridLines {...getXAxisProps()} />
+            <YAxis tickFormat={volumeFormat} {...getYAxisProps()} />
 
             <BarSeries fillStyle={volumeColor} yAccessor={d => d.volume} />
 
@@ -676,6 +681,7 @@ const FinancialTrainingChart = ({ data, ticker }) => {
 
         <CrossHairCursor />
       </ChartCanvas>
+      </ChartWrapper>
 
       {/* Chart Legend */}
       <div className="mt-3 p-3" style={{ backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }}>

@@ -3,6 +3,8 @@ import React from "react";
 import ReactDOM from "react-dom";
 import { format } from "d3-format";
 import { timeFormat } from "d3-time-format";
+import { getXAxisProps, getYAxisProps } from "../../constants/chartTheme";
+import ChartWrapper from "./ChartWrapper";
 
 import {
   elderRay,
@@ -117,6 +119,7 @@ export default function StockChart({initialData}){
   
 
   return (
+    <ChartWrapper yAxisTitle="Price (VND)" xAxisTitle="Date">
     <ChartCanvas
       height={height}
       ratio={3}
@@ -143,8 +146,8 @@ export default function StockChart({initialData}){
       
       
       <Chart id={3} height={chartHeight} yExtents={candleChartExtents}>
-        <XAxis showGridLines showTickLabel={false} />
-        <YAxis showGridLines tickFormat={pricesDisplayFormat} />
+        <XAxis showGridLines showTickLabel={false} {...getXAxisProps()} />
+        <YAxis showGridLines tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
         <CandlestickSeries />
         <LineSeries yAccessor={ema26.accessor()} strokeStyle={ema26.stroke()} />
         <CurrentCoordinate
@@ -197,8 +200,8 @@ export default function StockChart({initialData}){
         origin={elderRayOrigin}
         padding={{ top: 8, bottom: 8 }}
       >
-        <XAxis showGridLines gridLinesStrokeStyle="#e0e3eb" />
-        <YAxis ticks={4} tickFormat={pricesDisplayFormat} />
+        <XAxis showGridLines {...getXAxisProps()} />
+        <YAxis ticks={4} tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
 
         <MouseCoordinateX displayFormat={timeDisplayFormat} />
         <MouseCoordinateY
@@ -221,5 +224,6 @@ export default function StockChart({initialData}){
       </Chart>
       <CrossHairCursor />
     </ChartCanvas>
+    </ChartWrapper>
   );
   };

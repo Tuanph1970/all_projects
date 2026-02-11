@@ -2,6 +2,8 @@ import React from "react";
 import ReactDOM from "react-dom";
 import { format } from "d3-format";
 import { timeFormat } from "d3-time-format";
+import { getXAxisProps, getYAxisProps } from "../../../constants/chartTheme";
+import ChartWrapper from "../../ui/ChartWrapper";
 
 import {
   elderRay,
@@ -115,6 +117,7 @@ const AgentChart = (props) => {
     
   
     return (
+      <ChartWrapper yAxisTitle="Price (VND)" xAxisTitle="Date">
       <ChartCanvas
         height={height}
         ratio={3}
@@ -141,8 +144,8 @@ const AgentChart = (props) => {
         
         
         <Chart id={3} height={chartHeight} yExtents={candleChartExtents}>
-          <XAxis showGridLines showTickLabel={false} />
-          <YAxis showGridLines tickFormat={pricesDisplayFormat} />
+          <XAxis showGridLines showTickLabel={false} {...getXAxisProps()} />
+          <YAxis showGridLines tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
           <CandlestickSeries />
           <LineSeries yAccessor={ema26.accessor()} strokeStyle={ema26.stroke()} />
           <CurrentCoordinate
@@ -195,15 +198,15 @@ const AgentChart = (props) => {
           origin={elderRayOrigin}
           padding={{ top: 8, bottom: 8 }}
         >
-          <XAxis showGridLines gridLinesStrokeStyle="#e0e3eb" />
-          <YAxis ticks={4} tickFormat={pricesDisplayFormat} />
-  
+          <XAxis showGridLines {...getXAxisProps()} />
+          <YAxis ticks={4} tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
+
           <MouseCoordinateX displayFormat={timeDisplayFormat} />
           <MouseCoordinateY
             rectWidth={margin.right}
             displayFormat={pricesDisplayFormat}
           />
-  
+
           <ElderRaySeries yAccessor={elder.accessor()} />
   
           <SingleValueTooltip
@@ -219,6 +222,7 @@ const AgentChart = (props) => {
         </Chart>
         <CrossHairCursor />
       </ChartCanvas>
+      </ChartWrapper>
     );
 };
 export default AgentChart;
