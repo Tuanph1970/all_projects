@@ -5,7 +5,6 @@ import '../../styles/company-profile.css';
 import CompanyOverView from "./Company/CompanyOverView";
 import CompanyNew from "./Company/CompanyNew";
 import CompanyEvents from "./Company/CompanyEvents";
-import CompanyDividents from "./Company/CompanyDividents";
 import CompanyProfile from "./Company/CompanyProfile";
 import CompanyReport from "./Company/CompanyReport";
 import CompanyCharts from "./Company/CompanyCharts";
@@ -18,7 +17,6 @@ export const Company = ({ symbol }) => {
               <Tab>OverView</Tab>
               <Tab>News</Tab>
               <Tab>Events</Tab>
-              <Tab>Dividents</Tab>
               <Tab>Profiles</Tab>
               <Tab>Reports</Tab>
               
@@ -35,9 +33,6 @@ export const Company = ({ symbol }) => {
             </TabPanel>
             <TabPanel>
                 <CompanyEvents symbol = {symbol}/>
-            </TabPanel>
-            <TabPanel>
-                <CompanyDividents symbol={symbol}/>
             </TabPanel>
             <TabPanel>
                <CompanyProfile symbol={symbol}/>

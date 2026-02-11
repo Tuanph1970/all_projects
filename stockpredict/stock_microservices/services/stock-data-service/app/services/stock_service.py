@@ -8,6 +8,10 @@ from typing import Optional, List, Tuple
 import json
 import pandas as pd
 
+# Pandas 3.x removed applymap(); vnstock internally still uses it.
+if not hasattr(pd.DataFrame, "applymap"):
+    pd.DataFrame.applymap = pd.DataFrame.map  # type: ignore[attr-defined]
+
 from vnstock import Vnstock
 
 from app.config import get_settings
@@ -273,6 +277,156 @@ class StockService:
 
         except Exception as e:
             logger.error(f"Error searching companies: {e}")
+            return []
+
+    # ==================== Company Info (Profile/News/Events/Dividends) ====================
+
+    # Column mappings: VCI snake_case → frontend camelCase (matching legacy webapi)
+    OVERVIEW_COLUMN_MAP = {
+        'symbol': 'ticker', 'issue_share': 'issueShare',
+        'company_profile': 'companyProfile', 'history': 'history',
+        'icb_name2': 'industry', 'icb_name3': 'industryL2', 'icb_name4': 'industryL3',
+        'charter_capital': 'charterCapital', 'no_employees': 'noEmployees',
+        'no_shareholders': 'noShareholders', 'foreign_percent': 'foreignPercent',
+        'outstanding_share': 'outstandingShare', 'free_float_rate': 'freeFloatRate',
+    }
+
+    NEWS_COLUMN_MAP = {
+        'ticker': 'symbol', 'news_title': 'title',
+        'news_short_content': 'description', 'news_full_content': 'content',
+        'news_source_link': 'source', 'news_image_url': 'imageUrl',
+        'public_date': 'publishDate', 'created_at': 'createdAt',
+        'close_price': 'price', 'ref_price': 'referencePrice',
+        'price_change_pct': 'changePercent', 'floor': 'floorPrice', 'ceiling': 'ceilingPrice',
+    }
+
+    EVENTS_COLUMN_MAP = {
+        'ticker': 'symbol', 'event_title': 'title',
+        'event_list_name': 'eventType', 'en__event_list_name': 'eventTypeEn',
+        'public_date': 'publishDate', 'issue_date': 'issueDate',
+        'record_date': 'recordDate', 'exright_date': 'exrightDate',
+        'source_url': 'source', 'ratio': 'ratio', 'value': 'value',
+    }
+
+    @staticmethod
+    def _standardize_df(df: pd.DataFrame, column_map: dict, convert_dates: bool = False) -> pd.DataFrame:
+        """Rename columns and optionally convert millisecond timestamps to ISO strings."""
+        if convert_dates:
+            for col in ['public_date', 'created_at', 'updated_at']:
+                if col in df.columns:
+                    try:
+                        df[col] = pd.to_datetime(df[col], unit='ms', errors='coerce')
+                        df[col] = df[col].dt.strftime('%Y-%m-%d %H:%M:%S')
+                    except Exception:
+                        pass
+        rename_map = {old: new for old, new in column_map.items() if old in df.columns}
+        if rename_map:
+            df = df.rename(columns=rename_map)
+        return df
+
+    async def get_company_profile_data(self, symbol: str) -> List[dict]:
+        """Get company overview/profile data from vnstock."""
+        try:
+            stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
+            df = await asyncio.to_thread(stock.company.overview)
+
+            if df is None or (isinstance(df, pd.DataFrame) and df.empty):
+                return []
+
+            # overview() may return a DataFrame or a Series; normalise to DataFrame
+            if isinstance(df, pd.Series):
+                df = df.to_frame().T
+
+            df = self._standardize_df(df, self.OVERVIEW_COLUMN_MAP)
+
+            # Convert NaN/NaT to None for JSON serialisation
+            df = df.where(df.notna(), None)
+            records = df.to_dict(orient='records')
+            logger.info(f"Fetched company profile for {symbol}: {len(records)} records")
+            return records
+
+        except Exception as e:
+            logger.error(f"Error fetching company profile for {symbol}: {e}")
+            return []
+
+    async def get_company_news_data(self, symbol: str) -> List[dict]:
+        """Get company news from vnstock."""
+        try:
+            stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
+            df = await asyncio.to_thread(stock.company.news)
+
+            if df is None or (isinstance(df, pd.DataFrame) and df.empty):
+                return []
+
+            if isinstance(df, pd.Series):
+                df = df.to_frame().T
+
+            df = self._standardize_df(df, self.NEWS_COLUMN_MAP, convert_dates=True)
+
+            # Calculate change = price - referencePrice
+            if 'price' in df.columns and 'referencePrice' in df.columns:
+                df['change'] = pd.to_numeric(df['price'], errors='coerce') - pd.to_numeric(df['referencePrice'], errors='coerce')
+
+            df = df.where(df.notna(), None)
+            records = df.to_dict(orient='records')
+            logger.info(f"Fetched company news for {symbol}: {len(records)} records")
+            return records
+
+        except Exception as e:
+            logger.error(f"Error fetching company news for {symbol}: {e}")
+            return []
+
+    async def get_company_events_data(self, symbol: str) -> List[dict]:
+        """Get company events from vnstock."""
+        try:
+            stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
+            df = await asyncio.to_thread(stock.company.events)
+
+            if df is None or (isinstance(df, pd.DataFrame) and df.empty):
+                return []
+
+            if isinstance(df, pd.Series):
+                df = df.to_frame().T
+
+            df = self._standardize_df(df, self.EVENTS_COLUMN_MAP)
+            df = df.where(df.notna(), None)
+            records = df.to_dict(orient='records')
+            logger.info(f"Fetched company events for {symbol}: {len(records)} records")
+            return records
+
+        except Exception as e:
+            logger.error(f"Error fetching company events for {symbol}: {e}")
+            return []
+
+    async def get_company_dividends_data(self, symbol: str) -> List[dict]:
+        """Get company dividends from vnstock."""
+        try:
+            stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
+
+            # VCI data source may not support dividends; check before calling
+            if not hasattr(stock.company.data_source, 'dividends'):
+                logger.info(f"Dividend data not supported by {settings.VNSTOCK_DATA_SOURCE} for {symbol}")
+                return []
+
+            df = await asyncio.to_thread(stock.company.dividends)
+
+            if df is None or (isinstance(df, pd.DataFrame) and df.empty):
+                logger.info(f"Dividend data not available for {symbol} - API limitation")
+                return []
+
+            if isinstance(df, pd.Series):
+                df = df.to_frame().T
+
+            df = df.where(df.notna(), None)
+            records = df.to_dict(orient='records')
+            logger.info(f"Fetched company dividends for {symbol}: {len(records)} records")
+            return records
+
+        except AttributeError:
+            logger.info(f"Dividend data not supported for {symbol} - source limitation")
+            return []
+        except Exception as e:
+            logger.error(f"Error fetching company dividends for {symbol}: {e}")
             return []
 
     # ==================== Ensure Company & Sync ====================

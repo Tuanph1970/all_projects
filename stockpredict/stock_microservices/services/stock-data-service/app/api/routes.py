@@ -171,6 +171,60 @@ async def get_historical_data(
     return data
 
 
+# ==================== Company Info Endpoints ====================
+
+@router.get(
+    "/companies/{symbol}/profile",
+    response_model=List[dict],
+    summary="Get company profile/overview",
+)
+async def get_company_profile(
+    symbol: str,
+    stock_service: StockService = Depends(get_stock_service),
+):
+    """Get company overview and profile data (industry, shares, employees, etc.)."""
+    return await stock_service.get_company_profile_data(symbol=symbol)
+
+
+@router.get(
+    "/companies/{symbol}/news",
+    response_model=List[dict],
+    summary="Get company news",
+)
+async def get_company_news(
+    symbol: str,
+    stock_service: StockService = Depends(get_stock_service),
+):
+    """Get latest news articles for a company."""
+    return await stock_service.get_company_news_data(symbol=symbol)
+
+
+@router.get(
+    "/companies/{symbol}/events",
+    response_model=List[dict],
+    summary="Get company events",
+)
+async def get_company_events(
+    symbol: str,
+    stock_service: StockService = Depends(get_stock_service),
+):
+    """Get corporate events (dividends, stock splits, AGMs, etc.)."""
+    return await stock_service.get_company_events_data(symbol=symbol)
+
+
+@router.get(
+    "/companies/{symbol}/dividends",
+    response_model=List[dict],
+    summary="Get company dividends",
+)
+async def get_company_dividends(
+    symbol: str,
+    stock_service: StockService = Depends(get_stock_service),
+):
+    """Get dividend history for a company."""
+    return await stock_service.get_company_dividends_data(symbol=symbol)
+
+
 @router.get(
     "/companies/{symbol}/historical-data",
     response_model=HistoricalDataResponse,
