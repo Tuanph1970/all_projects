@@ -113,7 +113,7 @@ const PredictSolution = (props)=>{
         setPredictions(null);
 
         try {
-            const result = await httpClient.post(API_ENDPOINTS.SOLUTION_PREDICT, data);
+            const result = await httpClient.post(API_ENDPOINTS.SOLUTION_PREDICT, data, { timeout: 120000 });
             if (result.success && result.data) {
                 setPredictions(result.data);
                 console.log('Prediction results:', result.data);
