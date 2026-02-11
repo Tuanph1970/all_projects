@@ -80,8 +80,6 @@ const FinancialPredictionChart = ({ data, ticker }) => {
 
   // Formatters
   const pricesDisplayFormat = format(".2f");
-  const dateTimeFormat = "%d %b %Y";
-  const timeDisplayFormat = timeFormat(dateTimeFormat);
 
   // Calculate extents
   const max = xAccessor(scaledData[scaledData.length - 1]);
@@ -119,7 +117,7 @@ const FinancialPredictionChart = ({ data, ticker }) => {
             return values.length > 0 ? [Math.min(...values) * 0.995, Math.max(...values) * 1.005] : [0, 100];
           }}
         >
-          <XAxis showGridLines tickFormat={timeDisplayFormat} {...getXAxisProps()} />
+          <XAxis showGridLines {...getXAxisProps()} />
           <YAxis showGridLines tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
 
           {/* Actual Price Line */}
@@ -132,7 +130,7 @@ const FinancialPredictionChart = ({ data, ticker }) => {
             <LineSeries yAccessor={d => d.predicted} strokeStyle="#4CAF50" strokeWidth={2.5} strokeDasharray="6,3" />
           )}
 
-          <MouseCoordinateX displayFormat={timeDisplayFormat} />
+          <MouseCoordinateX />
           <MouseCoordinateY rectWidth={margin.right} displayFormat={pricesDisplayFormat} />
 
           <EdgeIndicator
@@ -951,6 +949,50 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
         output_chunk_length: 10, // default
         training_end_date: sol.end_training_date
       });
+    }
+
+    // Restore persisted training result (metrics + chart data)
+    if (sol.training_result && typeof sol.training_result === 'object') {
+      console.log('[SolutionModal] Restoring persisted training result');
+      setTrainingResult(sol.training_result);
+      processTrainingResults(sol.training_result);
+    }
+
+    // Restore persisted prediction result (actual/predicted arrays + chart)
+    if (sol.prediction_result && typeof sol.prediction_result === 'object') {
+      console.log('[SolutionModal] Restoring persisted prediction result');
+      setPredictionResult(sol.prediction_result);
+
+      // Rebuild prediction chart data (same logic as handlePredict success path)
+      const chartData = [];
+      if (sol.prediction_result.actual) {
+        sol.prediction_result.actual.forEach(item => {
+          chartData.push({ date: item.tradingdate, actual: item.close, predicted: null });
+        });
+      }
+      if (sol.prediction_result.predict) {
+        sol.prediction_result.predict.forEach(item => {
+          const existingIndex = chartData.findIndex(d => d.date === item.tradingdate);
+          if (existingIndex >= 0) {
+            chartData[existingIndex].predicted = item.close;
+          } else {
+            chartData.push({ date: item.tradingdate, actual: null, predicted: item.close });
+          }
+        });
+      }
+      if (sol.prediction_result.future) {
+        sol.prediction_result.future.forEach(item => {
+          const existingIndex = chartData.findIndex(d => d.date === item.tradingdate);
+          if (existingIndex >= 0) {
+            chartData[existingIndex].predicted = item.close;
+          } else {
+            chartData.push({ date: item.tradingdate, actual: null, predicted: item.close });
+          }
+        });
+      }
+      if (chartData.length > 0) {
+        setPredictionChartData(chartData);
+      }
     }
   };
 

@@ -135,10 +135,18 @@ WEBAPI_TABLES_SQL = [
         solution_status INT DEFAULT 0,
         status INT DEFAULT 1,
         train_validation_ratio FLOAT DEFAULT 0.8,
+        training_result LONGTEXT DEFAULT NULL,
+        prediction_result LONGTEXT DEFAULT NULL,
         INDEX idx_user_id (user_id),
         INDEX idx_model_id (model_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
+]
+
+# Migration SQL for existing databases (ALTER TABLE is idempotent via column existence check)
+MIGRATION_SQL = [
+    """ALTER TABLE tbl_solution ADD COLUMN IF NOT EXISTS training_result LONGTEXT DEFAULT NULL""",
+    """ALTER TABLE tbl_solution ADD COLUMN IF NOT EXISTS prediction_result LONGTEXT DEFAULT NULL""",
 ]
 
 
@@ -515,6 +523,15 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 logger.warning(f"Table creation warning: {e}")
     logger.info("WebAPI-compatible tables ensured")
+
+    # Run migrations for existing databases
+    async with engine.begin() as conn:
+        for migration_sql in MIGRATION_SQL:
+            try:
+                await conn.execute(text(migration_sql))
+            except Exception as e:
+                logger.debug(f"Migration note (may already exist): {e}")
+    logger.info("Database migrations applied")
 
     # Seed model parameter data (INSERT IGNORE = skip if already exists)
     async with engine.begin() as conn:

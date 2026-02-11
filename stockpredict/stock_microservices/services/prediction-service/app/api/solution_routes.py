@@ -449,7 +449,8 @@ async def _run_training(solution_id: int, train_params: dict):
                 text("""
                     UPDATE tbl_solution
                     SET train_status='trained', solution_status=1,
-                        start_training_date=:start_date, end_training_date=:end_date
+                        start_training_date=:start_date, end_training_date=:end_date,
+                        prediction_result=NULL
                     WHERE id = :solution_id
                 """),
                 {"start_date": start_date, "end_date": end_date, "solution_id": solution_id}
@@ -531,6 +532,18 @@ async def _run_training(solution_id: int, train_params: dict):
             }
 
             logger.info(f"Training completed for solution {solution_id}: RMSE={rmse:.4f}, {len(predictions)} data points")
+
+            # Persist training result to DB so it survives modal reopening
+            try:
+                training_result_json = json.dumps(training_status[solution_id]["result"])
+                await db.execute(
+                    text("UPDATE tbl_solution SET training_result = :result WHERE id = :id"),
+                    {"result": training_result_json, "id": solution_id}
+                )
+                await db.commit()
+                logger.info(f"Training result persisted to DB for solution {solution_id}")
+            except Exception as persist_err:
+                logger.warning(f"Failed to persist training result for solution {solution_id}: {persist_err}")
 
     except Exception as e:
         logger.error(f"Training failed for solution {solution_id}: {e}", exc_info=True)
@@ -1242,14 +1255,8 @@ async def predict_solution(
         else:
             rmse = mae = r2 = None
 
-        # Update solution status
-        await db.execute(
-            text("UPDATE tbl_solution SET train_status='predicted' WHERE id = :id"),
-            {"id": solution_id}
-        )
-        await db.commit()
-
-        return {
+        # Build response
+        prediction_response = {
             "solution_id": solution_id,
             "ticker": ticker,
             "train_status": "predicted",
@@ -1265,6 +1272,23 @@ async def predict_solution(
             "predict_end": predict_end,
             "future_days": output_chunk_length,
         }
+
+        # Persist prediction result and update status
+        try:
+            prediction_result_json = json.dumps(prediction_response)
+            await db.execute(
+                text("UPDATE tbl_solution SET train_status='predicted', prediction_result = :result WHERE id = :id"),
+                {"result": prediction_result_json, "id": solution_id}
+            )
+        except Exception as persist_err:
+            logger.warning(f"Failed to persist prediction result for solution {solution_id}: {persist_err}")
+            await db.execute(
+                text("UPDATE tbl_solution SET train_status='predicted' WHERE id = :id"),
+                {"id": solution_id}
+            )
+        await db.commit()
+
+        return prediction_response
 
     except HTTPException:
         raise
@@ -1909,7 +1933,15 @@ async def get_solution_by_id(
         row = result.mappings().first()
         if not row:
             raise HTTPException(status_code=404, detail=f"Solution {solution_id} not found")
-        return dict(row)
+        solution = dict(row)
+        # Parse JSON result fields so frontend receives objects, not strings
+        for field in ('training_result', 'prediction_result'):
+            if solution.get(field) and isinstance(solution[field], str):
+                try:
+                    solution[field] = json.loads(solution[field])
+                except (json.JSONDecodeError, TypeError):
+                    solution[field] = None
+        return solution
     except HTTPException:
         raise
     except Exception as e:
