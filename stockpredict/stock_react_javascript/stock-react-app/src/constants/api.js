@@ -71,13 +71,13 @@ export const API_ENDPOINTS = {
   // ==========================================
   STOCK_SEARCH: `${API_BASE_URLS.STOCK_API}/stocks/search`,
   STOCK_DETAIL: (symbol) => `${API_BASE_URLS.STOCK_API}/${symbol}`,
-  STOCK_HISTORY: (symbol) => `${API_BASE_URLS.STOCK_API}/${symbol}/history`,
+  STOCK_HISTORY: (symbol) => `${API_BASE_URLS.STOCK_API}/stocks/${symbol}/history`,
 
   COMPANIES_LIST: `${API_BASE_URLS.COMPANIES_API}`,
   COMPANIES_ALL: `${API_BASE_URLS.COMPANIES_API}/all`,
   COMPANY_PROFILE: (symbol) => `${API_BASE_URLS.COMPANIES_API}/${symbol}/profile`,
   COMPANY_FINANCIALS: (symbol) => `${API_BASE_URLS.COMPANIES_API}/${symbol}/financials`,
-  COMPANY_CHARTS: (symbol) => `${API_BASE_URLS.STOCK_API}/${symbol}/history`,
+  COMPANY_CHARTS: (symbol) => `${API_BASE_URLS.STOCK_API}/stocks/${symbol}/history`,
   COMPANY_DIVIDENDS: (symbol) => `${API_BASE_URLS.COMPANIES_API}/${symbol}/dividends`,
   COMPANY_EVENTS: (symbol) => `${API_BASE_URLS.COMPANIES_API}/${symbol}/events`,
   COMPANY_NEWS: (symbol) => `${API_BASE_URLS.COMPANIES_API}/${symbol}/news`,
