@@ -19,6 +19,7 @@ class CompanyService {
   }
 
   // Format profile data to ensure consistency
+  // Backend returns camelCase keys: companyProfile, history, industry, industryL2, industryL3
   formatProfileData(data) {
     if (!Array.isArray(data) || data.length === 0) {
       return null;
@@ -26,13 +27,14 @@ class CompanyService {
 
     const profile = data[0];
     return {
-      company_name: profile.company_name || 'N/A',
-      company_profile: profile.company_profile || 'No profile available',
-      history_dev: profile.history_dev || 'No history available',
-      company_promise: profile.company_promise || 'No information available',
-      business_risk: profile.business_risk || 'No risk information available',
-      key_developments: profile.key_developments || 'No developments information',
-      business_strategies: profile.business_strategies || 'No strategies information'
+      ticker: profile.ticker || '',
+      companyProfile: profile.companyProfile || '',
+      history: profile.history || '',
+      industry: profile.industry || '',
+      industryL2: profile.industryL2 || '',
+      industryL3: profile.industryL3 || '',
+      charterCapital: profile.charterCapital,
+      issueShare: profile.issueShare,
     };
   }
 

@@ -212,3 +212,44 @@ class PriceBoard(Base):
 
     def __repr__(self):
         return f"<PriceBoard(symbol={self.symbol}, group={self.stock_group}, match_price={self.match_price})>"
+
+
+class CompanyProfile(Base):
+    """Cached company profile data from vnstock"""
+    __tablename__ = "company_profiles"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticker = Column(String(20), unique=True, nullable=False, index=True)
+    company_profile = Column(Text, nullable=True)
+    history = Column(Text, nullable=True)
+    industry = Column(String(255), nullable=True)
+    industry_l2 = Column(String(255), nullable=True)
+    industry_l3 = Column(String(255), nullable=True)
+    charter_capital = Column(Float, nullable=True)
+    issue_share = Column(Float, nullable=True)
+    outstanding_share = Column(BigInteger, nullable=True)
+    foreign_percent = Column(Float, nullable=True)
+    free_float_rate = Column(Float, nullable=True)
+    no_shareholders = Column(Integer, nullable=True)
+    no_employees = Column(Integer, nullable=True)
+    synced_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<CompanyProfile(ticker={self.ticker})>"
+
+
+class FinancialStatement(Base):
+    """Cached financial statement data from vnstock"""
+    __tablename__ = "financial_statements"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String(20), nullable=False, index=True)
+    statement_type = Column(String(50), nullable=False)  # income_statement, cash_flow, balance_sheet, ratio
+    period = Column(String(20), nullable=False)  # annual, quarter
+    report_year = Column(Integer, nullable=True)
+    data = Column(Text, nullable=False)  # JSON-encoded dict for one reporting row
+    synced_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("idx_fin_stmt_lookup", "symbol", "statement_type", "period"),
+    )

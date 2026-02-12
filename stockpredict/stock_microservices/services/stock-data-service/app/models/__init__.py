@@ -1,5 +1,5 @@
 # Models
-from .domain import Company, StockPrice, Industry, Base
+from .domain import Company, StockPrice, Industry, Base, CompanyProfile, FinancialStatement
 from .schemas import (
     CompanyResponse,
     CompanyListResponse,
@@ -16,6 +16,8 @@ __all__ = [
     "StockPrice",
     "Industry",
     "Base",
+    "CompanyProfile",
+    "FinancialStatement",
     "CompanyResponse",
     "CompanyListResponse",
     "StockPriceResponse",

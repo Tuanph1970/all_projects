@@ -128,11 +128,11 @@ export const API_ENDPOINTS = {
   ANALYSIS_FUNDAMENTAL: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/fundamental/${symbol}`,
   ANALYSIS_FUNDAMENTAL_STATEMENTS: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/fundamental/${symbol}/statements`,
 
-  // Financial Reports endpoints (under analysis)
-  FINANCIAL_INCOME_STATEMENT: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/fundamental/${symbol}/income-statement`,
-  FINANCIAL_BALANCE_SHEET: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/fundamental/${symbol}/balance-sheet`,
-  FINANCIAL_CASH_FLOW: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/fundamental/${symbol}/cash-flow`,
-  FINANCIAL_RATIO: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/fundamental/${symbol}/ratios`,
+  // Financial Reports endpoints (via stock-data-service)
+  FINANCIAL_INCOME_STATEMENT: (symbol) => `${API_BASE_URLS.COMPANIES_API}/${symbol}/financials/income-statement`,
+  FINANCIAL_BALANCE_SHEET: (symbol) => `${API_BASE_URLS.COMPANIES_API}/${symbol}/financials/balance-sheet`,
+  FINANCIAL_CASH_FLOW: (symbol) => `${API_BASE_URLS.COMPANIES_API}/${symbol}/financials/cash-flow`,
+  FINANCIAL_RATIO: (symbol) => `${API_BASE_URLS.COMPANIES_API}/${symbol}/financials/ratios`,
   ANALYSIS_COMPARE: `${API_BASE_URLS.ANALYSIS_API}/compare`,
   ANALYSIS_SCREENER: `${API_BASE_URLS.ANALYSIS_API}/screener`,
   ANALYSIS_SCREENER_CONFIGS: `${API_BASE_URLS.ANALYSIS_API}/screener/configs`,

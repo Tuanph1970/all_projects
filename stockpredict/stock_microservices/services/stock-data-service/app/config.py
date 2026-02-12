@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     # VNStock Configuration
     VNSTOCK_DATA_SOURCE: str = "VCI"
 
+    # Company data sync
+    COMPANY_SYNC_STALE_DAYS: int = 7
+
     # Tracing
     TRACING_ENABLED: bool = True
     TRACING_JAEGER_HOST: str = "jaeger"

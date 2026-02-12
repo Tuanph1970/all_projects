@@ -7,7 +7,7 @@ from sqlalchemy import select, update, delete, func, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.domain import Company, StockPrice, Industry, MarketIndex
+from app.models.domain import Company, StockPrice, Industry, MarketIndex, CompanyProfile, FinancialStatement
 
 
 class StockRepository:
@@ -297,3 +297,88 @@ class StockRepository:
             .order_by(MarketIndex.code)
         )
         return list(result.scalars().all())
+
+    # ==================== Company Profile Cache Operations ====================
+
+    async def get_company_profile(self, symbol: str) -> Optional[CompanyProfile]:
+        """Get cached company profile by ticker"""
+        result = await self.session.execute(
+            select(CompanyProfile).where(CompanyProfile.ticker == symbol.upper())
+        )
+        return result.scalar_one_or_none()
+
+    async def upsert_company_profile(self, symbol: str, **kwargs) -> CompanyProfile:
+        """Insert or update a company profile"""
+        existing = await self.get_company_profile(symbol)
+        if existing:
+            for key, value in kwargs.items():
+                setattr(existing, key, value)
+            existing.synced_at = datetime.utcnow()
+            await self.session.commit()
+            await self.session.refresh(existing)
+            return existing
+        profile = CompanyProfile(ticker=symbol.upper(), **kwargs)
+        self.session.add(profile)
+        await self.session.commit()
+        await self.session.refresh(profile)
+        return profile
+
+    async def count_company_profiles(self) -> int:
+        """Count total cached company profiles"""
+        result = await self.session.execute(
+            select(func.count(CompanyProfile.id))
+        )
+        return result.scalar() or 0
+
+    async def get_oldest_profile_sync(self) -> Optional[datetime]:
+        """Get the oldest synced_at among all profiles"""
+        result = await self.session.execute(
+            select(func.min(CompanyProfile.synced_at))
+        )
+        return result.scalar()
+
+    # ==================== Financial Statement Cache Operations ====================
+
+    async def get_financial_statements(
+        self, symbol: str, statement_type: str, period: str
+    ) -> List[FinancialStatement]:
+        """Get cached financial statements"""
+        result = await self.session.execute(
+            select(FinancialStatement)
+            .where(
+                and_(
+                    FinancialStatement.symbol == symbol.upper(),
+                    FinancialStatement.statement_type == statement_type,
+                    FinancialStatement.period == period,
+                )
+            )
+            .order_by(FinancialStatement.report_year.desc())
+        )
+        return list(result.scalars().all())
+
+    async def bulk_upsert_financial_statements(
+        self, symbol: str, statement_type: str, period: str, records: List[dict]
+    ) -> int:
+        """Delete old rows for this (symbol, type, period) and insert fresh ones."""
+        await self.session.execute(
+            delete(FinancialStatement).where(
+                and_(
+                    FinancialStatement.symbol == symbol.upper(),
+                    FinancialStatement.statement_type == statement_type,
+                    FinancialStatement.period == period,
+                )
+            )
+        )
+        now = datetime.utcnow()
+        for rec in records:
+            row = FinancialStatement(
+                symbol=symbol.upper(),
+                statement_type=statement_type,
+                period=period,
+                report_year=rec.get("report_year"),
+                data=rec["data"],
+                synced_at=now,
+            )
+            self.session.add(row)
+        await self.session.commit()
+        return len(records)

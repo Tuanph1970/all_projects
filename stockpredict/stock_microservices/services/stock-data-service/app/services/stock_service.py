@@ -15,7 +15,7 @@ if not hasattr(pd.DataFrame, "applymap"):
 from vnstock import Vnstock
 
 from app.config import get_settings
-from app.models.domain import Company, StockPrice, Industry, PriceBoard
+from app.models.domain import Company, StockPrice, Industry, PriceBoard, CompanyProfile, FinancialStatement
 from app.models.schemas import (
     CompanyResponse,
     CompanyDetailResponse,
@@ -291,6 +291,88 @@ class StockService:
         'outstanding_share': 'outstandingShare', 'free_float_rate': 'freeFloatRate',
     }
 
+    # Financial statement column maps: vnstock English column → frontend snake_case key.
+    # Uses partial matching so minor vnstock version changes (e.g. added units) still work.
+    INCOME_STATEMENT_MAP = {
+        'yearReport': 'report_year', 'lengthReport': 'length_report',
+        'Revenue (Bn. VND)': 'revenue', 'Revenue YoY': 'revenue_yoy',
+        'Net Sales': 'sales', 'Cost of Sales': 'cost_of_sales',
+        'Gross Profit': 'gross_profit', 'Selling Expenses': 'selling_expenses',
+        'General & Admin': 'admin_expenses', 'Operating Profit': 'operating_profit',
+        'Financial Income': 'financial_income', 'Financial Expenses': 'financial_expenses',
+        'Interest Expenses': 'interest_expenses',
+        'Profit before tax': 'profit_before_tax',
+        'Net Profit For the Year': 'net_profit_for_the_year',
+        'Attributable to parent': 'net_profit',
+        'Attribute to parent company YoY': 'net_profit_yoy',
+        'Minority Interest': 'minority_interest',
+        'EPS': 'eps_basis',
+    }
+
+    CASH_FLOW_MAP = {
+        'yearReport': 'report_year', 'lengthReport': 'length_report',
+        'Net cash inflows/outflows from operating': 'cash_from_operating_activities',
+        'Net Cash Flows from Investing': 'cash_from_investing_activities',
+        'Cash flows from financial': 'cash_from_financing_activities',
+        'Net increase/decrease in cash': 'net_change_in_cash',
+        'Cash and cash equivalents': 'cash',
+        'Cash and Cash Equivalents at the end': 'cash_end_of_period',
+        'Dividends paid': 'dividends_paid',
+        'Gain on Dividend': 'gain_on_dividend',
+        'Increase in charter': 'increase_in_charter_captial',
+        'Purchase of fixed assets': 'purchase_fixed_assets',
+        'Proceeds from borrowings': 'proceeds_from_borrowings',
+        'Repayment of borrowings': 'repayment_of_borrowings',
+        'Depreciation and Amortisation': 'depreciation_amortisation',
+    }
+
+    BALANCE_SHEET_MAP = {
+        'yearReport': 'report_year', 'lengthReport': 'length_report',
+        'CURRENT ASSETS': 'current_assets',
+        'Cash and cash equivalents': 'cash',
+        'Short-term investments': 'short_term_investments',
+        'Accounts receivable': 'accounts_receivable',
+        'Net Inventories': 'net_inventories',
+        'LONG-TERM ASSETS': 'long_term_assets',
+        'Fixed assets': 'fixed_assets',
+        'TOTAL ASSETS': 'total_assets',
+        'LIABILITIES': 'total_liabilities',
+        'Current liabilities': 'current_liabilities',
+        'Long-term liabilities': 'long_term_liabilities',
+        "OWNER'S EQUITY": 'owners_equity',
+        'Capital and reserves': 'capital_and_reserves',
+        'Undistributed earnings': 'undistributed_earnings',
+        'TOTAL RESOURCES': 'total_resources',
+        'MINORITY INTERESTS': 'minority_interests',
+    }
+
+    RATIO_MAP = {
+        'yearReport': 'metayearreport',
+        'P/E': 'p_e', 'P/B': 'p_b', 'P/S': 'p_s',
+        'P/Cash Flow': 'p_cash_flow',
+        'EPS (VND)': 'eps', 'BVPS (VND)': 'bvps',
+        'ROE (%)': 'roe', 'ROA (%)': 'roa', 'ROIC (%)': 'roic',
+        'Market Capital': 'market_capital',
+        'Debt/Equity': 'debt_to_equity',
+        'Current Ratio': 'current_ratio', 'Quick Ratio': 'quick_ratio',
+        'Cash Ratio': 'cash_ratio',
+        'Gross Profit Margin': 'gross_margin',
+        'Net Profit Margin': 'net_margin',
+        'EBIT Margin': 'ebit_margin',
+        'Dividend yield': 'dividend_yield',
+        'EV/EBITDA': 'ev_ebitda',
+        'Outstanding Share': 'outstanding_share',
+        'Interest Coverage': 'interest_coverage',
+        'Asset Turnover': 'asset_turnover',
+    }
+
+    FINANCIAL_STATEMENT_MAPS = {
+        'income_statement': INCOME_STATEMENT_MAP,
+        'cash_flow': CASH_FLOW_MAP,
+        'balance_sheet': BALANCE_SHEET_MAP,
+        'ratio': RATIO_MAP,
+    }
+
     NEWS_COLUMN_MAP = {
         'ticker': 'symbol', 'news_title': 'title',
         'news_short_content': 'description', 'news_full_content': 'content',
@@ -325,7 +407,12 @@ class StockService:
         return df
 
     async def get_company_profile_data(self, symbol: str) -> List[dict]:
-        """Get company overview/profile data from vnstock."""
+        """Get company overview/profile data from vnstock.
+
+        Enriches the base overview with trading_stats() for foreign ownership
+        and shareholders() for shareholder count, since overview() no longer
+        returns these fields in the VCI data source.
+        """
         try:
             stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
             df = await asyncio.to_thread(stock.company.overview)
@@ -339,6 +426,30 @@ class StockService:
 
             df = self._standardize_df(df, self.OVERVIEW_COLUMN_MAP)
 
+            # Enrich with trading_stats() for foreign ownership data
+            try:
+                ts_df = await asyncio.to_thread(stock.company.trading_stats)
+                if ts_df is not None and not ts_df.empty:
+                    row = ts_df.iloc[0]
+                    df['foreignPercent'] = row.get('current_holding_ratio')
+                    # Derive outstanding shares: foreign_holding_room / current_holding_ratio
+                    ratio = row.get('current_holding_ratio', 0)
+                    holding = row.get('foreign_holding_room', 0)
+                    if ratio and ratio > 0 and holding:
+                        df['outstandingShare'] = int(holding / ratio)
+                    else:
+                        df['outstandingShare'] = df.get('issueShare')
+            except Exception as e:
+                logger.warning(f"Could not enrich trading_stats for {symbol}: {e}")
+
+            # Enrich with shareholders() for shareholder count
+            try:
+                sh_df = await asyncio.to_thread(stock.company.shareholders)
+                if sh_df is not None and not sh_df.empty:
+                    df['noShareholders'] = len(sh_df)
+            except Exception as e:
+                logger.warning(f"Could not enrich shareholders for {symbol}: {e}")
+
             # Convert NaN/NaT to None for JSON serialisation
             df = df.where(df.notna(), None)
             records = df.to_dict(orient='records')
@@ -347,6 +458,102 @@ class StockService:
 
         except Exception as e:
             logger.error(f"Error fetching company profile for {symbol}: {e}")
+            return []
+
+    @staticmethod
+    def _flexible_rename(df: pd.DataFrame, column_map: dict) -> pd.DataFrame:
+        """Version-resilient column renaming using partial matching.
+
+        vnstock column names may change between versions (e.g. added units,
+        rephrased labels).  This mapper tries exact match first, then falls
+        back to substring matching so minor changes don't break the mapping.
+        For multi-level columns (ratio), it flattens them first.
+        """
+        # Flatten multi-level columns (ratio returns tuples like ('Category', 'Metric'))
+        if df.columns.nlevels > 1:
+            df.columns = [col[-1] if isinstance(col, tuple) else col for col in df.columns]
+
+        rename_map = {}
+        used_targets = set()
+        remaining_sources = dict(column_map)
+
+        # Pass 1: exact match
+        for src, tgt in list(remaining_sources.items()):
+            if src in df.columns and tgt not in used_targets:
+                rename_map[src] = tgt
+                used_targets.add(tgt)
+                del remaining_sources[src]
+
+        # Pass 2: partial / substring match (case-insensitive)
+        for src, tgt in list(remaining_sources.items()):
+            if tgt in used_targets:
+                continue
+            src_lower = src.lower()
+            for col in df.columns:
+                col_str = str(col)
+                if col_str in rename_map:
+                    continue
+                if src_lower in col_str.lower():
+                    rename_map[col_str] = tgt
+                    used_targets.add(tgt)
+                    break
+
+        if rename_map:
+            df = df.rename(columns=rename_map)
+        return df
+
+    async def get_financial_statement(
+        self, symbol: str, statement_type: str, period: str = "annual"
+    ) -> List[dict]:
+        """Get raw financial statement data from vnstock.
+
+        Args:
+            symbol: Stock ticker (e.g. FPT)
+            statement_type: One of 'income_statement', 'cash_flow',
+                            'balance_sheet', 'ratio'
+            period: 'annual' or 'quarter'
+
+        Returns:
+            List of dicts, one per reporting period, with columns renamed
+            to match the frontend field expectations.
+        """
+        try:
+            stock = self.vnstock.stock(
+                symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE
+            )
+            method = getattr(stock.finance, statement_type, None)
+            if method is None:
+                logger.error(f"Unknown statement type: {statement_type}")
+                return []
+
+            df = await asyncio.to_thread(method, period=period, lang="en")
+
+            if df is None or (isinstance(df, pd.DataFrame) and df.empty):
+                return []
+            if isinstance(df, pd.Series):
+                df = df.to_frame().T
+
+            # Apply version-resilient column mapping
+            col_map = self.FINANCIAL_STATEMENT_MAPS.get(statement_type, {})
+            if col_map:
+                df = self._flexible_rename(df, col_map)
+
+            # Drop ticker column (redundant) and length_report if present
+            for drop_col in ['ticker', 'lengthReport']:
+                if drop_col in df.columns:
+                    df = df.drop(columns=[drop_col])
+
+            # Convert NaN to None for JSON
+            df = df.where(df.notna(), None)
+            records = df.to_dict(orient='records')
+            logger.info(
+                f"Fetched {statement_type} for {symbol}: {len(records)} rows, "
+                f"columns: {list(df.columns[:8])}..."
+            )
+            return records
+
+        except Exception as e:
+            logger.error(f"Error fetching {statement_type} for {symbol}: {e}")
             return []
 
     async def get_company_news_data(self, symbol: str) -> List[dict]:
@@ -428,6 +635,215 @@ class StockService:
         except Exception as e:
             logger.error(f"Error fetching company dividends for {symbol}: {e}")
             return []
+
+    # ==================== Cached Company Data (DB-first) ====================
+
+    async def get_company_profile_cached(self, symbol: str) -> List[dict]:
+        """Return company profile from DB cache. Falls back to live vnstock for non-VN30."""
+        profile = await self.repository.get_company_profile(symbol)
+        if not profile:
+            logger.info(f"{symbol} not in profile cache, falling back to live vnstock")
+            return await self.get_company_profile_data(symbol)
+        return [{
+            "ticker": profile.ticker,
+            "companyProfile": profile.company_profile,
+            "history": profile.history,
+            "industry": profile.industry,
+            "industryL2": profile.industry_l2,
+            "industryL3": profile.industry_l3,
+            "charterCapital": profile.charter_capital,
+            "issueShare": profile.issue_share,
+            "outstandingShare": profile.outstanding_share,
+            "foreignPercent": profile.foreign_percent,
+            "freeFloatRate": profile.free_float_rate,
+            "noShareholders": profile.no_shareholders,
+            "noEmployees": profile.no_employees,
+        }]
+
+    async def get_financial_statement_cached(
+        self, symbol: str, statement_type: str, period: str = "annual"
+    ) -> List[dict]:
+        """Return financial statement rows from DB cache. Falls back to live vnstock for non-VN30."""
+        rows = await self.repository.get_financial_statements(symbol, statement_type, period)
+        if not rows:
+            logger.info(f"{symbol} {statement_type}/{period} not in cache, falling back to live vnstock")
+            return await self.get_financial_statement(symbol, statement_type, period)
+        results = []
+        for row in rows:
+            try:
+                results.append(json.loads(row.data))
+            except json.JSONDecodeError:
+                logger.warning(f"Bad JSON in financial_statements id={row.id}")
+        return results
+
+    async def sync_company_profile(self, symbol: str) -> bool:
+        """Fetch profile from vnstock and save to DB cache."""
+        try:
+            stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
+            df = await asyncio.to_thread(stock.company.overview)
+
+            if df is None or (isinstance(df, pd.DataFrame) and df.empty):
+                logger.warning(f"No overview data for {symbol}")
+                return False
+
+            if isinstance(df, pd.Series):
+                df = df.to_frame().T
+
+            df = self._standardize_df(df, self.OVERVIEW_COLUMN_MAP)
+            row = df.iloc[0]
+
+            kwargs = {
+                "company_profile": row.get("companyProfile") if pd.notna(row.get("companyProfile")) else None,
+                "history": row.get("history") if pd.notna(row.get("history")) else None,
+                "industry": row.get("industry") if pd.notna(row.get("industry")) else None,
+                "industry_l2": row.get("industryL2") if pd.notna(row.get("industryL2")) else None,
+                "industry_l3": row.get("industryL3") if pd.notna(row.get("industryL3")) else None,
+                "charter_capital": float(row["charterCapital"]) if pd.notna(row.get("charterCapital")) else None,
+                "issue_share": float(row["issueShare"]) if pd.notna(row.get("issueShare")) else None,
+            }
+
+            # Enrich with trading_stats for foreign ownership
+            try:
+                ts_df = await asyncio.to_thread(stock.company.trading_stats)
+                if ts_df is not None and not ts_df.empty:
+                    ts_row = ts_df.iloc[0]
+                    kwargs["foreign_percent"] = ts_row.get("current_holding_ratio")
+                    ratio = ts_row.get("current_holding_ratio", 0)
+                    holding = ts_row.get("foreign_holding_room", 0)
+                    if ratio and ratio > 0 and holding:
+                        kwargs["outstanding_share"] = int(holding / ratio)
+                    elif pd.notna(row.get("issueShare")):
+                        kwargs["outstanding_share"] = int(row["issueShare"])
+            except Exception as e:
+                logger.warning(f"Could not enrich trading_stats for {symbol}: {e}")
+
+            # Enrich with shareholders count
+            try:
+                sh_df = await asyncio.to_thread(stock.company.shareholders)
+                if sh_df is not None and not sh_df.empty:
+                    kwargs["no_shareholders"] = len(sh_df)
+            except Exception as e:
+                logger.warning(f"Could not enrich shareholders for {symbol}: {e}")
+
+            # Get no_employees from overview if available
+            if pd.notna(row.get("noEmployees")):
+                try:
+                    kwargs["no_employees"] = int(row["noEmployees"])
+                except (ValueError, TypeError):
+                    pass
+
+            # Get free_float_rate from overview if available
+            if pd.notna(row.get("freeFloatRate")):
+                try:
+                    kwargs["free_float_rate"] = float(row["freeFloatRate"])
+                except (ValueError, TypeError):
+                    pass
+
+            await self.repository.upsert_company_profile(symbol.upper(), **kwargs)
+            logger.info(f"Synced company profile for {symbol}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error syncing company profile for {symbol}: {e}")
+            try:
+                await self.repository.session.rollback()
+            except Exception:
+                pass
+            return False
+
+    async def sync_company_financials(self, symbol: str) -> int:
+        """Fetch all 4 financial statement types and save to DB cache."""
+        total = 0
+        for stmt_type in ["income_statement", "cash_flow", "balance_sheet", "ratio"]:
+            for period in ["annual"]:
+                try:
+                    records = await self.get_financial_statement(symbol, stmt_type, period)
+                    if not records:
+                        continue
+                    db_records = []
+                    for rec in records:
+                        report_year = rec.get("report_year") or rec.get("metayearreport")
+                        try:
+                            report_year = int(report_year) if report_year else None
+                        except (ValueError, TypeError):
+                            report_year = None
+                        db_records.append({
+                            "report_year": report_year,
+                            "data": json.dumps(rec, default=str),
+                        })
+                    count = await self.repository.bulk_upsert_financial_statements(
+                        symbol, stmt_type, period, db_records
+                    )
+                    total += count
+                    logger.info(f"Synced {count} {stmt_type}/{period} rows for {symbol}")
+                except Exception as e:
+                    logger.error(f"Error syncing {stmt_type}/{period} for {symbol}: {e}")
+                    try:
+                        await self.repository.session.rollback()
+                    except Exception:
+                        pass
+        return total
+
+    async def is_company_data_stale(self) -> bool:
+        """Check if company data needs re-sync (empty or older than configured days)."""
+        count = await self.repository.count_company_profiles()
+        if count == 0:
+            return True
+        oldest = await self.repository.get_oldest_profile_sync()
+        if oldest is None:
+            return True
+        from datetime import timedelta as td
+        return (datetime.utcnow() - oldest) > td(days=settings.COMPANY_SYNC_STALE_DAYS)
+
+    async def sync_all_company_data(self) -> dict:
+        """Sync profiles, financials, and historical prices for all VN30 companies."""
+        symbols = self.STOCK_GROUPS["VN30"]
+        results = {"profiles": 0, "financials": 0, "historical": 0, "errors": []}
+
+        for symbol in symbols:
+            try:
+                # Sync profile
+                ok = await self.sync_company_profile(symbol)
+                if ok:
+                    results["profiles"] += 1
+
+                # Sync financials
+                fin_count = await self.sync_company_financials(symbol)
+                results["financials"] += fin_count
+
+                # Sync historical price data (5 years)
+                try:
+                    sync_result = await self.ensure_company_and_sync(symbol)
+                    results["historical"] += sync_result.get("synced", 0)
+                    if sync_result.get("skipped"):
+                        logger.info(f"Historical data for {symbol} already fresh, skipped")
+                except Exception as hist_err:
+                    logger.error(f"Error syncing historical data for {symbol}: {hist_err}")
+                    results["errors"].append(f"{symbol}-historical: {hist_err}")
+                    try:
+                        await self.repository.session.rollback()
+                    except Exception:
+                        pass
+
+                logger.info(f"Completed sync for {symbol}")
+            except Exception as e:
+                logger.error(f"Error syncing {symbol}: {e}")
+                results["errors"].append(f"{symbol}: {e}")
+                try:
+                    await self.repository.session.rollback()
+                except Exception:
+                    pass
+
+            # Rate limit: 2s between symbols
+            await asyncio.sleep(2)
+
+        logger.info(
+            f"Company data sync complete: {results['profiles']} profiles, "
+            f"{results['financials']} financial rows, "
+            f"{results['historical']} historical records, "
+            f"{len(results['errors'])} errors"
+        )
+        return results
 
     # ==================== Ensure Company & Sync ====================
 

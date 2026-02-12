@@ -1,6 +1,7 @@
 """
 Stock Data Service - FastAPI Application Entry Point
 """
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -40,6 +41,59 @@ REQUEST_LATENCY = Histogram(
 )
 
 
+async def _run_sync():
+    """Run one sync cycle if data is stale."""
+    from app.api.dependencies import async_session_factory
+    from app.repositories.stock_repository import StockRepository
+    from app.services.stock_service import StockService
+
+    async with async_session_factory() as session:
+        repo = StockRepository(session)
+        service = StockService(repo)
+        if await service.is_company_data_stale():
+            logger.info("Company data is stale or empty, starting full sync...")
+            results = await service.sync_all_company_data()
+            logger.info(f"Sync complete: {results}")
+        else:
+            logger.info("Company data is fresh, skipping sync")
+
+        # Always refresh price board for VN30 on each sync cycle
+        try:
+            count = await service.refresh_price_board("VN30")
+            logger.info(f"Price board refreshed: {count} records")
+        except Exception as e:
+            logger.error(f"Price board refresh failed: {e}", exc_info=True)
+
+
+async def _background_company_sync():
+    """Background task: sync on startup if stale, then daily at 1:00 AM."""
+    from datetime import datetime as dt, timedelta
+
+    # Initial sync after 5s startup delay
+    await asyncio.sleep(5)
+    logger.info("Background company sync: initial check...")
+    try:
+        await _run_sync()
+    except Exception as e:
+        logger.error(f"Initial company sync failed: {e}", exc_info=True)
+
+    # Daily loop: sleep until 1:00 AM, then sync
+    while True:
+        now = dt.now()
+        next_run = now.replace(hour=1, minute=0, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += timedelta(days=1)
+        wait_seconds = (next_run - now).total_seconds()
+        logger.info(f"Next scheduled sync at {next_run.strftime('%Y-%m-%d %H:%M')}, sleeping {wait_seconds/3600:.1f}h")
+        await asyncio.sleep(wait_seconds)
+
+        logger.info("Scheduled daily sync starting...")
+        try:
+            await _run_sync()
+        except Exception as e:
+            logger.error(f"Scheduled company sync failed: {e}", exc_info=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator:
     """Application lifespan handler"""
@@ -53,9 +107,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables initialized")
 
+    # Spawn non-blocking background sync for VN30 company data
+    sync_task = asyncio.create_task(_background_company_sync())
+
     yield
 
     # Shutdown
+    sync_task.cancel()
     logger.info(f"Shutting down {settings.SERVICE_NAME}")
     await engine.dispose()
 

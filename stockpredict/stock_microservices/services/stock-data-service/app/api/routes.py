@@ -173,6 +173,26 @@ async def get_historical_data(
 
 # ==================== Company Info Endpoints ====================
 
+@router.post(
+    "/companies/sync",
+    response_model=MessageResponse,
+    summary="Manually trigger company data sync",
+)
+async def sync_company_data(
+    stock_service: StockService = Depends(get_stock_service),
+):
+    """
+    Manually trigger a full re-sync of VN30 company profiles,
+    financial statements, and historical price data.
+    """
+    import asyncio
+    asyncio.create_task(stock_service.sync_all_company_data())
+    return MessageResponse(
+        message="Company data sync started in background",
+        success=True,
+    )
+
+
 @router.get(
     "/companies/{symbol}/profile",
     response_model=List[dict],
@@ -182,8 +202,8 @@ async def get_company_profile(
     symbol: str,
     stock_service: StockService = Depends(get_stock_service),
 ):
-    """Get company overview and profile data (industry, shares, employees, etc.)."""
-    return await stock_service.get_company_profile_data(symbol=symbol)
+    """Get company overview and profile data from DB cache."""
+    return await stock_service.get_company_profile_cached(symbol=symbol)
 
 
 @router.get(
@@ -278,6 +298,65 @@ async def get_company_financials(
             detail=f"Financial data not found for: {symbol}",
         )
     return data
+
+
+# ==================== Financial Statement Endpoints ====================
+
+
+@router.get(
+    "/companies/{symbol}/financials/income-statement",
+    response_model=List[dict],
+    summary="Get income statement data",
+)
+async def get_income_statement(
+    symbol: str,
+    period: str = "annual",
+    stock_service: StockService = Depends(get_stock_service),
+):
+    """Get multi-period income statement data for a company (from DB cache)."""
+    return await stock_service.get_financial_statement_cached(symbol, "income_statement", period)
+
+
+@router.get(
+    "/companies/{symbol}/financials/cash-flow",
+    response_model=List[dict],
+    summary="Get cash flow statement data",
+)
+async def get_cash_flow(
+    symbol: str,
+    period: str = "annual",
+    stock_service: StockService = Depends(get_stock_service),
+):
+    """Get multi-period cash flow statement data for a company (from DB cache)."""
+    return await stock_service.get_financial_statement_cached(symbol, "cash_flow", period)
+
+
+@router.get(
+    "/companies/{symbol}/financials/balance-sheet",
+    response_model=List[dict],
+    summary="Get balance sheet data",
+)
+async def get_balance_sheet(
+    symbol: str,
+    period: str = "annual",
+    stock_service: StockService = Depends(get_stock_service),
+):
+    """Get multi-period balance sheet data for a company (from DB cache)."""
+    return await stock_service.get_financial_statement_cached(symbol, "balance_sheet", period)
+
+
+@router.get(
+    "/companies/{symbol}/financials/ratios",
+    response_model=List[dict],
+    summary="Get financial ratios data",
+)
+async def get_financial_ratios(
+    symbol: str,
+    period: str = "annual",
+    stock_service: StockService = Depends(get_stock_service),
+):
+    """Get multi-period financial ratio data for a company (from DB cache)."""
+    return await stock_service.get_financial_statement_cached(symbol, "ratio", period)
 
 
 # ==================== Top Movers Endpoints ====================
