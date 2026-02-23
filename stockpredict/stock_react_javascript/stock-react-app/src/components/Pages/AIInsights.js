@@ -3,6 +3,8 @@ import axios from 'axios';
 import { TrendingUp, TrendingDown, AlertTriangle, Brain, Activity, Shield, Target, Settings, RefreshCw, Calendar, BarChart3, ChartLine } from 'lucide-react';
 import { format } from "d3-format";
 import { timeFormat } from "d3-time-format";
+import { getXAxisProps, getYAxisProps } from "../../constants/chartTheme";
+import ChartWrapper from "../ui/ChartWrapper";
 
 import {
   discontinuousTimeScaleProviderBuilder,
@@ -477,6 +479,7 @@ export const AIInsights = () => {
     const volumeColor = d => d.close > d.open ? "rgba(38, 166, 154, 0.5)" : "rgba(239, 83, 80, 0.5)";
 
     return (
+      <ChartWrapper yAxisTitle="Price" xAxisTitle="Date">
       <ChartCanvas
         height={chartHeight}
         ratio={2}
@@ -502,8 +505,8 @@ export const AIInsights = () => {
             return extents;
           }}
         >
-          <XAxis showGridLines />
-          <YAxis showGridLines tickFormat={pricesDisplayFormat} />
+          <XAxis {...getXAxisProps({ showTickLabel: false })} />
+          <YAxis tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
 
           <CandlestickSeries />
 
@@ -576,8 +579,8 @@ export const AIInsights = () => {
             origin={momentumOrigin}
             padding={{ top: 10, bottom: 10 }}
           >
-            <XAxis showGridLines />
-            <YAxis tickValues={[30, 50, 70]} tickFormat={d => d} />
+            <XAxis {...getXAxisProps({ showTickLabel: false })} />
+            <YAxis tickValues={[30, 50, 70]} tickFormat={d => d} {...getYAxisProps()} />
 
             {/* Overbought/Oversold reference lines */}
             <StraightLine yValue={70} strokeStyle="#ef4444" strokeDasharray="Dash" />
@@ -633,8 +636,8 @@ export const AIInsights = () => {
             origin={macdOrigin}
             padding={{ top: 10, bottom: 10 }}
           >
-            <XAxis showGridLines />
-            <YAxis tickFormat={pricesDisplayFormat} />
+            <XAxis {...getXAxisProps({ showTickLabel: false })} />
+            <YAxis tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
 
             <MACDSeries
               yAccessor={d => d.macdCalc}
@@ -673,8 +676,8 @@ export const AIInsights = () => {
             origin={volumeOrigin}
             padding={{ top: 10, bottom: 10 }}
           >
-            <XAxis showGridLines />
-            <YAxis tickFormat={volumeFormat} />
+            <XAxis {...getXAxisProps()} />
+            <YAxis tickFormat={volumeFormat} {...getYAxisProps()} />
 
             <BarSeries fillStyle={volumeColor} yAccessor={d => d.volume} />
 
@@ -700,6 +703,7 @@ export const AIInsights = () => {
 
         <CrossHairCursor />
       </ChartCanvas>
+      </ChartWrapper>
     );
   };
 

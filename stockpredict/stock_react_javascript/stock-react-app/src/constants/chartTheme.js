@@ -19,9 +19,21 @@ export const chartTheme = {
   },
 };
 
+/** Shared candlestick / volume colors */
+export const chartColors = {
+  greenCandle: "#26a69a",
+  redCandle: "#ef5350",
+  greenVolume: "rgba(38, 166, 154, 0.3)",
+  redVolume: "rgba(239, 83, 80, 0.3)",
+};
+
+/** Default margins for react-financial-charts (left space for Y-axis labels) */
+export const chartMargin = { left: 50, right: 48, top: 10, bottom: 24 };
+
 /** Spread onto <XAxis ...getXAxisProps() /> */
 export function getXAxisProps(overrides = {}) {
   return {
+    showGridLines: true,
     fontFamily: chartTheme.axis.fontFamily,
     fontSize: chartTheme.axis.fontSize,
     tickStrokeStyle: chartTheme.axis.tickStrokeStyle,
@@ -36,6 +48,7 @@ export function getXAxisProps(overrides = {}) {
 /** Spread onto <YAxis ...getYAxisProps() /> */
 export function getYAxisProps(overrides = {}) {
   return {
+    showGridLines: true,
     fontFamily: chartTheme.axis.fontFamily,
     fontSize: chartTheme.axis.fontSize,
     tickStrokeStyle: chartTheme.axis.tickStrokeStyle,
@@ -44,5 +57,20 @@ export function getYAxisProps(overrides = {}) {
     gridLinesStrokeStyle: chartTheme.grid.strokeStyle,
     gridLinesStrokeDasharray: chartTheme.grid.strokeDasharray,
     ...overrides,
+  };
+}
+
+/** Props for recharts <CartesianGrid /> and axis ticks (SimulationDashboard) */
+export function getRechartsGridProps() {
+  return {
+    grid: {
+      stroke: chartTheme.grid.strokeStyle,
+      strokeDasharray: chartTheme.grid.strokeDasharray,
+    },
+    tick: {
+      fontSize: chartTheme.axis.fontSize,
+      fontFamily: chartTheme.axis.fontFamily,
+      fill: chartTheme.axis.tickLabelFill,
+    },
   };
 }

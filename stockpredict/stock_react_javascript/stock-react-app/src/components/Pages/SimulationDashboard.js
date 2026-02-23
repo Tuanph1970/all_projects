@@ -13,6 +13,7 @@ import {
   ReferenceDot
 } from "recharts";
 import { Settings, TrendingUp, BarChart3 } from "lucide-react";
+import { getRechartsGridProps } from "../../constants/chartTheme";
 import "./SimulationDashboard.css";
 
 const SimulationDashboard = () => {
@@ -645,15 +646,15 @@ const ResultChart = ({ data, transactions }) => {
       </div>
       <ResponsiveContainer width="100%" height={450}>
         <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+          <CartesianGrid {...getRechartsGridProps().grid} />
           <XAxis
             dataKey="date"
             tickFormatter={(date) => new Date(date).toLocaleDateString('vi-VN')}
-            tick={{ fontSize: 12 }}
+            tick={getRechartsGridProps().tick}
           />
           <YAxis
             tickFormatter={(value) => (value / 1000).toFixed(0) + 'K'}
-            tick={{ fontSize: 12 }}
+            tick={getRechartsGridProps().tick}
           />
           <Tooltip content={<CustomTooltip />} />
           <Line
