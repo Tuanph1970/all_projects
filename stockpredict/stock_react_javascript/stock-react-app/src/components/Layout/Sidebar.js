@@ -14,7 +14,8 @@ import {
   MessageCircle,
   SearchCode,
   Wallet,
-  Wrench
+  Wrench,
+  BookOpen
 } from 'lucide-react';
 import { useRouter } from '../../context/RouterContext';
 
@@ -132,6 +133,19 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
         { key: 'holdings', label: 'Cổ phiếu nắm giữ', route: 'holdings' },
         { key: 'performance', label: 'Hiệu suất', route: 'performance' },
         { key: 'alerts', label: 'Cảnh báo giá', route: 'alerts' }
+      ]
+    },
+    {
+      key: 'journal',
+      label: 'Nhật ký giao dịch',
+      icon: BookOpen,
+      iconColor: '#f97316', // Orange - journaling/reflection
+      submenu: [
+        { key: 'journal-dashboard', label: 'Tổng quan', route: 'journal-dashboard' },
+        { key: 'trade-log', label: 'Sổ giao dịch', route: 'trade-log' },
+        { key: 'trade-diary', label: 'Nhật ký', route: 'trade-diary' },
+        { key: 'daily-planning', label: 'Kế hoạch hàng ngày', route: 'daily-planning' },
+        { key: 'weekly-review', label: 'Tổng kết tuần', route: 'weekly-review' }
       ]
     },
     {

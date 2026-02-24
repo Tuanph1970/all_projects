@@ -47,6 +47,7 @@ export const API_BASE_URLS = {
   SOLUTIONS_API: `${API_GATEWAY_URL}/stock_helper/api/v2/solutions`,
   AI_API: `${API_GATEWAY_URL}/stock_helper/api/v2/ai`,
   CHATBOT_API: `${API_GATEWAY_URL}/stock_helper/api/v2/chat`,
+  JOURNAL_API: `${API_GATEWAY_URL}/stock_helper/api/v2/journal`,
 
   // Legacy API (fallback - Django monolith)
   LEGACY_API: `${API_GATEWAY_URL}/api/v1`
@@ -252,6 +253,30 @@ export const API_ENDPOINTS = {
   CHATBOT_CAPABILITIES: `${API_BASE_URLS.CHATBOT_API}/capabilities`,
   CHATBOT_HEALTH: `${API_BASE_URLS.CHATBOT_API}/health`,
   CHATBOT_WS: (sessionId) => `ws://${API_GATEWAY_URL.replace(/^https?:\/\//, '')}/api/v2/chatbot/ws/${sessionId}`,
+
+  // ==========================================
+  // JOURNAL SERVICE ENDPOINTS (/api/v2/journal)
+  // ==========================================
+  JOURNAL_ACCOUNTS: `${API_BASE_URLS.JOURNAL_API}/accounts`,
+  JOURNAL_ACCOUNT: (id) => `${API_BASE_URLS.JOURNAL_API}/accounts/${id}`,
+  JOURNAL_ACCOUNT_RULES: (id) => `${API_BASE_URLS.JOURNAL_API}/accounts/${id}/rules`,
+  JOURNAL_ACCOUNT_RULE: (accountId, ruleId) => `${API_BASE_URLS.JOURNAL_API}/accounts/${accountId}/rules/${ruleId}`,
+  JOURNAL_ACCOUNT_TRADES: (id) => `${API_BASE_URLS.JOURNAL_API}/accounts/${id}/trades`,
+  JOURNAL_TRADE: (accountId, tradeId) => `${API_BASE_URLS.JOURNAL_API}/accounts/${accountId}/trades/${tradeId}`,
+  JOURNAL_TRADE_CLOSE: (accountId, tradeId) => `${API_BASE_URLS.JOURNAL_API}/accounts/${accountId}/trades/${tradeId}/close`,
+  JOURNAL_TRADE_STOP: (accountId, tradeId) => `${API_BASE_URLS.JOURNAL_API}/accounts/${accountId}/trades/${tradeId}/stop`,
+  JOURNAL_ACCOUNT_RISK: (id) => `${API_BASE_URLS.JOURNAL_API}/accounts/${id}/risk`,
+  JOURNAL_TRADE_DIARY: (tradeId) => `${API_BASE_URLS.JOURNAL_API}/trades/${tradeId}/diary`,
+  JOURNAL_DIARY_CHARTS: (diaryId) => `${API_BASE_URLS.JOURNAL_API}/diary/${diaryId}/charts`,
+  JOURNAL_DIARY_CHART_DELETE: (chartId) => `${API_BASE_URLS.JOURNAL_API}/diary/charts/${chartId}`,
+  JOURNAL_DAILY_PLANS: (id) => `${API_BASE_URLS.JOURNAL_API}/accounts/${id}/plans`,
+  JOURNAL_DAILY_PLAN: (accountId, planId) => `${API_BASE_URLS.JOURNAL_API}/accounts/${accountId}/plans/${planId}`,
+  JOURNAL_WEEKLY_REVIEWS: (id) => `${API_BASE_URLS.JOURNAL_API}/accounts/${id}/reviews`,
+  JOURNAL_WEEKLY_REVIEW: (accountId, reviewId) => `${API_BASE_URLS.JOURNAL_API}/accounts/${accountId}/reviews/${reviewId}`,
+  JOURNAL_WEEKLY_REVIEW_RECALC: (accountId, reviewId) => `${API_BASE_URLS.JOURNAL_API}/accounts/${accountId}/reviews/${reviewId}/recalculate`,
+  JOURNAL_DASHBOARD: (id) => `${API_BASE_URLS.JOURNAL_API}/accounts/${id}/dashboard`,
+  JOURNAL_EQUITY_SNAPSHOTS: (id) => `${API_BASE_URLS.JOURNAL_API}/accounts/${id}/equity`,
+  JOURNAL_INFO: `${API_BASE_URLS.JOURNAL_API}/info`,
 
   // ==========================================
   // FILE SERVICE ENDPOINTS (external service)

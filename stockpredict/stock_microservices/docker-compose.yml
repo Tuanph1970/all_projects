@@ -611,6 +611,67 @@ services:
       - "traefik.http.routers.stock-chatbot.priority=10"
       - "traefik.http.services.stock-chatbot.loadbalancer.server.port=8006"
 
+  # Journal Service - Trader Journal (Schwager's Planned Trading Approach)
+  journal-service:
+    build:
+      context: .
+      dockerfile: services/journal-service/Dockerfile
+    container_name: stock_journal_service
+    environment:
+      - SERVICE_NAME=journal-service
+      - SERVICE_VERSION=1.0.0
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DEBUG=${DEBUG:-0}
+      - API_PREFIX=stock_helper
+      - DATABASE_HOST=${DATABASE_HOST:-host.docker.internal}
+      - DATABASE_PORT=${DATABASE_PORT:-3306}
+      - DATABASE_USER=${MYSQL_USER:-root}
+      - DATABASE_PASSWORD=${MYSQL_PASSWORD:-Mysql_2025}
+      - DATABASE_NAME=defaultdb
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-stockuser}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-stockpass}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/stock}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
+      - JWT_ALGORITHM=HS256
+      - AUTH_SERVICE_URL=http://auth-service:8007
+      - STOCK_DATA_SERVICE_URL=http://stock-data-service:8001
+      - UPLOAD_DIR=/app/uploads/diary_charts
+      - MAX_UPLOAD_SIZE_MB=10
+      - TRACING_ENABLED=true
+      - TRACING_JAEGER_HOST=jaeger
+      - TRACING_JAEGER_PORT=6831
+    expose:
+      - "8008"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - journal_uploads:/app/uploads
+    networks:
+      - stock-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8008/health/live')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-journal.rule=PathPrefix(`/stock_helper/api/v2/journal`)"
+      - "traefik.http.routers.stock-journal.entrypoints=web"
+      - "traefik.http.routers.stock-journal.priority=10"
+      - "traefik.http.services.stock-journal.loadbalancer.server.port=8008"
+
 networks:
   stock-network:
     driver: bridge
@@ -631,3 +692,5 @@ volumes:
     name: stock-model-data
   prediction_models:
     name: stock-prediction-models
+  journal_uploads:
+    name: stock-journal-uploads

@@ -26,6 +26,12 @@ import Performance from '../Pages/Portfolio/Performance';
 import Alerts from '../Pages/Portfolio/Alerts';
 import IndicatorsList from '../Pages/Indicators/IndicatorsList';
 import SimulationDashboard from '../Pages/SimulationDashboard';
+import JournalAccounts from '../Pages/Journal/JournalAccounts';
+import TradeLog from '../Pages/Journal/TradeLog';
+import TradeDiary from '../Pages/Journal/TradeDiary';
+import JournalDashboard from '../Pages/Journal/JournalDashboard';
+import DailyPlanning from '../Pages/Journal/DailyPlanning';
+import WeeklyReview from '../Pages/Journal/WeeklyReview';
 
 const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -105,6 +111,17 @@ const MainLayout = () => {
         return <Performance />;
       case 'alerts':
         return <Alerts />;
+      // Journal routes
+      case 'journal-dashboard':
+        return <JournalDashboard />;
+      case 'trade-log':
+        return <TradeLog />;
+      case 'trade-diary':
+        return <TradeDiary />;
+      case 'daily-planning':
+        return <DailyPlanning />;
+      case 'weekly-review':
+        return <WeeklyReview />;
       case 'screener':
         return <Dashboard />; // Could be separate component
       case 'calculator':

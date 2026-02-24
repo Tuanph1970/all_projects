@@ -82,6 +82,17 @@ http:
         - cors
         - jwt-auth
 
+    journal-service:
+      rule: "PathPrefix(`/stock_helper/api/v2/journal`)"
+      service: journal-service
+      entryPoints:
+        - web
+      priority: 10
+      middlewares:
+        - rate-limit
+        - cors
+        - jwt-auth
+
     # Health check routes (no middleware for easier testing)
     health-auth:
       rule: "PathPrefix(`/health/auth`)"
@@ -171,6 +182,15 @@ http:
       loadBalancer:
         servers:
           - url: "http://chatbot-service:8006"
+        healthCheck:
+          path: /health/live
+          interval: 10s
+          timeout: 3s
+
+    journal-service:
+      loadBalancer:
+        servers:
+          - url: "http://journal-service:8008"
         healthCheck:
           path: /health/live
           interval: 10s
