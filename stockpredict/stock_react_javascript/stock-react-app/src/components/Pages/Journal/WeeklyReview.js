@@ -5,9 +5,11 @@ import {
   Edit3, RotateCw, DollarSign
 } from 'lucide-react';
 import journalService from '../../../services/journalService';
+import { useRouter } from '../../../context/RouterContext';
 import '../../../styles/journal.css';
 
 const WeeklyReview = () => {
+  const { navigate } = useRouter();
   const [accounts, setAccounts] = useState([]);
   const [selectedAccountId, setSelectedAccountId] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -162,8 +164,11 @@ const WeeklyReview = () => {
       <div className="journal-accounts">
         <div className="journal-empty">
           <CalendarRange size={48} />
-          <h3>Chưa có tài khoản journal</h3>
-          <p>Tạo tài khoản trong mục "Tài khoản" trước.</p>
+          <h3>Chưa có tài khoản nhật ký</h3>
+          <p>Vui lòng tạo tài khoản nhật ký giao dịch trước khi tổng kết tuần.</p>
+          <button className="btn-primary" onClick={() => navigate('journal-accounts')} style={{ marginTop: '12px' }}>
+            <Plus size={16} /> Tạo tài khoản nhật ký
+          </button>
         </div>
       </div>
     );

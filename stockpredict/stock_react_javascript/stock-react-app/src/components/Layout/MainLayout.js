@@ -112,6 +112,8 @@ const MainLayout = () => {
       case 'alerts':
         return <Alerts />;
       // Journal routes
+      case 'journal-accounts':
+        return <JournalAccounts />;
       case 'journal-dashboard':
         return <JournalDashboard />;
       case 'trade-log':

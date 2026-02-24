@@ -142,6 +142,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       iconColor: '#f97316', // Orange - journaling/reflection
       submenu: [
         { key: 'journal-dashboard', label: 'Tổng quan', route: 'journal-dashboard' },
+        { key: 'journal-accounts', label: 'Tài khoản', route: 'journal-accounts' },
         { key: 'trade-log', label: 'Sổ giao dịch', route: 'trade-log' },
         { key: 'trade-diary', label: 'Nhật ký', route: 'trade-diary' },
         { key: 'daily-planning', label: 'Kế hoạch hàng ngày', route: 'daily-planning' },
