@@ -7,6 +7,7 @@
 #   - Ceramic Mobile App Backend (Port 8002)
 #   - Stock Predict Backend (Port 8004)
 #   - Mathematic Mobile Backend (Port 8003)
+#   - Ollama LLM Setup (GPU/CPU)
 #
 # Usage: ./deploy-interactive.sh
 # ============================================================================
@@ -39,6 +40,8 @@ ENV_FILE="$BASE_DIR/.deploy-env"
 BUILD_FLAG=""
 NO_CACHE_FLAG=""
 SELECTED_PROJECTS=()
+SETUP_OLLAMA=false
+OLLAMA_PROFILE=""
 
 # Function to print colored output
 print_color() {
@@ -348,7 +351,11 @@ show_deployment_summary() {
         esac
     done
     
-    if [ ${#SELECTED_PROJECTS[@]} -eq 0 ]; then
+    if [ "$SETUP_OLLAMA" = true ]; then
+        print_color $GREEN "  ✓ Ollama LLM Setup"
+    fi
+
+    if [ ${#SELECTED_PROJECTS[@]} -eq 0 ] && [ "$SETUP_OLLAMA" = false ]; then
         print_color $YELLOW "  No projects selected for deployment"
     fi
     
@@ -365,6 +372,157 @@ show_deployment_summary() {
         print_color $YELLOW "  ○ Use existing images"
     fi
     echo
+}
+
+# Function to check if NVIDIA GPU is available
+check_nvidia_gpu() {
+    if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+# Function to check if nvidia-container-toolkit is installed
+check_nvidia_container_toolkit() {
+    if dpkg -l 2>/dev/null | grep -q nvidia-container-toolkit; then
+        return 0
+    fi
+    if rpm -q nvidia-container-toolkit &> /dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+# Function to install nvidia-container-toolkit
+install_nvidia_container_toolkit() {
+    print_color $BLUE "Installing NVIDIA Container Toolkit..."
+    echo
+
+    # Check if already installed
+    if check_nvidia_container_toolkit; then
+        print_color $GREEN "✓ NVIDIA Container Toolkit is already installed"
+        return 0
+    fi
+
+    print_color $YELLOW "This requires sudo privileges."
+    echo
+
+    # Add NVIDIA GPG key and repository
+    print_color $CYAN "Adding NVIDIA repository..."
+    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+    curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+        sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+        sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list > /dev/null
+
+    # Install
+    print_color $CYAN "Installing nvidia-container-toolkit..."
+    sudo apt-get update -qq
+    sudo apt-get install -y nvidia-container-toolkit
+
+    # Configure Docker runtime
+    print_color $CYAN "Configuring Docker runtime..."
+    sudo nvidia-ctk runtime configure --runtime=docker
+    sudo systemctl restart docker
+
+    if check_nvidia_container_toolkit; then
+        print_color $GREEN "✓ NVIDIA Container Toolkit installed successfully"
+    else
+        print_color $RED "✗ Failed to install NVIDIA Container Toolkit"
+        return 1
+    fi
+}
+
+# Function to setup Ollama
+setup_ollama() {
+    local ollama_compose_dir="$STOCK_DIR"
+
+    if [ ! -d "$ollama_compose_dir" ]; then
+        print_color $RED "Error: Stock microservices directory not found: $ollama_compose_dir"
+        print_color $RED "Ollama is defined in the Stock Predict docker-compose.yml"
+        return 1
+    fi
+
+    print_header "Ollama LLM Setup"
+
+    # Step 1: GPU detection
+    print_color $BLUE "🔍 Detecting GPU..."
+    if check_nvidia_gpu; then
+        local gpu_info
+        gpu_info=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
+        print_color $GREEN "✓ NVIDIA GPU detected: $gpu_info"
+
+        # Check nvidia-container-toolkit
+        if check_nvidia_container_toolkit; then
+            print_color $GREEN "✓ NVIDIA Container Toolkit is installed"
+        else
+            print_color $YELLOW "⚠ NVIDIA Container Toolkit is NOT installed"
+            if ask_yes_no "Do you want to install NVIDIA Container Toolkit for GPU support?" "y"; then
+                install_nvidia_container_toolkit
+            else
+                print_color $YELLOW "○ Skipping GPU support, will use CPU mode"
+                OLLAMA_PROFILE="cpu"
+            fi
+        fi
+
+        # Ask GPU or CPU mode (if toolkit is available)
+        if [ -z "$OLLAMA_PROFILE" ]; then
+            if ask_yes_no "Do you want to run Ollama with GPU acceleration?" "y"; then
+                OLLAMA_PROFILE="gpu"
+                print_color $GREEN "✓ Ollama will run with GPU acceleration"
+            else
+                OLLAMA_PROFILE="cpu"
+                print_color $YELLOW "○ Ollama will run in CPU-only mode"
+            fi
+        fi
+    else
+        print_color $YELLOW "⚠ No NVIDIA GPU detected - using CPU mode"
+        OLLAMA_PROFILE="cpu"
+    fi
+
+    # Step 2: Start Ollama container
+    echo
+    print_color $BLUE "🚀 Starting Ollama container (profile: $OLLAMA_PROFILE)..."
+    cd "$ollama_compose_dir"
+    $COMPOSE_CMD --profile "$OLLAMA_PROFILE" up -d ollama 2>/dev/null || \
+    $COMPOSE_CMD --profile "$OLLAMA_PROFILE" up -d ollama-gpu 2>/dev/null || true
+
+    # Wait for Ollama to be ready
+    print_color $YELLOW "⏳ Waiting for Ollama to start..."
+    local retries=0
+    local max_retries=30
+    while [ $retries -lt $max_retries ]; do
+        if docker exec stock_ollama ollama list &>/dev/null 2>&1; then
+            break
+        fi
+        sleep 2
+        retries=$((retries + 1))
+        printf "."
+    done
+    echo
+
+    if [ $retries -ge $max_retries ]; then
+        print_color $RED "✗ Ollama did not start within 60 seconds"
+        print_color $YELLOW "You can try manually: docker logs stock_ollama"
+        return 1
+    fi
+
+    print_color $GREEN "✓ Ollama is running"
+
+    # Step 3: Pull the model
+    echo
+    print_color $BLUE "📥 Pulling llama3.1 model (this may take a while on first run)..."
+    docker exec stock_ollama ollama pull llama3.1
+
+    if [ $? -eq 0 ]; then
+        print_color $GREEN "✓ llama3.1 model is ready"
+    else
+        print_color $RED "✗ Failed to pull llama3.1 model"
+        print_color $YELLOW "You can pull it manually later: docker exec stock_ollama ollama pull llama3.1"
+        return 1
+    fi
+
+    echo
+    print_color $GREEN "✓ Ollama setup complete! (Profile: $OLLAMA_PROFILE)"
 }
 
 # Main interactive flow
@@ -457,22 +615,40 @@ main() {
     else
         print_color $YELLOW "○ Skipping Mathematics Mobile Backend"
     fi
-    
+
+    echo
+
+    # Ollama LLM Setup
+    print_box "Ollama LLM (for Knowledge QA)" \
+             "GPU/CPU | Model: llama3.1 | Used by Stock Knowledge QA"
+    if ask_yes_no "Do you want to setup Ollama LLM?" "n"; then
+        SETUP_OLLAMA=true
+        print_color $GREEN "✓ Ollama LLM setup selected"
+    else
+        print_color $YELLOW "○ Skipping Ollama LLM setup"
+    fi
+
     # Show summary and confirm
     show_deployment_summary
     
-    if [ ${#SELECTED_PROJECTS[@]} -eq 0 ]; then
+    if [ ${#SELECTED_PROJECTS[@]} -eq 0 ] && [ "$SETUP_OLLAMA" = false ]; then
         print_color $YELLOW "No projects selected. Exiting."
         exit 0
     fi
-    
+
     if ask_yes_no "Proceed with deployment?" "y"; then
         print_header "Deploying Projects"
-        
+
         for project in "${SELECTED_PROJECTS[@]}"; do
             echo
             deploy_project "$project"
         done
+
+        # Setup Ollama if selected
+        if [ "$SETUP_OLLAMA" = true ]; then
+            echo
+            setup_ollama
+        fi
         
         echo
         print_header "Deployment Complete!"
@@ -513,6 +689,16 @@ main() {
             print_color $YELLOW "  │ Auth API:           http://localhost:8003/api/v1/auth"
             print_color $YELLOW "  │ Problems API:       http://localhost:8003/api/v1/problems"
             print_color $YELLOW "  │ Solutions API:      http://localhost:8003/api/v1/solutions"
+            print_color $WHITE "  └─────────────────────────────────────────────────────┘"
+        fi
+
+        if [ "$SETUP_OLLAMA" = true ]; then
+            echo
+            print_color $WHITE "  ┌─ Ollama LLM ────────────────────────────────────────┐"
+            print_color $YELLOW "  │ Profile:            $OLLAMA_PROFILE"
+            print_color $YELLOW "  │ Model:              llama3.1"
+            print_color $YELLOW "  │ Internal API:       http://ollama:11434 (Docker)"
+            print_color $YELLOW "  │ Pull new model:     docker exec stock_ollama ollama pull <model>"
             print_color $WHITE "  └─────────────────────────────────────────────────────┘"
         fi
 

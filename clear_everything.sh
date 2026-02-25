@@ -43,6 +43,7 @@ DEPLOYMENT_PORTS=(
     3100    # Grafana
     15672   # RabbitMQ Management
     5672    # RabbitMQ AMQP
+    11434   # Ollama LLM
 
     # Mathematics Mobile
     8003    # API Gateway
@@ -128,6 +129,13 @@ remove_compose_stacks() {
     print_header "Removing Docker Compose Stacks"
 
     local projects=("ceramic" "stockpredict" "mathematic" "stock_microservices")
+
+    # Also explicitly stop Ollama container if running
+    if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "stock_ollama"; then
+        print_color $BLUE "Removing Ollama container (stock_ollama)..."
+        docker rm -f stock_ollama 2>/dev/null || true
+        print_color $GREEN "✓ Ollama container removed"
+    fi
 
     for project in "${projects[@]}"; do
         local containers=$(docker ps -aq --filter "label=com.docker.compose.project=$project" 2>/dev/null)
@@ -290,6 +298,43 @@ show_port_status() {
     fi
 }
 
+# Function to remove Ollama data (volume and images)
+remove_ollama_data() {
+    print_header "Removing Ollama LLM Data"
+
+    # Remove Ollama volume (contains downloaded models like llama3.1)
+    local ollama_volume=$(docker volume ls -q 2>/dev/null | grep -i ollama || true)
+    if [ -n "$ollama_volume" ]; then
+        if ask_yes_no "Remove Ollama volume ($ollama_volume)? This deletes all downloaded models"; then
+            print_color $BLUE "Removing Ollama volume..."
+            docker volume rm $ollama_volume 2>/dev/null || true
+            print_color $GREEN "✓ Ollama volume removed (models deleted)"
+        else
+            print_color $YELLOW "○ Keeping Ollama volume (models preserved)"
+        fi
+    else
+        print_color $YELLOW "○ No Ollama volume found"
+    fi
+
+    # Remove Ollama Docker image
+    local ollama_images=$(docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' 2>/dev/null | grep -i ollama || true)
+    if [ -n "$ollama_images" ]; then
+        if ask_yes_no "Remove Ollama Docker image(s)?"; then
+            print_color $BLUE "Removing Ollama images..."
+            docker images --format '{{.ID}}' 2>/dev/null | while read -r img_id; do
+                docker inspect "$img_id" 2>/dev/null | grep -qi ollama && docker rmi -f "$img_id" 2>/dev/null || true
+            done
+            # Direct approach
+            docker rmi -f $(docker images 'ollama/ollama' -q 2>/dev/null) 2>/dev/null || true
+            print_color $GREEN "✓ Ollama images removed"
+        else
+            print_color $YELLOW "○ Keeping Ollama images"
+        fi
+    else
+        print_color $YELLOW "○ No Ollama images found"
+    fi
+}
+
 # Function to remove Docker build cache
 remove_build_cache() {
     print_header "Removing Docker Build Cache"
@@ -355,14 +400,15 @@ main() {
 
     print_color $MAGENTA "This script will:"
     print_color $WHITE "  1. Stop and remove all Docker containers"
-    print_color $WHITE "  2. Remove Docker Compose stacks (ceramic, stock, math)"
+    print_color $WHITE "  2. Remove Docker Compose stacks (ceramic, stock, math, ollama)"
     print_color $WHITE "  3. Remove Docker networks"
     print_color $WHITE "  4. Optionally remove Docker volumes (DATA LOSS!)"
     print_color $WHITE "  5. Remove dangling Docker images"
-    print_color $WHITE "  6. Optionally remove all Docker images"
-    print_color $WHITE "  7. Remove Docker build cache"
-    print_color $WHITE "  8. Kill processes on deployment ports"
-    print_color $WHITE "  9. Run Docker system prune"
+    print_color $WHITE "  6. Optionally remove Ollama data (models & images)"
+    print_color $WHITE "  7. Optionally remove all Docker images"
+    print_color $WHITE "  8. Remove Docker build cache"
+    print_color $WHITE "  9. Kill processes on deployment ports"
+    print_color $WHITE "  10. Run Docker system prune"
     echo
 
     if [ "$FORCE_MODE" = true ]; then
@@ -391,6 +437,7 @@ main() {
     remove_docker_networks
     remove_docker_volumes
     remove_dangling_images
+    remove_ollama_data
     remove_all_images
     remove_build_cache
     kill_all_ports
