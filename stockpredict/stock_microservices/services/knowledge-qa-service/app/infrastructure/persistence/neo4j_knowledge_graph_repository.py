@@ -39,7 +39,7 @@ class Neo4jKnowledgeGraphRepository(KnowledgeGraphRepository):
         """
         try:
             async with self._driver.session() as session:
-                result = await session.run(cypher, query=query, limit=limit)
+                result = await session.run(cypher, parameters={"query": query, "limit": limit})
                 records = await result.data()
 
             notes = []
@@ -72,7 +72,7 @@ class Neo4jKnowledgeGraphRepository(KnowledgeGraphRepository):
         """
         try:
             async with self._driver.session() as session:
-                result = await session.run(cypher, query=query, limit=limit)
+                result = await session.run(cypher, parameters={"query": query, "limit": limit})
                 records = await result.data()
 
             return [
@@ -101,7 +101,7 @@ class Neo4jKnowledgeGraphRepository(KnowledgeGraphRepository):
         """
         try:
             async with self._driver.session() as session:
-                result = await session.run(cypher, keywords=keywords, limit=limit)
+                result = await session.run(cypher, parameters={"keywords": keywords, "limit": limit})
                 records = await result.data()
 
             return [self._record_to_note(r) for r in records]
@@ -126,7 +126,7 @@ class Neo4jKnowledgeGraphRepository(KnowledgeGraphRepository):
         """
         try:
             async with self._driver.session() as session:
-                result = await session.run(cypher, note_id=note_id, limit=limit)
+                result = await session.run(cypher, parameters={"note_id": note_id, "limit": limit})
                 records = await result.data()
 
             return [self._record_to_note(r) for r in records]
