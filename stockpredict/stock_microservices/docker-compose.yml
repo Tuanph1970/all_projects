@@ -672,6 +672,78 @@ services:
       - "traefik.http.routers.stock-journal.priority=10"
       - "traefik.http.services.stock-journal.loadbalancer.server.port=8008"
 
+  # Knowledge QA Service - Knowledge base Q&A with Graph RAG (Neo4j + Ollama)
+  knowledge-qa-service:
+    build:
+      context: .
+      dockerfile: services/knowledge-qa-service/Dockerfile
+    container_name: stock_knowledge_qa_service
+    environment:
+      - SERVICE_NAME=knowledge-qa-service
+      - SERVICE_VERSION=1.0.0
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DEBUG=${DEBUG:-0}
+      - API_PREFIX=stock_helper
+      - NEO4J_URI=bolt://host.docker.internal:7687
+      - NEO4J_USER=${NEO4J_USER:-}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1}
+      - OLLAMA_TIMEOUT=120.0
+      - TRACING_ENABLED=true
+      - TRACING_JAEGER_HOST=jaeger
+      - TRACING_JAEGER_PORT=6831
+    expose:
+      - "8009"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - stock-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8009/health/live')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-knowledge-qa.rule=PathPrefix(`/stock_helper/api/v2/knowledge-qa`)"
+      - "traefik.http.routers.stock-knowledge-qa.entrypoints=web"
+      - "traefik.http.routers.stock-knowledge-qa.priority=10"
+      - "traefik.http.services.stock-knowledge-qa.loadbalancer.server.port=8009"
+
+  # Ollama - Local LLM inference server
+  ollama:
+    image: ollama/ollama
+    container_name: stock_ollama
+    expose:
+      - "11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - stock-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
 networks:
   stock-network:
     driver: bridge
@@ -694,3 +766,5 @@ volumes:
     name: stock-prediction-models
   journal_uploads:
     name: stock-journal-uploads
+  ollama_data:
+    name: stock-ollama-data

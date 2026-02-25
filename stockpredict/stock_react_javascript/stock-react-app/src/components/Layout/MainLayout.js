@@ -32,6 +32,7 @@ import TradeDiary from '../Pages/Journal/TradeDiary';
 import JournalDashboard from '../Pages/Journal/JournalDashboard';
 import DailyPlanning from '../Pages/Journal/DailyPlanning';
 import WeeklyReview from '../Pages/Journal/WeeklyReview';
+import KnowledgeQAChat from '../Pages/KnowledgeQAChat';
 
 const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -99,6 +100,8 @@ const MainLayout = () => {
         return <SimulationDashboard/>
       case "chatbot":
         return <ChatbotAgent/>
+      case "knowledge-qa":
+        return <KnowledgeQAChat/>
       case 'technical':
         return <TechnicalAnalysis />;
       case 'fundamental':

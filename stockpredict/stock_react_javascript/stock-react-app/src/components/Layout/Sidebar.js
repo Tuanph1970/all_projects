@@ -111,7 +111,10 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       label: 'Trợ lý AI',
       icon: MessageCircle,
       iconColor: '#14b8a6', // Teal - communication
-      route: "chatbot"
+      submenu: [
+        { key: 'chatbot-agent', label: 'Trò chuyện AI', route: 'chatbot' },
+        { key: 'knowledge-qa', label: 'Knowledge QA', route: 'knowledge-qa' }
+      ]
     },
     {
       key: 'analysis',

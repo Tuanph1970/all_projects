@@ -48,6 +48,7 @@ export const API_BASE_URLS = {
   AI_API: `${API_GATEWAY_URL}/stock_helper/api/v2/ai`,
   CHATBOT_API: `${API_GATEWAY_URL}/stock_helper/api/v2/chat`,
   JOURNAL_API: `${API_GATEWAY_URL}/stock_helper/api/v2/journal`,
+  KNOWLEDGE_QA_API: `${API_GATEWAY_URL}/stock_helper/api/v2/knowledge-qa`,
 
   // Legacy API (fallback - Django monolith)
   LEGACY_API: `${API_GATEWAY_URL}/api/v1`
@@ -277,6 +278,16 @@ export const API_ENDPOINTS = {
   JOURNAL_DASHBOARD: (id) => `${API_BASE_URLS.JOURNAL_API}/accounts/${id}/dashboard`,
   JOURNAL_EQUITY_SNAPSHOTS: (id) => `${API_BASE_URLS.JOURNAL_API}/accounts/${id}/equity`,
   JOURNAL_INFO: `${API_BASE_URLS.JOURNAL_API}/info`,
+
+  // ==========================================
+  // KNOWLEDGE QA SERVICE ENDPOINTS (/api/v2/knowledge-qa)
+  // ==========================================
+  KNOWLEDGE_QA_CHAT: `${API_BASE_URLS.KNOWLEDGE_QA_API}/chat`,
+  KNOWLEDGE_QA_HISTORY: (sessionId) => `${API_BASE_URLS.KNOWLEDGE_QA_API}/chat/history/${sessionId}`,
+  KNOWLEDGE_QA_CLEAR: (sessionId) => `${API_BASE_URLS.KNOWLEDGE_QA_API}/chat/clear/${sessionId}`,
+  KNOWLEDGE_QA_SEARCH: `${API_BASE_URLS.KNOWLEDGE_QA_API}/search`,
+  KNOWLEDGE_QA_STATS: `${API_BASE_URLS.KNOWLEDGE_QA_API}/stats`,
+  KNOWLEDGE_QA_HEALTH: `${API_BASE_URLS.KNOWLEDGE_QA_API}/health`,
 
   // ==========================================
   // FILE SERVICE ENDPOINTS (external service)

@@ -93,6 +93,16 @@ http:
         - cors
         - jwt-auth
 
+    knowledge-qa-service:
+      rule: "PathPrefix(`/stock_helper/api/v2/knowledge-qa`)"
+      service: knowledge-qa-service
+      entryPoints:
+        - web
+      priority: 10
+      middlewares:
+        - rate-limit-low
+        - cors
+
     # Health check routes (no middleware for easier testing)
     health-auth:
       rule: "PathPrefix(`/health/auth`)"
@@ -191,6 +201,15 @@ http:
       loadBalancer:
         servers:
           - url: "http://journal-service:8008"
+        healthCheck:
+          path: /health/live
+          interval: 10s
+          timeout: 3s
+
+    knowledge-qa-service:
+      loadBalancer:
+        servers:
+          - url: "http://knowledge-qa-service:8009"
         healthCheck:
           path: /health/live
           interval: 10s

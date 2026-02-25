@@ -17,6 +17,7 @@ import './styles/component.css';
 import './styles/tab_styles.css';
 import './styles/table_style.css';
 import './styles/performance.css';
+import './styles/knowledge-qa.css';
 
 
 const AppContent = () => {
