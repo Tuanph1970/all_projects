@@ -702,8 +702,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      ollama:
-        condition: service_started
+      # Note: Ollama is started via profile (--profile gpu or --profile cpu)
+      # knowledge-qa-service will retry connecting to Ollama on first request
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8009/health/live')"]
@@ -719,10 +719,35 @@ services:
       - "traefik.http.routers.stock-knowledge-qa.priority=10"
       - "traefik.http.services.stock-knowledge-qa.loadbalancer.server.port=8009"
 
-  # Ollama - Local LLM inference server
+  # Ollama - Local LLM inference server (CPU mode, works everywhere)
+  # To use GPU: docker compose --profile gpu up (instead of default ollama)
   ollama:
     image: ollama/ollama
     container_name: stock_ollama
+    profiles:
+      - cpu
+    expose:
+      - "11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - stock-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # Ollama with NVIDIA GPU acceleration (default)
+  # Requires: nvidia-container-toolkit installed + sudo systemctl restart docker
+  # On non-GPU machines: docker compose --profile cpu up -d (uses ollama service above)
+  ollama-gpu:
+    image: ollama/ollama
+    container_name: stock_ollama
+    profiles:
+      - gpu
     expose:
       - "11434"
     volumes:
