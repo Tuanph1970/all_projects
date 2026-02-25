@@ -17,8 +17,8 @@ class Settings(BaseSettings):
 
     # Neo4j
     NEO4J_URI: str = "bolt://host.docker.internal:7687"
-    NEO4J_USER: str = ""
-    NEO4J_PASSWORD: str = ""
+    NEO4J_USER: str = "neo4j"
+    NEO4J_PASSWORD: str = "neo4jabc"
 
     # Ollama
     OLLAMA_BASE_URL: str = "http://ollama:11434"

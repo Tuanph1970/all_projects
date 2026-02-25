@@ -685,8 +685,8 @@ services:
       - DEBUG=${DEBUG:-0}
       - API_PREFIX=stock_helper
       - NEO4J_URI=bolt://host.docker.internal:7687
-      - NEO4J_USER=${NEO4J_USER:-}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-}
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-neo4jabc}
       - OLLAMA_BASE_URL=http://ollama:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1}
       - OLLAMA_TIMEOUT=120.0
