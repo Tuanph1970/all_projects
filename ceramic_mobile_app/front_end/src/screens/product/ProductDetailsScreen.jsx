@@ -6,7 +6,11 @@ import {
   SafeAreaView,
   Share,
   Alert,
+  Image,
+  FlatList,
+  Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Appbar,
   Text,
@@ -26,12 +30,23 @@ import { colors, spacing, typography, borderRadius, shadows } from '../../consta
 import { useTranslation } from '@i18n';
 import { productService } from '../../services/productService.js';
 import { reviewService } from '../../services/reviewService.js';
+import { API_BASE_URL } from '../../constants/config.js';
+
+// Resolve image URI — handles both absolute URLs and relative paths
+const resolveImageUri = (item) => {
+  if (!item) return null;
+  const raw = typeof item === 'string' ? item : (item.url || item.image_url || item.src || item.uri || null);
+  if (!raw || typeof raw !== 'string') return null;
+  if (raw.startsWith('http')) return raw;
+  return `${API_BASE_URL}${raw}`;
+};
 
 export const ProductDetailsScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch = useDispatch();
   const t = useTranslation();
+  const insets = useSafeAreaInsets();
   const { productId } = route.params;
   
   const {
@@ -466,11 +481,37 @@ export const ProductDetailsScreen = () => {
 
       <ScrollView style={styles.scrollView}>
         {/* Image Gallery */}
-        {product.images && product.images.length > 0 && (
-          <View style={styles.imageContainer}>
-            <Text style={styles.imagePlaceholder}>
-              📷 Product Images ({product.images.length})
-            </Text>
+        {product.images && product.images.length > 0 ? (
+          <View>
+            <FlatList
+              data={product.images}
+              keyExtractor={(item, index) => `img-${index}`}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              renderItem={({ item }) => {
+                const imageUri = resolveImageUri(item);
+                console.log('[ProductDetails] Image URI:', imageUri);
+                return (
+                  <Image
+                    source={imageUri ? { uri: imageUri } : {}}
+                    style={styles.productImage}
+                    resizeMode="cover"
+                    onError={(e) => console.warn('[ProductDetails] Image load error:', e.nativeEvent.error, 'URI:', imageUri)}
+                  />
+                );
+              }}
+              getItemLayout={(_, index) => ({
+                length: Dimensions.get('window').width,
+                offset: Dimensions.get('window').width * index,
+                index,
+              })}
+            />
+          </View>
+        ) : (
+          <View style={styles.imagePlaceholderContainer}>
+            <Text style={styles.imagePlaceholderText}>📷</Text>
+            <Text style={styles.imagePlaceholderSub}>No images</Text>
           </View>
         )}
 
@@ -600,7 +641,7 @@ export const ProductDetailsScreen = () => {
       </ScrollView>
 
       {/* Bottom Actions */}
-      <View style={styles.bottomActions}>
+      <View style={[styles.bottomActions, { paddingBottom: Math.max(insets.bottom, spacing.md) }]}>
         {/* Quantity Selector */}
         {!isOutOfStock && (
           <View style={styles.quantityContainer}>
@@ -708,14 +749,22 @@ const styles = StyleSheet.create({
   backButton: {
     marginTop: spacing.md,
   },
-  imageContainer: {
-    height: 200,
+  productImage: {
+    width: Dimensions.get('window').width,
+    height: 280,
+  },
+  imagePlaceholderContainer: {
+    height: 280,
     backgroundColor: colors.surfaceVariant,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  imagePlaceholder: {
-    fontSize: typography.sizes.lg,
+  imagePlaceholderText: {
+    fontSize: 48,
+    marginBottom: spacing.sm,
+  },
+  imagePlaceholderSub: {
+    fontSize: typography.sizes.md,
     color: colors.outline,
   },
   productInfo: {
@@ -912,7 +961,7 @@ const styles = StyleSheet.create({
   bottomActions: {
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    paddingTop: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.outline,
     ...shadows.lg,

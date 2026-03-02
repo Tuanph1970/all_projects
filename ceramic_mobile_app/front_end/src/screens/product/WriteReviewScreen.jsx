@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View,
   StyleSheet,
@@ -23,6 +24,7 @@ import { apiClient } from '../../services/apiClient.js';
 import { API_CONFIG } from '../../constants/config.js';
 
 export const WriteReviewScreen = () => {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const route = useRoute();
   const t = useTranslation();
@@ -233,7 +235,7 @@ export const WriteReviewScreen = () => {
         <Appbar.Content title={screenTitle} />
       </Appbar.Header>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) }}>
         {/* Product Info */}
         <Card style={styles.productCard}>
           <Text style={styles.productName}>{productName || existingReview?.product_name || 'Product'}</Text>

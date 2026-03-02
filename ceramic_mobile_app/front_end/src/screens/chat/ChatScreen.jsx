@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View,
   StyleSheet,
@@ -91,6 +92,7 @@ const TypingIndicator = ({ typingUsers, t }) => {
 };
 
 export const ChatScreen = () => {
+  const insets = useSafeAreaInsets();
   const route = useRoute();
   const t = useTranslation();
   const { sellerId, productId, conversationId, recipientName } = route.params || {};
@@ -370,7 +372,7 @@ export const ChatScreen = () => {
       </View>
 
       {/* Input Area */}
-      <Surface style={styles.inputContainer}>
+      <Surface style={[styles.inputContainer, { paddingBottom: insets.bottom }]}>
         <View style={styles.inputRow}>
           <TextInput
             style={styles.textInput}

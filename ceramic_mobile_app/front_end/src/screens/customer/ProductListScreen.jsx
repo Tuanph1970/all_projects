@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View,
   StyleSheet,
@@ -64,6 +65,7 @@ const ProductCard = ({ product, onPress, onFavoritePress, isFavorite }) => {
 };
 
 export const ProductListScreen = () => {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const route = useRoute();
   const dispatch = useDispatch();
@@ -454,7 +456,7 @@ export const ProductListScreen = () => {
         keyExtractor={(item) => item.id.toString()}
         numColumns={viewType === 'grid' ? 2 : 1}
         key={viewType} // Force re-render when view type changes
-        contentContainerStyle={styles.listContainer}
+        contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(insets.bottom, 16) }]}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}

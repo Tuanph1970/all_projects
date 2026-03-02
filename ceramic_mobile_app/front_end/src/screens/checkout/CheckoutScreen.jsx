@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, Appbar, Button, TextInput, Divider, ActivityIndicator, Card } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
@@ -14,6 +15,7 @@ const formatPrice = (value, defaultValue = 0) => {
 };
 
 export const CheckoutScreen = () => {
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const { cart, loading, error } = useSelector((state) => state.cart);
@@ -149,7 +151,7 @@ export const CheckoutScreen = () => {
         <Appbar.Content title="Checkout" />
       </Appbar.Header>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) }} showsVerticalScrollIndicator={false}>
         {/* Order Summary */}
         <Card style={styles.card}>
           <Text style={styles.sectionTitle}>Order Summary</Text>

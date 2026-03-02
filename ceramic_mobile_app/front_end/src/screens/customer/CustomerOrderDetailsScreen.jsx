@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View,
   StyleSheet,
@@ -21,6 +22,7 @@ import { colors, spacing, typography } from '../../constants/theme.js';
 import { useTranslation } from '@i18n';
 
 export const CustomerOrderDetailsScreen = () => {
+  const insets = useSafeAreaInsets();
   const route = useRoute();
   const navigation = useNavigation();
   const t = useTranslation();
@@ -133,6 +135,7 @@ export const CustomerOrderDetailsScreen = () => {
 
       <ScrollView
         style={styles.content}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

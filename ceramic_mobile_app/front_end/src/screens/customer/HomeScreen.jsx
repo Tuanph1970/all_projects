@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, FlatList } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, Title, Appbar, Button, Card } from 'react-native-paper';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
@@ -14,6 +15,7 @@ import { colors, spacing, typography } from '../../constants/theme.js';
 import { useTranslation } from '@i18n';
 
 export const HomeScreen = () => {
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const t = useTranslation();
@@ -93,6 +95,7 @@ export const HomeScreen = () => {
   return (
     <ScrollView
       style={styles.container}
+      contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) }}
       testID="home-screen"
       refreshControl={
         <RefreshControl

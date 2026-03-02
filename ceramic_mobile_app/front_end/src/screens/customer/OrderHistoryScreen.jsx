@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View,
   StyleSheet,
@@ -85,6 +86,7 @@ const OrderCard = ({ order, onPress, t, index }) => {
 };
 
 export const OrderHistoryScreen = () => {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const t = useTranslation();
 
@@ -180,7 +182,7 @@ export const OrderHistoryScreen = () => {
         data={orders}
         renderItem={renderOrderCard}
         keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-        contentContainerStyle={styles.listContainer}
+        contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(insets.bottom, 16) }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

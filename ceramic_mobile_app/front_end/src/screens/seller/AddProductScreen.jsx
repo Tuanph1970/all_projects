@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Image,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Text,
   Appbar,
@@ -28,6 +29,7 @@ import { CategorySelectorField } from '../../components/seller/CategorySelector.
 export const AddProductScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
+  const insets = useSafeAreaInsets();
 
   // Check if editing existing product
   const productId = route.params?.productId;
@@ -134,10 +136,12 @@ export const AddProductScreen = () => {
       // Load existing images - prepend base URL for relative paths
       if (product.images && product.images.length > 0) {
         setImages(product.images.map(img => {
-          // Check if image_url is relative (starts with /) and prepend base URL
-          const imageUri = img.image_url.startsWith('http')
-            ? img.image_url
-            : `${API_BASE_URL}${img.image_url}`;
+          const rawUrl = img.image_url || img.url || img.src || null;
+          let imageUri = null;
+          if (rawUrl) {
+            imageUri = rawUrl.startsWith('http') ? rawUrl : `${API_BASE_URL}${rawUrl}`;
+          }
+          console.log('[AddProduct] Existing image URI:', imageUri);
           return {
             uri: imageUri,
             id: img.id,
@@ -442,6 +446,17 @@ export const AddProductScreen = () => {
         {/* Product Images */}
         <Card style={styles.section} testID="add-product-images-section">
           <Text style={styles.sectionTitle}>Product Images</Text>
+
+          {/* Large primary image preview */}
+          {images.length > 0 && images[0].uri && (
+            <Image
+              source={{ uri: images[0].uri }}
+              style={styles.primaryImagePreview}
+              resizeMode="cover"
+              onError={(e) => console.warn('[AddProduct] Primary image load error:', e.nativeEvent.error, 'URI:', images[0].uri)}
+            />
+          )}
+
           <View style={styles.imageContainer} testID="add-product-images-container">
             {images.map((image, index) => (
               <View key={index} style={styles.imageWrapper}>
@@ -541,7 +556,7 @@ export const AddProductScreen = () => {
         </Card>
 
         {/* Submit Button */}
-        <View style={styles.buttonContainer} testID="add-product-button-container">
+        <View style={[styles.buttonContainer, { paddingBottom: Math.max(insets.bottom, spacing.xl) }]} testID="add-product-button-container">
           <Button
             mode="contained"
             onPress={handleSubmit}
@@ -602,6 +617,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     marginTop: -spacing.xs,
   },
+  primaryImagePreview: {
+    width: '100%',
+    height: 240,
+    borderRadius: 8,
+    marginBottom: spacing.md,
+  },
   imageContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -611,8 +632,8 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   image: {
-    width: 80,
-    height: 80,
+    width: 110,
+    height: 110,
     borderRadius: 8,
   },
   removeButton: {
@@ -632,8 +653,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   addImageButton: {
-    width: 80,
-    height: 80,
+    width: 110,
+    height: 110,
     borderRadius: 8,
     borderWidth: 2,
     borderColor: colors.primary,
@@ -649,7 +670,6 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginTop: spacing.lg,
-    marginBottom: spacing.xl,
   },
   submitButton: {
     backgroundColor: colors.primary,

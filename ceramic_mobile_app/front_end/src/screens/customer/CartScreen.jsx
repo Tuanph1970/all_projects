@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert, RefreshControl } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text, Appbar, Button, IconButton, Divider, ActivityIndicator, Card } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
@@ -74,6 +75,7 @@ const CartItemCard = ({ item, onUpdateQuantity, onRemove, t, index }) => {
 };
 
 export const CartScreen = () => {
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const t = useTranslation();
@@ -161,6 +163,7 @@ export const CartScreen = () => {
 
       <ScrollView
         style={styles.content}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

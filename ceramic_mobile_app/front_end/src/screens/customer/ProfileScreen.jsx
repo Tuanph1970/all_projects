@@ -1,4 +1,5 @@
 import React from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { View, StyleSheet, ScrollView, Alert, Linking } from 'react-native';
 import { Text, Appbar, Avatar, List, Card, Button, Divider } from 'react-native-paper';
 import { useSelector, useDispatch } from 'react-redux';
@@ -9,6 +10,7 @@ import { useTranslation } from '@i18n';
 import LanguageToggle from '../../components/common/LanguageToggle';
 
 export const ProfileScreen = () => {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const t = useTranslation();
@@ -74,7 +76,7 @@ export const ProfileScreen = () => {
         <Appbar.Content title={t('profile.title')} />
       </Appbar.Header>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) }} showsVerticalScrollIndicator={false}>
         {/* Profile Information */}
         <Card style={styles.profileCard}>
           <View style={styles.profileHeader}>

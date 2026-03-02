@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   View,
   StyleSheet,
@@ -65,6 +66,7 @@ const ProductCard = ({ product, onPress, onFavoritePress, isFavorite }) => {
 };
 
 export const SearchScreen = () => {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const t = useTranslation();
@@ -487,7 +489,7 @@ export const SearchScreen = () => {
         renderItem={renderProduct}
         keyExtractor={(item) => item.id.toString()}
         numColumns={2}
-        contentContainerStyle={styles.listContainer}
+        contentContainerStyle={[styles.listContainer, { paddingBottom: Math.max(insets.bottom, 16) }]}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -730,7 +732,7 @@ export const SearchScreen = () => {
               )}
             </ScrollView>
 
-            <View style={styles.modalFooter}>
+            <View style={[styles.modalFooter, { paddingBottom: Math.max(insets.bottom, 16) }]}>
               <Button
                 mode="outlined"
                 onPress={clearFilters}
