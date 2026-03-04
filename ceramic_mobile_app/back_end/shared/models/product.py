@@ -63,6 +63,7 @@ class Product(Base):
     category = relationship("Category", back_populates="products")
     seller_category = relationship("SellerCategory", back_populates="products")
     images = relationship("ProductImage", back_populates="product", cascade="all, delete-orphan")
+    videos = relationship("ProductVideo", back_populates="product", cascade="all, delete-orphan")
     cart_items = relationship("CartItem", back_populates="product")
     order_items = relationship("OrderItem", back_populates="product")
     reviews = relationship("Review", back_populates="product")
@@ -76,8 +77,28 @@ class ProductImage(Base):
     alt_text = Column(String(255), nullable=True)
     is_primary = Column(Boolean, default=False)
     order_index = Column(Integer, default=0)
-    
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
+
     # Relationships
     product = relationship("Product", back_populates="images")
+
+
+class ProductVideo(Base):
+    __tablename__ = "product_videos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
+    video_url = Column(String(500), nullable=False)
+    thumbnail_url = Column(String(500), nullable=True)
+    alt_text = Column(String(255), nullable=True)
+    duration_seconds = Column(Numeric(5, 2), nullable=True)
+    file_size_mb = Column(Numeric(8, 2), nullable=True)
+    resolution = Column(String(20), nullable=True)
+    is_primary = Column(Boolean, default=False)
+    order_index = Column(Integer, default=0)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    product = relationship("Product", back_populates="videos")

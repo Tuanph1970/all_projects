@@ -58,6 +58,21 @@ class ProductImageResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
+class ProductVideoResponse(BaseModel):
+    id: int
+    video_url: str
+    thumbnail_url: Optional[str] = None
+    alt_text: Optional[str] = None
+    duration_seconds: Optional[Decimal] = None
+    file_size_mb: Optional[Decimal] = None
+    resolution: Optional[str] = None
+    is_primary: bool
+    order_index: int
+
+    class Config:
+        from_attributes = True
+
 class ProductBase(BaseModel):
     name: str
     description: str
@@ -115,6 +130,7 @@ class ProductResponse(BaseModel):
     is_featured: bool
     created_at: datetime
     images: List[ProductImageResponse] = []
+    videos: List[ProductVideoResponse] = []
     seller: Optional[SellerInfo] = None
 
     class Config:

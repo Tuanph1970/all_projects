@@ -31,6 +31,7 @@ import { useTranslation } from '@i18n';
 import { productService } from '../../services/productService.js';
 import { reviewService } from '../../services/reviewService.js';
 import { API_BASE_URL } from '../../constants/config.js';
+import ProductVideoPlayer from '../../components/product/ProductVideoPlayer.jsx';
 
 // Resolve image URI — handles both absolute URLs and relative paths
 const resolveImageUri = (item) => {
@@ -515,6 +516,13 @@ export const ProductDetailsScreen = () => {
           </View>
         )}
 
+        {/* Product Video */}
+        {product.videos && product.videos.length > 0 && (
+          <View style={styles.videoContainer}>
+            <ProductVideoPlayer video={product.videos[0]} />
+          </View>
+        )}
+
         {/* Product Info */}
         <Card style={styles.productInfo}>
           {/* Category */}
@@ -766,6 +774,12 @@ const styles = StyleSheet.create({
   imagePlaceholderSub: {
     fontSize: typography.sizes.md,
     color: colors.outline,
+  },
+  videoContainer: {
+    marginHorizontal: spacing.md,
+    marginVertical: spacing.sm,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   productInfo: {
     margin: spacing.md,

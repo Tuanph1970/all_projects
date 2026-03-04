@@ -25,16 +25,21 @@ import { API_BASE_URL } from '../../constants/config.js';
 import sellerService from '../../services/sellerService.js';
 import sellerCategoryService from '../../services/sellerCategoryService.js';
 import { CategorySelectorField } from '../../components/seller/CategorySelector.jsx';
+import VideoPicker from '../../components/seller/VideoPicker.jsx';
+import VideoPreview from '../../components/seller/VideoPreview.jsx';
+import VideoUploadProgress from '../../components/seller/VideoUploadProgress.jsx';
+import { useTranslation } from 'react-i18next';
 
 export const AddProductScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   // Check if editing existing product
   const productId = route.params?.productId;
   const isEditMode = !!productId;
-  
+
   // Form state
   const [formData, setFormData] = useState({
     title: '',
@@ -47,12 +52,20 @@ export const AddProductScreen = () => {
 
   // Selected category (object with id, name, etc.)
   const [selectedCategory, setSelectedCategory] = useState(null);
-  
+
   // Media state
   const [images, setImages] = useState([]);
+  const [video, setVideo] = useState(null); // { uri, duration, size, fileName, mime }
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [loadingProduct, setLoadingProduct] = useState(false);
+  
+  // Video upload state
+  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
+  const [isVideoUploading, setIsVideoUploading] = useState(false);
+  const [videoUploadError, setVideoUploadError] = useState(null);
+  const [videoUploadSuccess, setVideoUploadSuccess] = useState(false);
+  const [uploadedVideoData, setUploadedVideoData] = useState(null); // { url, thumbnail_url, duration, etc. }
 
   // Form errors
   const [errors, setErrors] = useState({});
@@ -265,6 +278,107 @@ export const AddProductScreen = () => {
     setImages(prev => prev.filter((_, i) => i !== index));
   };
 
+  /**
+   * Handle video selection from VideoPicker
+   */
+  const handleVideoSelect = async (selectedVideo) => {
+    if (video) {
+      Alert.alert(
+        t('addProduct.videoLimitReached'),
+        t('addProduct.confirmRemove'),
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Replace',
+            onPress: () => setVideoData(selectedVideo),
+          },
+        ]
+      );
+      return;
+    }
+    setVideoData(selectedVideo);
+  };
+
+  /**
+   * Set video data and reset upload state
+   */
+  const setVideoData = (selectedVideo) => {
+    setVideo({
+      uri: selectedVideo.path,
+      duration: selectedVideo.duration,
+      size: selectedVideo.size,
+      fileName: selectedVideo.filename || selectedVideo.path.split('/').pop(),
+      mime: selectedVideo.mime,
+    });
+    setVideoUploadProgress(0);
+    setVideoUploadError(null);
+    setVideoUploadSuccess(false);
+    setUploadedVideoData(null);
+  };
+
+  /**
+   * Remove selected video
+   */
+  const removeVideo = () => {
+    Alert.alert(
+      t('addProduct.removeVideo'),
+      t('addProduct.confirmRemove'),
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            setVideo(null);
+            setVideoUploadProgress(0);
+            setVideoUploadError(null);
+            setVideoUploadSuccess(false);
+            setUploadedVideoData(null);
+          },
+        },
+      ]
+    );
+  };
+
+  /**
+   * Upload video to server
+   */
+  const uploadVideo = async () => {
+    if (!video) return null;
+
+    setIsVideoUploading(true);
+    setVideoUploadProgress(0);
+    setVideoUploadError(null);
+    setVideoUploadSuccess(false);
+
+    try {
+      const videoFormData = new FormData();
+      videoFormData.append('file', {
+        uri: video.uri,
+        type: video.mime || 'video/mp4',
+        name: video.fileName,
+      });
+
+      const response = await sellerService.uploadVideo(
+        videoFormData,
+        (progress) => {
+          setVideoUploadProgress(progress);
+        }
+      );
+
+      setVideoUploadSuccess(true);
+      setUploadedVideoData(response);
+      
+      return response;
+    } catch (error) {
+      console.error('Error uploading video:', error);
+      setVideoUploadError(error.response?.data?.detail || t('addProduct.uploadError'));
+      throw error;
+    } finally {
+      setIsVideoUploading(false);
+    }
+  };
+
   const validateForm = () => {
     const newErrors = {};
 
@@ -363,6 +477,31 @@ export const AddProductScreen = () => {
             console.error(`Failed to upload image ${i + 1}:`, uploadError);
             // Continue with other images even if one fails
           }
+        }
+        setIsUploading(false);
+      }
+
+      // Upload video if exists
+      if (video && product?.id) {
+        try {
+          console.log(`Uploading video for product ${product.id}`);
+          const videoResponse = await uploadVideo();
+          
+          if (videoResponse) {
+            // Add video to product
+            await sellerService.addVideoToProduct(product.id, {
+              video_url: videoResponse.url,
+              thumbnail_url: videoResponse.thumbnail_url,
+              duration_seconds: videoResponse.duration?.toString(),
+              file_size_mb: videoResponse.file_size_mb?.toString(),
+              resolution: videoResponse.resolution,
+              alt_text: 'Product video',
+            });
+            console.log('Video added to product');
+          }
+        } catch (videoError) {
+          console.error('Failed to upload video:', videoError);
+          // Continue even if video upload fails
         }
       }
 
@@ -475,6 +614,33 @@ export const AddProductScreen = () => {
               </TouchableOpacity>
             )}
           </View>
+        </Card>
+
+        {/* Product Video */}
+        <Card style={styles.section} testID="add-product-video-section">
+          <Text style={styles.sectionTitle}>Product Video (Optional)</Text>
+          
+          {video ? (
+            <>
+              <VideoPreview
+                videoUri={video.uri}
+                duration={video.duration}
+                fileSize={video.size ? video.size / (1024 * 1024) : 0}
+                onRemove={removeVideo}
+              />
+              <VideoUploadProgress
+                progress={videoUploadProgress}
+                isUploading={isVideoUploading}
+                error={videoUploadError}
+                success={videoUploadSuccess}
+              />
+            </>
+          ) : (
+            <VideoPicker
+              onVideoSelect={handleVideoSelect}
+              maxDuration={60}
+            />
+          )}
         </Card>
 
         {/* Product Details */}

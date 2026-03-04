@@ -85,6 +85,43 @@ class SellerService {
     return await apiClient.upload(`${API_CONFIG.ENDPOINTS.SELLER}/upload-image`, formData);
   }
 
+  // Video Upload
+  async uploadVideo(formData, onProgress) {
+    return await apiClient.upload(
+      `${API_CONFIG.ENDPOINTS.SELLER}/upload-video`,
+      formData,
+      onProgress
+    );
+  }
+
+  // Add video to product
+  async addVideoToProduct(productId, videoData) {
+    // videoData: { video_url, thumbnail_url?, duration_seconds?, file_size_mb?, resolution?, alt_text? }
+    const formData = new FormData();
+    formData.append('video_url', videoData.video_url);
+    if (videoData.thumbnail_url) formData.append('thumbnail_url', videoData.thumbnail_url);
+    if (videoData.duration_seconds) formData.append('duration_seconds', videoData.duration_seconds.toString());
+    if (videoData.file_size_mb) formData.append('file_size_mb', videoData.file_size_mb.toString());
+    if (videoData.resolution) formData.append('resolution', videoData.resolution);
+    if (videoData.alt_text) formData.append('alt_text', videoData.alt_text);
+
+    return await apiClient.post(`${API_CONFIG.ENDPOINTS.PRODUCTS}/${productId}/videos`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  }
+
+  // Get product videos
+  async getProductVideos(productId) {
+    return await apiClient.get(`${API_CONFIG.ENDPOINTS.PRODUCTS}/${productId}/videos`);
+  }
+
+  // Delete product video
+  async deleteProductVideo(productId, videoId) {
+    return await apiClient.delete(`${API_CONFIG.ENDPOINTS.PRODUCTS}/${productId}/videos/${videoId}`);
+  }
+
   // Add image to product
   async addProductImage(productId, imageData) {
     // imageData: { image_url, alt_text?, is_primary?, order_index? }

@@ -4,16 +4,21 @@ from sqlalchemy import desc, func, and_, or_, extract, case
 from typing import List, Optional, Dict
 from pydantic import BaseModel
 from datetime import datetime, timedelta, date
+from decimal import Decimal
 import os
 import shutil
 import uuid
+import subprocess
+import json
 
 from shared.database import get_db
 from shared.security import get_current_user
 from shared.models.user import User, UserRole
-from shared.models.product import Product, Category
+from shared.models.product import Product, Category, ProductVideo
 from shared.models.order import Order, OrderItem
 from shared.models.review import Review
+
+from app.services.video_service import video_service
 
 router = APIRouter()
 
@@ -816,4 +821,87 @@ async def upload_product_image(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to upload image: {str(e)}"
+        )
+
+
+@router.post("/upload-video")
+async def upload_product_video(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upload video for product use (max 60 seconds, 50MB)"""
+    if current_user.role not in [UserRole.SELLER, UserRole.DUAL]:
+        raise HTTPException(status_code=403, detail="Only sellers can upload videos")
+
+    # Read file data
+    file_data = await file.read()
+
+    # Validate video file
+    if not video_service.validate_video_file(file_data, file.filename):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid video file. Allowed formats: MP4, MOV, AVI, MKV. Max size: 50MB"
+        )
+
+    try:
+        # Create upload directory if it doesn't exist
+        upload_dir = "uploads/products"
+        os.makedirs(upload_dir, exist_ok=True)
+
+        # Generate unique filename
+        filename = video_service.generate_filename(file.filename)
+        file_path = os.path.join(upload_dir, filename)
+
+        # Save video file
+        with open(file_path, "wb") as buffer:
+            buffer.write(file_data)
+
+        # Validate duration
+        if not video_service.validate_duration(file_path):
+            # Clean up the file
+            os.remove(file_path)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Video exceeds maximum duration of {video_service.max_duration} seconds"
+            )
+
+        # Validate resolution
+        if not video_service.validate_resolution(file_path):
+            # Clean up the file
+            os.remove(file_path)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Video resolution too low. Minimum required: 480p"
+            )
+
+        # Generate thumbnail
+        thumbnail_path = video_service.generate_thumbnail(file_path)
+        thumbnail_url = None
+        if thumbnail_path:
+            thumbnail_url = f"/static/{thumbnail_path}"
+
+        # Get video metadata
+        metadata = video_service.get_video_metadata(file_path)
+
+        # Create file URL
+        video_url = f"/static/{upload_dir}/{filename}"
+
+        return {
+            "message": "Video uploaded successfully",
+            "url": video_url,
+            "thumbnail_url": thumbnail_url,
+            "filename": filename,
+            "original_name": file.filename,
+            "duration": metadata['duration'],
+            "resolution": f"{metadata['width']}x{metadata['height']}",
+            "file_size_mb": metadata['file_size_mb']
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to upload video: {str(e)}"
         )

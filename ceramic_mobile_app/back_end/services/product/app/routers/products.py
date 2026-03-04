@@ -1,25 +1,27 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Form
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, asc, func, and_, or_
 from typing import List, Optional
 from decimal import Decimal
 import uuid
 import logging
+import os
 
 from shared.database import get_db
 from shared.cache import cache, CacheKeys, CacheInvalidation
 from shared.config import settings
 from shared.security import get_current_user, get_optional_current_user
 from shared.models.user import User, UserRole
-from shared.models.product import Product, Category, ProductImage
+from shared.models.product import Product, Category, ProductImage, ProductVideo
 from shared.models.seller_category import SellerCategory
 from shared.models.review import Review
 
 from app.schemas.product import (
     ProductCreate, ProductResponse, ProductUpdate,
-    CategoryCreate, CategoryResponse, SellerInfo, ProductImageResponse
+    CategoryCreate, CategoryResponse, SellerInfo, ProductImageResponse, ProductVideoResponse
 )
 from shared.models.seller_profile import SellerProfile
+from shared.models.product import ProductVideo
 
 
 def product_to_dict(product, include_seller=False, db=None):
@@ -69,6 +71,7 @@ def product_to_dict(product, include_seller=False, db=None):
         "is_featured": product.is_featured,
         "created_at": product.created_at,
         "images": [ProductImageResponse.from_orm(img).model_dump() for img in product.images] if product.images else [],
+        "videos": [ProductVideoResponse.from_orm(vid).model_dump() for vid in product.videos] if product.videos else [],
         "seller": seller_info
     }
 from app.services.image_service import image_service
@@ -805,4 +808,143 @@ def bulk_update_stock(
     return {
         "message": f"Updated stock for {updated_count} products",
         "updates": updates
+    }
+
+
+# ===========================================
+# PRODUCT VIDEO ENDPOINTS
+# ===========================================
+
+@router.post("/{product_id}/videos")
+def add_video_to_product(
+    product_id: int,
+    video_url: str = Form(...),
+    thumbnail_url: Optional[str] = Form(None),
+    duration_seconds: Optional[Decimal] = Form(None),
+    file_size_mb: Optional[Decimal] = Form(None),
+    resolution: Optional[str] = Form(None),
+    alt_text: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Add a video to an existing product (after upload)"""
+    if current_user.role not in [UserRole.SELLER, UserRole.DUAL]:
+        raise HTTPException(status_code=403, detail="Only sellers can add videos")
+
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.seller_id == current_user.id
+    ).first()
+
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found or not owned")
+
+    # Check if product already has a video (limit 1 for MVP)
+    existing_video_count = db.query(ProductVideo).filter(
+        ProductVideo.product_id == product_id
+    ).count()
+
+    if existing_video_count >= 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Product already has a video. Only 1 video allowed per product."
+        )
+
+    # Create video record
+    video = ProductVideo(
+        product_id=product_id,
+        video_url=video_url,
+        thumbnail_url=thumbnail_url,
+        duration_seconds=duration_seconds,
+        file_size_mb=file_size_mb,
+        resolution=resolution,
+        alt_text=alt_text or "Product video",
+        is_primary=True,  # First video is primary
+        order_index=0
+    )
+
+    db.add(video)
+    db.commit()
+    db.refresh(video)
+
+    # Invalidate cache
+    cache.invalidate(CacheKeys.product_detail(product_id))
+
+    return {
+        "message": "Video added to product successfully",
+        "video_id": video.id
+    }
+
+
+@router.get("/{product_id}/videos")
+def get_product_videos(
+    product_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get all videos for a product"""
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    videos = db.query(ProductVideo).filter(
+        ProductVideo.product_id == product_id
+    ).order_by(
+        ProductVideo.is_primary.desc(),
+        ProductVideo.order_index
+    ).all()
+
+    return {
+        "product_id": product_id,
+        "videos": [ProductVideoResponse.from_orm(v).model_dump() for v in videos]
+    }
+
+
+@router.delete("/{product_id}/videos/{video_id}")
+def delete_product_video(
+    product_id: int,
+    video_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a product video"""
+    if current_user.role not in [UserRole.SELLER, UserRole.DUAL]:
+        raise HTTPException(status_code=403, detail="Only sellers can delete videos")
+
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.seller_id == current_user.id
+    ).first()
+
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found or not owned")
+
+    video = db.query(ProductVideo).filter(
+        ProductVideo.id == video_id,
+        ProductVideo.product_id == product_id
+    ).first()
+
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    # Delete video file
+    video_path = video.video_url.replace('/static/', '')
+    if os.path.exists(video_path):
+        os.remove(video_path)
+
+    # Delete thumbnail file
+    if video.thumbnail_url:
+        thumb_path = video.thumbnail_url.replace('/static/', '')
+        if os.path.exists(thumb_path):
+            os.remove(thumb_path)
+
+    # Delete database record
+    db.delete(video)
+    db.commit()
+
+    # Invalidate cache
+    cache.invalidate(CacheKeys.product_detail(product_id))
+
+    return {
+        "message": "Video deleted successfully",
+        "video_id": video_id
     }
