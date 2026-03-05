@@ -42,6 +42,7 @@ NO_CACHE_FLAG=""
 SELECTED_PROJECTS=()
 SETUP_OLLAMA=false
 OLLAMA_PROFILE=""
+SETUP_NGINX=false
 
 # Function to print colored output
 print_color() {
@@ -98,6 +99,121 @@ check_docker() {
         print_color $YELLOW "Please start Docker and try again."
         exit 1
     fi
+}
+
+# Function to check if nginx is installed
+check_nginx() {
+    if command -v nginx &> /dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+# Function to check if nginx is running
+check_nginx_running() {
+    if systemctl is-active --quiet nginx 2>/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+# Function to install nginx
+install_nginx() {
+    print_color $BLUE "Installing nginx..."
+    
+    if ! check_nginx; then
+        print_color $YELLOW "Nginx is not installed. Installing..."
+        sudo apt-get update -qq
+        sudo apt-get install -y nginx
+        if check_nginx; then
+            print_color $GREEN "✓ Nginx installed successfully"
+        else
+            print_color $RED "✗ Failed to install nginx"
+            return 1
+        fi
+    else
+        print_color $GREEN "✓ Nginx is already installed"
+    fi
+}
+
+# Function to setup nginx configuration
+setup_nginx_config() {
+    print_header "Nginx Configuration Setup"
+    
+    # Check if nginx is installed
+    if ! check_nginx; then
+        if ask_yes_no "Nginx is not installed. Do you want to install it now?" "y"; then
+            install_nginx || return 1
+        else
+            print_color $YELLOW "○ Skipping nginx setup"
+            return 1
+        fi
+    fi
+    
+    # Check if nginx is running
+    if ! check_nginx_running; then
+        print_color $YELLOW "⚠ Nginx is not running. Starting nginx..."
+        sudo systemctl start nginx
+        sudo systemctl enable nginx
+        if check_nginx_running; then
+            print_color $GREEN "✓ Nginx started and enabled"
+        else
+            print_color $RED "✗ Failed to start nginx"
+            return 1
+        fi
+    else
+        print_color $GREEN "✓ Nginx is running"
+    fi
+    
+    # Backup current config
+    print_color $BLUE "📦 Backing up current nginx configuration..."
+    if [ -f /etc/nginx/sites-enabled/default ]; then
+        sudo cp /etc/nginx/sites-enabled/default /etc/nginx/sites-enabled/default.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
+        print_color $GREEN "✓ Backup created"
+    fi
+    
+    # Copy unified nginx config
+    print_color $BLUE "📥 Installing unified nginx configuration..."
+    local nginx_conf="$BASE_DIR/nginx-all-projects.conf"
+    
+    if [ ! -f "$nginx_conf" ]; then
+        print_color $RED "✗ Nginx configuration file not found: $nginx_conf"
+        return 1
+    fi
+    
+    sudo cp "$nginx_conf" /etc/nginx/sites-available/
+    print_color $GREEN "✓ Configuration copied to /etc/nginx/sites-available/"
+    
+    # Enable the config
+    print_color $BLUE "🔗 Enabling nginx configuration..."
+    sudo ln -sf /etc/nginx/sites-available/nginx-all-projects.conf /etc/nginx/sites-enabled/
+    sudo rm -f /etc/nginx/sites-enabled/default
+    print_color $GREEN "✓ Configuration enabled"
+    
+    # Test nginx config
+    print_color $BLUE "🔍 Testing nginx configuration..."
+    if sudo nginx -t; then
+        print_color $GREEN "✓ Nginx configuration test passed"
+    else
+        print_color $RED "✗ Nginx configuration test failed"
+        return 1
+    fi
+    
+    # Reload nginx
+    print_color $BLUE "🔄 Reloading nginx..."
+    if sudo systemctl reload nginx; then
+        print_color $GREEN "✓ Nginx reloaded successfully"
+    else
+        print_color $RED "✗ Failed to reload nginx"
+        return 1
+    fi
+    
+    echo
+    print_color $GREEN "✓ Nginx setup complete!"
+    print_color $CYAN "Unified API Gateway available at: http://localhost/"
+    print_color $CYAN "  - Ceramic API: http://localhost/ceramic/"
+    print_color $CYAN "  - Stock API:   http://localhost/stock/"
+    print_color $CYAN "  - Math API:    http://localhost/math/"
 }
 
 # Function to create environment file if not exists
@@ -355,7 +471,11 @@ show_deployment_summary() {
         print_color $GREEN "  ✓ Ollama LLM Setup"
     fi
 
-    if [ ${#SELECTED_PROJECTS[@]} -eq 0 ] && [ "$SETUP_OLLAMA" = false ]; then
+    if [ "$SETUP_NGINX" = true ]; then
+        print_color $GREEN "  ✓ Nginx Unified Gateway"
+    fi
+
+    if [ ${#SELECTED_PROJECTS[@]} -eq 0 ] && [ "$SETUP_OLLAMA" = false ] && [ "$SETUP_NGINX" = false ]; then
         print_color $YELLOW "  No projects selected for deployment"
     fi
     
@@ -628,10 +748,22 @@ main() {
         print_color $YELLOW "○ Skipping Ollama LLM setup"
     fi
 
+    echo
+
+    # Nginx Unified Gateway Setup
+    print_box "Nginx Unified API Gateway" \
+             "Port 80 | Path-based routing | CORS enabled"
+    if ask_yes_no "Do you want to setup Nginx as unified gateway?" "n"; then
+        SETUP_NGINX=true
+        print_color $GREEN "✓ Nginx setup selected"
+    else
+        print_color $YELLOW "○ Skipping Nginx setup"
+    fi
+
     # Show summary and confirm
     show_deployment_summary
-    
-    if [ ${#SELECTED_PROJECTS[@]} -eq 0 ] && [ "$SETUP_OLLAMA" = false ]; then
+
+    if [ ${#SELECTED_PROJECTS[@]} -eq 0 ] && [ "$SETUP_OLLAMA" = false ] && [ "$SETUP_NGINX" = false ]; then
         print_color $YELLOW "No projects selected. Exiting."
         exit 0
     fi
@@ -649,7 +781,13 @@ main() {
             echo
             setup_ollama
         fi
-        
+
+        # Setup Nginx if selected
+        if [ "$SETUP_NGINX" = true ]; then
+            echo
+            setup_nginx_config
+        fi
+
         echo
         print_header "Deployment Complete!"
         
@@ -699,6 +837,18 @@ main() {
             print_color $YELLOW "  │ Model:              llama3.1"
             print_color $YELLOW "  │ Internal API:       http://ollama:11434 (Docker)"
             print_color $YELLOW "  │ Pull new model:     docker exec stock_ollama ollama pull <model>"
+            print_color $WHITE "  └─────────────────────────────────────────────────────┘"
+        fi
+
+        if [ "$SETUP_NGINX" = true ]; then
+            echo
+            print_color $WHITE "  ┌─ Nginx Unified API Gateway ───────────────────────────┐"
+            print_color $YELLOW "  │ Unified Gateway:    http://localhost/"
+            print_color $YELLOW "  │ Ceramic API:        http://localhost/ceramic/"
+            print_color $YELLOW "  │ Stock API:          http://localhost/stock/"
+            print_color $YELLOW "  │ Math API:           http://localhost/math/"
+            print_color $YELLOW "  │ Stock Frontend:     http://localhost/stock-app/"
+            print_color $YELLOW "  │ Health Check:       http://localhost/health"
             print_color $WHITE "  └─────────────────────────────────────────────────────┘"
         fi
 
