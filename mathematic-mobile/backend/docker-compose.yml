@@ -63,6 +63,7 @@ services:
       - "${MATH_DB_PORT:-3310}:3306"
     volumes:
       - math_mysql_data:/var/lib/mysql
+      - ./scripts/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-Mysql_2025}"]
       interval: 10s

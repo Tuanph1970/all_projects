@@ -14,6 +14,7 @@ public interface IProblemManagementService
     Task<(bool Success, string Message)> DeleteProblemAsync(int problemId, int userId);
     Task<(bool Success, string Message, string? ImagePath)> UploadImageAsync(int problemId, int userId, IFormFile file);
     Task<(bool Success, string Message)> UpdateProblemStatusAsync(ProblemStatusUpdate update);
+    Task<(bool Success, string Message)> SendToSolutionServiceAsync(int problemId, int userId);
 }
 
 public class ProblemManagementService : IProblemManagementService
@@ -21,15 +22,18 @@ public class ProblemManagementService : IProblemManagementService
     private readonly ProblemDbContext _context;
     private readonly ILogger<ProblemManagementService> _logger;
     private readonly IConfiguration _configuration;
+    private readonly ISolutionServiceClient _solutionServiceClient;
 
     public ProblemManagementService(
         ProblemDbContext context,
         ILogger<ProblemManagementService> logger,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ISolutionServiceClient solutionServiceClient)
     {
         _context = context;
         _logger = logger;
         _configuration = configuration;
+        _solutionServiceClient = solutionServiceClient;
     }
 
     public async Task<(bool Success, string Message, ProblemResponse? Response)> CreateProblemAsync(int userId, CreateProblemRequest request)
@@ -225,6 +229,66 @@ public class ProblemManagementService : IProblemManagementService
 
         await _context.SaveChangesAsync();
         return (true, "Status updated successfully");
+    }
+
+    public async Task<(bool Success, string Message)> SendToSolutionServiceAsync(int problemId, int userId)
+    {
+        try
+        {
+            var problem = await _context.Problems.FindAsync(problemId);
+            if (problem == null)
+            {
+                return (false, "Problem not found");
+            }
+
+            if (problem.UserId != userId)
+            {
+                return (false, "Unauthorized to process this problem");
+            }
+
+            // Check if problem has an image
+            if (string.IsNullOrEmpty(problem.ImagePath))
+            {
+                return (false, "No image uploaded for this problem");
+            }
+
+            // Update status to Processing
+            problem.Status = ProblemStatus.Processing;
+            problem.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            // Send to Solution Service for processing
+            var solutionRequest = new ProcessImageRequest
+            {
+                ProblemId = problemId,
+                ImagePath = problem.ImagePath,
+                UserId = userId
+            };
+
+            var solutionResponse = await _solutionServiceClient.ProcessImageAsync(solutionRequest);
+
+            if (solutionResponse?.Success == true)
+            {
+                _logger.LogInformation("Problem {ProblemId} sent to Solution Service successfully", problemId);
+                return (true, "Problem sent to Solution Service for processing");
+            }
+            else
+            {
+                _logger.LogWarning("Solution Service returned failure for problem {ProblemId}: {Message}", 
+                    problemId, solutionResponse?.Message ?? "Unknown error");
+                
+                // Revert status
+                problem.Status = ProblemStatus.Pending;
+                await _context.SaveChangesAsync();
+                
+                return (false, solutionResponse?.Message ?? "Failed to process problem");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending problem {ProblemId} to Solution Service", problemId);
+            return (false, $"Failed to send to Solution Service: {ex.Message}");
+        }
     }
 
     private static ProblemResponse MapToResponse(Problem problem)

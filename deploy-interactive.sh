@@ -43,6 +43,7 @@ SELECTED_PROJECTS=()
 SETUP_OLLAMA=false
 OLLAMA_PROFILE=""
 SETUP_NGINX=false
+DOWNLOAD_MATH_MODELS=false
 
 # Function to print colored output
 print_color() {
@@ -471,11 +472,15 @@ show_deployment_summary() {
         print_color $GREEN "  ✓ Ollama LLM Setup"
     fi
 
+    if [ "$DOWNLOAD_MATH_MODELS" = true ]; then
+        print_color $GREEN "  ✓ Mathematics LLM OCR Models Download"
+    fi
+
     if [ "$SETUP_NGINX" = true ]; then
         print_color $GREEN "  ✓ Nginx Unified Gateway"
     fi
 
-    if [ ${#SELECTED_PROJECTS[@]} -eq 0 ] && [ "$SETUP_OLLAMA" = false ] && [ "$SETUP_NGINX" = false ]; then
+    if [ ${#SELECTED_PROJECTS[@]} -eq 0 ] && [ "$SETUP_OLLAMA" = false ] && [ "$DOWNLOAD_MATH_MODELS" = false ] && [ "$SETUP_NGINX" = false ]; then
         print_color $YELLOW "  No projects selected for deployment"
     fi
     
@@ -645,6 +650,100 @@ setup_ollama() {
     print_color $GREEN "✓ Ollama setup complete! (Profile: $OLLAMA_PROFILE)"
 }
 
+# Function to setup Mathematic Mobile OCR and LLM models
+setup_math_models() {
+    local math_llmocr_dir="$MATH_DIR/llmOCR"
+    local download_script="$math_llmocr_dir/scripts/download_models.py"
+
+    if [ ! -d "$math_llmocr_dir" ]; then
+        print_color $RED "Error: Mathematic llmOCR directory not found: $math_llmocr_dir"
+        return 1
+    fi
+
+    if [ ! -f "$download_script" ]; then
+        print_color $RED "Error: Model download script not found: $download_script"
+        return 1
+    fi
+
+    print_header "Mathematics LLM OCR Model Download"
+
+    # Step 1: Check Python environment
+    print_color $BLUE "🔍 Checking Python environment..."
+    if ! command -v python3 &> /dev/null; then
+        print_color $RED "✗ Python3 is not installed"
+        return 1
+    fi
+
+    print_color $GREEN "✓ Python3 found: $(python3 --version)"
+
+    # Step 2: Check/install required dependencies
+    print_color $BLUE "📦 Checking required dependencies..."
+    local missing_deps=()
+
+    if ! python3 -c "import huggingface_hub" &> /dev/null; then
+        missing_deps+=("huggingface_hub")
+    fi
+
+    if ! python3 -c "import transformers" &> /dev/null; then
+        missing_deps+=("transformers")
+    fi
+
+    if ! python3 -c "import loguru" &> /dev/null; then
+        missing_deps+=("loguru")
+    fi
+
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        print_color $YELLOW "⚠ Missing dependencies: ${missing_deps[*]}"
+        if ask_yes_no "Do you want to install missing dependencies?" "y"; then
+            print_color $CYAN "Installing dependencies..."
+            pip3 install -q "${missing_deps[@]}"
+            if [ $? -eq 0 ]; then
+                print_color $GREEN "✓ Dependencies installed"
+            else
+                print_color $RED "✗ Failed to install dependencies"
+                return 1
+            fi
+        else
+            print_color $YELLOW "○ Skipping dependency installation, model download may fail"
+        fi
+    else
+        print_color $GREEN "✓ All required dependencies are installed"
+    fi
+
+    # Step 3: Download models
+    echo
+    print_color $BLUE "📥 Downloading OCR and LLM models for Mathematic Mobile..."
+    print_color $YELLOW "This may take a while on first run (models are ~500MB-2GB)"
+    echo
+
+    cd "$math_llmocr_dir"
+
+    # Run the download script
+    python3 "$download_script" --type all --verbose
+
+    if [ $? -eq 0 ]; then
+        print_color $GREEN "✓ Model download complete!"
+
+        # Show downloaded models
+        echo
+        print_color $CYAN "Downloaded models:"
+        python3 "$download_script" --list-downloaded
+
+        echo
+        print_color $GREEN "✓ Mathematics LLM OCR models are ready!"
+        print_color $YELLOW "Models are stored in: $math_llmocr_dir/models"
+    else
+        print_color $RED "✗ Model download failed"
+        print_color $YELLOW "You can download models manually later:"
+        print_color $WHITE "  cd $math_llmocr_dir"
+        print_color $WHITE "  python3 scripts/download_models.py --type all"
+        return 1
+    fi
+
+    echo
+    print_color $GREEN "✓ Mathematics LLM OCR setup complete!"
+}
+
 # Main interactive flow
 main() {
     clear
@@ -750,6 +849,18 @@ main() {
 
     echo
 
+    # Mathematic Mobile OCR and LLM Models
+    print_box "Mathematics LLM OCR Models" \
+             "OCR: microsoft/trocr-base-math | LLM: google/flan-t5-base"
+    if ask_yes_no "Do you want to download OCR and LLM models for Mathematic Mobile?" "n"; then
+        DOWNLOAD_MATH_MODELS=true
+        print_color $GREEN "✓ Mathematics LLM OCR models download selected"
+    else
+        print_color $YELLOW "○ Skipping Mathematics LLM OCR models download"
+    fi
+
+    echo
+
     # Nginx Unified Gateway Setup
     print_box "Nginx Unified API Gateway" \
              "Port 80 | Path-based routing | CORS enabled"
@@ -763,7 +874,7 @@ main() {
     # Show summary and confirm
     show_deployment_summary
 
-    if [ ${#SELECTED_PROJECTS[@]} -eq 0 ] && [ "$SETUP_OLLAMA" = false ] && [ "$SETUP_NGINX" = false ]; then
+    if [ ${#SELECTED_PROJECTS[@]} -eq 0 ] && [ "$SETUP_OLLAMA" = false ] && [ "$DOWNLOAD_MATH_MODELS" = false ] && [ "$SETUP_NGINX" = false ]; then
         print_color $YELLOW "No projects selected. Exiting."
         exit 0
     fi
@@ -780,6 +891,12 @@ main() {
         if [ "$SETUP_OLLAMA" = true ]; then
             echo
             setup_ollama
+        fi
+
+        # Download Mathematic Mobile OCR and LLM models if selected
+        if [ "$DOWNLOAD_MATH_MODELS" = true ]; then
+            echo
+            setup_math_models
         fi
 
         # Setup Nginx if selected
@@ -837,6 +954,16 @@ main() {
             print_color $YELLOW "  │ Model:              llama3.1"
             print_color $YELLOW "  │ Internal API:       http://ollama:11434 (Docker)"
             print_color $YELLOW "  │ Pull new model:     docker exec stock_ollama ollama pull <model>"
+            print_color $WHITE "  └─────────────────────────────────────────────────────┘"
+        fi
+
+        if [ "$DOWNLOAD_MATH_MODELS" = true ]; then
+            echo
+            print_color $WHITE "  ┌─ Mathematics LLM OCR Models ────────────────────────┐"
+            print_color $YELLOW "  │ OCR Model:          microsoft/trocr-base-math"
+            print_color $YELLOW "  │ LLM Model:          google/flan-t5-base"
+            print_color $YELLOW "  │ Models Directory:   $MATH_DIR/llmOCR/models"
+            print_color $YELLOW "  │ List models:        python3 scripts/download_models.py --list-downloaded"
             print_color $WHITE "  └─────────────────────────────────────────────────────┘"
         fi
 

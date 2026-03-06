@@ -123,36 +123,8 @@ app.MapGet("/health", () => Results.Ok(new
     timestamp = DateTime.UtcNow
 }));
 
-// Apply migrations on startup with retry logic
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-
-    var maxRetries = 10;
-    var delay = TimeSpan.FromSeconds(5);
-
-    for (int i = 0; i < maxRetries; i++)
-    {
-        try
-        {
-            logger.LogInformation("Attempting database connection (attempt {Attempt}/{MaxRetries})...", i + 1, maxRetries);
-            db.Database.EnsureCreated();
-            logger.LogInformation("Database connection successful and tables created");
-            break;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Database connection failed (attempt {Attempt}/{MaxRetries})", i + 1, maxRetries);
-            if (i == maxRetries - 1)
-            {
-                logger.LogError("Failed to connect to database after {MaxRetries} attempts", maxRetries);
-                throw;
-            }
-            Thread.Sleep(delay);
-        }
-    }
-}
+// Database initialization is handled by MySQL init scripts
+// Services will connect to pre-initialized database
 
 var port = Environment.GetEnvironmentVariable("SERVICE_PORT") ?? "8001";
 app.Run($"http://0.0.0.0:{port}");

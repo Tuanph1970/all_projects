@@ -4,7 +4,7 @@ import Constants from 'expo-constants';
 
 // Create axios instance with base configuration
 const apiClient = axios.create({
-  baseURL: Constants.expoConfig?.extra?.API_BASE_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8001/api',
+  baseURL: Constants.expoConfig?.extra?.API_BASE_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8001/api/v1',
   timeout: parseInt(process.env.EXPO_PUBLIC_API_TIMEOUT) || 10000,
   headers: {
     'Content-Type': 'application/json',
