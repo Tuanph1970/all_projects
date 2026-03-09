@@ -1,0 +1,47 @@
+# Test flow: User registration
+# Tests the complete registration process
+
+appId: com.mathematics.solver
+
+---
+
+# Navigate to register screen if on login
+- tapOn:
+    id: "register-button"
+    optional: true
+
+# Wait for register screen
+- assertVisible:
+    id: "register-screen"
+    timeout: 5000
+
+# Enter registration details
+- tapOn:
+    id: "register-name-input"
+- inputText: "Test User ${RANDOM}"
+
+- tapOn:
+    id: "register-email-input"
+- inputText: "testuser${RANDOM}@test.com"
+
+- tapOn:
+    id: "register-password-input"
+- inputText: "Test@12345678"
+
+- tapOn:
+    id: "register-confirm-password-input"
+- inputText: "Test@12345678"
+
+# Submit registration
+- tapOn:
+    id: "register-submit-button"
+
+# Wait for registration to complete
+- waitForAnimationToEnd:
+    timeout: 5000
+
+# Verify successful registration (should navigate to home or verify email screen)
+- assertVisible:
+    id: "home-screen"
+    timeout: 10000
+    optional: true

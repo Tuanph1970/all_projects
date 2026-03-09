@@ -96,16 +96,16 @@ class ModelConfig(BaseModel):
 
 class ModelRegistryConfig(BaseModel):
     """Configuration for the model registry."""
-    
-    default_ocr_model: str = Field("microsoft/trocr-base-math", description="Default OCR model")
+
+    default_ocr_model: str = Field("microsoft/trocr-base-handwritten", description="Default OCR model")
     default_solution_model: str = Field("google/flan-t5-base", description="Default solution model")
-    
+
     # Available models
     ocr_models: List[str] = Field(
         default_factory=lambda: [
-            "microsoft/trocr-base-math",
             "microsoft/trocr-base-handwritten",
-            "google/tapas-base",
+            "microsoft/trocr-base-printed",
+            "microsoft/trocr-large-handwritten",
         ],
         description="Available OCR models"
     )
@@ -126,11 +126,11 @@ class ModelRegistryConfig(BaseModel):
 # Predefined model configurations
 DEFAULT_MODEL_CONFIGS: Dict[str, ModelConfig] = {
     # OCR Models
-    "microsoft/trocr-base-math": ModelConfig(
-        name="microsoft/trocr-base-math",
+    "microsoft/trocr-base-handwritten": ModelConfig(
+        name="microsoft/trocr-base-handwritten",
         model_type=ModelType.OCR,
         provider=ModelProvider.HUGGING_FACE,
-        model_id="microsoft/trocr-base-math",
+        model_id="microsoft/trocr-base-handwritten",
         max_length=512,
         confidence_threshold=0.8,
         extra_config={
@@ -138,25 +138,25 @@ DEFAULT_MODEL_CONFIGS: Dict[str, ModelConfig] = {
             "model_class": "VisionEncoderDecoderModel",
         }
     ),
-    
-    "microsoft/trocr-base-handwritten": ModelConfig(
-        name="microsoft/trocr-base-handwritten",
+
+    "microsoft/trocr-base-printed": ModelConfig(
+        name="microsoft/trocr-base-printed",
         model_type=ModelType.OCR,
         provider=ModelProvider.HUGGING_FACE,
-        model_id="microsoft/trocr-base-handwritten",
+        model_id="microsoft/trocr-base-printed",
         max_length=512,
-        confidence_threshold=0.75,
+        confidence_threshold=0.8,
         extra_config={
             "processor_class": "TrOCRProcessor",
             "model_class": "VisionEncoderDecoderModel",
         }
     ),
-    
-    "microsoft/trocr-large-math": ModelConfig(
-        name="microsoft/trocr-large-math",
+
+    "microsoft/trocr-large-handwritten": ModelConfig(
+        name="microsoft/trocr-large-handwritten",
         model_type=ModelType.OCR,
         provider=ModelProvider.HUGGING_FACE,
-        model_id="microsoft/trocr-large-math",
+        model_id="microsoft/trocr-large-handwritten",
         max_length=512,
         confidence_threshold=0.85,
         extra_config={
@@ -264,20 +264,20 @@ class ModelConfigFactory:
     def get_ocr_config(self, model_name: Optional[str] = None) -> ModelConfig:
         """
         Get OCR model configuration.
-        
+
         Args:
             model_name: Optional model name, uses default if not provided
-            
+
         Returns:
             ModelConfig for OCR model
         """
-        name = model_name or "microsoft/trocr-base-math"
+        name = model_name or "microsoft/trocr-base-handwritten"
         config = self.get_config(name)
-        
+
         if not config:
             logger.warning(f"OCR model '{name}' not found, using default")
             return self.create_default_ocr_config(name)
-        
+
         return config
     
     def get_solution_config(self, model_name: Optional[str] = None) -> ModelConfig:
@@ -413,7 +413,7 @@ class ModelConfigFactory:
     def get_registry_config(self) -> ModelRegistryConfig:
         """Get the model registry configuration."""
         return ModelRegistryConfig(
-            default_ocr_model="microsoft/trocr-base-math",
+            default_ocr_model="microsoft/trocr-base-handwritten",
             default_solution_model="google/flan-t5-base",
             ocr_models=self.list_configs(ModelType.OCR),
             solution_models=self.list_configs(ModelType.SOLUTION),

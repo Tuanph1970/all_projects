@@ -1,0 +1,50 @@
+{
+  "name": "math-mobile-automation-tests",
+  "version": "1.0.0",
+  "description": "E2E automation tests for Mathematics Solver mobile app using Maestro",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm run maestro:test",
+    "test:unit": "jest --config jest.config.unit.js",
+    "test:unit:watch": "jest --config jest.config.unit.js --watch",
+    "test:unit:coverage": "jest --config jest.config.unit.js --coverage",
+    "test:api": "jest --config jest.config.api.js",
+    "test:api:watch": "jest --config jest.config.api.js --watch",
+    "test:api:auth": "jest --config jest.config.api.js --testPathPattern=auth.api.test.js",
+    "test:api:verbose": "jest --config jest.config.api.js --verbose",
+    "maestro:test": "./scripts/run-maestro-tests.sh all",
+    "maestro:smoke": "./scripts/run-test-suite.sh smoke",
+    "maestro:auth": "./scripts/run-test-suite.sh auth",
+    "maestro:problem": "./scripts/run-test-suite.sh problem",
+    "maestro:solution": "./scripts/run-test-suite.sh solution",
+    "maestro:regression": "./scripts/run-test-suite.sh regression",
+    "maestro:quick": "./scripts/run-test-suite.sh quick",
+    "maestro:debug": "./scripts/maestro-quick-test.sh debug",
+    "maestro:setup": "./scripts/setup-maestro.sh",
+    "start-server": "cd ../backend && dotnet run",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "keywords": [
+    "maestro",
+    "e2e",
+    "automation",
+    "react-native",
+    "testing",
+    "mathematics",
+    "ocr"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-circus": "^29.7.0",
+    "@babel/core": "^7.20.0",
+    "@babel/preset-env": "^7.20.0",
+    "@babel/preset-typescript": "^7.21.0",
+    "eslint": "^8.50.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.2"
+  }
+}

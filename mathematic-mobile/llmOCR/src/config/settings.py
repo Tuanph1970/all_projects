@@ -22,7 +22,7 @@ class MLModelSettings(BaseSettings):
     device: str = Field(default="cpu", env="ML_DEVICE")  # cpu, cuda, mps
     
     # OCR Model Settings
-    ocr_model_name: str = Field(default="microsoft/trocr-base-math", env="OCR_MODEL_NAME")
+    ocr_model_name: str = Field(default="microsoft/trocr-base-handwritten", env="OCR_MODEL_NAME")
     ocr_confidence_threshold: float = Field(default=0.8, env="OCR_CONFIDENCE_THRESHOLD")
     ocr_max_image_size: int = Field(default=2048, env="OCR_MAX_IMAGE_SIZE")
     

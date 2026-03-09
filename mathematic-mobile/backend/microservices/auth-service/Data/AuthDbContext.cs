@@ -25,8 +25,12 @@ public class AuthDbContext : DbContext
             entity.Property(e => e.FullName).HasMaxLength(100);
             entity.Property(e => e.Role).HasMaxLength(20).HasDefaultValue("User");
 
-            entity.HasIndex(e => e.Username).IsUnique();
-            entity.HasIndex(e => e.Email).IsUnique();
+            // Indexes for performance
+            entity.HasIndex(e => e.Username).IsUnique().HasDatabaseName("IX_Users_Username");
+            entity.HasIndex(e => e.Email).IsUnique().HasDatabaseName("IX_Users_Email");
+            entity.HasIndex(e => e.Role).HasDatabaseName("IX_Users_Role");
+            entity.HasIndex(e => e.IsActive).HasDatabaseName("IX_Users_IsActive");
+            entity.HasIndex(e => e.CreatedAt).HasDatabaseName("IX_Users_CreatedAt");
         });
     }
 }

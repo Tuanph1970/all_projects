@@ -11,10 +11,10 @@ Usage:
 Examples:
     # Download default models
     python scripts/download_models.py
-    
+
     # Download specific models
-    python scripts/download_models.py --models microsoft/trocr-base-math,google/flan-t5-base
-    
+    python scripts/download_models.py --models microsoft/trocr-base-handwritten,google/flan-t5-base
+
     # Download to custom directory
     python scripts/download_models.py --output-dir /path/to/models
 """
@@ -193,7 +193,7 @@ class ModelDownloader:
                 "path": str(local_path),
                 "status": "downloaded",
                 "download_time": download_time,
-                "size_bytes": get_directory_size(local_path)
+                "size_bytes": get_directory_size(Path(local_path))
             }
             
         except Exception as e:
@@ -347,10 +347,10 @@ class ModelDownloader:
 def model_name_to_path(model_name: str) -> str:
     """
     Convert model name to safe directory path.
-    
+
     Args:
-        model_name: Model name (e.g., 'microsoft/trocr-base-math')
-        
+        model_name: Model name (e.g., 'microsoft/trocr-base-handwritten')
+
     Returns:
         Safe path string
     """
@@ -507,7 +507,7 @@ def main():
         model_names = []
         
         if args.type in ["ocr", "all"]:
-            model_names.append("microsoft/trocr-base-math")
+            model_names.append("microsoft/trocr-base-handwritten")
         
         if args.type in ["solution", "all"]:
             model_names.append("google/flan-t5-base")

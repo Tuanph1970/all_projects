@@ -5,11 +5,52 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using AuthService.Data;
 using AuthService.Services;
+using AuthService.SeedData;
+using AuthService.Middleware;
+using Microsoft.AspNetCore.ResponseCompression;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
+
+// Configure Response Compression
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<GzipCompressionProvider>();
+    options.Providers.Add<BrotliCompressionProvider>();
+    options.MimeTypes = new[]
+    {
+        "text/plain",
+        "text/css",
+        "application/json",
+        "application/xml",
+        "text/xml",
+        "application/javascript",
+        "text/javascript",
+        "application/octet-stream"
+    };
+});
+
+builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+{
+    options.Level = System.IO.Compression.CompressionLevel.Optimal;
+});
+
+builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+{
+    options.Level = System.IO.Compression.CompressionLevel.Optimal;
+});
+
+// Configure Rate Limiting
+builder.Services.Configure<RateLimitOptions>(options =>
+{
+    options.PermitLimit = 100; // 100 requests per window
+    options.WindowInSeconds = 60; // per minute
+    options.SegmentsPerWindow = 4;
+    options.QueueLimit = 10;
+});
 
 // Configure Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -59,7 +100,14 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 var serverVersion = new MySqlServerVersion(new Version(8, 0, 0));
 
 builder.Services.AddDbContext<AuthDbContext>(options =>
-    options.UseMySql(connectionString, serverVersion));
+    options.UseMySql(connectionString, serverVersion, mysqlOptions =>
+    {
+        mysqlOptions.MigrationsAssembly(typeof(AuthDbContext).Assembly.FullName);
+        mysqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 3,
+            maxRetryDelay: TimeSpan.FromSeconds(30),
+            errorNumbersToAdd: null);
+    }));
 
 // Configure JWT Authentication
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"]
@@ -84,11 +132,34 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
+// Configure Redis Caching
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    var redisConnection = builder.Configuration.GetConnectionString("Redis")
+        ?? Environment.GetEnvironmentVariable("REDIS_CONNECTION")
+        ?? "localhost:6379";
+    
+    options.Configuration = redisConnection;
+    options.ConfigurationOptions = new StackExchange.Redis.ConfigurationOptions
+    {
+        EndPoints = { redisConnection },
+        AbortOnConnectFail = false,
+        ConnectTimeout = 5000,
+        SyncTimeout = 5000
+    };
+});
+
+// Register Cache Service
+builder.Services.AddScoped<ICacheService, CacheService>();
+
 // Register Services
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 
-// Configure CORS
+// Configure Secure CORS
+builder.Services.AddSecureCors("AllowSpecificOrigins");
+
+// Configure CORS for development (can be restricted in production)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -101,6 +172,23 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Initialize database
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<AuthDbContext>();
+        context.Database.EnsureCreated();
+        await DbSeeder.Initialize(services);
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while seeding the database.");
+    }
+}
+
 // Configure the HTTP request pipeline.
 app.UseSwagger();
 app.UseSwaggerUI(c =>
@@ -108,6 +196,15 @@ app.UseSwaggerUI(c =>
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Mathematics Auth Service v1");
     c.RoutePrefix = "swagger";
 });
+
+// Use Response Compression
+app.UseResponseCompression();
+
+// Use Rate Limiting
+app.UseRateLimiting();
+
+// Use Security Headers
+app.UseSecurityHeaders();
 
 app.UseCors("AllowAll");
 app.UseAuthentication();

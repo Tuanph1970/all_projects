@@ -13,6 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../hooks/useTheme';
 import SolutionSteps from '../../components/solution/SolutionSteps';
 import StepNavigation from '../../components/solution/StepNavigation';
+import BookmarkButton from '../../components/common/BookmarkButton';
+import ShareSolution from '../../components/solution/ShareSolution';
 import {
   fetchSolutionByProblemId,
   setCurrentStep,
@@ -27,7 +29,7 @@ const SolutionScreen = ({ route, navigation }) => {
   const dispatch = useDispatch();
   
   const { problemId, solutionId } = route.params || {};
-  
+
   const {
     currentSolution,
     isLoading,
@@ -36,8 +38,9 @@ const SolutionScreen = ({ route, navigation }) => {
     userRating,
     isRatingSubmitted,
   } = useSelector((state) => state.solution);
-  
+
   const [showRating, setShowRating] = useState(false);
+  const [showShare, setShowShare] = useState(false);
 
   useEffect(() => {
     if (problemId) {
@@ -94,6 +97,8 @@ const SolutionScreen = ({ route, navigation }) => {
       <Text style={styles.headerTitle}>Solution</Text>
       
       <View style={styles.headerActions}>
+        <BookmarkButton solution={currentSolution} size={24} />
+        
         {currentSolution && !isRatingSubmitted && (
           <TouchableOpacity
             style={styles.rateButton}
@@ -103,13 +108,10 @@ const SolutionScreen = ({ route, navigation }) => {
             <Ionicons name="star-outline" size={24} color={colors.text} />
           </TouchableOpacity>
         )}
-        
+
         <TouchableOpacity
           style={styles.shareButton}
-          onPress={() => {
-            // Implement share functionality
-            Alert.alert('Share', 'Share functionality coming soon!');
-          }}
+          onPress={() => setShowShare(true)}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Ionicons name="share-outline" size={24} color={colors.text} />
@@ -223,6 +225,13 @@ const SolutionScreen = ({ route, navigation }) => {
       />
       
       {renderRatingModal()}
+      
+      <ShareSolution
+        solution={currentSolution}
+        problem={route.params?.problem}
+        visible={showShare}
+        onClose={() => setShowShare(false)}
+      />
     </SafeAreaView>
   );
 };

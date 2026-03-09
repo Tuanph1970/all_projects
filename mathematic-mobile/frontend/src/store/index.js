@@ -8,6 +8,7 @@ import problemReducer from './slices/problemSlice';
 import solutionReducer from './slices/solutionSlice';
 import userReducer from './slices/userSlice';
 import appReducer from './slices/appSlice';
+import bookmarkReducer from './slices/bookmarkSlice';
 
 // Validate SecureStore key format
 const validateSecureStoreKey = (key) => {
@@ -73,7 +74,8 @@ const rootReducer = combineReducers({
   problem: problemReducer,
   solution: solutionReducer,
   user: userReducer,
-  app: appReducer
+  app: appReducer,
+  bookmarks: bookmarkReducer
 });
 
 // Persist configuration
@@ -119,3 +121,4 @@ export const selectProblem = (state) => state.problem;
 export const selectSolution = (state) => state.solution;
 export const selectUser = (state) => state.user;
 export const selectApp = (state) => state.app;
+export const selectBookmarks = (state) => state.bookmarks;

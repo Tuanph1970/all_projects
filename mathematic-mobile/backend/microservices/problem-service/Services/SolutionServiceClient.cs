@@ -11,6 +11,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Polly;
 using Polly.Retry;
+using Polly.Timeout;
 
 namespace ProblemService.Services;
 
@@ -78,10 +79,13 @@ public class SolutionServiceClient : ISolutionServiceClient
         _configuration = configuration;
         _serviceToken = configuration["InternalServiceToken"] ?? Environment.GetEnvironmentVariable("INTERNAL_SERVICE_TOKEN") ?? "internal-service-token";
 
-        // Configure retry policy with Polly
-        _retryPolicy = HttpPolicyExtensions
-            .HandleTransientHttpError()
-            .OrResult(msg => msg.StatusCode == HttpStatusCode.TooManyRequests)
+        // Configure retry policy with Polly 7.x API
+        _retryPolicy = Policy
+            .Handle<HttpRequestException>()
+            .OrResult<HttpResponseMessage>(msg => 
+                msg.StatusCode >= HttpStatusCode.InternalServerError || 
+                msg.StatusCode == HttpStatusCode.RequestTimeout ||
+                msg.StatusCode == HttpStatusCode.TooManyRequests)
             .WaitAndRetryAsync(
                 retryCount: 3,
                 sleepDurationProvider: retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)), // Exponential backoff: 2s, 4s, 8s
@@ -238,29 +242,16 @@ public static class SolutionServiceClientExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var solutionServiceUrl = configuration["SolutionService:BaseUrl"] 
-            ?? Environment.GetEnvironmentVariable("SOLUTION_SERVICE_URL") 
+        var solutionServiceUrl = configuration["SolutionService:BaseUrl"]
+            ?? Environment.GetEnvironmentVariable("SOLUTION_SERVICE_URL")
             ?? "http://solution-service:8003";
 
-        services.AddHttpClient<ISolutionServiceClient, SolutionServiceClient>((serviceProvider, client) =>
+        services.AddHttpClient<ISolutionServiceClient, SolutionServiceClient>(client =>
         {
             client.BaseAddress = new Uri(solutionServiceUrl);
             client.DefaultRequestHeaders.Add("Accept", "application/json");
             client.Timeout = TimeSpan.FromSeconds(60); // Longer timeout for ML processing
-        })
-        .AddTransientHttpErrorPolicy(policy => policy.WaitAndRetryAsync(
-            retryCount: 3,
-            sleepDurationProvider: retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
-            onRetry: (outcome, timespan, retryAttempt, context) =>
-            {
-                var logger = serviceProvider.GetRequiredService<ILogger<SolutionServiceClient>>();
-                logger.LogWarning(
-                    "Retry {RetryAttempt} after {Delay}s: {StatusCode}",
-                    retryAttempt,
-                    timespan.TotalSeconds,
-                    outcome.Result?.StatusCode.ToString() ?? "Error");
-            }
-        ));
+        });
 
         return services;
     }

@@ -16,10 +16,10 @@ from ..utils.image_processing import ImagePreprocessor
 
 class OCRModel(BaseMLModel):
     """OCR model for mathematical text recognition."""
-    
+
     def __init__(
-        self, 
-        model_name: str = "microsoft/trocr-base-math",
+        self,
+        model_name: str = "microsoft/trocr-base-handwritten",
         device: str = "cpu",
         confidence_threshold: float = 0.8
     ):

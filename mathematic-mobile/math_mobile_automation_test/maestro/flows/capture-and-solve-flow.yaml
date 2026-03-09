@@ -1,0 +1,44 @@
+# Test flow: Capture math problem and get solution
+# Tests the core OCR and solution functionality
+
+appId: com.mathematics.solver
+env:
+  USERNAME: ${USERNAME:-test_user}
+  PASSWORD: ${PASSWORD:-Test@12345678}
+  TEST_IMAGE_PATH: ${TEST_IMAGE_PATH:-/tmp/test_math_problem.jpg}
+
+---
+
+# Login first
+- runFlow: flows/login-flow.yaml
+
+# Navigate to camera/scan screen
+- tapOn:
+    id: "scan-button"
+    timeout: 5000
+
+# Wait for camera to be ready
+- waitForAnimationToEnd:
+    timeout: 3000
+
+# Capture image (simulated - in real test would use actual camera)
+- tapOn:
+    id: "capture-button"
+
+# Wait for OCR processing
+- waitForAnimationToEnd:
+    timeout: 10000
+
+# Verify we see the solution
+- assertVisible:
+    id: "solution-result"
+    timeout: 15000
+
+# Verify solution contains expected elements
+- assertVisible:
+    id: "solution-steps"
+
+# Navigate back to home
+- tapOn:
+    id: "back-button"
+    optional: true

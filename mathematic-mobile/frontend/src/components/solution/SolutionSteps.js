@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../hooks/useTheme';
+import MathRenderer from '../common/MathRenderer';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -60,11 +61,13 @@ const SolutionSteps = ({ solution, currentStep, onStepChange }) => {
   };
 
   const renderMathFormula = (formula) => {
-    // Simple formula renderer - in production, you'd use MathJax or KaTeX
+    // Use MathRenderer component with KaTeX for proper math rendering
     return (
-      <View style={styles.formulaContainer}>
-        <Text style={styles.formulaText}>{formula}</Text>
-      </View>
+      <MathRenderer 
+        formula={formula} 
+        size={18}
+        showCopyButton={true}
+      />
     );
   };
 

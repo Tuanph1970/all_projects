@@ -7,17 +7,36 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
+  Image,
+  ScrollView,
+  Modal,
 } from 'react-native';
 import { Camera } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useDispatch } from 'react-redux';
 import { useTheme } from '../../hooks/useTheme';
 import { submitProblem } from '../../store/slices/problemSlice';
+import ImageQualityChecker from '../../components/camera/ImageQualityChecker';
+import ImageCropper from '../../components/camera/ImageCropper';
+import {
+  compressImage,
+  checkImageQuality,
+  optimizeImageForUpload,
+  formatFileSize,
+} from '../../utils/imageCompression';
 
 const CameraScreen = ({ navigation }) => {
   const [hasPermission, setHasPermission] = useState(null);
   const [isReady, setIsReady] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [capturedImages, setCapturedImages] = useState([]);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [showQualityCheck, setShowQualityCheck] = useState(false);
+  const [showCropper, setShowCropper] = useState(false);
+  const [imageQuality, setImageQuality] = useState(0);
+  const [category, setCategory] = useState('General');
   const cameraRef = useRef(null);
   const dispatch = useDispatch();
   const { colors } = useTheme();
@@ -30,52 +49,163 @@ const CameraScreen = ({ navigation }) => {
     })();
   }, []);
 
+  /**
+   * Take picture with quality check
+   */
   const takePicture = async () => {
     if (cameraRef.current && isReady && !isProcessing) {
       try {
         setIsProcessing(true);
 
         const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.8,
+          quality: 0.9,
           base64: false,
+          exif: true,
         });
 
-        // Submit problem to backend with default category
-        const resultAction = await dispatch(submitProblem({
-          imageUri: photo.uri,
-          category: 'General',
-          description: 'Captured from camera'
-        }));
+        // Check image quality
+        const qualityResult = await checkImageQuality(photo.uri);
+        setImageQuality(qualityResult.quality);
 
+        // Compress image
+        const compressedImage = await optimizeImageForUpload(photo.uri);
+
+        setCapturedImages([...capturedImages, compressedImage]);
+        setSelectedImage(compressedImage);
+        setShowPreview(true);
+        setShowQualityCheck(true);
         setIsProcessing(false);
-
-        if (submitProblem.fulfilled.match(resultAction)) {
-          const problem = resultAction.payload;
-
-          Alert.alert(
-            'Success!',
-            'Your math problem is being processed',
-            [{
-              text: 'View Solution',
-              onPress: () => {
-                navigation.navigate('Solution', { problemId: problem.id });
-              }
-            }, {
-              text: 'OK',
-              onPress: () => navigation.goBack()
-            }]
-          );
-        } else {
-          Alert.alert(
-            'Error',
-            resultAction.error?.message || 'Failed to submit problem. Please try again.'
-          );
-        }
       } catch (error) {
         setIsProcessing(false);
         Alert.alert('Error', 'Failed to take picture');
       }
     }
+  };
+
+  /**
+   * Pick image from gallery
+   */
+  const pickImageFromGallery = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please grant permission to access your photos'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [3, 4],
+        quality: 0.9,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const selectedImage = result.assets[0];
+        
+        // Check image quality
+        const qualityResult = await checkImageQuality(selectedImage.uri);
+        setImageQuality(qualityResult.quality);
+
+        // Compress image
+        const compressedImage = await optimizeImageForUpload(selectedImage.uri);
+
+        setCapturedImages([...capturedImages, compressedImage]);
+        setSelectedImage(compressedImage);
+        setShowPreview(true);
+        setShowQualityCheck(true);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image from gallery');
+    }
+  };
+
+  /**
+   * Use image despite quality issues
+   */
+  const handleUseImageAnyway = () => {
+    setShowQualityCheck(false);
+  };
+
+  /**
+   * Retake image
+   */
+  const handleRetake = () => {
+    setCapturedImages([]);
+    setSelectedImage(null);
+    setShowPreview(false);
+    setShowQualityCheck(false);
+  };
+
+  /**
+   * Proceed to submit image
+   */
+  const handleSubmit = async () => {
+    if (!selectedImage) return;
+
+    try {
+      setIsProcessing(true);
+      setShowPreview(false);
+
+      // Submit problem to backend
+      const resultAction = await dispatch(submitProblem({
+        imageUri: selectedImage.uri,
+        category,
+        description: 'Captured from camera or gallery',
+      }));
+
+      setIsProcessing(false);
+
+      if (submitProblem.fulfilled.match(resultAction)) {
+        const problem = resultAction.payload;
+
+        Alert.alert(
+          'Success!',
+          'Your math problem is being processed',
+          [{
+            text: 'View Solution',
+            onPress: () => {
+              navigation.navigate('Solution', { problemId: problem.id });
+            }
+          }, {
+            text: 'OK',
+            onPress: () => {
+              setCapturedImages([]);
+              setSelectedImage(null);
+              navigation.goBack();
+            }
+          }]
+        );
+      } else {
+        Alert.alert(
+          'Error',
+          resultAction.error?.message || 'Failed to submit problem. Please try again.'
+        );
+      }
+    } catch (error) {
+      setIsProcessing(false);
+      Alert.alert('Error', 'Failed to submit problem');
+    }
+  };
+
+  /**
+   * Open cropper
+   */
+  const handleCrop = () => {
+    setShowCropper(true);
+  };
+
+  /**
+   * Handle crop complete
+   */
+  const handleCropComplete = (croppedUri) => {
+    setSelectedImage({ uri: croppedUri });
+    setShowCropper(false);
   };
 
   if (hasPermission === null) {
@@ -101,6 +231,97 @@ const CameraScreen = ({ navigation }) => {
           <Text style={styles.backButtonText}>Go Back</Text>
         </TouchableOpacity>
       </View>
+    );
+  }
+
+  // Show image preview with quality check
+  if (showPreview && selectedImage) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.previewContainer}>
+          <View style={styles.previewHeader}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={handleRetake}
+            >
+              <Ionicons name="close" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.previewTitle}>Preview</Text>
+            <TouchableOpacity
+              style={styles.submitButton}
+              onPress={handleSubmit}
+              disabled={isProcessing}
+            >
+              {isProcessing ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.submitButtonText}>Submit</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.previewContent} showsVerticalScrollIndicator={false}>
+            <Image source={{ uri: selectedImage.uri }} style={styles.previewImage} />
+
+            {showQualityCheck && (
+              <ImageQualityChecker
+                quality={imageQuality}
+                onRetake={handleRetake}
+                onUseAnyway={handleUseImageAnyway}
+              />
+            )}
+
+            <View style={styles.imageInfo}>
+              <View style={styles.infoRow}>
+                <Ionicons name="folder" size={20} color={colors.textSecondary} />
+                <Text style={styles.infoText}>
+                  Size: {formatFileSize(selectedImage.width * selectedImage.height)}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Ionicons name="image" size={20} color={colors.textSecondary} />
+                <Text style={styles.infoText}>
+                  Dimensions: {selectedImage.width} x {selectedImage.height}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.actions}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={handleCrop}
+              >
+                <Ionicons name="crop" size={24} color={colors.primary} />
+                <Text style={styles.actionButtonText}>Crop</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={pickImageFromGallery}
+              >
+                <Ionicons name="images" size={24} color={colors.primary} />
+                <Text style={styles.actionButtonText}>Gallery</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={handleRetake}
+              >
+                <Ionicons name="refresh" size={24} color={colors.primary} />
+                <Text style={styles.actionButtonText}>Retake</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </View>
+
+        {showCropper && (
+          <ImageCropper
+            imageUri={selectedImage.uri}
+            onCropComplete={handleCropComplete}
+            onCancel={() => setShowCropper(false)}
+          />
+        )}
+      </SafeAreaView>
     );
   }
 
@@ -132,7 +353,12 @@ const CameraScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.controls}>
-            <View style={styles.placeholder} />
+            <TouchableOpacity
+              style={styles.galleryButton}
+              onPress={pickImageFromGallery}
+            >
+              <Ionicons name="images" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
             <TouchableOpacity
               style={[
                 styles.captureButton,
@@ -147,9 +373,7 @@ const CameraScreen = ({ navigation }) => {
                 <View style={styles.captureButtonInner} />
               )}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.galleryButton}>
-              <Ionicons name="images" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
+            <View style={styles.placeholder} />
           </View>
 
           {isProcessing && (
@@ -295,6 +519,80 @@ const createStyles = (colors) =>
       fontSize: 16,
       fontWeight: '600',
       marginTop: 16,
+    },
+    // Preview styles
+    previewContainer: {
+      flex: 1,
+      backgroundColor: '#000',
+    },
+    previewHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    closeButton: {
+      padding: 8,
+    },
+    previewTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: '#FFFFFF',
+    },
+    submitButton: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: 20,
+      paddingVertical: 8,
+      borderRadius: 8,
+    },
+    submitButtonText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    previewContent: {
+      flex: 1,
+    },
+    previewImage: {
+      width: '100%',
+      height: 400,
+      resizeMode: 'contain',
+      backgroundColor: '#000',
+    },
+    imageInfo: {
+      padding: 16,
+      backgroundColor: colors.surface,
+    },
+    infoRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    infoText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginLeft: 8,
+    },
+    actions: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      padding: 16,
+      backgroundColor: colors.surface,
+      borderTopWidth: 1,
+      borderTopColor: colors.outline,
+    },
+    actionButton: {
+      alignItems: 'center',
+      padding: 12,
+      gap: 4,
+    },
+    actionButtonText: {
+      fontSize: 12,
+      color: colors.primary,
+      fontWeight: '600',
+      marginTop: 4,
     },
   });
 

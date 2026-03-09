@@ -31,7 +31,8 @@ BASE_DIR="$SCRIPT_DIR"
 # Project directories (relative to BASE_DIR)
 CERAMIC_DIR="$BASE_DIR/ceramic_mobile_app/back_end"
 STOCK_DIR="$BASE_DIR/stockpredict/stock_microservices"
-MATH_DIR="$BASE_DIR/mathematic-mobile/backend"
+MATH_DIR="$BASE_DIR/mathematic-mobile"
+MATH_BACKEND_DIR="$MATH_DIR/backend"
 
 # Environment files
 ENV_FILE="$BASE_DIR/.deploy-env"
@@ -429,8 +430,10 @@ deploy_project() {
             fi
             ;;
         math)
-            # Math uses docker-compose.yml
-            if [ -f "docker-compose.yml" ]; then
+            # Math uses docker-compose.yml in backend directory
+            local math_compose_dir="$MATH_BACKEND_DIR"
+            if [ -f "$math_compose_dir/docker-compose.yml" ]; then
+                cd "$math_compose_dir"
                 # Build with --no-cache if requested
                 if [ -n "$NO_CACHE_FLAG" ] && [ -n "$BUILD_FLAG" ]; then
                     print_color $YELLOW "🔨 Building Math with --no-cache..."
@@ -439,7 +442,7 @@ deploy_project() {
                 print_color $YELLOW "🚀 Starting Math services..."
                 $COMPOSE_CMD -f docker-compose.yml -p "$project_name" up -d $build_args
             else
-                print_color $RED "docker-compose.yml not found in $project_dir"
+                print_color $RED "docker-compose.yml not found in $math_compose_dir"
                 return 1
             fi
             ;;
