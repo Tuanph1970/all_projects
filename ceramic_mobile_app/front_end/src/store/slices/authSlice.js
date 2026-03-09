@@ -1,4 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { REHYDRATE } from 'redux-persist';
 import { UserRole } from '../../types/auth.js';
 import { authService } from '../../services/authService.js';
 import { secureStorage } from '../../utils/secureStorage.js';
@@ -47,9 +48,17 @@ export const registerUser = createAsyncThunk(
       if (error.response?.data) {
         // Try different error response formats
         if (error.response.data.detail) {
-          errorMessage = typeof error.response.data.detail === 'string'
-            ? error.response.data.detail
-            : JSON.stringify(error.response.data.detail);
+          if (typeof error.response.data.detail === 'string') {
+            errorMessage = error.response.data.detail;
+          } else if (Array.isArray(error.response.data.detail)) {
+            // Pydantic 422 validation errors — extract human-readable messages
+            errorMessage = error.response.data.detail
+              .map(e => e.msg || e.message || JSON.stringify(e))
+              .join('. ')
+              .replace(/^Value error, /i, '');
+          } else {
+            errorMessage = JSON.stringify(error.response.data.detail);
+          }
         } else if (error.response.data.message) {
           errorMessage = error.response.data.message;
         } else if (error.response.data.error) {
@@ -354,6 +363,12 @@ const authSlice = createSlice({
       .addCase(updateProfile.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload;
+      })
+
+      // Clear transient error on app restart (rehydration from AsyncStorage)
+      .addCase(REHYDRATE, (state) => {
+        state.error = null;
+        state.isLoading = false;
       });
   },
 });

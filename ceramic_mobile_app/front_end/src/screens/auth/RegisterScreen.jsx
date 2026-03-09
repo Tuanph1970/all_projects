@@ -22,7 +22,7 @@ const RegisterScreen = () => {
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const t = useTranslation();
-  const { loading, error } = useSelector((state) => state.auth);
+  const { isLoading, error } = useSelector((state) => state.auth);
   const [selectedRole, setSelectedRole] = useState('customer');
 
   const {
@@ -237,17 +237,24 @@ const RegisterScreen = () => {
                 },
               }}
               render={({ field: { onChange, onBlur, value } }) => (
-                <Input
-                  testID="register-password-input"
-                  label={t('register.password')}
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  error={!!errors.password}
-                  errorMessage={errors.password?.message}
-                  secureTextEntry
-                  returnKeyType="next"
-                />
+                <>
+                  <Input
+                    testID="register-password-input"
+                    label={t('register.password')}
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    error={!!errors.password}
+                    errorMessage={errors.password?.message}
+                    secureTextEntry
+                    returnKeyType="next"
+                  />
+                  {!errors.password && (
+                    <Text style={styles.passwordHint}>
+                      {t('auth.passwordStrength')}
+                    </Text>
+                  )}
+                </>
               )}
             />
 
@@ -294,8 +301,8 @@ const RegisterScreen = () => {
               testID="register-submit-button"
               mode="contained"
               onPress={handleSubmit(onSubmit)}
-              loading={loading}
-              disabled={loading}
+              loading={isLoading}
+              disabled={isLoading}
               style={styles.submitButton}
             >
               {t('auth.createAccount')}
@@ -367,6 +374,13 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     marginTop: 8,
+  },
+  passwordHint: {
+    fontSize: 11,
+    color: '#888',
+    marginTop: -8,
+    marginBottom: 4,
+    paddingHorizontal: 4,
   },
 });
 

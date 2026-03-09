@@ -28,13 +28,13 @@ import { CategorySelectorField } from '../../components/seller/CategorySelector.
 import VideoPicker from '../../components/seller/VideoPicker.jsx';
 import VideoPreview from '../../components/seller/VideoPreview.jsx';
 import VideoUploadProgress from '../../components/seller/VideoUploadProgress.jsx';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '@i18n';
 
 export const AddProductScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
+  const t = useTranslation();
 
   // Check if editing existing product
   const productId = route.params?.productId;

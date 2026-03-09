@@ -150,7 +150,7 @@ export const LoginScreen = () => {
             render={({ field: { onChange, onBlur, value } }) => (
               <Input
                 testID="login-username-input"
-                label={t('register.username') + ' / ' + t('register.email')}
+                label={t('register.username')}
                 value={value}
                 onBlur={onBlur}
                 onChangeText={onChange}

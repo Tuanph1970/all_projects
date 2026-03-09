@@ -8,10 +8,10 @@ import { Text, Button, ActivityIndicator } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import ImagePicker from 'react-native-image-crop-picker';
 import { colors, spacing } from '../../constants/theme';
-import { useTranslation } from 'react-i18next';
+import { useTranslation } from '@i18n';
 
 const VideoPicker = ({ onVideoSelect, maxDuration = 60 }) => {
-  const { t } = useTranslation();
+  const t = useTranslation();
   const [isRecording, setIsRecording] = useState(false);
 
   /**
