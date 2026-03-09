@@ -1,7 +1,9 @@
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using ProblemService.DTOs;
-using ProblemService.Services;
+using ProblemService.Application.Features.Problems.Commands;
+using ProblemService.Application.Features.Problems.Queries;
+using ProblemService.Domain.Entities;
 
 namespace ProblemService.Controllers;
 
@@ -9,25 +11,20 @@ namespace ProblemService.Controllers;
 [Route("api/v1/problems")]
 public class ProblemController : ControllerBase
 {
-    private readonly IProblemManagementService _problemService;
-    private readonly ILogger<ProblemController> _logger;
+    private readonly ISender _sender;
+    private readonly IConfiguration _configuration;
 
-    public ProblemController(IProblemManagementService problemService, ILogger<ProblemController> logger)
+    public ProblemController(ISender sender, IConfiguration configuration)
     {
-        _problemService = problemService;
-        _logger = logger;
+        _sender = sender;
+        _configuration = configuration;
     }
 
-    private int? GetUserId()
+    private Guid? GetUserId()
     {
-        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)
-            ?? User.FindFirst("sub");
-
-        if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var userId))
-        {
-            return userId;
-        }
-        return null;
+        var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)
+                    ?? User.FindFirst("sub");
+        return claim != null && Guid.TryParse(claim.Value, out var id) ? id : null;
     }
 
     [Authorize]
@@ -35,148 +32,94 @@ public class ProblemController : ControllerBase
     public async Task<IActionResult> CreateProblem([FromBody] CreateProblemRequest request)
     {
         var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized(new { success = false, message = "Invalid token" });
-        }
+        if (userId == null) return Unauthorized(new { success = false, message = "Invalid token" });
 
-        var (success, message, response) = await _problemService.CreateProblemAsync(userId.Value, request);
-
-        if (!success)
-        {
-            return BadRequest(new { success = false, message });
-        }
-
-        return Created($"/api/v1/problems/{response!.Id}", new { success = true, message, data = response });
+        var dto = await _sender.Send(new CreateProblemCommand(userId.Value, request.Title, request.Description, request.Category, request.Difficulty));
+        return Created($"/api/v1/problems/{dto.Id}", new { success = true, message = "Problem created successfully", data = dto });
     }
 
     [Authorize]
     [HttpGet]
-    public async Task<IActionResult> GetProblems(
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 10,
-        [FromQuery] string? status = null)
+    public async Task<IActionResult> GetProblems([FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] string? status = null)
     {
         var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized(new { success = false, message = "Invalid token" });
-        }
+        if (userId == null) return Unauthorized(new { success = false, message = "Invalid token" });
 
-        var response = await _problemService.GetUserProblemsAsync(userId.Value, page, pageSize, status);
-        return Ok(new { success = true, data = response });
+        var result = await _sender.Send(new GetUserProblemsQuery(userId.Value, page, pageSize, status));
+        return Ok(new { success = true, data = result });
     }
 
     [Authorize]
-    [HttpGet("{id}")]
-    public async Task<IActionResult> GetProblem(int id)
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetProblem(Guid id)
     {
         var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized(new { success = false, message = "Invalid token" });
-        }
+        if (userId == null) return Unauthorized(new { success = false, message = "Invalid token" });
 
-        var problem = await _problemService.GetProblemByIdAsync(id);
-        if (problem == null)
-        {
-            return NotFound(new { success = false, message = "Problem not found" });
-        }
+        var problem = await _sender.Send(new GetProblemByIdQuery(id));
 
         if (problem.UserId != userId)
-        {
             return Forbid();
-        }
 
         return Ok(new { success = true, data = problem });
     }
 
     [Authorize]
-    [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateProblem(int id, [FromBody] UpdateProblemRequest request)
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> UpdateProblem(Guid id, [FromBody] UpdateProblemRequest request)
     {
         var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized(new { success = false, message = "Invalid token" });
-        }
+        if (userId == null) return Unauthorized(new { success = false, message = "Invalid token" });
 
-        var (success, message) = await _problemService.UpdateProblemAsync(id, userId.Value, request);
-
-        if (!success)
-        {
-            return BadRequest(new { success = false, message });
-        }
-
-        return Ok(new { success = true, message });
+        await _sender.Send(new UpdateProblemCommand(id, userId.Value, request.Title, request.Description, request.Category, request.Difficulty));
+        return Ok(new { success = true, message = "Problem updated successfully" });
     }
 
     [Authorize]
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteProblem(int id)
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> DeleteProblem(Guid id)
     {
         var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized(new { success = false, message = "Invalid token" });
-        }
+        if (userId == null) return Unauthorized(new { success = false, message = "Invalid token" });
 
-        var (success, message) = await _problemService.DeleteProblemAsync(id, userId.Value);
-
-        if (!success)
-        {
-            return BadRequest(new { success = false, message });
-        }
-
-        return Ok(new { success = true, message });
+        await _sender.Send(new DeleteProblemCommand(id, userId.Value));
+        return Ok(new { success = true, message = "Problem deleted successfully" });
     }
 
     [Authorize]
-    [HttpPost("{id}/upload")]
-    public async Task<IActionResult> UploadImage(int id, IFormFile file)
+    [HttpPost("{id:guid}/upload")]
+    public async Task<IActionResult> UploadImage(Guid id, IFormFile file)
     {
         var userId = GetUserId();
-        if (userId == null)
-        {
-            return Unauthorized(new { success = false, message = "Invalid token" });
-        }
+        if (userId == null) return Unauthorized(new { success = false, message = "Invalid token" });
 
-        if (file == null || file.Length == 0)
-        {
-            return BadRequest(new { success = false, message = "No file uploaded" });
-        }
+        var uploadPath = _configuration["Storage:UploadPath"]
+            ?? Environment.GetEnvironmentVariable("STORAGE_UPLOAD_PATH")
+            ?? "/app/uploads";
 
-        var (success, message, imagePath) = await _problemService.UploadImageAsync(id, userId.Value, file);
-
-        if (!success)
-        {
-            return BadRequest(new { success = false, message });
-        }
-
-        return Ok(new { success = true, message, data = new { imagePath } });
+        var fileName = await _sender.Send(new UploadImageCommand(id, userId.Value, file, uploadPath));
+        return Ok(new { success = true, message = "Image uploaded successfully", data = new { imagePath = fileName } });
     }
 
-    // Internal endpoint for solution service to update status
-    [HttpPut("{id}/status")]
-    public async Task<IActionResult> UpdateStatus(int id, [FromBody] ProblemStatusUpdate update)
+    // Internal endpoint for solution service to update problem status
+    [HttpPut("{id:guid}/status")]
+    public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] StatusUpdateRequest update)
     {
-        // In production, validate internal service token
         var serviceToken = Request.Headers["X-Service-Token"].FirstOrDefault();
         var expectedToken = Environment.GetEnvironmentVariable("INTERNAL_SERVICE_TOKEN") ?? "internal-service-token";
 
         if (serviceToken != expectedToken)
-        {
             return Unauthorized(new { success = false, message = "Invalid service token" });
-        }
 
-        var statusUpdate = update with { ProblemId = id };
-        var (success, message) = await _problemService.UpdateProblemStatusAsync(statusUpdate);
+        if (!Enum.TryParse<ProblemStatus>(update.Status, true, out var status))
+            return BadRequest(new { success = false, message = "Invalid status value" });
 
-        if (!success)
-        {
-            return BadRequest(new { success = false, message });
-        }
-
-        return Ok(new { success = true, message });
+        await _sender.Send(new UpdateProblemStatusCommand(id, status, update.ExtractedText));
+        return Ok(new { success = true, message = "Status updated successfully" });
     }
 }
+
+// Request DTOs (inline)
+public record CreateProblemRequest(string Title, string? Description, string? Category, string? Difficulty);
+public record UpdateProblemRequest(string? Title, string? Description, string? Category, string? Difficulty);
+public record StatusUpdateRequest(string Status, string? ExtractedText = null);

@@ -65,7 +65,7 @@ const ProblemHistory = ({
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'solved':
+      case 'Completed':
         return colors.success;
       case 'pending':
         return colors.warning;
@@ -78,7 +78,7 @@ const ProblemHistory = ({
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'solved':
+      case 'Completed':
         return 'checkmark-circle';
       case 'pending':
         return 'time';

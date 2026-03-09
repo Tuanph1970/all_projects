@@ -2,11 +2,12 @@ import apiClient, { handleApiResponse, handleApiError } from './apiClient';
 import * as SecureStore from 'expo-secure-store';
 
 class AuthService {
-  // Login user with username or email
-  async login(username, password) {
+  // Login user with username or email.
+  // The backend LoginRequest DTO uses `usernameOrEmail` which accepts either field.
+  async login(usernameOrEmail, password) {
     try {
       const response = await apiClient.post('/auth/login', {
-        username,
+        usernameOrEmail,
         password,
       });
       

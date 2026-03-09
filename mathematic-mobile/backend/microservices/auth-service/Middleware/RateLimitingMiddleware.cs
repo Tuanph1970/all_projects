@@ -132,8 +132,6 @@ public static class RateLimitingMiddlewareExtensions
         var options = new RateLimitOptions();
         configureOptions?.Invoke(options);
         
-        builder.Services.Configure(configureOptions ?? (_ => { }));
-        
         return builder.UseMiddleware<RateLimitingMiddleware>();
     }
 }

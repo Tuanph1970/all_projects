@@ -26,7 +26,7 @@ const CATEGORIES = [
 
 const STATUS_OPTIONS = [
   { id: 'all', name: 'All Status', icon: 'list', color: null },
-  { id: 'solved', name: 'Solved', icon: 'checkmark-circle', color: 'success' },
+  { id: 'Completed', name: 'Completed', icon: 'checkmark-circle', color: 'success' },
   { id: 'pending', name: 'Pending', icon: 'time', color: 'warning' },
   { id: 'failed', name: 'Failed', icon: 'close-circle', color: 'error' },
 ];

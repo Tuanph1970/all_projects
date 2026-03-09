@@ -1,154 +1,60 @@
-using System;
-using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using ProblemService.Data;
-using ProblemService.Models;
+using ProblemService.Domain.Entities;
+using ProblemService.Infrastructure.Persistence;
 
-namespace ProblemService.SeedData
+namespace ProblemService.SeedData;
+
+public class DbSeeder
 {
-    public class DbSeeder
+    // Fixed Guids matching auth-service seed users
+    private static readonly Guid AdminUserId    = new("00000000-0000-0000-0000-000000000001");
+    private static readonly Guid TestUserId     = new("00000000-0000-0000-0000-000000000002");
+    private static readonly Guid Student1UserId = new("00000000-0000-0000-0000-000000000003");
+    private static readonly Guid Student2UserId = new("00000000-0000-0000-0000-000000000004");
+
+    public static async Task Initialize(IServiceProvider serviceProvider)
     {
-        public static async Task Initialize(IServiceProvider serviceProvider)
+        using var context = new ProblemDbContext(
+            serviceProvider.GetRequiredService<DbContextOptions<ProblemDbContext>>());
+
+        if (context.Problems.Any()) return;
+
+        var p1 = Problem.Create(AdminUserId, "Solve quadratic equation", "Find the roots of x² - 5x + 6 = 0", "Algebra", "Medium");
+        p1.UpdateStatus(ProblemStatus.Completed, "x² - 5x + 6 = 0");
+
+        var p2 = Problem.Create(TestUserId, "Calculate derivative", "Find the derivative of f(x) = 3x² + 2x - 1", "Calculus", "Easy");
+        p2.UpdateStatus(ProblemStatus.Completed, "f(x) = 3x² + 2x - 1, find f'(x)");
+
+        var p3 = Problem.Create(Student1UserId, "System of linear equations", "Solve: 2x + y = 5, x - y = 1", "Algebra", "Medium");
+        p3.UpdateStatus(ProblemStatus.Processing);
+
+        var p4 = Problem.Create(Student1UserId, "Integral calculation", "Calculate ∫(2x + 3)dx", "Calculus", "Hard");
+
+        var p5 = Problem.Create(Student2UserId, "Geometry problem", "Find the area of a triangle with sides 3, 4, 5", "Geometry", "Easy");
+        p5.UpdateStatus(ProblemStatus.Completed, "Triangle sides: a=3, b=4, c=5. Find area.");
+
+        var p6 = Problem.Create(Student2UserId, "Trigonometric identity", "Prove: sin²(x) + cos²(x) = 1", "Trigonometry", "Medium");
+        p6.UpdateStatus(ProblemStatus.Failed);
+
+        var problems = new[] { p1, p2, p3, p4, p5, p6 };
+        context.Problems.AddRange(problems);
+        await context.SaveChangesAsync();
+
+        var histories = new[]
         {
-            using var context = new ProblemDbContext(
-                serviceProvider.GetRequiredService<DbContextOptions<ProblemDbContext>>());
+            ProblemHistory.Create(p1.Id, AdminUserId, "Created", "Problem submitted for solving"),
+            ProblemHistory.Create(p1.Id, AdminUserId, "Processing", "OCR processing started"),
+            ProblemHistory.Create(p1.Id, AdminUserId, "Completed", "Solution generated successfully"),
+            ProblemHistory.Create(p2.Id, TestUserId, "Created", "Problem submitted for solving"),
+            ProblemHistory.Create(p2.Id, TestUserId, "Completed", "Solution generated successfully"),
+        };
 
-            // Check if there are any problems
-            if (context.Problems.Any())
-            {
-                return; // Database has been seeded
-            }
+        context.ProblemHistories.AddRange(histories);
+        await context.SaveChangesAsync();
 
-            // Create test problems
-            var problems = new[]
-            {
-                new Problem
-                {
-                    UserId = 1, // admin user
-                    Title = "Solve quadratic equation",
-                    Description = "Find the roots of x² - 5x + 6 = 0",
-                    ExtractedText = "x² - 5x + 6 = 0",
-                    Category = "Algebra",
-                    Difficulty = "Medium",
-                    Status = ProblemStatus.Solved,
-                    CreatedAt = DateTime.UtcNow.AddDays(-5),
-                    SolvedAt = DateTime.UtcNow.AddDays(-5).AddMinutes(2)
-                },
-                new Problem
-                {
-                    UserId = 2, // testuser
-                    Title = "Calculate derivative",
-                    Description = "Find the derivative of f(x) = 3x² + 2x - 1",
-                    ExtractedText = "f(x) = 3x² + 2x - 1, find f'(x)",
-                    Category = "Calculus",
-                    Difficulty = "Easy",
-                    Status = ProblemStatus.Solved,
-                    CreatedAt = DateTime.UtcNow.AddDays(-3),
-                    SolvedAt = DateTime.UtcNow.AddDays(-3).AddMinutes(1)
-                },
-                new Problem
-                {
-                    UserId = 3, // student1
-                    Title = "System of linear equations",
-                    Description = "Solve: 2x + y = 5, x - y = 1",
-                    ExtractedText = "2x + y = 5\nx - y = 1",
-                    Category = "Algebra",
-                    Difficulty = "Medium",
-                    Status = ProblemStatus.Processing,
-                    CreatedAt = DateTime.UtcNow.AddDays(-1)
-                },
-                new Problem
-                {
-                    UserId = 3, // student1
-                    Title = "Integral calculation",
-                    Description = "Calculate ∫(2x + 3)dx",
-                    ExtractedText = "∫(2x + 3)dx",
-                    Category = "Calculus",
-                    Difficulty = "Hard",
-                    Status = ProblemStatus.Pending,
-                    CreatedAt = DateTime.UtcNow
-                },
-                new Problem
-                {
-                    UserId = 4, // student2
-                    Title = "Geometry problem",
-                    Description = "Find the area of a triangle with sides 3, 4, 5",
-                    ExtractedText = "Triangle sides: a=3, b=4, c=5. Find area.",
-                    Category = "Geometry",
-                    Difficulty = "Easy",
-                    Status = ProblemStatus.Solved,
-                    CreatedAt = DateTime.UtcNow.AddDays(-2),
-                    SolvedAt = DateTime.UtcNow.AddDays(-2).AddMinutes(3)
-                },
-                new Problem
-                {
-                    UserId = 4, // student2
-                    Title = "Trigonometric identity",
-                    Description = "Prove: sin²(x) + cos²(x) = 1",
-                    ExtractedText = "Prove sin²(x) + cos²(x) = 1",
-                    Category = "Trigonometry",
-                    Difficulty = "Medium",
-                    Status = ProblemStatus.Failed,
-                    CreatedAt = DateTime.UtcNow.AddDays(-4),
-                    UpdatedAt = DateTime.UtcNow.AddDays(-4).AddMinutes(5)
-                }
-            };
-
-            context.Problems.AddRange(problems);
-
-            // Create problem history
-            var histories = new[]
-            {
-                new ProblemHistory
-                {
-                    ProblemId = 1,
-                    UserId = 1,
-                    Action = "Created",
-                    Details = "Problem submitted for solving",
-                    CreatedAt = DateTime.UtcNow.AddDays(-5)
-                },
-                new ProblemHistory
-                {
-                    ProblemId = 1,
-                    UserId = 1,
-                    Action = "Processing",
-                    Details = "OCR processing started",
-                    CreatedAt = DateTime.UtcNow.AddDays(-5).AddMinutes(1)
-                },
-                new ProblemHistory
-                {
-                    ProblemId = 1,
-                    UserId = 1,
-                    Action = "Solved",
-                    Details = "Solution generated successfully",
-                    CreatedAt = DateTime.UtcNow.AddDays(-5).AddMinutes(2)
-                },
-                new ProblemHistory
-                {
-                    ProblemId = 2,
-                    UserId = 2,
-                    Action = "Created",
-                    Details = "Problem submitted for solving",
-                    CreatedAt = DateTime.UtcNow.AddDays(-3)
-                },
-                new ProblemHistory
-                {
-                    ProblemId = 2,
-                    UserId = 2,
-                    Action = "Solved",
-                    Details = "Solution generated successfully",
-                    CreatedAt = DateTime.UtcNow.AddDays(-3).AddMinutes(1)
-                }
-            };
-
-            context.ProblemHistories.AddRange(histories);
-            await context.SaveChangesAsync();
-
-            Console.WriteLine("✅ Problem Service database seeded successfully!");
-            Console.WriteLine($"   Created {problems.Length} test problems");
-            Console.WriteLine($"   Created {histories.Length} problem history records");
-            Console.WriteLine();
-        }
+        Console.WriteLine("✅ Problem Service database seeded successfully!");
+        Console.WriteLine($"   Created {problems.Length} test problems");
+        Console.WriteLine($"   Created {histories.Length} problem history records");
     }
 }

@@ -114,7 +114,7 @@ const HistoryScreen = ({ navigation }) => {
 
   const handleProblemPress = useCallback((problem) => {
     // Navigate to problem detail screen or solution screen
-    if (problem.status === 'solved' && problem.solutionId) {
+    if (problem.status === 'Completed' && problem.solutionId) {
       navigation.navigate('Solution', { 
         problemId: problem.id,
         solutionId: problem.solutionId 

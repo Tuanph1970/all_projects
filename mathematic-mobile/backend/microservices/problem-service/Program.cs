@@ -1,15 +1,20 @@
+using System.Reflection;
 using System.Text;
+using FluentValidation;
+using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using ProblemService.Data;
-using ProblemService.Services;
+using ProblemService.Application.Common.Behaviors;
+using ProblemService.Application.Common.Interfaces;
+using ProblemService.Infrastructure.ExternalServices;
+using ProblemService.Infrastructure.Persistence;
+using ProblemService.Middleware;
 using ProblemService.SeedData;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddControllers();
 
 // Configure Swagger
@@ -48,10 +53,7 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Register Solution Service Client with retry policy
-builder.Services.AddSolutionServiceClient(builder.Configuration);
-
-// Configure Database with retry logic
+// Configure Database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? $"Server={Environment.GetEnvironmentVariable("DB_SERVER") ?? "db"};" +
        $"Port={Environment.GetEnvironmentVariable("DB_PORT") ?? "3306"};" +
@@ -59,7 +61,6 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
        $"User={Environment.GetEnvironmentVariable("DB_USER") ?? "mathematic_user"};" +
        $"Password={Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "Mysql_2025"};";
 
-// Use MySQL 8.0 server version to avoid auto-detection connection issues
 var serverVersion = new MySqlServerVersion(new Version(8, 0, 0));
 
 builder.Services.AddDbContext<ProblemDbContext>(options =>
@@ -95,8 +96,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Register Services
-builder.Services.AddScoped<IProblemManagementService, ProblemManagementService>();
+// ----- MediatR + FluentValidation -----
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly()));
+builder.Services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
+builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+
+// ----- Infrastructure services -----
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+// Register Solution Service Client
+builder.Services.AddSolutionServiceClient(builder.Configuration);
 
 // Configure CORS
 builder.Services.AddCors(options =>
@@ -128,7 +137,9 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// Configure the HTTP request pipeline.
+// Global exception handler — must be FIRST
+app.UseGlobalExceptionHandler();
+
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -152,16 +163,12 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// Health check endpoint
 app.MapGet("/health", () => Results.Ok(new
 {
     status = "healthy",
     service = "problem-service",
     timestamp = DateTime.UtcNow
 }));
-
-// Database initialization is handled by MySQL init scripts
-// Services will connect to pre-initialized database
 
 var port = Environment.GetEnvironmentVariable("SERVICE_PORT") ?? "8002";
 app.Run($"http://0.0.0.0:{port}");

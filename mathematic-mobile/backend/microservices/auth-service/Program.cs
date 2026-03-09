@@ -1,13 +1,18 @@
+using System.Reflection;
 using System.Text;
+using FluentValidation;
+using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using AuthService.Data;
-using AuthService.Services;
-using AuthService.SeedData;
+using AuthService.Application.Common.Behaviors;
+using AuthService.Application.Common.Interfaces;
+using AuthService.Infrastructure.Persistence;
+using AuthService.Infrastructure.Services;
 using AuthService.Middleware;
-using Microsoft.AspNetCore.ResponseCompression;
+using AuthService.SeedData;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -138,7 +143,7 @@ builder.Services.AddStackExchangeRedisCache(options =>
     var redisConnection = builder.Configuration.GetConnectionString("Redis")
         ?? Environment.GetEnvironmentVariable("REDIS_CONNECTION")
         ?? "localhost:6379";
-    
+
     options.Configuration = redisConnection;
     options.ConfigurationOptions = new StackExchange.Redis.ConfigurationOptions
     {
@@ -149,12 +154,16 @@ builder.Services.AddStackExchangeRedisCache(options =>
     };
 });
 
-// Register Cache Service
-builder.Services.AddScoped<ICacheService, CacheService>();
+// ----- MediatR + FluentValidation -----
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly()));
+builder.Services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
+builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
-// Register Services
-builder.Services.AddScoped<IJwtService, JwtService>();
-builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+// ----- Infrastructure services -----
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddSingleton<IJwtTokenGenerator, JwtTokenGenerator>();
+builder.Services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
+builder.Services.AddScoped<ICacheService, RedisCacheService>();
 
 // Configure Secure CORS
 builder.Services.AddSecureCors("AllowSpecificOrigins");
@@ -189,6 +198,9 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// Global exception handler — must be FIRST so it wraps all subsequent middleware.
+app.UseGlobalExceptionHandler();
+
 // Configure the HTTP request pipeline.
 app.UseSwagger();
 app.UseSwaggerUI(c =>
@@ -219,9 +231,6 @@ app.MapGet("/health", () => Results.Ok(new
     service = "auth-service",
     timestamp = DateTime.UtcNow
 }));
-
-// Database initialization is handled by MySQL init scripts
-// Services will connect to pre-initialized database
 
 var port = Environment.GetEnvironmentVariable("SERVICE_PORT") ?? "8001";
 app.Run($"http://0.0.0.0:{port}");

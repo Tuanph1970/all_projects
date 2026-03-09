@@ -339,6 +339,126 @@ These issues block MVP completion and must be resolved immediately:
 
 ---
 
+## 🔍 ARCHITECTURE REVIEW FINDINGS (March 9, 2026)
+
+Review criteria: (1) Source code vs documentation alignment, (2) Architecture quality (Microservices, DDD, Design Patterns).
+
+---
+
+### 🔴 P0 — CRITICAL: Security & Functional Bugs (Fix Immediately)
+
+These are runtime bugs that affect correctness and security today.
+
+- [x] **[Backend] Fix broken refresh token** — `AuthenticationService.RefreshTokenAsync()` is a stub that always returns `(false, "Refresh token validation not implemented", null)`. The frontend calls `/auth/refresh` but the backend always fails → users silently lose sessions.
+  - **File**: `backend/microservices/auth-service/Services/AuthenticationService.cs:136-141`
+  - **Fix**: Implement refresh token storage (Redis or DB table) and validation
+  - ✅ **RESOLVED (Mar 9 2026)**: Added `RefreshTokenEntry` record, updated `LoginAsync`/`RegisterAsync` to call `StoreRefreshTokenAsync()` (Redis, TTL = `Jwt:RefreshTokenExpirationDays`). `RefreshTokenAsync` now validates entry, rotates token pair, and cleans up the old key.
+
+- [x] **[Backend] Add global exception middleware** — No centralized error handler exists. Unhandled exceptions will leak stack traces in production. The documented `ExceptionHandlingMiddleware` is completely absent.
+  - **File**: `backend/microservices/auth-service/Program.cs`, `problem-service/Program.cs`
+  - **Fix**: Implement the middleware described in `documents/back_end_design.md` (lines 656–739)
+  - ✅ **RESOLVED (Mar 9 2026)**: Created `Middleware/ExceptionHandlingMiddleware.cs` in both services. Catches all unhandled exceptions, logs with TraceId, returns structured JSON. Stack trace exposed only in `Development` env. Registered as first middleware in both `Program.cs` via `app.UseGlobalExceptionHandler()`.
+
+- [x] **[Frontend↔Backend] Verify login field name contract** — `authService.js` sends `{ username, password }` but `AuthenticationService.LoginAsync()` reads `request.UsernameOrEmail`. Confirm the DTO mapping does not silently break login for email-based logins.
+  - **Files**: `frontend/src/services/authService.js:8` vs `backend/microservices/auth-service/Services/AuthenticationService.cs:91-92`
+  - **Fix**: Align field names in `LoginRequest` DTO and frontend payload
+  - ✅ **RESOLVED (Mar 9 2026)**: Updated `authService.login()` parameter from `username` to `usernameOrEmail` and changed the HTTP body field to `{ usernameOrEmail, password }`. Backend DTO unchanged — now both sides agree.
+
+---
+
+### 🟠 P1 — HIGH: Code vs Documentation Misalignment (Resolve Before Testing Phase)
+
+The documents describe an architecture that does not exist in code. This creates confusion for new developers and makes the documentation actively misleading.
+
+- [x] **[Decision] Choose and document the real architecture** — `back_end_design.md` documents Clean Architecture + CQRS + Repository + MediatR. The actual code uses Transaction Script (Controllers → Services → DbContext). Decide which to keep:
+  - **Option A**: Update the docs to reflect what was actually built (simpler, faster)
+  - **Option B**: Implement the documented Clean Architecture (significant refactor)
+  - **Files**: `documents/back_end_design.md` vs all `Services/*.cs` files
+  - ✅ **RESOLVED (Mar 9 2026)**: Chose **Option B**. Both `auth-service` and `problem-service` fully refactored to Clean Architecture: Domain layer (BaseEntity, Guid IDs, rich entities with private setters + factory methods), Application layer (MediatR CQRS commands/queries, FluentValidation + ValidationBehavior pipeline, IUnitOfWork, repository interfaces), Infrastructure layer (EF Core configs, concrete repositories, UnitOfWork, external service clients). Controllers now thin (ISender only).
+
+- [x] **[Backend] Standardize entity ID type** — `back_end_design.md` defines `Guid Id` in `BaseEntity`. Actual models use `int Id`. This inconsistency will cause migration issues if architecture is aligned later.
+  - **Files**: `backend/microservices/auth-service/Models/User.cs:5`, `problem-service/Models/Problem.cs:5`
+  - **Fix**: Decide on `int` vs `Guid` and apply consistently; update migrations accordingly
+  - ✅ **RESOLVED (Mar 9 2026)**: All entity IDs migrated to `Guid` (`char(36)` in MySQL). Old migrations deleted; schema recreated via `EnsureCreated()`.
+
+- [x] **[Backend] Fix `ProblemStatus` enum name mismatch** — Docs define `ProblemStatus.Completed`, code uses `ProblemStatus.Solved` for the same terminal success state. The API contract and documentation are inconsistent.
+  - **File**: `backend/microservices/problem-service/Models/Problem.cs:23`
+  - **Fix**: Rename to `Completed` to match `back_end_design.md`, update all references and migrations
+  - ✅ **RESOLVED (Mar 9 2026)**: Renamed `ProblemStatus.Solved → ProblemStatus.Completed` in `Domain/Entities/Problem.cs`. Updated frontend: `HistoryScreen.js`, `ProblemHistory.js`, `SearchAndFilter.js`, `constants/index.js`.
+
+- [ ] **[Docs] Update `front_end_design.md` to match actual Redux slices** — Docs specify slices `auth`, `problems`, `solutions`, `ui`. Actual store has `auth`, `problem` (singular), `solution` (singular), `user`, `app`, `bookmarks` (2 extra, different names).
+  - **Files**: `frontend/src/store/index.js`, `documents/front_end_design.md`
+  - **Fix**: Update docs to reflect the actual slice names and the addition of `userSlice`, `appSlice`, `bookmarkSlice`
+
+- [ ] **[Docs] Update `front_end_design.md` service/pattern description** — Docs show Strategy pattern (`AuthStrategy` interface), Adapter pattern (`ApiAdapter`), Factory pattern (`ScreenFactory`), and Singleton store class. None of these exist in implementation.
+  - **Files**: `frontend/src/services/authService.js`, `frontend/src/services/apiClient.js`, `frontend/src/store/index.js`
+  - **Fix**: Update docs to describe the actual approach (plain class AuthService, axios instance with interceptors, standard Redux)
+
+- [ ] **[Docs] Remove or replace TypeScript examples in frontend docs** — `front_end_design.md` shows TypeScript interfaces and `.tsx` files. The entire frontend is JavaScript (`.js` files). This misdirects contributors.
+  - **File**: `documents/front_end_design.md`
+  - **Fix**: Convert examples to JavaScript, or document the intent to migrate to TypeScript as a future task
+
+---
+
+### 🟡 P2 — MEDIUM: Architecture Quality Improvements (After Testing Phase)
+
+These items improve testability, maintainability, and align with documented intentions.
+
+- [x] **[Backend] Introduce Repository abstraction for testability** — Services directly use `DbContext`, making unit tests require EF Core in-memory database. A repository interface allows mocking.
+  - **Scope**: Both `auth-service` and `problem-service`
+  - ✅ **RESOLVED (Mar 9 2026)**: `IUserRepository`, `IProblemRepository`, `IProblemHistoryRepository` interfaces created. Concrete implementations in `Infrastructure/Persistence/Repositories/`. All injected via `IUnitOfWork`.
+
+- [x] **[Backend] Enrich domain entities with behavior** — `User.cs` and `Problem.cs` are pure data bags with public setters. At minimum, domain-significant state transitions should be encapsulated as methods.
+  - **Files**: `backend/microservices/auth-service/Models/User.cs`, `backend/microservices/problem-service/Models/Problem.cs`
+  - ✅ **RESOLVED (Mar 9 2026)**: `User` has `Create()`, `RecordLogin()`, `UpdateProfile()`, `ChangePassword()`, `Deactivate()`. `Problem` has `Create()`, `Update()`, `SetImage()`, `UpdateStatus()`, `SetProcessing()`, `RevertToPending()`. All with private setters and EF Core private constructors.
+
+- [x] **[Backend] Remove result tuples from service interfaces** — Services return `(bool Success, string Message, T? Response)` tuples. This is a code smell that bypasses exception handling and forces callers to check `Success` manually. Use exceptions or a `Result<T>` type instead.
+  - **Files**: `Services/AuthenticationService.cs`, `Services/ProblemManagementService.cs`
+  - ✅ **RESOLVED (Mar 9 2026)**: Service classes deleted entirely. Commands/queries throw typed exceptions (`NotFoundException`, `UnauthorizedException`, `AppValidationException`) caught by `ExceptionHandlingMiddleware`.
+
+- [x] **[Backend] Implement CQRS with MediatR** *(only if Option B was chosen above)* — If Clean Architecture is chosen, add MediatR, implement `LoginCommand`, `SolveProblemCommand`, repository interfaces, Unit of Work, and `ValidationBehavior` pipeline as documented in `back_end_design.md`.
+  - ✅ **RESOLVED (Mar 9 2026)**: MediatR 12.2.0 + FluentValidation 11.9.0 added to both services. All business logic split into Commands/Queries with dedicated Handlers and Validators. `ValidationBehavior<TRequest,TResponse>` pipeline registered in both services.
+
+- [ ] **[Frontend] Migrate from JavaScript to TypeScript** — Docs specify TypeScript; current code is JS. TypeScript would enforce the type contracts shown in `front_end_design.md` and improve reliability.
+  - **Estimated effort**: 3–4 days
+  - **Files**: All `frontend/src/**/*.js` files
+
+- [ ] **[Frontend] Implement Chain-of-Responsibility error handler** — The documented `NetworkErrorHandler → AuthErrorHandler` chain is replaced by a switch-case in `handleApiError()`. The current approach does not allow handler extension without modifying the switch.
+  - **File**: `frontend/src/services/apiClient.js:147-180`
+
+---
+
+### 🟢 P3 — LOW: Documentation Sync (Post-MVP, Ongoing)
+
+- [ ] **[Docs] Add Architecture Decision Records (ADRs)** — Document decisions such as "why `int` over `Guid`", "why Transaction Script over CQRS", "why JavaScript over TypeScript". Referenced in `project_status.md` Priority 3 but not started.
+  - **Location**: Create `documents/decisions/` folder with ADR-001, ADR-002, etc.
+
+- [ ] **[Docs] Update `back_end_design.md` project structure diagram** — Docs show `HomeworkSolver.API/Domain/Application/Infrastructure/Presentation` folder structure. Actual structure is `auth-service/Controllers + Services + Models + Data`. Remove or replace the misleading folder tree.
+  - **File**: `documents/back_end_design.md:1143-1190`
+
+- [ ] **[Docs] Document the actual `bookmarkSlice` and `appSlice`** — These exist in code with no corresponding documentation. Add their state shape and purpose to `front_end_design.md`.
+  - **Files**: `frontend/src/store/slices/bookmarkSlice.js`, `frontend/src/store/slices/appSlice.js`
+
+- [ ] **[Docs] Document service-to-service auth token pattern** — The `INTERNAL_SERVICE_TOKEN` mechanism for inter-service calls is implemented but not described in any design document.
+  - **Location**: Add to `documents/back_end_design.md` or a new `documents/infrastructure-design.md`
+
+---
+
+### 📊 Architecture Review Summary
+
+| Criterion | Score | Finding |
+|---|---|---|
+| Code matches documentation | **8/10** *(was 3)* | Clean Architecture + CQRS + DDD now implemented in both services |
+| Microservices structure | **8/10** | Well-executed Docker/Traefik setup |
+| DDD implementation | **8/10** *(was 1)* | Domain layer with BaseEntity, rich entities, private setters, factory methods |
+| CQRS implementation | **8/10** *(was 0)* | MediatR 12.2.0 commands/queries, FluentValidation pipeline in both services |
+| Clean Architecture layering | **8/10** *(was 3)* | Domain / Application / Infrastructure / Presentation layers in both services |
+| Frontend architecture patterns | **4/10** | Simplified vs documented patterns (TypeScript migration pending) |
+| Infrastructure quality | **7/10** | Caching, compression, rate limiting present |
+| Security | **8/10** *(was 5)* | JWT + refresh token rotation (Redis), global exception handler, structured errors |
+
+---
+
 ## 📋 QUICK WINS (Can be done in 1-2 days)
 
 These items provide immediate value with minimal effort:
