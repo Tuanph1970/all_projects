@@ -89,17 +89,26 @@ export const refreshToken = createAsyncThunk(
     try {
       const state = getState();
       const refreshToken = state.auth.tokens?.refreshToken;
-      
+
       if (!refreshToken) {
         throw new Error('No refresh token available');
       }
-      
+
       const response = await authService.refreshToken(refreshToken);
-      
+
+      // Transform snake_case API response to camelCase for secureStorage
+      // (API returns access_token/refresh_token, secureStorage expects accessToken/refreshToken)
+      const tokens = {
+        accessToken: response.access_token,
+        refreshToken: response.refresh_token,
+        tokenType: response.token_type,
+        expiresIn: response.expires_in,
+      };
+
       // Store new tokens securely
-      await secureStorage.setTokens(response);
-      
-      return response;
+      await secureStorage.setTokens(tokens);
+
+      return tokens;
     } catch (error) {
       return rejectWithValue(error.response?.data?.detail || 'Token refresh failed');
     }

@@ -319,29 +319,25 @@ async def forgot_password(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
-    """Request password reset - sends temporary password via email"""
-    import secrets
-    import string
-
+    """Request password reset - sends a reset token via email.
+    The original password is NOT changed until the user completes the reset via /reset-password.
+    """
     user = db.query(User).filter(User.email == password_reset_request.email).first()
     if not user:
         # Don't reveal if email exists for security
-        return {"message": "If the email exists, a temporary password has been sent"}
+        return {"message": "If the email exists, a password reset link has been sent"}
 
-    # Generate a temporary password (12 characters, mix of letters and digits)
-    alphabet = string.ascii_letters + string.digits
-    temporary_password = ''.join(secrets.choice(alphabet) for _ in range(12))
-
-    # Hash and save the temporary password
-    user.hashed_password = get_password_hash(temporary_password)
-    user.password_reset_token = None  # Clear any existing reset token
-    user.password_reset_expires = None
+    # Generate a secure reset token and store it with 1-hour expiry
+    # The original password remains unchanged until the user uses this token
+    reset_token = generate_password_reset_token()
+    user.password_reset_token = reset_token
+    user.password_reset_expires = datetime.utcnow() + timedelta(hours=1)
     db.commit()
 
-    # Send temporary password via email
-    background_tasks.add_task(send_temporary_password_email, user.email, temporary_password)
+    # Send reset token via email (original password is still intact)
+    background_tasks.add_task(send_password_reset_email, user.email, reset_token)
 
-    return {"message": "If the email exists, a temporary password has been sent"}
+    return {"message": "If the email exists, a password reset link has been sent"}
 
 
 @router.post("/reset-password")
