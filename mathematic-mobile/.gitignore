@@ -1,4 +1,41 @@
-# Byte-compiled / optimized / DLL files
+# ── Node.js ───────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp/
+.pnp.js
+
+# ── .NET ──────────────────────────────────────────────────────
+bin/
+obj/
+*.user
+.vs/
+*.suo
+
+# ── ML Models (large binary files) ────────────────────────────
+llmOCR/models/
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.onnx
+*.ckpt
+*.pkl
+
+# ── React Native / Expo ───────────────────────────────────────
+.expo/
+.expo-shared/
+dist/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# ── Byte-compiled / optimized / DLL files ────────────────────
 __pycache__/
 *.py[codz]
 *$py.class
