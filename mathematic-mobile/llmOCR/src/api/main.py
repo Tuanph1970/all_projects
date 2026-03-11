@@ -3,7 +3,7 @@ FastAPI main application for Mathematics LLM OCR Service.
 """
 import time
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
@@ -15,7 +15,6 @@ from ..utils.logging import setup_logging
 from .middleware import RateLimitMiddleware, LoggingMiddleware, MetricsMiddleware
 from .routers import ocr, health, models, solution
 from .exceptions import setup_exception_handlers
-from ..models.base import get_model_registry
 from ..services.model_manager import ModelManager
 
 
@@ -42,9 +41,8 @@ async def lifespan(app: FastAPI):
     # Cleanup on shutdown
     logger.info("Shutting down application")
     
-    # Unload all models
-    model_registry = get_model_registry()
-    model_registry.unload_all_models()
+    # Unload all models via the registry owned by ModelManager
+    app.state.model_manager.get_registry().unload_all_models()
     
     logger.info("Application shutdown complete")
 
@@ -129,10 +127,10 @@ async def root():
 
 
 @app.get("/info", include_in_schema=False)
-async def info():
+async def info(request: Request):
     """Service information endpoint."""
     settings = get_settings()
-    model_registry = get_model_registry()
+    model_registry = request.app.state.model_manager.get_registry()
     
     return {
         "service_info": {

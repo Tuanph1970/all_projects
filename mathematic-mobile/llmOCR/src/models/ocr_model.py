@@ -10,7 +10,8 @@ import cv2
 from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 from loguru import logger
 
-from .base import BaseMLModel, OCRResult, ModelType
+from ..infrastructure.ml.base import BaseMLModel
+from ..domain.shared.value_objects import OCRResult, ModelType
 from ..utils.image_processing import ImagePreprocessor
 
 

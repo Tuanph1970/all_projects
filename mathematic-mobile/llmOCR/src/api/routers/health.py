@@ -1,14 +1,13 @@
 """
 Health check router for the Mathematics LLM OCR Service.
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from typing import Dict, Any
 import time
 import psutil
 import os
 
-from ...models.base import get_model_registry
 from ...config.settings import get_settings, Settings
 
 router = APIRouter()
@@ -33,13 +32,13 @@ _start_time = time.time()
 
 @router.get("/", response_model=HealthResponse)
 @router.get("/health", response_model=HealthResponse)
-async def health_check(settings: Settings = Depends(get_settings)):
+async def health_check(request: Request, settings: Settings = Depends(get_settings)):
     """Health check endpoint providing service status and metrics."""
     current_time = time.time()
     uptime = current_time - _start_time
-    
+
     # Get model registry status
-    model_registry = get_model_registry()
+    model_registry = request.app.state.model_manager.get_registry()
     models_status = model_registry.get_registry_status()
     
     # Get system information
@@ -71,9 +70,9 @@ async def health_check(settings: Settings = Depends(get_settings)):
 
 
 @router.get("/ready", response_model=ReadinessResponse)
-async def readiness_check():
+async def readiness_check(request: Request):
     """Readiness check endpoint for Kubernetes-style health checks."""
-    model_registry = get_model_registry()
+    model_registry = request.app.state.model_manager.get_registry()
     checks = {}
     ready = True
     
