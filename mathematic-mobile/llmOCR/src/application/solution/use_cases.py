@@ -2,16 +2,14 @@
 Solution application use cases.
 
 SolveProblemUseCase: text problem → SolutionResult
+BatchSolveProblemUseCase: list of problems → List[SolutionResult]
 OCRAndSolveUseCase: image → OCRResult + SolutionResult
 """
-from typing import Any, Dict
-
-from PIL import Image
-from loguru import logger
+from typing import Any, Dict, List
 
 from ...infrastructure.ml.base import ModelRegistry
 from ...domain.shared.value_objects import OCRResult, SolutionResult
-from ...api.exceptions import ModelNotLoadedException
+from ...domain.shared.exceptions import ModelUnavailableError
 from ..ocr.use_cases import ExtractTextUseCase
 
 
@@ -42,7 +40,7 @@ class SolveProblemUseCase:
         name = "default_solution"
         model = self._registry.get_model(name)
         if model is None:
-            raise ModelNotLoadedException(f"Solution model '{name}' not registered")
+            raise ModelUnavailableError(name)
         return model
 
     @staticmethod
@@ -92,3 +90,38 @@ class OCRAndSolveUseCase:
         )
 
         return {"ocr_result": ocr_result, "solution_result": solution_result}
+
+
+class BatchSolveProblemUseCase:
+    """Solve a list of text problems, collecting per-problem results."""
+
+    def __init__(self, registry: ModelRegistry) -> None:
+        self._single = SolveProblemUseCase(registry)
+
+    def execute(
+        self,
+        problems: List[str],
+        confidence_threshold: float = 0.7,
+    ) -> List[SolutionResult]:
+        results: List[SolutionResult] = []
+        for idx, problem in enumerate(problems):
+            try:
+                result = self._single.execute(
+                    problem=problem,
+                    context={"batch_index": idx},
+                    confidence_threshold=confidence_threshold,
+                )
+            except Exception as exc:
+                logger.error(f"Batch solve failed for problem {idx}: {exc}")
+                result = SolutionResult(
+                    success=False,
+                    problem_type="unknown",
+                    solution="",
+                    steps=[],
+                    final_answer="",
+                    confidence=0.0,
+                    processing_time=0.0,
+                    metadata={"error": str(exc), "batch_index": idx},
+                )
+            results.append(result)
+        return results

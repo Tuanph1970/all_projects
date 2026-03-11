@@ -14,7 +14,7 @@ from loguru import logger
 
 from ...infrastructure.ml.base import ModelRegistry
 from ...domain.shared.value_objects import OCRResult
-from ...api.exceptions import ModelNotLoadedException, OCRException
+from ...domain.shared.exceptions import ModelUnavailableError
 
 
 class ExtractTextUseCase:
@@ -60,7 +60,7 @@ class ExtractTextUseCase:
             logger.warning(f"OCR model '{preferred}' not found, falling back to '{fallback}'")
             return self._registry.get_model(fallback)
 
-        raise ModelNotLoadedException("No OCR model registered")
+        raise ModelUnavailableError("mathematical_ocr / default_ocr")
 
     @staticmethod
     def _ensure_loaded(model) -> None:

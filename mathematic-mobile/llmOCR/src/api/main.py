@@ -12,10 +12,17 @@ from loguru import logger
 
 from ..config.settings import get_settings
 from ..utils.logging import setup_logging
-from .middleware import RateLimitMiddleware, LoggingMiddleware, MetricsMiddleware
-from .routers import ocr, health, models, solution
+from .middleware import (
+    APIKeyMiddleware,
+    LoggingMiddleware,
+    MetricsMiddleware,
+    RateLimitMiddleware,
+    RequestSizeLimitMiddleware,
+)
+from .routers import ocr, health, models, solution, tasks
 from .exceptions import setup_exception_handlers
 from ..services.model_manager import ModelManager
+from ..infrastructure.tasks.in_memory_store import InMemoryTaskRepository
 
 
 @asynccontextmanager
@@ -33,7 +40,11 @@ async def lifespan(app: FastAPI):
     
     # Store model manager in app state
     app.state.model_manager = model_manager
-    
+
+    # Initialise task repository
+    app.state.task_repository = InMemoryTaskRepository()
+    logger.info("Task repository initialised (InMemoryTaskRepository)")
+
     logger.info("Application startup complete")
     
     yield
@@ -78,13 +89,28 @@ def create_app() -> FastAPI:
     if settings.logging.environment == "production":
         app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
     
-    # Add custom middleware
+    # Request size guard (runs before body is consumed)
+    app.add_middleware(
+        RequestSizeLimitMiddleware,
+        max_size_bytes=settings.api.max_file_size,
+    )
+
+    # API key authentication (only active when keys are configured)
+    if settings.security.valid_api_keys:
+        app.add_middleware(
+            APIKeyMiddleware,
+            valid_api_keys=settings.security.valid_api_keys,
+        )
+        logger.info(
+            f"APIKeyMiddleware enabled ({len(settings.security.valid_api_keys)} key(s) configured)"
+        )
+
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(MetricsMiddleware)
     app.add_middleware(
         RateLimitMiddleware,
         requests_per_minute=settings.api.rate_limit_requests,
-        window_seconds=settings.api.rate_limit_window
+        window_seconds=settings.api.rate_limit_window,
     )
     
     # Include routers
@@ -92,6 +118,7 @@ def create_app() -> FastAPI:
     app.include_router(models.router, prefix="/models", tags=["models"])
     app.include_router(ocr.router, prefix="/ocr", tags=["ocr"])
     app.include_router(solution.router, prefix="/solution", tags=["solution"])
+    app.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
     
     # Add metrics endpoint if enabled
     if settings.monitoring.enable_metrics:

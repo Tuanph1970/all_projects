@@ -13,9 +13,17 @@ from loguru import logger
 from PIL import Image
 from pydantic import BaseModel, Field
 
-from ...application.solution.use_cases import OCRAndSolveUseCase, SolveProblemUseCase
-from ...api.dependencies import get_ocr_and_solve_use_case, get_solve_problem_use_case
-from ...api.exceptions import ModelNotLoadedException
+from ...application.solution.use_cases import (
+    BatchSolveProblemUseCase,
+    OCRAndSolveUseCase,
+    SolveProblemUseCase,
+)
+from ...api.dependencies import (
+    get_batch_solve_problem_use_case,
+    get_ocr_and_solve_use_case,
+    get_solve_problem_use_case,
+)
+from ...domain.shared.exceptions import ModelUnavailableError
 
 router = APIRouter()
 
@@ -76,7 +84,7 @@ async def solve_problem(
             context=solution_request.context or {},
             confidence_threshold=solution_request.confidence_threshold,
         )
-    except ModelNotLoadedException as exc:
+    except ModelUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
     result.metadata.update({"request_id": request_id})
@@ -119,7 +127,7 @@ async def ocr_and_solve(
             solution_confidence_threshold=ocr_solution_request.solution_confidence_threshold,
             use_mathematical_ocr=ocr_solution_request.use_mathematical_ocr,
         )
-    except ModelNotLoadedException as exc:
+    except ModelUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
     ocr = pipeline["ocr_result"]
@@ -161,6 +169,60 @@ async def ocr_and_solve(
         total_processing_time=total_time,
         metadata=combined_metadata,
         request_id=request_id,
+    )
+
+
+class BatchSolveRequest(BaseModel):
+    problems: List[str] = Field(..., min_length=1, max_length=20)
+    confidence_threshold: float = Field(default=0.7, ge=0.0, le=1.0)
+
+
+class BatchSolveResponse(BaseModel):
+    results: List[SolutionResponse]
+    total_processing_time: float
+    successful_count: int
+    failed_count: int
+
+
+@router.post("/solve-batch", response_model=BatchSolveResponse, summary="Solve multiple problems")
+async def solve_problems_batch(
+    request: Request,
+    batch_request: BatchSolveRequest,
+    use_case: BatchSolveProblemUseCase = Depends(get_batch_solve_problem_use_case),
+):
+    """Solve up to 20 mathematical text problems in a single request."""
+    request_id = getattr(request.state, "request_id", None)
+    start_time = time.time()
+
+    try:
+        results = use_case.execute(
+            problems=batch_request.problems,
+            confidence_threshold=batch_request.confidence_threshold,
+        )
+    except ModelUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    successful = sum(1 for r in results if r.success)
+    responses = [
+        SolutionResponse(
+            success=r.success,
+            solution=r.solution,
+            steps=r.steps,
+            final_answer=r.final_answer,
+            confidence=r.confidence,
+            processing_time=r.processing_time,
+            metadata={**r.metadata, "request_id": request_id},
+            request_id=request_id,
+        )
+        for r in results
+    ]
+    total_time = time.time() - start_time
+    logger.info(f"Batch solve: {successful}/{len(results)} succeeded in {total_time:.3f}s")
+    return BatchSolveResponse(
+        results=responses,
+        total_processing_time=total_time,
+        successful_count=successful,
+        failed_count=len(results) - successful,
     )
 
 

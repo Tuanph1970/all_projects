@@ -200,29 +200,36 @@ src/
 
 ---
 
-### P2 — Feature Completeness
+### P2 — Feature Completeness ✅ COMPLETED
 
-- [ ] **[FEAT] Complete Authentication/Authorization**
-  - `APIKeyMiddleware` is defined but disabled (middleware.py)
-  - Implement: enable middleware + add API key management endpoint
-  - Optional: JWT token endpoint for mobile clients
+- [x] **[FEAT] Authentication/Authorization enabled**
+  - `APIKeyMiddleware` (already written) now wired into `main.py`
+  - Active only when `VALID_API_KEYS` env var is set (zero-config in dev)
+  - `RequestSizeLimitMiddleware` also wired (was defined but not mounted)
+  - Public endpoints (`/health`, `/docs`, `/metrics`) bypass auth automatically
 
-- [ ] **[FEAT] Async task processing**
-  - Currently all requests are synchronous; large images block the server
-  - Implement: POST `/ocr/extract` returns `task_id` → GET `/tasks/{id}` polls status
-  - Requires: Redis for task state, background task runner (Celery or asyncio)
+- [x] **[FEAT] Async task processing**
+  - `POST /ocr/extract-async` → 202 Accepted with `{"task_id": "...", "poll_url": "/tasks/..."}`
+  - FastAPI `BackgroundTasks` runs OCR asynchronously; main thread returns immediately
+  - `GET /tasks/{task_id}` → polls status (`pending` → `processing` → `completed/failed`)
+  - `DELETE /tasks/{task_id}` → removes task record
 
-- [ ] **[FEAT] Persistent task history**
-  - `MLTask` needs a persistence layer (Redis or PostgreSQL)
-  - Enables: audit trail, retry logic, analytics
+- [x] **[FEAT] Task store implemented (in-memory, Redis-ready interface)**
+  - `src/domain/tasks/repositories.py` → `ITaskRepository` interface
+  - `src/infrastructure/tasks/in_memory_store.py` → `InMemoryTaskRepository`
+  - Swap to Redis adapter (P4) without changing application or API layer
 
-- [ ] **[FEAT] Solution router tests**
-  - `tests/api/` only has `test_health_router.py` and `test_ocr_router.py`
-  - Missing: `test_solution_router.py`, `test_models_router.py`
+- [x] **[FEAT] Batch solution endpoint**
+  - `POST /solution/solve-batch` — up to 20 problems per call
+  - `BatchSolveProblemUseCase` added to application layer
+  - Per-problem error isolation (one failure doesn't abort the batch)
 
-- [ ] **[FEAT] Batch endpoint for solution solving**
-  - OCR has `/extract-batch` but Solution has no equivalent
-  - Implement `/solution/solve-batch` for multiple problems at once
+- [x] **[ARCH] Fixed layering violation in use cases**
+  - `src/domain/shared/exceptions.py` → `ModelUnavailableError`, `TaskNotFoundError`
+  - Use cases no longer import from `api.exceptions` (was violation)
+  - API routers catch domain exceptions and convert to HTTP responses
+
+- [ ] **[FEAT] Solution/models router tests** ← still pending (move to P3)
 
 ---
 

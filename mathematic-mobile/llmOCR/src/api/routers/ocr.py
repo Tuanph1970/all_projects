@@ -10,16 +10,23 @@ This module only:
 import base64
 import io
 import time
+import uuid
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile
 from loguru import logger
 from PIL import Image
 from pydantic import BaseModel, Field
 
 from ...application.ocr.use_cases import BatchExtractTextUseCase, ExtractTextUseCase
-from ...api.dependencies import get_batch_extract_text_use_case, get_extract_text_use_case
-from ...api.exceptions import ModelNotLoadedException
+from ...api.dependencies import (
+    get_batch_extract_text_use_case,
+    get_extract_text_use_case,
+    get_task_repository,
+)
+from ...domain.shared.exceptions import ModelUnavailableError
+from ...domain.shared.value_objects import MLTask, TaskStatus
+from ...domain.tasks.repositories import ITaskRepository
 
 router = APIRouter()
 
@@ -89,7 +96,7 @@ async def extract_text_from_image(
                 "request_id": request_id,
             },
         )
-    except ModelNotLoadedException as exc:
+    except ModelUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
     logger.info(f"OCR completed for {file.filename} in {result.processing_time:.3f}s")
@@ -125,7 +132,7 @@ async def extract_text_from_base64(
             use_mathematical_model=ocr_request.use_mathematical_model,
             source_metadata={"input_type": "base64", "request_id": request_id},
         )
-    except ModelNotLoadedException as exc:
+    except ModelUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
 
     logger.info(f"OCR completed for base64 image in {result.processing_time:.3f}s")
@@ -188,6 +195,98 @@ async def extract_text_batch(
         total_processing_time=total_time,
         successful_count=successful,
         failed_count=len(results) - successful,
+    )
+
+
+class AsyncOCRResponse(BaseModel):
+    task_id: str
+    status: str
+    poll_url: str
+
+
+def _run_ocr_background(
+    task_id: str,
+    image_bytes: bytes,
+    confidence_threshold: float,
+    use_mathematical_model: bool,
+    use_case: ExtractTextUseCase,
+    task_repo: ITaskRepository,
+) -> None:
+    """Background worker: runs OCR and updates task state."""
+    task = task_repo.get(task_id)
+    if task is None:
+        return
+    task.mark_processing()
+    task_repo.save(task)
+
+    try:
+        image = Image.open(io.BytesIO(image_bytes))
+        result = use_case.execute(
+            image,
+            confidence_threshold=confidence_threshold,
+            use_mathematical_model=use_mathematical_model,
+            source_metadata={"async": True},
+        )
+        task.mark_completed(result)
+    except Exception as exc:
+        logger.error(f"Async OCR task {task_id} failed: {exc}")
+        task.mark_failed(str(exc))
+
+    task_repo.save(task)
+
+
+@router.post("/extract-async", response_model=AsyncOCRResponse, status_code=202,
+             summary="Submit OCR job (async)")
+async def extract_text_async(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    confidence_threshold: float = 0.8,
+    use_mathematical_model: bool = True,
+    use_case: ExtractTextUseCase = Depends(get_extract_text_use_case),
+    task_repo: ITaskRepository = Depends(get_task_repository),
+):
+    """
+    Submit an OCR job and return immediately with a task ID.
+
+    Poll `GET /tasks/{task_id}` until `status == "completed"`.
+    """
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image")
+
+    image_bytes = await file.read()
+    if len(image_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size exceeds 10 MB limit")
+
+    task_id = str(uuid.uuid4())
+    task = MLTask(
+        id=task_id,
+        task_type="ocr",
+        status=TaskStatus.PENDING,
+        input_data={
+            "file_name": file.filename,
+            "file_size_bytes": len(image_bytes),
+            "confidence_threshold": confidence_threshold,
+            "use_mathematical_model": use_mathematical_model,
+        },
+    )
+    task_repo.save(task)
+
+    background_tasks.add_task(
+        _run_ocr_background,
+        task_id=task_id,
+        image_bytes=image_bytes,
+        confidence_threshold=confidence_threshold,
+        use_mathematical_model=use_mathematical_model,
+        use_case=use_case,
+        task_repo=task_repo,
+    )
+
+    logger.info(f"Queued async OCR task {task_id} for {file.filename}")
+    return AsyncOCRResponse(
+        task_id=task_id,
+        status=TaskStatus.PENDING.value,
+        poll_url=f"/tasks/{task_id}",
     )
 
 
