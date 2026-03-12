@@ -39,6 +39,9 @@ prometheus-client==0.19.0
 opentelemetry-api==1.21.0
 opentelemetry-sdk==1.21.0
 opentelemetry-instrumentation-fastapi==0.42b0
+# OTLP exporter — required when ENABLE_TRACING=true
+# Sends spans to Jaeger / any OTLP-compatible collector over HTTP
+opentelemetry-exporter-otlp-proto-http==1.21.0
 
 # Configuration
 python-dotenv==1.0.0

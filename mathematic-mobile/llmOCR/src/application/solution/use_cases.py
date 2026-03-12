@@ -7,6 +7,9 @@ OCRAndSolveUseCase: image → OCRResult + SolutionResult
 """
 from typing import Any, Dict, List
 
+from loguru import logger
+from PIL import Image
+
 from ...infrastructure.ml.base import ModelRegistry
 from ...domain.shared.value_objects import OCRResult, SolutionResult
 from ...domain.shared.exceptions import ModelUnavailableError

@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from prometheus_client import make_asgi_app
 from loguru import logger
 
-from ..config.settings import get_settings
+from ..config.settings import get_settings, validate_settings, apply_environment_overrides
 from ..utils.logging import setup_logging
 from .middleware import (
     APIKeyMiddleware,
@@ -29,15 +29,24 @@ from ..infrastructure.tasks.in_memory_store import InMemoryTaskRepository
 async def lifespan(app: FastAPI):
     """Application lifespan context manager."""
     settings = get_settings()
-    
-    # Setup logging
+
+    # Setup logging first so all subsequent messages are structured
     setup_logging(settings.logging)
     logger.info("Starting Mathematics LLM OCR Service")
-    
+
+    # Validate settings and emit environment-specific warnings
+    try:
+        validate_settings()
+    except ValueError as exc:
+        logger.error(f"Configuration validation failed: {exc}")
+        raise
+
+    apply_environment_overrides(settings.logging.environment)
+
     # Initialize model manager and load default models
     model_manager = ModelManager(settings)
     await model_manager.initialize_default_models()
-    
+
     # Store model manager in app state
     app.state.model_manager = model_manager
 
@@ -124,13 +133,74 @@ def create_app() -> FastAPI:
     if settings.monitoring.enable_metrics:
         metrics_app = make_asgi_app()
         app.mount("/metrics", metrics_app)
-    
+
     # Add debug endpoints if enabled
     if settings.enable_debug_endpoints:
         from .routers import debug
         app.include_router(debug.router, prefix="/debug", tags=["debug"])
-    
+
+    # Wire OpenTelemetry tracing if enabled
+    _setup_tracing(app, settings)
+
     return app
+
+
+def _setup_tracing(app: FastAPI, settings) -> None:
+    """
+    Instrument the FastAPI app with OpenTelemetry tracing.
+
+    Activated only when ``ENABLE_TRACING=true``.  Exports spans to the
+    OTLP HTTP endpoint defined by ``JAEGER_ENDPOINT`` (e.g.
+    ``http://jaeger:4318/v1/traces``).  Falls back to a no-op (console)
+    tracer when the OTLP exporter package is unavailable so the service
+    still starts cleanly without the optional dependency.
+    """
+    if not settings.monitoring.enable_tracing:
+        return
+
+    try:
+        from opentelemetry import trace
+        from opentelemetry.sdk.resources import Resource, SERVICE_NAME
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+        resource = Resource.create({SERVICE_NAME: settings.logging.service_name})
+        provider = TracerProvider(resource=resource)
+
+        if settings.monitoring.jaeger_endpoint:
+            try:
+                from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+                    OTLPSpanExporter,
+                )
+                exporter = OTLPSpanExporter(endpoint=settings.monitoring.jaeger_endpoint)
+                logger.info(
+                    f"OpenTelemetry tracing → OTLP endpoint: {settings.monitoring.jaeger_endpoint}"
+                )
+            except ImportError:
+                logger.warning(
+                    "opentelemetry-exporter-otlp-proto-http not installed — "
+                    "falling back to ConsoleSpanExporter.  "
+                    "Run: pip install opentelemetry-exporter-otlp-proto-http"
+                )
+                exporter = ConsoleSpanExporter()
+        else:
+            logger.info(
+                "JAEGER_ENDPOINT not set — using ConsoleSpanExporter for tracing"
+            )
+            exporter = ConsoleSpanExporter()
+
+        provider.add_span_processor(BatchSpanProcessor(exporter))
+        trace.set_tracer_provider(provider)
+        FastAPIInstrumentor.instrument_app(app, tracer_provider=provider)
+        logger.info("OpenTelemetry FastAPI instrumentation enabled")
+
+    except ImportError as exc:
+        logger.warning(
+            f"OpenTelemetry packages not available ({exc}) — "
+            "tracing disabled.  Install opentelemetry-sdk and "
+            "opentelemetry-instrumentation-fastapi to enable."
+        )
 
 
 # Create the app instance

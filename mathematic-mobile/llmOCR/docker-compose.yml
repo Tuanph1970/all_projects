@@ -1,0 +1,158 @@
+---
+# Mathematics LLM OCR Service — local development stack
+#
+# Services:
+#   llm-ocr     — FastAPI app (port 8002)
+#   redis       — task-store back-end (port 6379)
+#   prometheus  — metrics scraping (port 9090)
+#   grafana     — dashboards (port 3000)
+#   jaeger      — distributed tracing UI (port 16686)
+#
+# Quick-start:
+#   cp .env.example .env          # fill in secrets
+#   docker compose up --build     # full dev stack
+#   docker compose up llm-ocr     # app only (no observability services)
+#
+# GPU:
+#   docker compose --profile gpu up  (requires nvidia-container-toolkit)
+
+services:
+  # ── Application ──────────────────────────────────────────────
+  llm-ocr:
+    build:
+      context: .
+      target: development          # hot-reload, dev dependencies
+    image: llm-ocr:dev
+    container_name: llm-ocr
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8002}:8002"
+    env_file:
+      - .env
+    environment:
+      # Override specific vars for Docker networking
+      REDIS_URL: "redis://redis:6379/0"
+      JAEGER_ENDPOINT: "http://jaeger:4318/v1/traces"
+      ENABLE_TRACING: "true"
+      ENABLE_METRICS: "true"
+      ENVIRONMENT: "development"
+      LOG_FORMAT: "json"
+    volumes:
+      # Mount source for hot-reload
+      - ./src:/app/src:ro
+      # Persist downloaded model weights across container restarts
+      - model-weights:/app/models
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health/live"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s   # give model loading time
+      retries: 3
+    networks:
+      - llmocr-net
+    # GPU profile — requires nvidia-container-toolkit on the host
+    profiles: ["", "gpu"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # ── Redis (task store) ────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: llmocr-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    command: >
+      redis-server
+      --save 60 1
+      --loglevel warning
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - llmocr-net
+
+  # ── Prometheus ────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: llmocr-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    networks:
+      - llmocr-net
+    profiles: ["monitoring"]
+
+  # ── Grafana ───────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: llmocr-grafana
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_PASSWORD:-admin}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - llmocr-net
+    profiles: ["monitoring"]
+
+  # ── Jaeger (distributed tracing) ─────────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:1.56
+    container_name: llmocr-jaeger
+    restart: unless-stopped
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"   # Jaeger UI
+      - "4317:4317"                         # OTLP gRPC
+      - "4318:4318"                         # OTLP HTTP
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    networks:
+      - llmocr-net
+    profiles: ["monitoring"]
+
+# ── Networks ──────────────────────────────────────────────────────
+networks:
+  llmocr-net:
+    driver: bridge
+
+# ── Named volumes ─────────────────────────────────────────────────
+volumes:
+  model-weights:
+    driver: local
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local

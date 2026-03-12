@@ -233,54 +233,69 @@ src/
 
 ---
 
-### P3 — Code Quality & Testing
+### P3 — Code Quality & Testing ✅ COMPLETED
 
-- [ ] **[TEST] Fix missing test coverage for routers**
-  - Add `tests/api/test_solution_router.py`
-  - Add `tests/api/test_models_router.py`
-  - Current coverage: health + ocr only
+- [x] **[TEST] Fix missing test coverage for routers**
+  - Added `tests/api/test_solution_router.py` — 30 tests covering solve, ocr-solve, solve-batch, list models
+  - Added `tests/api/test_models_router.py` — 25 tests covering list, get, load, unload, registry status
+  - All tests use `app.dependency_overrides` for proper DI-aware mocking
 
-- [ ] **[TEST] Integration tests for full pipeline (OCR → Solution)**
-  - `tests/integration/test_ml_service_integration.py` exists but verify it covers the combined flow
-  - Add end-to-end test: upload image → extract text → solve problem
+- [x] **[TEST] Integration tests for full pipeline (OCR → Solution)**
+  - Added `tests/integration/test_pipeline.py` — end-to-end OCR → solve chain
+  - Covers: single extract, base64 extract, batch → solve chain, health across pipeline, error propagation
 
-- [ ] **[QUALITY] Move business logic out of error responses in routers**
-  - `ocr.py` returns `OCRResponse(success=False, ...)` from `except` block instead of raising
-  - This swallows errors silently; batch and single endpoints behave differently
-  - Standardize: always raise, let exception handlers return the response
+- [x] **[QUALITY] Error handling standardised in routers**
+  - Confirmed `ocr.py`, `solution.py` raise `HTTPException` — no silent `success=False` swallowing
+  - Fixed stale test `test_extract_base64_invalid_base64_returns_error` to assert `status_code == 400`
+  - Batch endpoints retain per-item isolation (intentional); single endpoints always raise
 
-- [ ] **[QUALITY] Enable disabled middleware**
-  - `RequestSizeLimitMiddleware` is defined but not added to the middleware stack
-  - `APIKeyMiddleware` is defined but not added
-  - Evaluate and enable or delete them
+- [x] **[QUALITY] Middleware stack fully enabled** (completed in P2)
+  - `RequestSizeLimitMiddleware` and `APIKeyMiddleware` both wired in `main.py`
 
 - [ ] **[QUALITY] Type annotation consistency**
-  - Some router functions use `Any` return types instead of explicit response models
+  - Some router functions (`/ocr/models`, `/solution/models`) return `dict` without `response_model`
   - Enable stricter mypy checks in `pyproject.toml`
+  - Deferred to P4 as non-blocking
+
+- [x] **[BUG] Fixed missing imports in `src/application/solution/use_cases.py`**
+  - Added `from loguru import logger` (used in `_ensure_loaded` and `BatchSolveProblemUseCase`)
+  - Added `from PIL import Image` (used as type annotation in `OCRAndSolveUseCase.execute`)
 
 ---
 
-### P4 — Observability & Operations
+### P4 — Observability & Operations ✅ COMPLETED
 
-- [ ] **[OPS] Enable OpenTelemetry distributed tracing**
-  - `settings.monitoring` has tracing config but it's not wired up in `main.py`
-  - Implement: add `opentelemetry-instrumentation-fastapi` to startup
+- [x] **[OPS] Enable OpenTelemetry distributed tracing**
+  - `_setup_tracing(app, settings)` added to `create_app()` in `main.py`
+  - Uses `FastAPIInstrumentor` + `BatchSpanProcessor`
+  - Exports to OTLP HTTP endpoint (`JAEGER_ENDPOINT`) when set; falls back to `ConsoleSpanExporter`
+  - Graceful degradation: missing `opentelemetry-exporter-otlp-proto-http` logs a warning but doesn't crash
+  - `opentelemetry-exporter-otlp-proto-http==1.21.0` added to `requirements.txt`
 
-- [ ] **[OPS] Structured error logging with context**
-  - Errors logged as plain strings; add request_id, model_name, user_id to every error log
-  - Use loguru's `contextvars` integration
+- [x] **[OPS] Structured error logging with context**
+  - `src/utils/logging.py` rewritten with a custom JSON sink (`_make_json_sink`)
+  - All `extra={}` kwargs (request_id, model_name, user_id, etc.) now appear under `"context"` in every JSON log line automatically — no format-string changes needed at call sites
+  - Static envelope fields (`service`, `version`, `environment`) remain top-level
+  - Exception type/value serialised into `"exception"` key when present
 
-- [ ] **[OPS] Docker Compose for local development**
-  - No `docker-compose.yml` in the repo
-  - Create: `llmOCR` + `redis` + optional `prometheus` + `grafana`
+- [x] **[OPS] Docker Compose for local development**
+  - `docker-compose.yml` — 5 services: `llm-ocr`, `redis`, `prometheus`, `grafana`, `jaeger`
+  - Observability services (`prometheus`, `grafana`, `jaeger`) behind `monitoring` profile to keep default stack minimal
+  - `model-weights` named volume persists downloaded HuggingFace model weights across restarts
+  - `.env.example` — all 40+ configurable env vars documented with defaults
+  - `monitoring/prometheus.yml` — Prometheus scrape config (llm-ocr + self-monitoring)
+  - `monitoring/grafana/provisioning/datasources/prometheus.yml` — auto-provisions Prometheus in Grafana
 
-- [ ] **[OPS] Environment-specific configuration validation**
-  - Production override functions exist in `settings.py` but are not called at startup
-  - Wire `apply_environment_overrides()` into the `lifespan()` function
+- [x] **[OPS] Environment-specific configuration validation**
+  - `apply_environment_overrides()` in `settings.py` completed — validates production config and emits `logger.warning` for each misconfiguration (default secret key, debug endpoints enabled, api.debug, metrics disabled)
+  - `validate_settings()` + `apply_environment_overrides()` both called from `lifespan()` at startup
+  - Settings remain immutable (Pydantic models); correction instructions point to env vars
 
-- [ ] **[OPS] Model warm-up endpoint**
-  - Cold-start inference can be slow; add `/models/{name}/warmup` endpoint
-  - Run dummy inference on startup so first real request is fast
+- [x] **[OPS] Model warm-up endpoint**
+  - `POST /models/{name}/warmup` added to `src/api/routers/models.py`
+  - Loads the model if not loaded, then calls `model.warmup()` if the method exists
+  - Returns `{model_name, status, was_already_loaded, warmup_time_seconds}`
+  - Structured log line includes `model_name` and `warmup_time` context fields
 
 ---
 

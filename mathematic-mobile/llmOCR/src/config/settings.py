@@ -230,15 +230,62 @@ def get_production_overrides() -> Dict[str, Any]:
 
 
 def apply_environment_overrides(environment: str) -> None:
-    """Apply environment-specific overrides."""
-    global settings
-    
-    if environment == "development":
-        overrides = get_development_overrides()
-    elif environment == "production":
-        overrides = get_production_overrides()
+    """
+    Validate settings against the current environment and emit warnings for
+    any misconfigurations.
+
+    Settings are intentionally immutable after startup (Pydantic models).
+    Overrides must be applied through environment variables before the
+    process starts.  This function acts as the runtime safety net that
+    catches common mistakes early rather than silently running in an
+    insecure or misconfigured state.
+    """
+    from loguru import logger  # local import — loguru may not be configured yet
+
+    env = environment.lower()
+
+    if env == "production":
+        issues: list = []
+
+        if settings.security.secret_key == "change-me-in-production":
+            issues.append(
+                "SECRET_KEY is still the default value — "
+                "set the SECRET_KEY environment variable before deploying"
+            )
+
+        if settings.enable_debug_endpoints:
+            issues.append(
+                "ENABLE_DEBUG_ENDPOINTS=true in production exposes internal state — "
+                "set ENABLE_DEBUG_ENDPOINTS=false"
+            )
+
+        if settings.api.debug:
+            issues.append(
+                "API_DEBUG=true in production may leak tracebacks — "
+                "set API_DEBUG=false"
+            )
+
+        if not settings.monitoring.enable_metrics:
+            issues.append(
+                "ENABLE_METRICS=false — metrics are recommended in production"
+            )
+
+        for issue in issues:
+            logger.warning(f"[production-config] {issue}")
+
+        if issues:
+            logger.warning(
+                f"[production-config] {len(issues)} misconfiguration(s) detected. "
+                "Review the warnings above and correct before going live."
+            )
+        else:
+            logger.info("[production-config] All production settings validated ✓")
+
+    elif env == "development":
+        logger.info(
+            "[dev-config] Development environment — "
+            "debug endpoints and verbose logging may be enabled"
+        )
+
     else:
-        return
-    
-    # Apply overrides (this would need custom implementation for nested settings)
-    # For now, this is a placeholder for the pattern
+        logger.info(f"[config] Environment '{environment}' — no specific validation rules")

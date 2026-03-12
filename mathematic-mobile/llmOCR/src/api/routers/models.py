@@ -1,6 +1,8 @@
 """
 Model management router for the Mathematics LLM OCR Service.
 """
+import time as _time
+
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import Dict, List, Any, Optional
@@ -149,6 +151,57 @@ async def unload_model(model_name: str, request: Request):
     except Exception as e:
         logger.error(f"Failed to unload model {model_name}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to unload model: {str(e)}")
+
+
+@router.post("/{model_name}/warmup", summary="Warm up a model")
+async def warmup_model(model_name: str, request: Request):
+    """
+    Load a model (if not already loaded) and run a lightweight dummy pass
+    to eliminate cold-start latency on the first real inference request.
+
+    Returns the time spent loading/warming up, and whether the model was
+    already loaded before this call.
+    """
+    model_registry = request.app.state.model_manager.get_registry()
+
+    if model_name not in model_registry.list_models():
+        raise HTTPException(status_code=404, detail=f"Model '{model_name}' not found")
+
+    try:
+        model = model_registry.get_model(model_name)
+        was_loaded = model.is_model_loaded()
+        start = _time.time()
+
+        if not was_loaded:
+            logger.info(f"Warmup: loading model '{model_name}'")
+            model.load_model()
+
+        # If the model exposes a warmup() method, call it.
+        # This allows models to run a dummy forward-pass internally.
+        if hasattr(model, "warmup") and callable(model.warmup):
+            logger.info(f"Warmup: running dummy inference for '{model_name}'")
+            model.warmup()
+
+        warmup_time = _time.time() - start
+        logger.info(
+            f"Model '{model_name}' warm-up complete in {warmup_time:.3f}s",
+            model_name=model_name,
+            was_loaded=was_loaded,
+            warmup_time=warmup_time,
+        )
+        return {
+            "model_name": model_name,
+            "status": "warmed_up",
+            "was_already_loaded": was_loaded,
+            "warmup_time_seconds": round(warmup_time, 3),
+        }
+
+    except Exception as e:
+        logger.error(
+            f"Warmup failed for model '{model_name}': {e}",
+            model_name=model_name,
+        )
+        raise HTTPException(status_code=500, detail=f"Model warm-up failed: {str(e)}")
 
 
 @router.get("/registry/status")

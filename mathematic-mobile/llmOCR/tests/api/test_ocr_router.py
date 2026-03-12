@@ -115,14 +115,13 @@ class TestExtractBase64Endpoint:
         )
         assert response.status_code == 400
 
-    def test_extract_base64_invalid_base64_returns_error(self, test_client):
+    def test_extract_base64_invalid_base64_returns_400(self, test_client):
         response = test_client.post(
             "/ocr/extract-base64",
             json={"image_base64": "not-valid-base64!!!"},
         )
-        # Error is caught and returned as failed OCR result (not HTTP error)
-        data = response.json()
-        assert data["success"] is False
+        # Router raises HTTPException(400) for undecodable / non-image payloads
+        assert response.status_code == 400
 
     def test_extract_base64_success_field_true(self, test_client):
         response = test_client.post(
