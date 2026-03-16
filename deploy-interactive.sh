@@ -94,6 +94,104 @@ ask_yes_no() {
     [[ "$answer" =~ ^[Yy]$ ]]
 }
 
+# Function to fix Docker DNS configuration
+fix_docker_dns() {
+    local daemon_json="/etc/docker/daemon.json"
+    local dns_servers='["8.8.8.8", "1.1.1.1"]'
+    local needs_restart=false
+
+    print_color $BLUE "🔍 Checking Docker DNS configuration..."
+
+    # Check if dns key already exists and has valid entries
+    if [ -f "$daemon_json" ] && python3 -c "
+import json, sys
+data = json.load(open('$daemon_json'))
+dns = data.get('dns', [])
+sys.exit(0 if '8.8.8.8' in dns else 1)
+" 2>/dev/null; then
+        print_color $GREEN "✓ Docker DNS already configured"
+        return 0
+    fi
+
+    print_color $YELLOW "⚠ Docker DNS not configured (containers may fail to resolve external registries)"
+    print_color $BLUE "🔧 Adding DNS servers (8.8.8.8, 1.1.1.1) to $daemon_json..."
+
+    # Merge dns key into existing daemon.json using python3
+    python3 - "$daemon_json" <<'PYEOF'
+import json, sys
+
+path = sys.argv[1]
+try:
+    with open(path, 'r') as f:
+        data = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    data = {}
+
+data['dns'] = ['8.8.8.8', '1.1.1.1']
+
+with open(path, 'w') as f:
+    json.dump(data, f, indent=4)
+    f.write('\n')
+PYEOF
+
+    if [ $? -ne 0 ]; then
+        print_color $RED "✗ Failed to update $daemon_json"
+        return 1
+    fi
+
+    print_color $GREEN "✓ DNS configuration written to $daemon_json"
+    needs_restart=true
+
+    if [ "$needs_restart" = true ]; then
+        print_color $BLUE "🔄 Restarting Docker daemon to apply DNS changes..."
+        systemctl restart docker
+        sleep 3
+        if docker info >/dev/null 2>&1; then
+            print_color $GREEN "✓ Docker restarted successfully with new DNS config"
+        else
+            print_color $RED "✗ Docker failed to restart - check: journalctl -u docker"
+            return 1
+        fi
+    fi
+}
+
+# Function to fix system DNS (systemd-resolved FallbackDNS)
+# Docker daemon uses the HOST resolver for image pulls — daemon.json dns only covers containers.
+# Without a fallback, transient failures of the local DNS (10.1.x.x) block all image pulls.
+fix_system_dns() {
+    local resolved_conf="/etc/systemd/resolved.conf"
+
+    print_color $BLUE "🔍 Checking systemd-resolved FallbackDNS..."
+
+    if grep -qE "^FallbackDNS=.*8\.8\.8\.8" "$resolved_conf" 2>/dev/null; then
+        print_color $GREEN "✓ systemd-resolved FallbackDNS already configured"
+        return 0
+    fi
+
+    print_color $YELLOW "⚠ No FallbackDNS set — Docker image pulls may timeout when local DNS is unreachable"
+    print_color $BLUE "🔧 Setting FallbackDNS=8.8.8.8 8.8.4.4 1.1.1.1 in $resolved_conf..."
+
+    # Uncomment and set if line exists as comment, otherwise append under [Resolve]
+    if grep -q "^#FallbackDNS=" "$resolved_conf"; then
+        sed -i 's/^#FallbackDNS=.*/FallbackDNS=8.8.8.8 8.8.4.4 1.1.1.1/' "$resolved_conf"
+    elif grep -q "^FallbackDNS=" "$resolved_conf"; then
+        sed -i 's/^FallbackDNS=.*/FallbackDNS=8.8.8.8 8.8.4.4 1.1.1.1/' "$resolved_conf"
+    else
+        sed -i '/^\[Resolve\]/a FallbackDNS=8.8.8.8 8.8.4.4 1.1.1.1' "$resolved_conf"
+    fi
+
+    print_color $BLUE "🔄 Restarting systemd-resolved..."
+    systemctl restart systemd-resolved
+    sleep 1
+
+    if systemctl is-active --quiet systemd-resolved; then
+        print_color $GREEN "✓ systemd-resolved restarted — FallbackDNS active"
+    else
+        print_color $RED "✗ systemd-resolved failed to restart — check: journalctl -u systemd-resolved"
+        return 1
+    fi
+}
+
 # Function to check if Docker is running
 check_docker() {
     if ! docker info >/dev/null 2>&1; then
@@ -695,6 +793,10 @@ setup_math_models() {
         missing_deps+=("loguru")
     fi
 
+    if ! python3 -c "import pydantic" &> /dev/null; then
+        missing_deps+=("pydantic")
+    fi
+
     if [ ${#missing_deps[@]} -gt 0 ]; then
         print_color $YELLOW "⚠ Missing dependencies: ${missing_deps[*]}"
         if ask_yes_no "Do you want to install missing dependencies?" "y"; then
@@ -764,6 +866,14 @@ main() {
     print_color $BLUE "🔍 Checking Docker..."
     check_docker
     print_color $GREEN "✓ Docker is running"
+
+    # Fix DNS configuration if needed (requires root)
+    if [ "$(id -u)" -eq 0 ]; then
+        fix_system_dns   # Host-level fallback DNS (affects Docker image pulls)
+        fix_docker_dns   # Container-level DNS (affects runtime containers)
+    else
+        print_color $YELLOW "⚠ Not running as root - skipping DNS check (re-run with sudo if builds fail to pull images)"
+    fi
 
     # Initialize compose command
     COMPOSE_CMD=$(get_compose_cmd)

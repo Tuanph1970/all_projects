@@ -1,6 +1,8 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
+import { errorHandlerChain } from '../utils/errorHandlers';
+import { captureError } from '../utils/sentry';
 
 // Create axios instance with base configuration
 const apiClient = axios.create({
@@ -118,13 +120,14 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        
+
         // Clear stored tokens
         await SecureStore.deleteItemAsync('authToken');
         await SecureStore.deleteItemAsync('refreshToken');
-        
-        // Redirect to login - this should be handled by Redux middleware
-        // For now, we'll just reject the promise
+
+        // Report token refresh failures to Sentry — these indicate auth breakage
+        captureError(refreshError, { context: 'token_refresh_failed' });
+
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
@@ -143,40 +146,11 @@ export const handleApiResponse = (response) => {
   return response;
 };
 
-// Helper function to handle API errors
+// Helper function to handle API errors.
+// Delegates to the Chain-of-Responsibility defined in utils/errorHandlers.js.
+// To add a new error type, add a handler there — no changes needed here.
 export const handleApiError = (error) => {
-  if (error.response) {
-    // Server responded with error status
-    const { status, data } = error.response;
-    
-    if (data?.message) {
-      throw new Error(data.message);
-    }
-    
-    switch (status) {
-      case 400:
-        throw new Error('Bad request. Please check your input.');
-      case 401:
-        throw new Error('Authentication failed. Please log in again.');
-      case 403:
-        throw new Error('You do not have permission to perform this action.');
-      case 404:
-        throw new Error('The requested resource was not found.');
-      case 500:
-        throw new Error('Server error. Please try again later.');
-      default:
-        throw new Error(`Request failed with status ${status}`);
-    }
-  } else if (error.request) {
-    // Network error
-    if (error.code === 'NETWORK_ERROR' || !error.response) {
-      throw new Error('Network error. Please check your internet connection.');
-    }
-    throw new Error('Request failed. Please try again.');
-  } else {
-    // Other error
-    throw new Error(error.message || 'An unexpected error occurred.');
-  }
+  errorHandlerChain.handle(error);
 };
 
 export default apiClient;

@@ -1,6 +1,7 @@
 """
 FastAPI main application for Mathematics LLM OCR Service.
 """
+import os
 import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
@@ -9,9 +10,34 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_client import make_asgi_app
 from loguru import logger
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.loguru import LoguruIntegration
 
 from ..config.settings import get_settings, validate_settings, apply_environment_overrides
 from ..utils.logging import setup_logging
+
+
+def _init_sentry(environment: str) -> None:
+    """Initialise Sentry if SENTRY_DSN is configured. No-op otherwise."""
+    dsn = os.getenv("SENTRY_DSN", "")
+    if not dsn:
+        logger.info("SENTRY_DSN not set — error tracking disabled")
+        return
+
+    sentry_sdk.init(
+        dsn=dsn,
+        environment=environment,
+        traces_sample_rate=0.1 if environment == "production" else 1.0,
+        integrations=[
+            FastApiIntegration(),
+            # Forward loguru ERROR+ messages to Sentry as breadcrumbs/events
+            LoguruIntegration(level="WARNING", event_level="ERROR"),
+        ],
+        send_default_pii=False,   # Never send user PII to Sentry
+        attach_stacktrace=True,
+    )
+    logger.info("Sentry error tracking initialised")
 from .middleware import (
     APIKeyMiddleware,
     LoggingMiddleware,
@@ -33,6 +59,9 @@ async def lifespan(app: FastAPI):
     # Setup logging first so all subsequent messages are structured
     setup_logging(settings.logging)
     logger.info("Starting Mathematics LLM OCR Service")
+
+    # Initialise Sentry before any other startup (captures startup errors too)
+    _init_sentry(settings.logging.environment)
 
     # Validate settings and emit environment-specific warnings
     try:

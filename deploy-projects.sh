@@ -59,6 +59,59 @@ print_header() {
     echo
 }
 
+# Function to fix Docker DNS configuration
+fix_docker_dns() {
+    local daemon_json="/etc/docker/daemon.json"
+
+    print_color $BLUE "🔍 Checking Docker DNS configuration..."
+
+    if [ -f "$daemon_json" ] && python3 -c "
+import json, sys
+data = json.load(open('$daemon_json'))
+dns = data.get('dns', [])
+sys.exit(0 if '8.8.8.8' in dns else 1)
+" 2>/dev/null; then
+        print_color $GREEN "✓ Docker DNS already configured"
+        return 0
+    fi
+
+    print_color $YELLOW "⚠ Docker DNS not configured (containers may fail to resolve external registries)"
+    print_color $BLUE "🔧 Adding DNS servers (8.8.8.8, 1.1.1.1) to $daemon_json..."
+
+    python3 - "$daemon_json" <<'PYEOF'
+import json, sys
+
+path = sys.argv[1]
+try:
+    with open(path, 'r') as f:
+        data = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    data = {}
+
+data['dns'] = ['8.8.8.8', '1.1.1.1']
+
+with open(path, 'w') as f:
+    json.dump(data, f, indent=4)
+    f.write('\n')
+PYEOF
+
+    if [ $? -ne 0 ]; then
+        print_color $RED "✗ Failed to update $daemon_json"
+        return 1
+    fi
+
+    print_color $GREEN "✓ DNS configuration written to $daemon_json"
+    print_color $BLUE "🔄 Restarting Docker daemon to apply DNS changes..."
+    systemctl restart docker
+    sleep 3
+    if docker info >/dev/null 2>&1; then
+        print_color $GREEN "✓ Docker restarted successfully with new DNS config"
+    else
+        print_color $RED "✗ Docker failed to restart - check: journalctl -u docker"
+        return 1
+    fi
+}
+
 # Function to check if Docker is running
 check_docker() {
     if ! docker info >/dev/null 2>&1; then
@@ -385,6 +438,15 @@ main() {
 
     # Check Docker
     check_docker
+
+    # Fix Docker DNS if building images (requires root)
+    if [ -n "$BUILD_FLAG" ]; then
+        if [ "$(id -u)" -eq 0 ]; then
+            fix_docker_dns
+        else
+            print_color $YELLOW "⚠ Not running as root - skipping DNS check (re-run with sudo if builds fail to pull images)"
+        fi
+    fi
 
     # Initialize compose command
     COMPOSE_CMD=$(get_compose_cmd)

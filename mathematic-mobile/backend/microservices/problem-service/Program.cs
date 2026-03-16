@@ -2,6 +2,8 @@ using System.Reflection;
 using System.Text;
 using FluentValidation;
 using MediatR;
+using Serilog;
+using Serilog.Formatting.Compact;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -14,6 +16,30 @@ using ProblemService.Middleware;
 using ProblemService.SeedData;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ── Structured logging (Serilog) ──────────────────────────────────────────────
+builder.Host.UseSerilog((ctx, _, cfg) =>
+{
+    cfg.ReadFrom.Configuration(ctx.Configuration)
+       .Enrich.FromLogContext()
+       .Enrich.WithMachineName()
+       .Enrich.WithProperty("Service", "problem-service")
+       .WriteTo.Console(new CompactJsonFormatter());
+});
+
+// ── Error tracking (Sentry) ───────────────────────────────────────────────────
+builder.WebHost.UseSentry(options =>
+{
+    options.Dsn = builder.Configuration["Sentry:Dsn"]
+                  ?? Environment.GetEnvironmentVariable("SENTRY_DSN")
+                  ?? string.Empty;
+    options.Environment         = builder.Environment.EnvironmentName;
+    options.Release             = typeof(Program).Assembly.GetName().Version?.ToString() ?? "1.0.0";
+    options.TracesSampleRate    = builder.Environment.IsProduction() ? 0.1 : 1.0;
+    options.MinimumEventLevel   = Microsoft.Extensions.Logging.LogLevel.Error;
+    options.AttachStacktrace    = true;
+    options.SendDefaultPii      = false;
+});
 
 builder.Services.AddControllers();
 

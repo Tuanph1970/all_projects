@@ -1140,64 +1140,194 @@ public class RedisCacheService : ICacheService
 
 ## Project Structure
 
+Each microservice is an independent .NET 9 project. The structure below reflects the
+actual files on disk as of March 2026. Both services follow identical Clean Architecture
+layering (see ADR-001).
+
+### auth-service (`backend/microservices/auth-service/`)
+
 ```
-HomeworkSolver.API/
-├── Domain/                     # Domain layer (entities, value objects)
-│   ├── Entities/
-│   │   ├── User.cs
-│   │   ├── Problem.cs
-│   │   └── Solution.cs
-│   ├── ValueObjects/
-│   │   └── SolutionStep.cs
-│   ├── Enums/
-│   │   └── ProblemStatus.cs
-│   ├── Events/
-│   │   └── IDomainEvent.cs
-│   └── Common/
-│       ├── BaseEntity.cs
-│       └── ValueObject.cs
-├── Application/                # Application layer (use cases)
-│   ├── Features/
-│   │   ├── Authentication/
-│   │   │   ├── Commands/
-│   │   │   └── Queries/
-│   │   └── Problems/
-│   │       ├── Commands/
-│   │       └── Queries/
+auth-service/
+├── AuthService.csproj
+├── Program.cs                          # DI registration, middleware pipeline
+├── appsettings.json
+├── Dockerfile
+│
+├── Domain/                             # No external dependencies
 │   ├── Common/
-│   │   ├── Interfaces/
+│   │   └── BaseEntity.cs              # Guid Id, CreatedAt, UpdatedAt, domain events
+│   ├── Entities/
+│   │   └── User.cs                    # Rich entity: Create(), RecordLogin(), ChangePassword()
+│   └── Events/
+│       └── IDomainEvent.cs
+│
+├── Application/                        # Depends on Domain only
+│   ├── Common/
 │   │   ├── Behaviors/
-│   │   └── Exceptions/
-│   └── DTOs/
-├── Infrastructure/             # Infrastructure layer (data access, external services)
+│   │   │   └── ValidationBehavior.cs  # MediatR pipeline: runs FluentValidation
+│   │   ├── Exceptions/
+│   │   │   ├── AppValidationException.cs
+│   │   │   ├── NotFoundException.cs
+│   │   │   └── UnauthorizedException.cs
+│   │   └── Interfaces/
+│   │       ├── ICacheService.cs
+│   │       ├── IJwtTokenGenerator.cs
+│   │       ├── IPasswordHasher.cs
+│   │       ├── IRepository.cs
+│   │       ├── IUnitOfWork.cs
+│   │       └── IUserRepository.cs
+│   ├── DTOs/
+│   │   ├── AuthResultDto.cs
+│   │   └── UserDto.cs
+│   └── Features/
+│       └── Authentication/
+│           ├── Commands/
+│           │   ├── ChangePasswordCommand.cs
+│           │   ├── LoginCommand.cs
+│           │   ├── RefreshTokenCommand.cs
+│           │   ├── RegisterCommand.cs
+│           │   └── UpdateProfileCommand.cs
+│           └── Queries/
+│               ├── GetCurrentUserQuery.cs
+│               ├── GetUserByIdQuery.cs
+│               └── ValidateTokenQuery.cs
+│
+├── Infrastructure/                     # Depends on Application + Domain
 │   ├── Persistence/
-│   │   ├── Repositories/
+│   │   ├── AuthDbContext.cs
+│   │   ├── UnitOfWork.cs
 │   │   ├── Configurations/
-│   │   ├── ApplicationDbContext.cs
-│   │   └── UnitOfWork.cs
-│   ├── ExternalServices/
-│   │   └── MLServiceClient.cs
+│   │   │   └── UserConfiguration.cs   # EF Core Fluent API, char(36) Guid mapping
+│   │   └── Repositories/
+│   │       ├── Repository.cs          # Generic base repository
+│   │       └── UserRepository.cs
 │   └── Services/
-│       └── CacheService.cs
-└── Presentation/              # Presentation layer (controllers, middleware)
-    ├── Controllers/
-    │   ├── AuthController.cs
-    │   └── ProblemsController.cs
-    ├── Middleware/
-    │   └── ExceptionHandlingMiddleware.cs
-    ├── Filters/
-    └── Extensions/
+│       ├── BCryptPasswordHasher.cs
+│       ├── JwtTokenGenerator.cs
+│       └── RedisCacheService.cs       # Refresh token storage (see ADR-005)
+│
+├── Controllers/                        # Presentation — thin, ISender only
+│   └── AuthController.cs
+├── Middleware/
+│   ├── ExceptionHandlingMiddleware.cs  # Global error handler (see back_end_design.md §Middleware)
+│   ├── RateLimitingMiddleware.cs       # 100 req/min per IP
+│   └── SecurityHeadersMiddleware.cs
+└── SeedData/
+    └── DbSeeder.cs                     # 5 test users on first run
+```
+
+---
+
+### problem-service (`backend/microservices/problem-service/`)
+
+```
+problem-service/
+├── ProblemService.csproj
+├── Program.cs
+├── appsettings.json
+├── Dockerfile
+│
+├── Domain/
+│   ├── Common/
+│   │   └── BaseEntity.cs
+│   └── Entities/
+│       ├── Problem.cs                  # Rich entity: Create(), Update(), SetProcessing()
+│       └── ProblemHistory.cs
+│
+├── Application/
+│   ├── Common/
+│   │   ├── Behaviors/
+│   │   │   └── ValidationBehavior.cs
+│   │   ├── Exceptions/
+│   │   │   ├── AppValidationException.cs
+│   │   │   ├── NotFoundException.cs
+│   │   │   └── UnauthorizedException.cs
+│   │   └── Interfaces/
+│   │       ├── IProblemHistoryRepository.cs
+│   │       ├── IProblemRepository.cs
+│   │       ├── ISolutionServiceClient.cs  # Abstraction for ML service HTTP calls
+│   │       └── IUnitOfWork.cs
+│   └── Features/
+│       └── Problems/
+│           ├── Commands/
+│           │   ├── CreateProblemCommand.cs
+│           │   ├── DeleteProblemCommand.cs
+│           │   ├── SendToSolutionServiceCommand.cs
+│           │   ├── UpdateProblemCommand.cs
+│           │   ├── UpdateProblemStatusCommand.cs
+│           │   └── UploadImageCommand.cs
+│           ├── DTOs/
+│           │   └── ProblemDtos.cs
+│           ├── Extensions/
+│           │   └── ProblemMappingExtensions.cs
+│           └── Queries/
+│               ├── GetProblemByIdQuery.cs
+│               └── GetUserProblemsQuery.cs
+│
+├── Infrastructure/
+│   ├── ExternalServices/
+│   │   └── SolutionServiceClient.cs   # HTTP client to ML service; X-Service-Token auth
+│   │                                  # Polly retry: 3 attempts, exponential back-off
+│   └── Persistence/
+│       ├── ProblemDbContext.cs
+│       ├── UnitOfWork.cs
+│       ├── Configurations/
+│       │   ├── ProblemConfiguration.cs
+│       │   └── ProblemHistoryConfiguration.cs
+│       └── Repositories/
+│           ├── ProblemHistoryRepository.cs
+│           └── ProblemRepository.cs
+│
+├── Controllers/
+│   └── ProblemController.cs
+├── Middleware/
+│   └── ExceptionHandlingMiddleware.cs
+└── SeedData/
+    └── DbSeeder.cs                     # 6 test problems on first run
+```
+
+---
+
+### Test projects (`backend/microservices/`)
+
+```
+AuthService.Tests/
+├── AuthService.Tests.csproj           # xUnit, Moq, FluentAssertions, coverlet
+├── Domain/
+│   └── UserEntityTests.cs             # 8 tests
+└── Application/
+    ├── Validators/
+    │   ├── RegisterCommandValidatorTests.cs   # 6 tests
+    │   └── LoginCommandValidatorTests.cs      # 4 tests
+    └── Commands/
+        ├── RegisterCommandHandlerTests.cs     # 8 tests
+        ├── LoginCommandHandlerTests.cs        # 7 tests
+        ├── RefreshTokenCommandHandlerTests.cs # 8 tests
+        └── GetCurrentUserQueryHandlerTests.cs # 6 tests
+
+ProblemService.Tests/
+├── ProblemService.Tests.csproj
+├── Domain/
+│   └── ProblemEntityTests.cs                 # 11 tests
+└── Application/
+    └── Commands/
+        ├── CreateProblemCommandHandlerTests.cs  # 6 tests
+        ├── UpdateProblemCommandHandlerTests.cs  # 4 tests
+        ├── DeleteProblemCommandHandlerTests.cs  # 4 tests
+        ├── GetUserProblemsQueryHandlerTests.cs  # 6 tests
+        └── GetProblemByIdQueryHandlerTests.cs   # 4 tests
 ```
 
 ## Future Expansion Points
 
-The current design allows for easy expansion following the "Think Big, Start Small" principle:
+The Clean Architecture layering makes extension straightforward:
 
-1. **User Management**: Extend User entity with profile information
-2. **Authentication Strategies**: Add OAuth, social login through Strategy pattern
-3. **Caching Strategies**: Implement different caching policies through Strategy pattern
-4. **Event Sourcing**: Add domain events for audit trails
-5. **Background Jobs**: Integrate Hangfire or similar for async processing
+1. **Social login** — Add `GoogleOAuthCommand`, `FacebookOAuthCommand` handlers in `auth-service/Application/Features/Authentication/Commands/` without touching existing handlers
+2. **Domain events** — `BaseEntity` already has `AddDomainEvent()` / `ClearDomainEvents()`; wire a MediatR `INotificationHandler` to publish them
+3. **Background jobs** — Add Hangfire or a hosted `IHostedService` in the Infrastructure layer; the Application layer stays unchanged
+4. **New problem types** — Add a new `Command` + `Handler` pair under `problem-service/Application/Features/Problems/Commands/`
+5. **Audit log** — Add a `ProblemHistoryRepository` write in the relevant command handlers (interface already exists)
+6. **mTLS inter-service auth** — Replace `SolutionServiceClient`'s `X-Service-Token` header (see ADR-004) with certificate-based auth at the `HttpClient` registration in `Program.cs`
 6. **API Versioning**: Add versioning support
 7. **Rate Limiting**: Add rate limiting middleware
 8. **Health Checks**: Comprehensive health monitoring

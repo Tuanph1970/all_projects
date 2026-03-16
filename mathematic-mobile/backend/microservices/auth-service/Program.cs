@@ -2,6 +2,8 @@ using System.Reflection;
 using System.Text;
 using FluentValidation;
 using MediatR;
+using Serilog;
+using Serilog.Formatting.Compact;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +17,35 @@ using AuthService.Middleware;
 using AuthService.SeedData;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ── Structured logging (Serilog) ──────────────────────────────────────────────
+// Replaces the default Microsoft console logger with compact JSON output.
+// ILogger<T> injection still works — Serilog is the underlying provider.
+builder.Host.UseSerilog((ctx, _, cfg) =>
+{
+    cfg.ReadFrom.Configuration(ctx.Configuration)
+       .Enrich.FromLogContext()
+       .Enrich.WithMachineName()
+       .Enrich.WithProperty("Service", "auth-service")
+       .WriteTo.Console(new CompactJsonFormatter());
+});
+
+// ── Error tracking (Sentry) ───────────────────────────────────────────────────
+// Only activates when SENTRY_DSN is set. Safe to leave unset in development.
+// ILogger.LogError() calls are forwarded to Sentry automatically via the
+// Serilog → Sentry integration.
+builder.WebHost.UseSentry(options =>
+{
+    options.Dsn = builder.Configuration["Sentry:Dsn"]
+                  ?? Environment.GetEnvironmentVariable("SENTRY_DSN")
+                  ?? string.Empty;
+    options.Environment         = builder.Environment.EnvironmentName;
+    options.Release             = typeof(Program).Assembly.GetName().Version?.ToString() ?? "1.0.0";
+    options.TracesSampleRate    = builder.Environment.IsProduction() ? 0.1 : 1.0;
+    options.MinimumEventLevel   = Microsoft.Extensions.Logging.LogLevel.Error;
+    options.AttachStacktrace    = true;
+    options.SendDefaultPii      = false; // Never send PII (email, username) to Sentry
+});
 
 // Add services to the container.
 builder.Services.AddControllers();

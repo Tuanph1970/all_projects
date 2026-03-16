@@ -291,19 +291,20 @@ These issues block MVP completion and must be resolved immediately:
 
 **Status**: 🔴 Not Started | **Estimated Time**: 2-3 days
 
-- [ ] **CI/CD Pipeline**
-  - [ ] Set up GitHub Actions or Azure DevOps
-  - [ ] Add automated testing in pipeline
-  - [ ] Add code quality checks (linting, formatting)
-  - [ ] Add automated Docker builds
-  - [ ] Add deployment automation
+- [x] **CI/CD Pipeline**
+  - [x] Set up GitHub Actions — `.github/workflows/ci.yml` ✅
+  - [x] Add automated testing in pipeline ✅ (all 3 test suites on every push/PR)
+  - [ ] Add code quality checks (linting, formatting) — deferred
+  - [ ] Add automated Docker builds — deferred (CD phase)
+  - [ ] Add deployment automation — deferred (CD phase)
 
-- [ ] **Monitoring & Logging**
-  - [ ] Set up application insights
-  - [ ] Add structured logging
-  - [ ] Set up error tracking (Sentry)
-  - [ ] Add performance monitoring
-  - [ ] Set up alerts for critical errors
+- [x] **Monitoring & Logging**
+  - [x] Add structured logging — Serilog JSON console in both .NET services ✅
+  - [x] Set up error tracking (Sentry) — all 3 layers (.NET, Python, React Native) ✅
+  - [x] Add performance monitoring — Sentry tracesSampleRate configured ✅
+  - [ ] Set up alerts for critical errors — configure in Sentry dashboard (requires DSN)
+  - **To activate**: Set `SENTRY_DSN` env var (backend/ML) and `EXPO_PUBLIC_SENTRY_DSN` (frontend)
+  - **Recommended Sentry alerts**: Error spike (>10 new errors/hour), new issue, issue regression
 
 - [ ] **Environment Setup**
   - [ ] Create staging environment
@@ -411,17 +412,17 @@ The documents describe an architecture that does not exist in code. This creates
   - **Fix**: Rename to `Completed` to match `back_end_design.md`, update all references and migrations
   - ✅ **RESOLVED (Mar 9 2026)**: Renamed `ProblemStatus.Solved → ProblemStatus.Completed` in `Domain/Entities/Problem.cs`. Updated frontend: `HistoryScreen.js`, `ProblemHistory.js`, `SearchAndFilter.js`, `constants/index.js`.
 
-- [ ] **[Docs] Update `front_end_design.md` to match actual Redux slices** — Docs specify slices `auth`, `problems`, `solutions`, `ui`. Actual store has `auth`, `problem` (singular), `solution` (singular), `user`, `app`, `bookmarks` (2 extra, different names).
+- [x] **[Docs] Update `front_end_design.md` to match actual Redux slices** — Docs specify slices `auth`, `problems`, `solutions`, `ui`. Actual store has `auth`, `problem` (singular), `solution` (singular), `user`, `app`, `bookmarks` (2 extra, different names).
   - **Files**: `frontend/src/store/index.js`, `documents/front_end_design.md`
-  - **Fix**: Update docs to reflect the actual slice names and the addition of `userSlice`, `appSlice`, `bookmarkSlice`
+  - ✅ **RESOLVED (Mar 16 2026)**: Doc updated to reflect all 6 actual slices with full state shapes, thunks, and selectors.
 
-- [ ] **[Docs] Update `front_end_design.md` service/pattern description** — Docs show Strategy pattern (`AuthStrategy` interface), Adapter pattern (`ApiAdapter`), Factory pattern (`ScreenFactory`), and Singleton store class. None of these exist in implementation.
+- [x] **[Docs] Update `front_end_design.md` service/pattern description** — Docs show Strategy pattern (`AuthStrategy` interface), Adapter pattern (`ApiAdapter`), Factory pattern (`ScreenFactory`), and Singleton store class. None of these exist in implementation.
   - **Files**: `frontend/src/services/authService.js`, `frontend/src/services/apiClient.js`, `frontend/src/store/index.js`
-  - **Fix**: Update docs to describe the actual approach (plain class AuthService, axios instance with interceptors, standard Redux)
+  - ✅ **RESOLVED (Mar 16 2026)**: Doc updated — plain class AuthService, axios instance with interceptors, standard Redux `configureStore` export, no ScreenFactory.
 
-- [ ] **[Docs] Remove or replace TypeScript examples in frontend docs** — `front_end_design.md` shows TypeScript interfaces and `.tsx` files. The entire frontend is JavaScript (`.js` files). This misdirects contributors.
+- [x] **[Docs] Remove or replace TypeScript examples in frontend docs** — `front_end_design.md` shows TypeScript interfaces and `.tsx` files. The entire frontend is JavaScript (`.js` files). This misdirects contributors.
   - **File**: `documents/front_end_design.md`
-  - **Fix**: Convert examples to JavaScript, or document the intent to migrate to TypeScript as a future task
+  - ✅ **RESOLVED (Mar 16 2026)**: All TypeScript examples replaced with JavaScript. `.tsx`/`.ts` file references replaced with `.js`. TypeScript migration documented as deferred post-MVP.
 
 ---
 
@@ -447,22 +448,32 @@ These items improve testability, maintainability, and align with documented inte
 - [ ] **[Frontend] Migrate from JavaScript to TypeScript** — Docs specify TypeScript; current code is JS. TypeScript would enforce the type contracts shown in `front_end_design.md` and improve reliability.
   - **Estimated effort**: 3–4 days
   - **Files**: All `frontend/src/**/*.js` files
+  - ⏭️ **DEFERRED to Post-MVP** — Team is proficient in JavaScript; migration adds risk with no functional gain at MVP stage. Revisit when onboarding new contributors or starting new modules.
 
-- [ ] **[Frontend] Implement Chain-of-Responsibility error handler** — The documented `NetworkErrorHandler → AuthErrorHandler` chain is replaced by a switch-case in `handleApiError()`. The current approach does not allow handler extension without modifying the switch.
+- [x] **[Frontend] Implement Chain-of-Responsibility error handler** — The documented `NetworkErrorHandler → AuthErrorHandler` chain is replaced by a switch-case in `handleApiError()`. The current approach does not allow handler extension without modifying the switch.
   - **File**: `frontend/src/services/apiClient.js:147-180`
+  - ✅ **RESOLVED (Mar 16 2026)**: Created `frontend/src/utils/errorHandlers.js` with 8-handler chain (ServerMessage → Network → BadRequest → Auth → Forbidden → NotFound → Validation → ServerError → Default). `handleApiError()` in `apiClient.js` now delegates to `errorHandlerChain.handle(error)`. Adding new error types requires only a new class + one line in `buildErrorHandlerChain()` — no existing code changes.
 
 ---
 
 ### 🟢 P3 — LOW: Documentation Sync (Post-MVP, Ongoing)
 
-- [ ] **[Docs] Add Architecture Decision Records (ADRs)** — Document decisions such as "why `int` over `Guid`", "why Transaction Script over CQRS", "why JavaScript over TypeScript". Referenced in `project_status.md` Priority 3 but not started.
-  - **Location**: Create `documents/decisions/` folder with ADR-001, ADR-002, etc.
+- [x] **[Docs] Add Architecture Decision Records (ADRs)** — Document decisions such as "why `int` over `Guid`", "why Transaction Script over CQRS", "why JavaScript over TypeScript". Referenced in `project_status.md` Priority 3 but not started.
+  - **Location**: `documents/decisions/`
+  - ✅ **RESOLVED (Mar 16 2026)**: 5 ADRs created:
+    - ADR-001: Clean Architecture + CQRS over Transaction Script
+    - ADR-002: Guid over int for entity IDs
+    - ADR-003: JavaScript over TypeScript (deferred migration)
+    - ADR-004: Shared static token for inter-service auth (`INTERNAL_SERVICE_TOKEN`)
+    - ADR-005: Redis for refresh token storage
 
-- [ ] **[Docs] Update `back_end_design.md` project structure diagram** — Docs show `HomeworkSolver.API/Domain/Application/Infrastructure/Presentation` folder structure. Actual structure is `auth-service/Controllers + Services + Models + Data`. Remove or replace the misleading folder tree.
+- [x] **[Docs] Update `back_end_design.md` project structure diagram** — Docs show `HomeworkSolver.API/Domain/Application/Infrastructure/Presentation` folder structure. Actual structure is `auth-service/Controllers + Services + Models + Data`. Remove or replace the misleading folder tree.
   - **File**: `documents/back_end_design.md:1143-1190`
+  - ✅ **RESOLVED (Mar 16 2026)**: Replaced fictional `HomeworkSolver.API` tree with accurate per-service trees for `auth-service`, `problem-service`, and both test projects. Every file listed is verified on disk. Future Expansion Points updated to reflect actual extension points.
 
-- [ ] **[Docs] Document the actual `bookmarkSlice` and `appSlice`** — These exist in code with no corresponding documentation. Add their state shape and purpose to `front_end_design.md`.
+- [x] **[Docs] Document the actual `bookmarkSlice` and `appSlice`** — These exist in code with no corresponding documentation. Add their state shape and purpose to `front_end_design.md`.
   - **Files**: `frontend/src/store/slices/bookmarkSlice.js`, `frontend/src/store/slices/appSlice.js`
+  - ✅ **RESOLVED (Mar 16 2026)**: Both slices fully documented in `front_end_design.md` with state shapes, thunks, actions, and selectors.
 
 - [ ] **[Docs] Document service-to-service auth token pattern** — The `INTERNAL_SERVICE_TOKEN` mechanism for inter-service calls is implemented but not described in any design document.
   - **Location**: Add to `documents/back_end_design.md` or a new `documents/infrastructure-design.md`

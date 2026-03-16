@@ -6,7 +6,12 @@ import { PersistGate } from 'redux-persist/integration/react';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Font from 'expo-font';
 
+import { initSentry } from './src/utils/sentry';
 import { store, persistor } from './src/store';
+
+// Initialise Sentry before anything else renders.
+// No-op when EXPO_PUBLIC_SENTRY_DSN is not set.
+initSentry();
 import { initializeAuth } from './src/store/slices/authSlice';
 import AppNavigator from './src/navigation/AppNavigator';
 import LoadingScreen from './src/components/common/LoadingScreen';

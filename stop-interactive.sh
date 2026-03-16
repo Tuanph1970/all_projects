@@ -22,11 +22,12 @@ CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
 NC='\033[0m' # No Color
 
+# Dynamic BASE_DIR detection - automatically detect the script's directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$SCRIPT_DIR"
+
 # Project directories
-# BASE_DIR="/home/tuanph/all_projects"
-BASE_DIR="/home/home/all_projects"
 CERAMIC_DIR="$BASE_DIR/ceramic_mobile_app/back_end"
-# STOCK_DIR="$BASE_DIR/stockpredict/webapi"
 STOCK_DIR="$BASE_DIR/stockpredict/stock_microservices"
 MATH_DIR="$BASE_DIR/mathematic-mobile/backend"
 
