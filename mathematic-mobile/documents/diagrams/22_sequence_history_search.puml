@@ -1,0 +1,147 @@
+@startuml 22_Sequence_History_Search
+title Problem History, Search & Filter - Sequence Diagram
+
+skinparam sequenceMessageAlign center
+skinparam sequence {
+    ArrowColor DarkSlateGray
+    ActorBorderColor DarkSlateGray
+    LifeLineBorderColor DarkSlateGray
+    ParticipantBorderColor DarkSlateGray
+    ParticipantBackgroundColor WhiteSmoke
+}
+
+actor User
+participant "HistoryScreen\n(React Native)" as Screen
+participant "problemSlice\n(Redux)" as ProbSlice
+participant "ProblemService\n(Frontend)" as ProbSvc
+participant "ApiClient\n(Axios)" as ApiClient
+participant "ProblemController\n(.NET)" as Controller
+participant "GetUserProblemsHandler\n(.NET)" as ListHandler
+participant "SearchProblemsHandler\n(.NET)" as SearchHandler
+participant "ProblemRepository\n(EF Core)" as Repo
+database "MySQL\n(Problem DB)" as DB
+
+== Initial Load (Paginated) ==
+
+User -> Screen : Navigate to History
+Screen -> ProbSlice : dispatch(fetchProblems({page: 1, pageSize: 10}))
+activate ProbSlice
+
+ProbSlice -> ProbSvc : getProblems(1, 10, filters)
+activate ProbSvc
+
+ProbSvc -> ApiClient : GET /api/v1/problems\n?page=1&pageSize=10\nAuthorization: Bearer {token}
+activate ApiClient
+
+ApiClient -> Controller : HTTP GET
+activate Controller
+
+Controller -> ListHandler : Send(GetUserProblemsQuery\n{userId, page:1, pageSize:10})
+activate ListHandler
+
+ListHandler -> Repo : GetByUserIdAsync(userId, page:1, pageSize:10)
+activate Repo
+Repo -> DB : SELECT * FROM Problems\nWHERE UserId=?\nORDER BY CreatedAt DESC\nLIMIT 10 OFFSET 0
+DB --> Repo : List<Problem> + total count
+deactivate Repo
+
+ListHandler --> Controller : PagedResult<ProblemDto>\n{items[], totalCount, page, pageSize}
+deactivate ListHandler
+
+Controller --> ApiClient : 200 OK {pagedResult}
+deactivate Controller
+
+ApiClient --> ProbSvc : PagedResult
+deactivate ApiClient
+ProbSvc --> ProbSlice : PagedResult
+deactivate ProbSvc
+
+ProbSlice -> ProbSlice : problems = items\npagination = {total, page}
+ProbSlice --> Screen : Problems list updated
+deactivate ProbSlice
+
+Screen -> Screen : Render FlatList with\nproblem cards + status badges
+Screen --> User : Show 10 problems
+
+== Load More (Infinite Scroll) ==
+
+User -> Screen : Scroll to bottom
+Screen -> ProbSlice : dispatch(fetchProblems({page: 2, pageSize: 10}))
+ProbSlice -> ProbSvc : getProblems(2, 10)
+ProbSvc -> ApiClient : GET /api/v1/problems?page=2&pageSize=10
+ApiClient -> Controller : HTTP GET
+Controller --> ApiClient : Next 10 problems
+ApiClient --> ProbSvc : Items
+ProbSvc --> ProbSlice : Items
+ProbSlice -> ProbSlice : problems.push(...newItems)
+ProbSlice --> Screen : Appended to list
+Screen --> User : More problems shown
+
+== Pull-to-Refresh ==
+
+User -> Screen : Pull down to refresh
+Screen -> ProbSlice : dispatch(fetchProblems({page: 1, refresh: true}))
+ProbSlice -> ProbSvc : getProblems(1, 10)
+note over ProbSlice : Resets pagination,\nreplaces entire list
+ProbSlice --> Screen : Fresh data
+Screen --> User : Updated list
+
+== Search ==
+
+User -> Screen : Tap search bar
+User -> Screen : Type "quadratic equation"
+Screen -> ProbSlice : dispatch(searchProblems("quadratic equation"))
+activate ProbSlice
+
+ProbSlice -> ProbSvc : searchProblems("quadratic equation")
+activate ProbSvc
+
+ProbSvc -> ApiClient : POST /api/v1/problems/search\n{query: "quadratic equation"}
+activate ApiClient
+
+ApiClient -> Controller : HTTP POST
+activate Controller
+
+Controller -> SearchHandler : Send(SearchProblemsQuery\n{userId, searchText, filters})
+activate SearchHandler
+
+SearchHandler -> Repo : SearchAsync(userId, "quadratic equation", filters)
+activate Repo
+Repo -> DB : SELECT * FROM Problems\nWHERE UserId=?\nAND (Title LIKE '%quadratic%'\n  OR Description LIKE '%quadratic%'\n  OR ExtractedText LIKE '%quadratic%')\nORDER BY CreatedAt DESC
+DB --> Repo : Matching problems
+deactivate Repo
+
+SearchHandler --> Controller : IEnumerable<ProblemDto>
+deactivate SearchHandler
+
+Controller --> ApiClient : 200 OK {results}
+deactivate Controller
+
+ApiClient --> ProbSvc : Results
+deactivate ApiClient
+ProbSvc --> ProbSlice : Results
+deactivate ProbSvc
+
+ProbSlice -> ProbSlice : problems = searchResults
+ProbSlice --> Screen : Search results
+deactivate ProbSlice
+
+Screen --> User : Show filtered list
+
+== Apply Filters ==
+
+User -> Screen : Open filter panel
+User -> Screen : Select Category: "Algebra"\nStatus: "Completed"\nDate: "Last 7 days"
+Screen -> ProbSlice : dispatch(setFilters({category, status, dateFrom}))
+ProbSlice -> ProbSlice : filters updated
+Screen -> ProbSlice : dispatch(fetchProblems({page:1, filters}))
+ProbSlice -> ProbSvc : getProblems(1, 10, {category:"Algebra",\nstatus:"Completed", dateFrom:...})
+ProbSvc -> ApiClient : GET /api/v1/problems\n?page=1&category=Algebra&status=2&dateFrom=...
+ApiClient -> Controller : HTTP GET
+Controller --> ApiClient : Filtered results
+ApiClient --> ProbSvc : Results
+ProbSvc --> ProbSlice : Results
+ProbSlice --> Screen : Filtered list
+Screen --> User : Show filtered problems
+
+@enduml

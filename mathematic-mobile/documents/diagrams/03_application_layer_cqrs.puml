@@ -1,0 +1,251 @@
+@startuml 03_Application_Layer_CQRS
+title Application Layer - CQRS Commands & Queries (Class Diagram)
+
+skinparam classAttributeIconSize 0
+skinparam class {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    ArrowColor DarkSlateGray
+    FontSize 11
+}
+
+package "MediatR" {
+    interface "IRequest<TResponse>" as IRequest {
+    }
+    interface "IRequestHandler<TRequest, TResponse>" as IRequestHandler {
+        + Handle(request, cancellationToken) : Task<TResponse>
+    }
+    interface IPipelineBehavior {
+        + Handle(request, next, cancellationToken) : Task<TResponse>
+    }
+}
+
+package "Application.Auth.Commands" {
+    class RegisterCommand {
+        + Username : string
+        + Email : string
+        + Password : string
+        + FullName : string?
+    }
+    class RegisterCommandHandler {
+        - _unitOfWork : IUnitOfWork
+        - _passwordHasher : IPasswordHasher
+        - _jwtGenerator : IJwtTokenGenerator
+        + Handle(command, token) : Task<AuthResult>
+    }
+
+    class LoginCommand {
+        + UsernameOrEmail : string
+        + Password : string
+    }
+    class LoginCommandHandler {
+        - _unitOfWork : IUnitOfWork
+        - _passwordHasher : IPasswordHasher
+        - _jwtGenerator : IJwtTokenGenerator
+        - _cache : IRedisCache
+        + Handle(command, token) : Task<AuthResult>
+    }
+
+    class RefreshTokenCommand {
+        + AccessToken : string
+        + RefreshToken : string
+    }
+    class RefreshTokenCommandHandler {
+        - _unitOfWork : IUnitOfWork
+        - _jwtGenerator : IJwtTokenGenerator
+        - _cache : IRedisCache
+        + Handle(command, token) : Task<AuthResult>
+    }
+
+    class UpdateProfileCommand {
+        + UserId : Guid
+        + FullName : string?
+        + Email : string
+    }
+    class UpdateProfileCommandHandler {
+        - _unitOfWork : IUnitOfWork
+        + Handle(command, token) : Task<UserDto>
+    }
+
+    class ChangePasswordCommand {
+        + UserId : Guid
+        + CurrentPassword : string
+        + NewPassword : string
+    }
+    class ChangePasswordCommandHandler {
+        - _unitOfWork : IUnitOfWork
+        - _passwordHasher : IPasswordHasher
+        + Handle(command, token) : Task<bool>
+    }
+}
+
+package "Application.Auth.Queries" {
+    class GetCurrentUserQuery {
+        + UserId : Guid
+    }
+    class GetCurrentUserQueryHandler {
+        - _unitOfWork : IUnitOfWork
+        + Handle(query, token) : Task<UserDto>
+    }
+
+    class GetUserByIdQuery {
+        + UserId : Guid
+    }
+    class GetUserByIdQueryHandler {
+        - _unitOfWork : IUnitOfWork
+        + Handle(query, token) : Task<UserDto>
+    }
+
+    class ValidateTokenQuery {
+        + Token : string
+    }
+    class ValidateTokenQueryHandler {
+        - _jwtGenerator : IJwtTokenGenerator
+        + Handle(query, token) : Task<bool>
+    }
+}
+
+package "Application.Problem.Commands" {
+    class CreateProblemCommand {
+        + UserId : Guid
+        + Title : string
+        + Description : string?
+        + Category : string
+        + Difficulty : string
+    }
+    class CreateProblemCommandHandler {
+        - _unitOfWork : IUnitOfWork
+        + Handle(command, token) : Task<ProblemDto>
+    }
+
+    class UpdateProblemCommand {
+        + ProblemId : Guid
+        + UserId : Guid
+        + Title : string
+        + Description : string?
+        + Category : string
+        + Difficulty : string
+    }
+    class UpdateProblemCommandHandler {
+        - _unitOfWork : IUnitOfWork
+        + Handle(command, token) : Task<ProblemDto>
+    }
+
+    class DeleteProblemCommand {
+        + ProblemId : Guid
+        + UserId : Guid
+    }
+    class DeleteProblemCommandHandler {
+        - _unitOfWork : IUnitOfWork
+        + Handle(command, token) : Task<bool>
+    }
+
+    class UploadImageCommand {
+        + ProblemId : Guid
+        + UserId : Guid
+        + ImageBytes : byte[]
+        + FileName : string
+    }
+    class UploadImageCommandHandler {
+        - _unitOfWork : IUnitOfWork
+        - _mlClient : IMLServiceClient
+        - _fileStorage : IFileStorageService
+        + Handle(command, token) : Task<ProblemDto>
+    }
+
+    class UpdateProblemStatusCommand {
+        + ProblemId : Guid
+        + Status : ProblemStatus
+        + ExtractedText : string?
+    }
+    class UpdateProblemStatusCommandHandler {
+        - _unitOfWork : IUnitOfWork
+        + Handle(command, token) : Task<bool>
+    }
+}
+
+package "Application.Problem.Queries" {
+    class GetUserProblemsQuery {
+        + UserId : Guid
+        + Page : int
+        + PageSize : int
+        + Filters : ProblemFilters
+    }
+    class GetUserProblemsQueryHandler {
+        - _unitOfWork : IUnitOfWork
+        + Handle(query, token) : Task<PagedResult<ProblemDto>>
+    }
+
+    class GetProblemByIdQuery {
+        + ProblemId : Guid
+        + UserId : Guid
+    }
+    class GetProblemByIdQueryHandler {
+        - _unitOfWork : IUnitOfWork
+        + Handle(query, token) : Task<ProblemDto>
+    }
+
+    class SearchProblemsQuery {
+        + UserId : Guid
+        + SearchText : string
+        + Category : string?
+        + Status : ProblemStatus?
+        + DateFrom : DateTime?
+        + DateTo : DateTime?
+    }
+    class SearchProblemsQueryHandler {
+        - _unitOfWork : IUnitOfWork
+        + Handle(query, token) : Task<IEnumerable<ProblemDto>>
+    }
+}
+
+package "Application.Common.Behaviors" {
+    class "ValidationBehavior<TRequest, TResponse>" as ValidationBehavior {
+        - _validators : IEnumerable<IValidator<TRequest>>
+        + Handle(request, next, token) : Task<TResponse>
+    }
+
+    class "LoggingBehavior<TRequest, TResponse>" as LoggingBehavior {
+        - _logger : ILogger
+        + Handle(request, next, token) : Task<TResponse>
+    }
+}
+
+IRequest <|.. RegisterCommand
+IRequest <|.. LoginCommand
+IRequest <|.. RefreshTokenCommand
+IRequest <|.. UpdateProfileCommand
+IRequest <|.. ChangePasswordCommand
+IRequest <|.. GetCurrentUserQuery
+IRequest <|.. GetUserByIdQuery
+IRequest <|.. ValidateTokenQuery
+IRequest <|.. CreateProblemCommand
+IRequest <|.. UpdateProblemCommand
+IRequest <|.. DeleteProblemCommand
+IRequest <|.. UploadImageCommand
+IRequest <|.. UpdateProblemStatusCommand
+IRequest <|.. GetUserProblemsQuery
+IRequest <|.. GetProblemByIdQuery
+IRequest <|.. SearchProblemsQuery
+
+IRequestHandler <|.. RegisterCommandHandler
+IRequestHandler <|.. LoginCommandHandler
+IRequestHandler <|.. RefreshTokenCommandHandler
+IRequestHandler <|.. UpdateProfileCommandHandler
+IRequestHandler <|.. ChangePasswordCommandHandler
+IRequestHandler <|.. GetCurrentUserQueryHandler
+IRequestHandler <|.. GetUserByIdQueryHandler
+IRequestHandler <|.. ValidateTokenQueryHandler
+IRequestHandler <|.. CreateProblemCommandHandler
+IRequestHandler <|.. UpdateProblemCommandHandler
+IRequestHandler <|.. DeleteProblemCommandHandler
+IRequestHandler <|.. UploadImageCommandHandler
+IRequestHandler <|.. UpdateProblemStatusCommandHandler
+IRequestHandler <|.. GetUserProblemsQueryHandler
+IRequestHandler <|.. GetProblemByIdQueryHandler
+IRequestHandler <|.. SearchProblemsQueryHandler
+
+IPipelineBehavior <|.. ValidationBehavior
+IPipelineBehavior <|.. LoggingBehavior
+
+@enduml

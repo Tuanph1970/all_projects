@@ -1,0 +1,285 @@
+@startuml 00_Pipeline_Main_Flow_Overview
+title Mathematic Mobile — End-to-End Main Flow (Activity Diagram with Swimlanes)
+
+skinparam activity {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    ArrowColor DarkSlateGray
+    FontSize 12
+    DiamondBackgroundColor LightYellow
+    DiamondBorderColor DarkOrange
+}
+skinparam swimlane {
+    BorderColor DarkSlateGray
+    TitleFontSize 13
+}
+skinparam note {
+    BackgroundColor LightYellow
+    BorderColor DarkOrange
+}
+
+|#E8F4FD| Mobile App\n(React Native)|
+|#FFF3E0| Auth Service\n(.NET 8)|
+|#F3E5F5| Problem Service\n(.NET 8)|
+|#E8F5E9| ML / OCR Service\n(FastAPI Python)|
+|#FCE4EC| Databases / Cache|
+
+|Mobile App\n(React Native)|
+start
+
+:App launches;
+:initializeApp() —\ncheck SecureStore\nfor saved tokens;
+
+if (Valid token found?) then (yes)
+  :Restore Auth State\nfrom redux-persist;
+else (no)
+  :Show Auth Navigator\n(Welcome Screen);
+  fork
+    :User taps **Register**;
+    :Fill username, email\npassword, fullName;
+  fork again
+    :User taps **Login**;
+    :Fill username/email\nand password;
+  end fork
+
+  |Auth Service\n(.NET 8)|
+  :Validate input\n(FluentValidation);
+  if (Valid?) then (no)
+    |Mobile App\n(React Native)|
+    :Show field errors;
+    stop
+  else (yes)
+  endif
+
+  if (Register flow?) then (yes)
+    :Check username/email\nuniqueness in DB;
+    |Databases / Cache|
+    :INSERT Users table;
+    |Auth Service\n(.NET 8)|
+  else (Login flow)
+    :Lookup user by\nusername or email;
+    :Verify BCrypt\npassword hash;
+  endif
+
+  :Generate JWT\naccess token (15 min);
+  :Generate Refresh\nToken (30 days);
+  |Databases / Cache|
+  :Store refresh token\nin Redis (TTL 30d);
+  |Auth Service\n(.NET 8)|
+  :Return {user, accessToken,\nrefreshToken};
+
+  |Mobile App\n(React Native)|
+  :Save tokens to\nExpo SecureStore;
+  :dispatch(setCredentials)\n→ isAuthenticated = true;
+endif
+
+:Show Main Navigator\n(Bottom Tab Bar);
+
+note right
+  **App is now authenticated.**
+  User can access all features.
+end note
+
+' ─────────────────────────────────────
+' MAIN LOOP
+' ─────────────────────────────────────
+repeat
+
+  :User chooses action;
+
+  switch (Tab selected)
+  case (Camera Tab)
+
+    |Mobile App\n(React Native)|
+    :CameraScreen opens;
+    fork
+      :Capture photo\n(expo-camera);
+    fork again
+      :Pick from gallery\n(expo-image-picker);
+    end fork
+
+    :Check image quality\n(brightness / blur / resolution\n→ score 0–100%);
+
+    if (Quality < 50?) then (yes)
+      :Show warning\n"Image may be unclear";
+      :User re-takes\nor proceeds;
+    else (ok)
+    endif
+
+    :Crop / rotate\n(optional);
+    :Compress image\n(JPEG ~70%,\n60–80% size reduction);
+
+    :Select category\n(Algebra / Calculus /\nGeometry / Trig / Stats);
+    :Select difficulty\n(Easy / Medium / Hard);
+    :Tap **Submit**;
+
+    |Problem Service\n(.NET 8)|
+    :CreateProblemCommand\n→ INSERT Problems\n(status = Pending);
+    |Databases / Cache|
+    :Problems table:\nId, UserId, Title\nCategory, Status=0;
+    |Problem Service\n(.NET 8)|
+    :Return problem {id};
+
+    |Mobile App\n(React Native)|
+    :Upload image\n(multipart/form-data\nPOST /problems/{id}/upload);
+
+    |Problem Service\n(.NET 8)|
+    :Save image to\nFile Storage;
+    :problem.SetImage(path)\nproblem.SetProcessing()\n→ Status = Processing;
+    |Databases / Cache|
+    :UPDATE Problems\nStatus=1, ImagePath=?;
+    |Problem Service\n(.NET 8)|
+
+    ' ─── OCR Phase ───
+    :MLServiceClient\nPOST /ocr/extract\n(async, fire-and-forget);
+
+    |ML / OCR Service\n(FastAPI Python)|
+    :Receive image bytes;
+    :ImagePreprocessor:\n• Grayscale\n• Contrast enhance\n• Noise removal\n• Resize to model input;
+    :TrOCR model\n(microsoft/trocr-base)\n→ pixel_values → generate()\n→ decode tokens;
+    :Calculate OCR\nconfidence score;
+    :Return OCRResult\n{extracted_text, confidence};
+
+    ' ─── Solve Phase ───
+    :TextPreprocessor:\n• Clean text\n• Detect language\n• Translate if Vietnamese\n• Normalize math symbols;
+    :MathExpressionParser\n(SymPy):\n• Extract expressions\n• to_sympy()\n• solve_algebraic() / calculus();
+    :FLAN-T5 model\n(google/flan-t5-base)\n→ generate step-by-step\nsolution text;
+    :Generate SolutionSteps[]\n{stepNumber, description,\nformula, result, explanation};
+    :Calculate solution\nconfidence score;
+
+    ' ─── Callback ───
+    :POST /problems/{id}/status\n{status: Completed,\nextractedText};
+
+    |Problem Service\n(.NET 8)|
+    :UpdateProblemStatusCommand\nproblem.SetCompleted(text)\n→ Status = Completed;
+    |Databases / Cache|
+    :UPDATE Problems\nStatus=2, ExtractedText=?\nCompletedAt=NOW();
+    |Problem Service\n(.NET 8)|
+    :Record ProblemHistory\n(Action="Completed");
+
+    |Mobile App\n(React Native)|
+    :Navigate to\nSolutionScreen;
+
+  case (History Tab)
+
+    |Mobile App\n(React Native)|
+    :HistoryScreen opens;
+    :GET /problems\n?page=1&pageSize=10;
+
+    |Problem Service\n(.NET 8)|
+    :GetUserProblemsQuery\nSELECT * FROM Problems\nWHERE UserId=?\nORDER BY CreatedAt DESC\nLIMIT 10;
+    |Databases / Cache|
+    :Return paginated list;
+    |Problem Service\n(.NET 8)|
+    :Return PagedResult<ProblemDto>;
+
+    |Mobile App\n(React Native)|
+    :Render FlatList\nwith status badges;
+
+    if (User searches / filters?) then (yes)
+      :POST /problems/search\n{query, filters};
+      |Problem Service\n(.NET 8)|
+      :SearchProblemsQuery\nFULL-TEXT search on\nTitle, Description,\nExtractedText;
+      |Mobile App\n(React Native)|
+      :Show filtered results;
+    else (no)
+    endif
+
+    if (User taps problem?) then (yes)
+      :Navigate to\nSolutionScreen;
+    else (no)
+    endif
+
+  case (Profile Tab)
+
+    |Mobile App\n(React Native)|
+    :ProfileScreen opens\nwith user stats &\nachievements;
+
+    if (Edit profile?) then (yes)
+      :PUT /auth/profile\n{fullName, email};
+      |Auth Service\n(.NET 8)|
+      :UpdateProfileCommand\nUPDATE Users;
+    else (no)
+    endif
+
+    if (Logout?) then (yes)
+      :POST /auth/logout\n(invalidate refresh token);
+      |Auth Service\n(.NET 8)|
+      :DELETE Redis key\nrefresh_token:{userId};
+      |Mobile App\n(React Native)|
+      :Clear SecureStore\ndispatch(clearAuth());
+      :Navigate to LoginScreen;
+      stop
+    else (no)
+    endif
+
+  endswitch
+
+  ' ─── Solution View (shared across Camera & History) ───
+  |Mobile App\n(React Native)|
+  :SolutionScreen:\nGET /problems/{id};
+
+  |Problem Service\n(.NET 8)|
+  :GetProblemByIdQuery\n→ return Problem with\nextractedText + solutionSteps;
+
+  |Mobile App\n(React Native)|
+  :Render SolutionSteps[0]\n(KaTeX / MathJax formula\nrendering);
+
+  repeat
+    :User navigates steps\n(prev / next buttons);
+    :Render SolutionSteps[currentStep];
+  repeat while (More steps?) is (yes)
+  -> all steps viewed;
+
+  if (Rate solution?) then (yes)
+    :POST /solutions/{id}/rate\n{rating: 1–5, feedback};
+  else (no)
+  endif
+
+  if (Bookmark?) then (yes)
+    :Save to bookmarkSlice\n(local redux-persist\n+ SecureStore);
+  else (no)
+  endif
+
+  if (Share?) then (yes)
+    fork
+      :Export as image\n(expo-sharing);
+    fork again
+      :Export as PDF\n(expo-file-system);
+    fork again
+      :Copy text to clipboard;
+    fork again
+      :Share link;
+    end fork
+  else (no)
+  endif
+
+  ' ─── Token Refresh (background, transparent to user) ───
+  if (API returns 401?) then (yes)
+    |Mobile App\n(React Native)|
+    :Axios interceptor\ncaptures 401;
+    :Queue concurrent requests;
+    :POST /auth/refresh\n{accessToken, refreshToken};
+    |Auth Service\n(.NET 8)|
+    :Validate refresh token\nfrom Redis;
+    if (Refresh token valid?) then (yes)
+      :Rotate refresh token\n(delete old, store new);
+      :Generate new accessToken;
+      |Mobile App\n(React Native)|
+      :Update SecureStore;
+      :Retry all queued\nrequests with new token;
+    else (expired)
+      |Mobile App\n(React Native)|
+      :dispatch(clearAuth())\nNavigate to LoginScreen;
+      stop
+    endif
+  else (no)
+  endif
+
+repeat while (User continues using app?) is (yes)
+-> User exits app;
+
+:App goes to background\n(tokens persist in SecureStore);
+stop
+
+@enduml

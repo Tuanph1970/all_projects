@@ -1,0 +1,150 @@
+@startuml 11_UseCase_Overall
+title Mathematic Mobile - Overall Use Case Diagram
+
+skinparam usecase {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    ArrowColor DarkSlateGray
+    FontSize 11
+}
+skinparam actor {
+    BorderColor DarkSlateGray
+    FontSize 12
+}
+
+left to right direction
+
+actor "Guest User" as Guest
+actor "Registered User" as RegUser
+actor "Admin" as Admin
+actor "ML Service" as ML
+actor "Push Notification\nService" as PushSvc
+
+rectangle "Mathematic Mobile System" {
+
+    package "Authentication" {
+        usecase "Register Account" as UC_Register
+        usecase "Login" as UC_Login
+        usecase "Logout" as UC_Logout
+        usecase "Refresh Token" as UC_RefreshToken
+        usecase "Update Profile" as UC_UpdateProfile
+        usecase "Change Password" as UC_ChangePassword
+        usecase "Forgot Password" as UC_ForgotPassword
+    }
+
+    package "Problem Management" {
+        usecase "Capture Problem Image" as UC_Capture
+        usecase "Select from Gallery" as UC_Gallery
+        usecase "Check Image Quality" as UC_Quality
+        usecase "Crop/Adjust Image" as UC_Crop
+        usecase "Submit Problem" as UC_Submit
+        usecase "View Problem History" as UC_History
+        usecase "Search Problems" as UC_Search
+        usecase "Filter Problems" as UC_Filter
+        usecase "Delete Problem" as UC_Delete
+        usecase "Retry Failed Problem" as UC_Retry
+    }
+
+    package "Solution Generation" {
+        usecase "Extract Text (OCR)" as UC_OCR
+        usecase "Solve Math Problem" as UC_Solve
+        usecase "View Solution Steps" as UC_ViewSolution
+        usecase "Navigate Steps" as UC_Navigate
+        usecase "View Step-by-Step" as UC_StepByStep
+    }
+
+    package "Solution Interaction" {
+        usecase "Rate Solution" as UC_Rate
+        usecase "Bookmark Solution" as UC_Bookmark
+        usecase "View Bookmarks" as UC_ViewBookmarks
+        usecase "Add Notes to Bookmark" as UC_Notes
+        usecase "Share Solution" as UC_Share
+        usecase "Export as Image" as UC_ExportImg
+        usecase "Export as PDF" as UC_ExportPDF
+        usecase "Copy to Clipboard" as UC_Copy
+    }
+
+    package "User Profile & Settings" {
+        usecase "View Profile" as UC_Profile
+        usecase "View Statistics" as UC_Stats
+        usecase "View Achievements" as UC_Achievements
+        usecase "Change Theme" as UC_Theme
+        usecase "Change Language" as UC_Language
+        usecase "Manage Notifications" as UC_Notifications
+        usecase "Clear Cache" as UC_Cache
+    }
+
+    package "Admin Operations" {
+        usecase "Manage Users" as UC_ManageUsers
+        usecase "View System Stats" as UC_SystemStats
+        usecase "Moderate Content" as UC_Moderate
+    }
+}
+
+' Guest User
+Guest --> UC_Register
+Guest --> UC_Login
+Guest --> UC_ForgotPassword
+
+' Registered User (inherits from Guest)
+RegUser --|> Guest
+
+RegUser --> UC_Logout
+RegUser --> UC_RefreshToken
+RegUser --> UC_UpdateProfile
+RegUser --> UC_ChangePassword
+
+RegUser --> UC_Capture
+RegUser --> UC_Gallery
+RegUser --> UC_Submit
+RegUser --> UC_History
+RegUser --> UC_Search
+RegUser --> UC_Filter
+RegUser --> UC_Delete
+RegUser --> UC_Retry
+
+RegUser --> UC_ViewSolution
+RegUser --> UC_Navigate
+RegUser --> UC_StepByStep
+
+RegUser --> UC_Rate
+RegUser --> UC_Bookmark
+RegUser --> UC_ViewBookmarks
+RegUser --> UC_Notes
+RegUser --> UC_Share
+
+RegUser --> UC_Profile
+RegUser --> UC_Stats
+RegUser --> UC_Achievements
+RegUser --> UC_Theme
+RegUser --> UC_Language
+RegUser --> UC_Notifications
+RegUser --> UC_Cache
+
+' Admin (inherits from RegisteredUser)
+Admin --|> RegUser
+Admin --> UC_ManageUsers
+Admin --> UC_SystemStats
+Admin --> UC_Moderate
+
+' ML Service (automated actor)
+ML --> UC_OCR
+ML --> UC_Solve
+
+' Include relationships
+UC_Submit ..> UC_Quality : <<include>>
+UC_Capture ..> UC_Quality : <<include>>
+UC_Submit ..> UC_OCR : <<include>>
+UC_OCR ..> UC_Solve : <<include>>
+UC_ViewSolution ..> UC_Navigate : <<include>>
+UC_ViewSolution ..> UC_StepByStep : <<include>>
+UC_Share ..> UC_ExportImg : <<extend>>
+UC_Share ..> UC_ExportPDF : <<extend>>
+UC_Share ..> UC_Copy : <<extend>>
+UC_Capture ..> UC_Crop : <<extend>>
+UC_Gallery ..> UC_Crop : <<extend>>
+
+' Push Notification Service
+PushSvc --> RegUser : Notify solution ready
+
+@enduml

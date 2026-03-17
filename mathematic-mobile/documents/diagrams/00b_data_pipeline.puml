@@ -1,0 +1,254 @@
+@startuml 00b_Data_Pipeline
+title Mathematic Mobile — Data Transformation Pipeline
+
+skinparam rectangle {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    FontSize 12
+}
+skinparam arrow {
+    Color DarkSlateGray
+    FontSize 11
+}
+skinparam note {
+    BackgroundColor LightYellow
+    BorderColor DarkOrange
+    FontSize 10
+}
+skinparam cloud {
+    BackgroundColor #E8F4FD
+    BorderColor DarkSlateGray
+}
+skinparam database {
+    BackgroundColor LightBlue
+    BorderColor DarkSlateGray
+}
+skinparam card {
+    BackgroundColor #F3E5F5
+    BorderColor DarkSlateGray
+}
+
+' ══════════════════════════════════════════════════════
+' STAGE 0 — INPUT
+' ══════════════════════════════════════════════════════
+
+package "Stage 0 · Input Acquisition" #E8F4FD {
+    rectangle "Camera Sensor\n(expo-camera)" as Cam
+    rectangle "Photo Gallery\n(expo-image-picker)" as Gallery
+
+    note right of Cam
+      RAW image
+      JPEG/PNG
+      Any resolution
+    end note
+}
+
+' ══════════════════════════════════════════════════════
+' STAGE 1 — FRONTEND IMAGE PROCESSING
+' ══════════════════════════════════════════════════════
+
+package "Stage 1 · Frontend Image Processing\n(React Native — ImageCompressionService)" #FFF3E0 {
+    rectangle "Quality Check\n(brightness, blur,\nresolution → 0-100%)" as QualCheck
+    rectangle "Crop / Rotate\n(optional, user-driven)" as Crop
+    rectangle "JPEG Compress\n(quality=0.7\n60-80% size reduction)" as Compress
+
+    note right of Compress
+      Input:  ~3-8 MB RAW
+      Output: ~0.5-2 MB
+      Max width: 1920px
+    end note
+}
+
+' ══════════════════════════════════════════════════════
+' STAGE 2 — PROBLEM SERVICE INTAKE
+' ══════════════════════════════════════════════════════
+
+package "Stage 2 · Problem Service Intake\n(.NET 8 — ProblemService)" #F3E5F5 {
+    rectangle "Create Problem Record\n(status = Pending)\nMySQL INSERT" as CreateRecord
+    rectangle "File Storage Write\n(save compressed image\nto /uploads/{id}.jpg)" as FileWrite
+    rectangle "Status → Processing\nMySQL UPDATE" as SetProcessing
+
+    note right of SetProcessing
+      Problem entity state:
+      Pending → Processing
+      Triggers ML pipeline
+    end note
+}
+
+' ══════════════════════════════════════════════════════
+' STAGE 3 — OCR PIPELINE
+' ══════════════════════════════════════════════════════
+
+package "Stage 3 · OCR Text Extraction Pipeline\n(FastAPI — MLService / OCRModel)" #E8F5E9 {
+    rectangle "Image Decode\n(bytes → PIL.Image)" as Decode
+    rectangle "Grayscale Conversion\n(RGB → L channel)" as Grayscale
+    rectangle "Contrast Enhancement\n(CLAHE algorithm)" as Contrast
+    rectangle "Noise Removal\n(Gaussian blur filter)" as Noise
+    rectangle "Resize / Pad\n(to TrOCR input size\n384×384 or 448×448)" as Resize
+    rectangle "TrOCR Inference\n(microsoft/trocr-base-handwritten)\nVisionEncoderDecoder\n→ token generation" as TrOCR
+    rectangle "Token Decode\n(processor.decode\n→ raw text string)" as TokenDecode
+    rectangle "Confidence Score\n(softmax probabilities\n→ 0.0 – 1.0)" as OcrConfidence
+
+    note right of TrOCR
+      Model: microsoft/trocr-base-handwritten
+      Input:  384×384 pixel_values tensor
+      Output: token id sequence
+      Supports: printed & handwritten math
+    end note
+}
+
+' ══════════════════════════════════════════════════════
+' STAGE 4 — TEXT NORMALISATION
+' ══════════════════════════════════════════════════════
+
+package "Stage 4 · Text Normalisation\n(FastAPI — TextPreprocessor)" #FFF8E1 {
+    rectangle "Clean Raw Text\n(strip noise chars,\nnormalise whitespace)" as CleanText
+    rectangle "Language Detection\n(langdetect library)" as LangDetect
+    rectangle "Translation\n(Vietnamese → English\nif detected)" as Translate
+    rectangle "Math Symbol\nNormalisation\n(² → ^2, × → *, ÷ → /)" as MathNorm
+
+    note right of MathNorm
+      Input:  raw OCR string
+              (e.g. "Giải pt: 2x²+3x-5=0")
+      Output: clean English math
+              (e.g. "Solve: 2x^2+3x-5=0")
+    end note
+}
+
+' ══════════════════════════════════════════════════════
+' STAGE 5 — MATH PARSING & SOLVING
+' ══════════════════════════════════════════════════════
+
+package "Stage 5 · Math Parsing & Symbolic Solving\n(FastAPI — MathExpressionParser + SymPy)" #FCE4EC {
+    rectangle "Expression Extraction\n(regex + pattern matching\n→ List[str])" as Extract
+    rectangle "SymPy Parsing\n(to_sympy(expr)\n→ symbolic object)" as SymPyParse
+    rectangle "Equation Classification\n(algebra / calculus /\ngeometry / trig)" as Classify
+
+    rectangle "Algebraic Solver\n(sympy.solve(eq, x)\n→ exact roots)" as AlgSolve
+    rectangle "Calculus Solver\n(sympy.diff / integrate\n→ derivative / integral)" as CalcSolve
+    rectangle "Geometry Solver\n(area, perimeter,\nangle formulas)" as GeoSolve
+
+    note right of Classify
+      Routes to appropriate
+      symbolic solver based
+      on expression type.
+      SymPy gives exact
+      closed-form answers.
+    end note
+}
+
+' ══════════════════════════════════════════════════════
+' STAGE 6 — SOLUTION GENERATION
+' ══════════════════════════════════════════════════════
+
+package "Stage 6 · Step-by-Step Generation\n(FastAPI — SolutionModel / FLAN-T5)" #E3F2FD {
+    rectangle "Prompt Construction\n('Solve step by step:\n{cleaned_text}')" as Prompt
+    rectangle "FLAN-T5 Inference\n(google/flan-t5-base)\nT5ForConditionalGeneration\n→ output token ids" as T5Infer
+    rectangle "Step Segmentation\n(split by 'Step N:'\nor newlines → List)" as Segment
+    rectangle "SolutionStep Assembly\n{stepNumber, description,\nformula, result, explanation}" as StepAssembly
+    rectangle "Solution Confidence\n(beam search score\n→ 0.0 – 1.0)" as SolConfidence
+
+    note right of T5Infer
+      Model: google/flan-t5-base (~250M params)
+      num_beams=4, max_new_tokens=512
+      Generates human-readable
+      step-by-step explanation
+    end note
+}
+
+' ══════════════════════════════════════════════════════
+' STAGE 7 — PERSISTENCE & CALLBACK
+' ══════════════════════════════════════════════════════
+
+package "Stage 7 · Persistence & Status Callback\n(.NET 8 — ProblemService)" #F3E5F5 {
+    rectangle "UpdateProblemStatusCommand\nstatus = Completed\nextractedText = <OCR text>" as UpdateStatus
+    database "MySQL\nProblems Table\nStatus=2, ExtractedText,\nCompletedAt, SolutionSteps" as MySQL
+    rectangle "ProblemHistory Record\n(Action='Completed')" as History
+
+    note right of MySQL
+      Final persisted state:
+      • extracted_text (raw)
+      • solution_steps[] (JSON)
+      • confidence scores
+      • completed_at timestamp
+    end note
+}
+
+' ══════════════════════════════════════════════════════
+' STAGE 8 — FRONTEND RENDERING
+' ══════════════════════════════════════════════════════
+
+package "Stage 8 · Frontend Solution Rendering\n(React Native — SolutionScreen)" #E8F4FD {
+    rectangle "Fetch Problem\nGET /problems/{id}" as Fetch
+    rectangle "KaTeX / MathJax\nFormula Rendering\n(LaTeX → SVG)" as KaTeX
+    rectangle "Step Navigator\n(currentStep index\nprev / next controls)" as StepNav
+    rectangle "User Actions\n(Rate 1-5★ / Bookmark /\nShare / Export)" as UserActions
+
+    note right of KaTeX
+      Renders LaTeX formulas
+      inline inside solution
+      step descriptions.
+      e.g. \( x = \frac{-b \pm \sqrt{b^2-4ac}}{2a} \)
+    end note
+}
+
+' ══════════════════════════════════════════════════════
+' FLOW ARROWS
+' ══════════════════════════════════════════════════════
+
+Cam -down-> QualCheck : raw image bytes
+Gallery -down-> QualCheck : raw image bytes
+
+QualCheck -down-> Crop : quality score + image
+Crop -down-> Compress : cropped image
+Compress -right-> CreateRecord : FormData\n(multipart upload\nvia POST /upload)
+
+CreateRecord -right-> FileWrite : problem.id\n+ image bytes
+FileWrite -right-> SetProcessing : imagePath saved\n→ problem.SetProcessing()
+
+SetProcessing -down-> Decode : HTTP POST\n/ocr/extract\n{image_bytes}
+
+Decode -down-> Grayscale
+Grayscale -down-> Contrast
+Contrast -down-> Noise
+Noise -down-> Resize
+Resize -down-> TrOCR : pixel_values tensor
+TrOCR -down-> TokenDecode : generated_ids[]
+TokenDecode -down-> OcrConfidence : raw text string
+
+OcrConfidence -right-> CleanText : raw OCR text
+
+CleanText -down-> LangDetect
+LangDetect -down-> Translate : (vi → en if needed)
+Translate -down-> MathNorm : English text
+
+MathNorm -right-> Extract : normalised text
+
+Extract -down-> SymPyParse : expression strings[]
+SymPyParse -down-> Classify : sympy objects
+
+Classify -down-> AlgSolve : algebra type
+Classify -right-> CalcSolve : calculus type
+Classify -right-> GeoSolve : geometry type
+
+AlgSolve -down-> Prompt : symbolic result
+CalcSolve -down-> Prompt : symbolic result
+GeoSolve -down-> Prompt : symbolic result
+
+Prompt -down-> T5Infer : formatted prompt string
+T5Infer -down-> Segment : output text
+Segment -down-> StepAssembly : step strings[]
+StepAssembly -down-> SolConfidence : SolutionStep[]
+
+SolConfidence -right-> UpdateStatus : SolutionResult\n{steps[], confidence,\nextractedText}\nvia POST /problems/{id}/status
+
+UpdateStatus -down-> MySQL : EF Core UPDATE
+UpdateStatus -down-> History : INSERT ProblemHistory
+
+MySQL -right-> Fetch : GET /problems/{id}\n(Frontend polls or\npush notification)
+
+Fetch -down-> KaTeX : SolutionStep[] + formulas
+KaTeX -down-> StepNav : rendered step SVGs
+StepNav -down-> UserActions : final displayed UI
+
+@enduml

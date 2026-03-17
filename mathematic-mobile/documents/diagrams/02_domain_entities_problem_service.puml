@@ -1,0 +1,141 @@
+@startuml 02_Domain_Entities_Problem_Service
+title Problem Service - Domain Entities (Class Diagram)
+
+skinparam classAttributeIconSize 0
+skinparam class {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    ArrowColor DarkSlateGray
+    FontSize 12
+}
+
+package "Domain.Common" {
+    abstract class BaseEntity {
+        + Id : Guid
+        + CreatedAt : DateTime
+        + UpdatedAt : DateTime?
+        - _domainEvents : List<IDomainEvent>
+        + GetDomainEvents() : IReadOnlyList<IDomainEvent>
+        + ClearDomainEvents() : void
+        # AddDomainEvent(event: IDomainEvent) : void
+    }
+
+    interface IDomainEvent {
+    }
+}
+
+package "Domain.Enums" {
+    enum ProblemStatus {
+        Pending = 0
+        Processing = 1
+        Completed = 2
+        Failed = 3
+    }
+
+    enum ProblemCategory {
+        Algebra
+        Calculus
+        Geometry
+        Trigonometry
+        Statistics
+        Other
+    }
+
+    enum ProblemDifficulty {
+        Easy
+        Medium
+        Hard
+    }
+}
+
+package "Domain.Entities" {
+    class Problem {
+        + UserId : Guid
+        + Title : string
+        + Description : string?
+        + ImagePath : string?
+        + ExtractedText : string?
+        + Category : string
+        + Difficulty : string
+        + Status : ProblemStatus
+        + CompletedAt : DateTime?
+        --
+        + {static} Create(userId, title, description, category, difficulty) : Problem
+        + Update(title, description, category, difficulty) : void
+        + SetImage(imagePath: string) : void
+        + UpdateStatus(status: ProblemStatus, extractedText: string?) : void
+        + SetProcessing() : void
+        + SetCompleted(extractedText: string?) : void
+        + SetFailed() : void
+        + RevertToPending() : void
+    }
+
+    class ProblemHistory {
+        + ProblemId : Guid
+        + UserId : Guid
+        + Action : string
+        + Details : string?
+        --
+        + {static} Create(problemId, userId, action, details) : ProblemHistory
+    }
+}
+
+package "Domain.ValueObjects" {
+    class SolutionStep {
+        + StepNumber : int
+        + Description : string
+        + Formula : string?
+        + Result : string?
+        + Explanation : string?
+    }
+
+    class OCRResult {
+        + ExtractedText : string
+        + Confidence : double
+        + ProcessedAt : DateTime
+        + Metadata : Dictionary<string, string>
+    }
+}
+
+package "Application.Common.Interfaces" {
+    interface IProblemRepository {
+        + GetByIdAsync(id: Guid) : Task<Problem?>
+        + GetByUserIdAsync(userId: Guid, page, pageSize) : Task<IEnumerable<Problem>>
+        + SearchAsync(userId, query, filters) : Task<IEnumerable<Problem>>
+        + AddAsync(problem: Problem) : Task
+        + UpdateAsync(problem: Problem) : Task
+        + DeleteAsync(id: Guid) : Task
+        + GetStatisticsAsync(userId: Guid) : Task<ProblemStatistics>
+    }
+
+    interface IProblemHistoryRepository {
+        + GetByProblemIdAsync(problemId: Guid) : Task<IEnumerable<ProblemHistory>>
+        + AddAsync(history: ProblemHistory) : Task
+    }
+
+    interface IMLServiceClient {
+        + ExtractTextAsync(imageBytes, imageUrl) : Task<OCRResult>
+        + SolveProblemAsync(extractedText, problemId) : Task
+    }
+
+    interface IUnitOfWork {
+        + Problems : IProblemRepository
+        + ProblemHistories : IProblemHistoryRepository
+        + SaveChangesAsync() : Task<int>
+    }
+}
+
+BaseEntity <|-- Problem
+BaseEntity <|-- ProblemHistory
+Problem --> ProblemStatus : has
+Problem --> ProblemCategory : categorized by
+Problem --> ProblemDifficulty : has
+Problem "1" *-- "many" SolutionStep : contains
+Problem ..> OCRResult : produces
+ProblemHistory --> Problem : tracks
+IProblemRepository ..> Problem : manages
+IProblemHistoryRepository ..> ProblemHistory : manages
+IUnitOfWork --> IProblemRepository : contains
+IUnitOfWork --> IProblemHistoryRepository : contains
+
+@enduml

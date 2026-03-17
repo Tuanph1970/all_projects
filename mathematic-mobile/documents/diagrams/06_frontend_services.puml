@@ -1,0 +1,179 @@
+@startuml 06_Frontend_Services
+title Frontend - Service Layer & Error Handling (Class Diagram)
+
+skinparam classAttributeIconSize 0
+skinparam class {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    ArrowColor DarkSlateGray
+    FontSize 11
+}
+
+package "HTTP Client" {
+    class ApiClient {
+        - baseURL : string
+        - axiosInstance : AxiosInstance
+        - tokenRefreshQueue : Promise[]
+        - isRefreshing : boolean
+        --
+        + get(url, config?) : Promise<T>
+        + post(url, data, config?) : Promise<T>
+        + put(url, data, config?) : Promise<T>
+        + delete(url, config?) : Promise<T>
+        - setupRequestInterceptor() : void
+        - setupResponseInterceptor() : void
+        - handleTokenRefresh(request) : Promise
+        - retryFailedRequest(request) : Promise
+    }
+}
+
+package "Auth Service" {
+    class AuthService {
+        + login(usernameOrEmail: string, password: string) : Promise<AuthResult>
+        + register(username, email, password, fullName?) : Promise<AuthResult>
+        + logout() : Promise<void>
+        + refreshToken(refreshToken: string) : Promise<TokenPair>
+        + getCurrentUser() : Promise<UserProfile>
+        + validateToken(token: string) : Promise<boolean>
+    }
+}
+
+package "Problem Service" {
+    class ProblemService {
+        + createProblem(data: CreateProblemDto) : Promise<Problem>
+        + getProblems(page, pageSize, filters?) : Promise<PagedResult<Problem>>
+        + getProblemById(id: string) : Promise<Problem>
+        + updateProblem(id, data: UpdateProblemDto) : Promise<Problem>
+        + deleteProblem(id: string) : Promise<void>
+        + uploadImage(id: string, imageData: FormData) : Promise<Problem>
+        + searchProblems(query: string, filters?) : Promise<Problem[]>
+        + retryProblem(id: string) : Promise<Problem>
+        + getStatistics(userId: string) : Promise<ProblemStats>
+    }
+}
+
+package "Solution Service" {
+    class SolutionService {
+        + getSolution(problemId: string) : Promise<Solution>
+        + getSolutionSteps(solutionId: string) : Promise<SolutionStep[]>
+        + rateSolution(solutionId, rating: number, feedback?: string) : Promise<void>
+        + shareSolution(solutionId, format: ShareFormat) : Promise<ShareData>
+    }
+}
+
+package "User Service" {
+    class UserService {
+        + getProfile() : Promise<UserProfile>
+        + updateProfile(fullName, email) : Promise<UserProfile>
+        + getUserStats() : Promise<UserStats>
+        + changePassword(currentPassword, newPassword) : Promise<void>
+        + updatePreferences(prefs: UserPreferences) : Promise<UserPreferences>
+    }
+}
+
+package "Error Handler Chain" {
+    abstract class BaseErrorHandler {
+        # next : BaseErrorHandler | null
+        + setNext(handler: BaseErrorHandler) : BaseErrorHandler
+        + {abstract} handle(error: ApiError) : ErrorResult | null
+    }
+
+    class ServerMessageHandler {
+        + handle(error) : ErrorResult | null
+        ' Handles errors with server-provided messages (5xx)
+    }
+
+    class NetworkErrorHandler {
+        + handle(error) : ErrorResult | null
+        ' Handles network/connection failures
+    }
+
+    class BadRequestHandler {
+        + handle(error) : ErrorResult | null
+        ' Handles 400 Bad Request errors
+    }
+
+    class AuthErrorHandler {
+        + handle(error) : ErrorResult | null
+        ' Handles 401 Unauthorized errors
+    }
+
+    class ForbiddenHandler {
+        + handle(error) : ErrorResult | null
+        ' Handles 403 Forbidden errors
+    }
+
+    class NotFoundHandler {
+        + handle(error) : ErrorResult | null
+        ' Handles 404 Not Found errors
+    }
+
+    class ValidationHandler {
+        + handle(error) : ErrorResult | null
+        ' Handles validation error responses
+    }
+
+    class ServerErrorHandler {
+        + handle(error) : ErrorResult | null
+        ' Handles generic 5xx errors
+    }
+
+    class DefaultHandler {
+        + handle(error) : ErrorResult | null
+        ' Fallback for unhandled error types
+    }
+}
+
+package "Storage Service" {
+    class SecureStorageService {
+        + saveToken(key: string, value: string) : Promise<void>
+        + getToken(key: string) : Promise<string | null>
+        + removeToken(key: string) : Promise<void>
+        + clearAll() : Promise<void>
+    }
+}
+
+package "Utility Services" {
+    class ImageCompressionService {
+        + compressImage(uri: string, options?: CompressOptions) : Promise<CompressedImage>
+        + checkImageQuality(uri: string) : Promise<QualityScore>
+        + cropImage(uri: string, crop: CropRegion) : Promise<string>
+    }
+
+    class NotificationService {
+        + requestPermissions() : Promise<boolean>
+        + registerPushToken() : Promise<string>
+        + scheduleLocalNotification(data) : Promise<void>
+        + cancelNotification(id: string) : Promise<void>
+    }
+}
+
+AuthService --> ApiClient : uses
+ProblemService --> ApiClient : uses
+SolutionService --> ApiClient : uses
+UserService --> ApiClient : uses
+
+ApiClient --> BaseErrorHandler : delegates errors to
+
+BaseErrorHandler <|-- ServerMessageHandler
+BaseErrorHandler <|-- NetworkErrorHandler
+BaseErrorHandler <|-- BadRequestHandler
+BaseErrorHandler <|-- AuthErrorHandler
+BaseErrorHandler <|-- ForbiddenHandler
+BaseErrorHandler <|-- NotFoundHandler
+BaseErrorHandler <|-- ValidationHandler
+BaseErrorHandler <|-- ServerErrorHandler
+BaseErrorHandler <|-- DefaultHandler
+
+ServerMessageHandler --> NetworkErrorHandler : next
+NetworkErrorHandler --> BadRequestHandler : next
+BadRequestHandler --> AuthErrorHandler : next
+AuthErrorHandler --> ForbiddenHandler : next
+ForbiddenHandler --> NotFoundHandler : next
+NotFoundHandler --> ValidationHandler : next
+ValidationHandler --> ServerErrorHandler : next
+ServerErrorHandler --> DefaultHandler : next
+
+ApiClient --> SecureStorageService : reads tokens from
+
+@enduml

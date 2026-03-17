@@ -1,0 +1,208 @@
+@startuml 23_Class_Navigation_Screens
+title Frontend - Navigation Structure & Screens (Class Diagram)
+
+skinparam classAttributeIconSize 0
+skinparam class {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    ArrowColor DarkSlateGray
+    FontSize 11
+}
+
+package "Navigation" {
+    class RootNavigator {
+        - isAuthenticated : boolean
+        - isInitialized : boolean
+        + render() : AuthNavigator | MainNavigator
+    }
+
+    class AuthNavigator {
+        + routes : ["Welcome", "Login",\n"Register", "ForgotPassword"]
+        + initialRoute : "Welcome"
+    }
+
+    class MainNavigator {
+        + routes : ["BottomTabs"]
+        + initialRoute : "BottomTabs"
+    }
+
+    class BottomTabNavigator {
+        + tabs : ["Home", "Camera",\n"History", "Profile"]
+        + icons : Ionicons
+    }
+
+    class HomeStack {
+        + screens : [HomeScreen]
+    }
+
+    class CameraStack {
+        + screens : [CameraScreen,\nProblemDetailScreen]
+        + presentation : "modal"
+    }
+
+    class HistoryStack {
+        + screens : [HistoryScreen,\nProblemDetailScreen,\nSearchScreen]
+    }
+
+    class SolutionStack {
+        + screens : [SolutionScreen,\nProblemDetailScreen]
+    }
+
+    class ProfileStack {
+        + screens : [ProfileScreen,\nEditProfileScreen,\nSettingsScreen,\nBookmarksScreen]
+    }
+}
+
+package "Auth Screens" {
+    class WelcomeScreen {
+        + navigate(route: string) : void
+    }
+
+    class LoginScreen {
+        - usernameOrEmail : string
+        - password : string
+        - isLoading : boolean
+        - error : string | null
+        + handleLogin() : void
+        + navigateToRegister() : void
+        + navigateToForgotPassword() : void
+    }
+
+    class RegisterScreen {
+        - username : string
+        - email : string
+        - password : string
+        - fullName : string
+        - error : string | null
+        + handleRegister() : void
+        + navigateToLogin() : void
+    }
+
+    class ForgotPasswordScreen {
+        - email : string
+        + handleSendReset() : void
+    }
+}
+
+package "Main Screens" {
+    class HomeScreen {
+        - recentProblems : Problem[]
+        - stats : UserStats
+        + navigateToCamera() : void
+        + navigateToHistory() : void
+        + navigateToProblemDetail(id) : void
+    }
+
+    class CameraScreen {
+        - hasPermission : boolean
+        - imageUri : string | null
+        - qualityScore : number
+        - isProcessing : boolean
+        - selectedCategory : string
+        - selectedDifficulty : string
+        + takePicture() : Promise<void>
+        + pickFromGallery() : Promise<void>
+        + checkImageQuality() : Promise<void>
+        + cropImage() : Promise<void>
+        + submitProblem() : Promise<void>
+    }
+
+    class SolutionScreen {
+        - problem : Problem | null
+        - solution : Solution | null
+        - currentStep : number
+        - totalSteps : number
+        - userRating : number | null
+        - isBookmarked : boolean
+        + nextStep() : void
+        + prevStep() : void
+        + handleRate(rating: number) : void
+        + toggleBookmark() : void
+        + handleShare(format: string) : void
+    }
+
+    class HistoryScreen {
+        - problems : Problem[]
+        - isLoading : boolean
+        - searchText : string
+        - filters : ProblemFilters
+        - page : number
+        + onRefresh() : void
+        + onEndReached() : void
+        + onSearch(text: string) : void
+        + onFilterChange(filters) : void
+        + navigateToProblemDetail(id) : void
+    }
+
+    class ProblemDetailScreen {
+        - problemId : string
+        - problem : Problem | null
+        + navigateToSolution() : void
+        + handleRetry() : void
+        + handleDelete() : void
+    }
+
+    class ProfileScreen {
+        - user : UserProfile | null
+        - stats : UserStats
+        - achievements : Achievement[]
+        + navigateToEditProfile() : void
+        + navigateToSettings() : void
+        + navigateToBookmarks() : void
+        + handleLogout() : void
+    }
+
+    class EditProfileScreen {
+        - fullName : string
+        - email : string
+        + handleSave() : Promise<void>
+    }
+
+    class SettingsScreen {
+        - theme : string
+        - language : string
+        - notifications : boolean
+        + handleThemeChange(theme) : void
+        + handleLanguageChange(lang) : void
+        + handleClearCache() : Promise<void>
+    }
+
+    class BookmarksScreen {
+        - bookmarks : Bookmark[]
+        - searchText : string
+        + onSearch(text) : void
+        + navigateToSolution(problemId) : void
+        + handleRemoveBookmark(id) : void
+        + handleAddNote(id, note) : void
+    }
+}
+
+' Navigation hierarchy
+RootNavigator --> AuthNavigator : (unauthenticated)
+RootNavigator --> MainNavigator : (authenticated)
+MainNavigator --> BottomTabNavigator
+BottomTabNavigator --> HomeStack
+BottomTabNavigator --> CameraStack
+BottomTabNavigator --> HistoryStack
+BottomTabNavigator --> ProfileStack
+
+' Auth screens
+AuthNavigator --> WelcomeScreen
+AuthNavigator --> LoginScreen
+AuthNavigator --> RegisterScreen
+AuthNavigator --> ForgotPasswordScreen
+
+' Main screens
+HomeStack --> HomeScreen
+CameraStack --> CameraScreen
+CameraStack --> ProblemDetailScreen
+HistoryStack --> HistoryScreen
+HistoryStack --> ProblemDetailScreen
+SolutionStack --> SolutionScreen
+SolutionStack --> ProblemDetailScreen
+ProfileStack --> ProfileScreen
+ProfileStack --> EditProfileScreen
+ProfileStack --> SettingsScreen
+ProfileStack --> BookmarksScreen
+
+@enduml

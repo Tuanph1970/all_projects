@@ -1,0 +1,128 @@
+@startuml 07_Sequence_Registration
+title User Registration - Sequence Diagram
+
+skinparam sequenceMessageAlign center
+skinparam sequence {
+    ArrowColor DarkSlateGray
+    ActorBorderColor DarkSlateGray
+    LifeLineBorderColor DarkSlateGray
+    ParticipantBorderColor DarkSlateGray
+    ParticipantBackgroundColor WhiteSmoke
+}
+
+actor User
+participant "RegisterScreen\n(React Native)" as Screen
+participant "authSlice\n(Redux)" as Redux
+participant "AuthService\n(Frontend)" as AuthSvc
+participant "ApiClient\n(Axios)" as ApiClient
+participant "AuthController\n(.NET)" as Controller
+participant "ValidationBehavior\n(MediatR)" as Validator
+participant "RegisterCommandHandler\n(.NET)" as Handler
+participant "IUnitOfWork\n(.NET)" as UoW
+participant "UserRepository\n(EF Core)" as Repo
+database "MySQL\n(Auth DB)" as DB
+participant "IJwtTokenGenerator\n(.NET)" as JWT
+participant "SecureStore\n(Expo)" as Storage
+
+User -> Screen : Fill in\nusername, email, password, fullName
+User -> Screen : Tap "Register"
+
+Screen -> Redux : dispatch(registerUser(data))
+activate Redux
+
+Redux -> AuthSvc : register(username, email, password, fullName)
+activate AuthSvc
+
+AuthSvc -> ApiClient : POST /api/v1/auth/register\n{username, email, password, fullName}
+activate ApiClient
+
+ApiClient -> Controller : HTTP POST /api/v1/auth/register
+activate Controller
+
+Controller -> Validator : Send(RegisterCommand)
+activate Validator
+
+Validator -> Validator : Validate command\n(username length, email format,\npassword strength)
+
+alt Validation Failed
+    Validator --> Controller : ValidationException\n(field errors)
+    Controller --> ApiClient : 400 Bad Request\n{errors: [{field, message}]}
+    ApiClient --> AuthSvc : Throw ValidationError
+    AuthSvc --> Redux : Throw Error
+    Redux --> Screen : state.error = "Validation errors"
+    Screen --> User : Show field errors
+else Validation Passed
+    Validator -> Handler : Handle(command)
+    activate Handler
+
+    Handler -> UoW : Users.ExistsAsync(username, email)
+    activate UoW
+    UoW -> Repo : Query by username OR email
+    activate Repo
+    Repo -> DB : SELECT * FROM Users\nWHERE Username=? OR Email=?
+    DB --> Repo : Result
+    Repo --> UoW : bool (exists)
+    deactivate Repo
+    UoW --> Handler : bool (exists)
+    deactivate UoW
+
+    alt User Already Exists
+        Handler --> Validator : ConflictException\n("Username or email already taken")
+        Validator --> Controller : Exception
+        Controller --> ApiClient : 409 Conflict
+        ApiClient --> AuthSvc : Throw ConflictError
+        AuthSvc --> Redux : Throw Error
+        Redux --> Screen : state.error = "User exists"
+        Screen --> User : Show conflict message
+    else User Does Not Exist
+        Handler -> Handler : PasswordHasher.HashPassword(password)
+        Handler -> Handler : User.Create(username, email, hash, fullName)
+
+        Handler -> UoW : Users.AddAsync(user)
+        activate UoW
+        UoW -> Repo : Add user entity
+        activate Repo
+        Repo -> DB : INSERT INTO Users ...
+        DB --> Repo : Success
+        deactivate Repo
+        UoW -> UoW : SaveChangesAsync()
+        UoW --> Handler : Success
+        deactivate UoW
+
+        Handler -> JWT : GenerateAccessToken(user)
+        activate JWT
+        JWT --> Handler : accessToken (JWT, 15min)
+        deactivate JWT
+
+        Handler -> JWT : GenerateRefreshToken()
+        activate JWT
+        JWT --> Handler : refreshToken (guid)
+        deactivate JWT
+
+        Handler --> Validator : AuthResult\n{user, accessToken, refreshToken}
+        deactivate Handler
+        Validator --> Controller : AuthResult
+        deactivate Validator
+
+        Controller --> ApiClient : 201 Created\n{user, accessToken, refreshToken}
+        deactivate Controller
+
+        ApiClient --> AuthSvc : AuthResult
+        deactivate ApiClient
+
+        AuthSvc --> Redux : AuthResult
+        deactivate AuthSvc
+
+        Redux -> Storage : SecureStore.setItemAsync("access_token", token)
+        Redux -> Storage : SecureStore.setItemAsync("refresh_token", refreshToken)
+        Storage --> Redux : Stored
+
+        Redux -> Redux : setCredentials(user, token)
+        Redux --> Screen : state.isAuthenticated = true
+        deactivate Redux
+
+        Screen --> User : Navigate to HomeScreen
+    end
+end
+
+@enduml

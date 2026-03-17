@@ -1,0 +1,96 @@
+@startuml 12_UseCase_Authentication
+title Authentication - Detailed Use Case Diagram
+
+skinparam usecase {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    ArrowColor DarkSlateGray
+    FontSize 11
+}
+
+left to right direction
+
+actor "Guest User" as Guest
+actor "Registered User" as RegUser
+actor "JWT Token\nGenerator" as JWT
+actor "Redis Cache" as Redis
+actor "Email Service" as Email
+
+rectangle "Authentication System" {
+
+    usecase "Register Account" as UC_Register
+    usecase "Validate Registration\nInput" as UC_ValidateReg
+    usecase "Check Username\nAvailability" as UC_CheckUsername
+    usecase "Hash Password\n(BCrypt)" as UC_HashPwd
+
+    usecase "Login" as UC_Login
+    usecase "Validate Credentials" as UC_ValidateCreds
+    usecase "Generate JWT\nAccess Token (15min)" as UC_GenAccess
+    usecase "Generate Refresh\nToken (30 days)" as UC_GenRefresh
+    usecase "Store Refresh Token\nin Redis" as UC_StoreRefresh
+
+    usecase "Refresh Access Token" as UC_Refresh
+    usecase "Validate Refresh Token\nfrom Redis" as UC_ValidateRefresh
+    usecase "Rotate Refresh Token" as UC_RotateRefresh
+
+    usecase "Logout" as UC_Logout
+    usecase "Invalidate Refresh\nToken in Redis" as UC_InvalidateToken
+
+    usecase "Get Current User\nProfile" as UC_GetUser
+    usecase "Update Profile\n(name, email)" as UC_UpdateProfile
+    usecase "Change Password" as UC_ChangePwd
+    usecase "Verify Current\nPassword" as UC_VerifyCurrentPwd
+
+    usecase "Forgot Password" as UC_ForgotPwd
+    usecase "Send Reset Email" as UC_SendEmail
+    usecase "Reset Password\nvia Token" as UC_ResetPwd
+
+    usecase "Validate Token\n(for other services)" as UC_ValidateToken
+}
+
+Guest --> UC_Register
+Guest --> UC_Login
+Guest --> UC_ForgotPwd
+
+RegUser --|> Guest
+RegUser --> UC_Logout
+RegUser --> UC_Refresh
+RegUser --> UC_GetUser
+RegUser --> UC_UpdateProfile
+RegUser --> UC_ChangePwd
+
+UC_Register ..> UC_ValidateReg : <<include>>
+UC_Register ..> UC_CheckUsername : <<include>>
+UC_Register ..> UC_HashPwd : <<include>>
+UC_Register ..> UC_GenAccess : <<include>>
+UC_Register ..> UC_GenRefresh : <<include>>
+UC_Register ..> UC_StoreRefresh : <<include>>
+
+UC_Login ..> UC_ValidateCreds : <<include>>
+UC_Login ..> UC_GenAccess : <<include>>
+UC_Login ..> UC_GenRefresh : <<include>>
+UC_Login ..> UC_StoreRefresh : <<include>>
+
+UC_Refresh ..> UC_ValidateRefresh : <<include>>
+UC_Refresh ..> UC_GenAccess : <<include>>
+UC_Refresh ..> UC_RotateRefresh : <<include>>
+
+UC_Logout ..> UC_InvalidateToken : <<include>>
+
+UC_ChangePwd ..> UC_VerifyCurrentPwd : <<include>>
+UC_ChangePwd ..> UC_HashPwd : <<include>>
+
+UC_ForgotPwd ..> UC_SendEmail : <<include>>
+UC_ResetPwd ..> UC_HashPwd : <<include>>
+
+JWT --> UC_GenAccess : generates
+JWT --> UC_GenRefresh : generates
+JWT --> UC_ValidateToken : validates
+
+Redis --> UC_StoreRefresh : stores
+Redis --> UC_ValidateRefresh : validates
+Redis --> UC_InvalidateToken : deletes
+
+Email --> UC_SendEmail : sends
+
+@enduml

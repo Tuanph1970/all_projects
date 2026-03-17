@@ -1,0 +1,211 @@
+@startuml 15_Component_Frontend
+title Frontend Architecture - Component Diagram (React Native)
+
+skinparam component {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    ArrowColor DarkSlateGray
+    FontSize 11
+}
+skinparam package {
+    BackgroundColor #F5F5F5
+    BorderColor DarkSlateGray
+}
+
+package "React Native App (Expo)" {
+
+    package "Navigation Layer" {
+        [RootNavigator\n(App entry point)] as RootNav
+        [AuthNavigator\n(Unauthenticated)] as AuthNav
+        [MainNavigator\n(Authenticated)] as MainNav
+        [BottomTabNavigator\n(Tab bar)] as TabNav
+        [HomeStack] as HomeStack
+        [CameraStack] as CameraStack
+        [HistoryStack] as HistoryStack
+        [SolutionStack] as SolStack
+        [ProfileStack] as ProfStack
+    }
+
+    package "Screens Layer" {
+        package "Auth Screens" {
+            [WelcomeScreen] as Welcome
+            [LoginScreen] as Login
+            [RegisterScreen] as Register
+            [ForgotPasswordScreen] as ForgotPwd
+        }
+        package "Main Screens" {
+            [HomeScreen] as Home
+            [CameraScreen] as Camera
+            [SolutionScreen] as Solution
+            [HistoryScreen] as History
+            [ProblemDetailScreen] as ProbDetail
+            [ProfileScreen] as Profile
+            [EditProfileScreen] as EditProfile
+            [SettingsScreen] as Settings
+            [BookmarksScreen] as Bookmarks
+        }
+    }
+
+    package "Components Layer" {
+        package "Common Components" {
+            [MathRenderer\n(KaTeX/MathJax)] as MathRenderer
+            [LoadingOverlay] as Loading
+            [ErrorDisplay] as ErrorDisplay
+            [BookmarkButton] as BookmarkBtn
+            [SkeletonLoader\n(4 variants)] as Skeleton
+            [HapticFeedback] as Haptic
+        }
+        package "Camera Components" {
+            [CaptureView] as CaptureView
+            [ImageQualityChecker\n(0-100%)] as QualityCheck
+            [ImageCropper] as Cropper
+            [GallerySelector] as Gallery
+        }
+        package "Solution Components" {
+            [SolutionSteps] as Steps
+            [StepNavigation\n(prev/next)] as StepNav
+            [ShareSolution\n(text/image/PDF/link)] as Share
+            [RatingComponent\n(1-5 stars)] as Rating
+        }
+    }
+
+    package "State Management (Redux)" {
+        [Root Store] as Store
+        [authSlice\n+ Thunks] as AuthSlice
+        [problemSlice\n+ Thunks] as ProbSlice
+        [solutionSlice\n+ Thunks] as SolSlice
+        [userSlice\n+ Thunks] as UserSlice
+        [appSlice\n+ Thunks] as AppSlice
+        [bookmarkSlice\n+ Thunks] as BookSlice
+        [redux-persist\n(SecureStore)] as Persist
+    }
+
+    package "Service Layer" {
+        [ApiClient\n(Axios + Interceptors)] as ApiClient
+        [AuthService] as AuthSvc
+        [ProblemService] as ProbSvc
+        [SolutionService] as SolSvc
+        [UserService] as UserSvc
+        [ImageCompressionSvc] as ImgSvc
+        [NotificationService] as NotifSvc
+    }
+
+    package "Error Handling" {
+        [ErrorHandlerChain\n(Chain-of-Responsibility)] as ErrChain
+        [ServerMessageHandler] as SrvMsg
+        [NetworkErrorHandler] as NetErr
+        [AuthErrorHandler\n(401 → refresh)] as AuthErr
+        [ValidationHandler] as ValErr
+        [DefaultHandler] as Default
+    }
+
+    package "Storage" {
+        [SecureStore\n(Expo - tokens)] as SecureStore
+        [AsyncStorage\n(temporary data)] as AsyncStore
+    }
+
+    package "Native APIs" {
+        [expo-camera] as ExpoCam
+        [expo-image-picker] as ExpoPicker
+        [expo-notifications] as ExpoNotif
+        [expo-sharing] as ExpoShare
+        [expo-file-system] as ExpoFS
+    }
+}
+
+' Navigation hierarchy
+RootNav --> AuthNav : (unauthenticated)
+RootNav --> MainNav : (authenticated)
+MainNav --> TabNav
+TabNav --> HomeStack
+TabNav --> CameraStack
+TabNav --> HistoryStack
+TabNav --> SolStack
+TabNav --> ProfStack
+
+' Screens in stacks
+AuthNav --> Welcome
+AuthNav --> Login
+AuthNav --> Register
+AuthNav --> ForgotPwd
+HomeStack --> Home
+CameraStack --> Camera
+CameraStack --> ProbDetail
+HistoryStack --> History
+HistoryStack --> ProbDetail
+SolStack --> Solution
+SolStack --> ProbDetail
+ProfStack --> Profile
+ProfStack --> EditProfile
+ProfStack --> Settings
+ProfStack --> Bookmarks
+
+' Screen to Component relationships
+Camera --> QualityCheck
+Camera --> Cropper
+Camera --> Gallery
+Camera --> CaptureView
+Solution --> Steps
+Solution --> StepNav
+Solution --> Share
+Solution --> Rating
+Solution --> MathRenderer
+History --> Skeleton
+Profile --> Loading
+Home --> Skeleton
+
+' Screens to Redux
+Login --> AuthSlice
+Register --> AuthSlice
+Camera --> ProbSlice
+History --> ProbSlice
+Solution --> SolSlice
+Profile --> UserSlice
+Settings --> AppSlice
+Bookmarks --> BookSlice
+
+' Redux store
+Store --> AuthSlice
+Store --> ProbSlice
+Store --> SolSlice
+Store --> UserSlice
+Store --> AppSlice
+Store --> BookSlice
+Store --> Persist
+
+' Slices to Services (Thunks)
+AuthSlice --> AuthSvc
+ProbSlice --> ProbSvc
+SolSlice --> SolSvc
+UserSlice --> UserSvc
+
+' Services to ApiClient
+AuthSvc --> ApiClient
+ProbSvc --> ApiClient
+SolSvc --> ApiClient
+UserSvc --> ApiClient
+
+' ApiClient to Error Handling
+ApiClient --> ErrChain
+ErrChain --> SrvMsg
+ErrChain --> NetErr
+ErrChain --> AuthErr
+ErrChain --> ValErr
+ErrChain --> Default
+
+' ApiClient to Storage
+ApiClient --> SecureStore
+
+' Camera to native
+Camera --> ExpoCam
+Camera --> ExpoPicker
+Camera --> ImgSvc
+
+' Sharing
+Share --> ExpoShare
+Share --> ExpoFS
+
+' Notifications
+NotifSvc --> ExpoNotif
+
+@enduml

@@ -1,0 +1,211 @@
+@startuml 04_ML_Service_Classes
+title ML/OCR Service - Class Diagram (Python FastAPI)
+
+skinparam classAttributeIconSize 0
+skinparam class {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    ArrowColor DarkSlateGray
+    FontSize 11
+}
+
+package "Domain.Shared" {
+    enum MLTask {
+        OCR
+        SOLUTION
+        TRAINING
+    }
+
+    enum TaskStatus {
+        QUEUED
+        PROCESSING
+        COMPLETED
+        FAILED
+    }
+
+    class OCRResult {
+        + extracted_text : str
+        + confidence : float
+        + processed_at : datetime
+        + metadata : Dict[str, Any]
+    }
+
+    class SolutionResult {
+        + solution : str
+        + steps : List[SolutionStep]
+        + final_answer : str
+        + confidence : float
+        + processing_time : float
+        + metadata : Dict[str, Any]
+    }
+
+    class SolutionStep {
+        + step_number : int
+        + description : str
+        + formula : str | None
+        + result : str | None
+        + explanation : str | None
+    }
+}
+
+package "Infrastructure.Models" {
+    abstract class BaseMLModel {
+        # model : Any
+        # processor : Any
+        # device : str
+        # is_loaded : bool
+        + {abstract} load_model() : None
+        + {abstract} predict(input: Any) : Any
+        + {static} get_device() : str
+        + is_model_loaded() : bool
+    }
+
+    class OCRModel {
+        - model_name : str = "microsoft/trocr-base-handwritten"
+        - processor : TrOCRProcessor
+        - model : VisionEncoderDecoderModel
+        + load_model() : None
+        + predict(image: PIL.Image) : OCRResult
+        - preprocess_image(image) : PIL.Image
+        - calculate_confidence(outputs) : float
+    }
+
+    class SolutionModel {
+        - text_gen_model : T5ForConditionalGeneration
+        - text_gen_processor : T5Tokenizer
+        - model_name : str = "google/flan-t5-base"
+        + load_model() : None
+        + predict(problem_text: str) : SolutionResult
+        - generate_steps(text: str) : List[SolutionStep]
+        - calculate_confidence(outputs) : float
+    }
+
+    class ModelFactory {
+        + {static} create_ocr_model(config) : OCRModel
+        + {static} create_solution_model(config) : SolutionModel
+    }
+}
+
+package "Infrastructure.Utils" {
+    class ImagePreprocessor {
+        + preprocess_for_ocr(image: bytes | PIL.Image) : PIL.Image
+        + compress_image(image: PIL.Image, quality: int) : bytes
+        + resize_image(image, max_size: tuple) : PIL.Image
+        + convert_to_grayscale(image: PIL.Image) : PIL.Image
+        + enhance_contrast(image: PIL.Image) : PIL.Image
+        + remove_noise(image: PIL.Image) : PIL.Image
+    }
+
+    class MathExpressionParser {
+        + parse(text: str) : str
+        + extract_expressions(text: str) : List[str]
+        + normalize(expression: str) : str
+        + to_sympy(expression: str) : Any
+        + solve_algebraic(expression: str) : str
+        + solve_calculus(expression: str) : str
+    }
+
+    class TextPreprocessor {
+        + clean(text: str) : str
+        + normalize_math_symbols(text: str) : str
+        + detect_language(text: str) : str
+        + translate_to_english(text: str) : str
+    }
+}
+
+package "Application.UseCases.OCR" {
+    class ExtractTextUseCase {
+        - ocr_model : OCRModel
+        - image_preprocessor : ImagePreprocessor
+        - task_repository : ITaskRepository
+        + execute(image_data: bytes, metadata: dict) : Task<OCRResult>
+    }
+
+    class BatchExtractTextUseCase {
+        - extract_use_case : ExtractTextUseCase
+        + execute(images: List[bytes]) : Task<List[OCRResult]]
+    }
+}
+
+package "Application.UseCases.Solution" {
+    class SolveProblemUseCase {
+        - solution_model : SolutionModel
+        - math_parser : MathExpressionParser
+        - text_preprocessor : TextPreprocessor
+        + execute(problem_text: str) : Task<SolutionResult>
+    }
+
+    class OCRAndSolveUseCase {
+        - extract_use_case : ExtractTextUseCase
+        - solve_use_case : SolveProblemUseCase
+        + execute(image_data: bytes) : Task<SolutionResult>
+    }
+
+    class BatchSolveProblemUseCase {
+        - solve_use_case : SolveProblemUseCase
+        + execute(problems: List[str]) : Task<List[SolutionResult]]
+    }
+}
+
+package "API.Routers" {
+    class OCRRouter {
+        + extract(image: UploadFile, ...) : JSONResponse
+        + batch_extract(images: List[UploadFile]) : JSONResponse
+    }
+
+    class SolutionRouter {
+        + solve(request: SolveRequest) : JSONResponse
+        + ocr_and_solve(image: UploadFile) : JSONResponse
+        + batch_solve(request: BatchSolveRequest) : JSONResponse
+    }
+
+    class HealthRouter {
+        + health_check() : JSONResponse
+        + readiness_check() : JSONResponse
+    }
+}
+
+package "API.Middleware" {
+    class RequestIdMiddleware {
+        + dispatch(request, call_next) : Response
+    }
+
+    class LoggingMiddleware {
+        + dispatch(request, call_next) : Response
+    }
+
+    class ExceptionHandlingMiddleware {
+        + dispatch(request, call_next) : Response
+    }
+}
+
+BaseMLModel <|-- OCRModel
+BaseMLModel <|-- SolutionModel
+ModelFactory ..> OCRModel : creates
+ModelFactory ..> SolutionModel : creates
+
+OCRModel --> ImagePreprocessor : uses
+SolutionModel --> MathExpressionParser : uses
+SolutionModel --> TextPreprocessor : uses
+
+ExtractTextUseCase --> OCRModel : uses
+ExtractTextUseCase --> ImagePreprocessor : uses
+BatchExtractTextUseCase --> ExtractTextUseCase : delegates to
+
+SolveProblemUseCase --> SolutionModel : uses
+SolveProblemUseCase --> MathExpressionParser : uses
+OCRAndSolveUseCase --> ExtractTextUseCase : delegates to
+OCRAndSolveUseCase --> SolveProblemUseCase : delegates to
+BatchSolveProblemUseCase --> SolveProblemUseCase : delegates to
+
+OCRRouter --> ExtractTextUseCase : invokes
+OCRRouter --> BatchExtractTextUseCase : invokes
+SolutionRouter --> SolveProblemUseCase : invokes
+SolutionRouter --> OCRAndSolveUseCase : invokes
+SolutionRouter --> BatchSolveProblemUseCase : invokes
+
+OCRModel ..> OCRResult : produces
+SolutionModel ..> SolutionResult : produces
+SolutionResult "1" *-- "many" SolutionStep : contains
+
+@enduml

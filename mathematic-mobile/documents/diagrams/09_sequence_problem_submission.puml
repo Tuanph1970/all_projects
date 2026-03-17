@@ -1,0 +1,161 @@
+@startuml 09_Sequence_Problem_Submission
+title Problem Submission & Image Upload - Sequence Diagram
+
+skinparam sequenceMessageAlign center
+skinparam sequence {
+    ArrowColor DarkSlateGray
+    ActorBorderColor DarkSlateGray
+    LifeLineBorderColor DarkSlateGray
+    ParticipantBorderColor DarkSlateGray
+    ParticipantBackgroundColor WhiteSmoke
+}
+
+actor User
+participant "CameraScreen\n(React Native)" as Camera
+participant "ImageCompressionSvc\n(Frontend)" as ImgSvc
+participant "problemSlice\n(Redux)" as Redux
+participant "ProblemService\n(Frontend)" as ProblemSvc
+participant "ApiClient\n(Axios)" as ApiClient
+participant "ProblemController\n(.NET)" as Controller
+participant "CreateProblemHandler\n(.NET)" as CreateHandler
+participant "UploadImageHandler\n(.NET)" as UploadHandler
+participant "ProblemRepository\n(EF Core)" as Repo
+database "MySQL\n(Problem DB)" as DB
+participant "File Storage\n(.NET)" as Storage
+participant "MLServiceClient\n(.NET)" as MLClient
+participant "OCR Service\n(FastAPI)" as OCRSvc
+
+== Step 1: Capture Image ==
+
+User -> Camera : Tap "Take Photo" or "Gallery"
+Camera -> Camera : expo-camera.takePictureAsync()\nor expo-image-picker.launchImageLibraryAsync()
+Camera --> User : Show preview
+
+User -> Camera : Confirm image
+
+Camera -> ImgSvc : checkImageQuality(imageUri)
+activate ImgSvc
+ImgSvc -> ImgSvc : Analyze brightness, blur, resolution
+ImgSvc --> Camera : QualityScore (0-100)
+deactivate ImgSvc
+
+alt Quality < 50
+    Camera --> User : Show quality warning\n"Image may be unclear"
+    User -> Camera : Re-take or proceed anyway
+end
+
+Camera -> ImgSvc : compressImage(imageUri, {quality: 0.7})
+activate ImgSvc
+ImgSvc -> ImgSvc : Resize to max 1920px\nJPEG compress (60-80% reduction)
+ImgSvc --> Camera : CompressedImageUri + size
+deactivate ImgSvc
+
+== Step 2: Create Problem Record ==
+
+User -> Camera : Select category, difficulty
+User -> Camera : Tap "Submit"
+
+Camera -> Redux : dispatch(createProblem({title, category, difficulty}))
+activate Redux
+
+Redux -> ProblemSvc : createProblem(data)
+activate ProblemSvc
+
+ProblemSvc -> ApiClient : POST /api/v1/problems\n{title, description?, category, difficulty}\n+ Authorization: Bearer {token}
+activate ApiClient
+
+ApiClient -> Controller : HTTP POST /api/v1/problems
+activate Controller
+
+Controller -> CreateHandler : Send(CreateProblemCommand)
+activate CreateHandler
+
+CreateHandler -> Repo : AddAsync(problem)
+activate Repo
+Repo -> DB : INSERT INTO Problems\n{id, userId, title, category, difficulty,\nstatus=Pending, createdAt}
+DB --> Repo : OK
+Repo --> CreateHandler : Saved
+deactivate Repo
+
+CreateHandler --> Controller : ProblemDto {id, status="Pending", ...}
+deactivate CreateHandler
+
+Controller --> ApiClient : 201 Created\n{problem}
+deactivate Controller
+
+ApiClient --> ProblemSvc : Problem
+deactivate ApiClient
+ProblemSvc --> Redux : Problem
+deactivate ProblemSvc
+
+Redux -> Redux : problems.push(problem)
+Redux --> Camera : problem.id available
+deactivate Redux
+
+== Step 3: Upload Image ==
+
+Camera -> Redux : dispatch(uploadImage({problemId, imageData}))
+activate Redux
+
+Redux -> ProblemSvc : uploadImage(problemId, formData)
+activate ProblemSvc
+
+ProblemSvc -> ApiClient : POST /api/v1/problems/{id}/upload\nContent-Type: multipart/form-data\n{file: compressedImage}
+activate ApiClient
+
+ApiClient -> Controller : HTTP POST /api/v1/problems/{id}/upload
+activate Controller
+
+Controller -> UploadHandler : Send(UploadImageCommand)
+activate UploadHandler
+
+UploadHandler -> Storage : SaveFileAsync(imageBytes, fileName)
+activate Storage
+Storage --> UploadHandler : imagePath (disk/cloud path)
+deactivate Storage
+
+UploadHandler -> Repo : GetByIdAsync(problemId)
+activate Repo
+Repo -> DB : SELECT * FROM Problems WHERE Id=?
+DB --> Repo : Problem entity
+deactivate Repo
+
+UploadHandler -> UploadHandler : problem.SetImage(imagePath)
+UploadHandler -> UploadHandler : problem.SetProcessing()
+
+UploadHandler -> Repo : UpdateAsync(problem)
+activate Repo
+Repo -> DB : UPDATE Problems SET\nImagePath=?, Status=Processing
+DB --> Repo : OK
+deactivate Repo
+
+UploadHandler -> MLClient : ExtractTextAsync(imageBytes, imageUrl)
+activate MLClient
+
+MLClient -> OCRSvc : POST /api/v1/ocr/extract\n{image: base64/bytes, problemId}
+activate OCRSvc
+note over OCRSvc : Background task:\n1. Preprocess image\n2. TrOCR inference\n3. Post-process text
+
+OCRSvc --> MLClient : 202 Accepted\n{taskId, status="QUEUED"}
+deactivate OCRSvc
+MLClient --> UploadHandler : Task initiated (async)
+deactivate MLClient
+
+UploadHandler --> Controller : ProblemDto {status="Processing"}
+deactivate UploadHandler
+
+Controller --> ApiClient : 200 OK\n{problem with status=Processing}
+deactivate Controller
+
+ApiClient --> ProblemSvc : Updated Problem
+deactivate ApiClient
+ProblemSvc --> Redux : Problem (status=Processing)
+deactivate ProblemSvc
+
+Redux -> Redux : Update problem in state
+Redux --> Camera : Navigate to SolutionScreen\n(show "Processing..." state)
+deactivate Redux
+
+Camera --> User : Show processing indicator
+
+@enduml

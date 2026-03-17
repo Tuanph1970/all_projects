@@ -1,0 +1,93 @@
+@startuml 16_State_Problem_Lifecycle
+title Problem Lifecycle - State Diagram
+
+skinparam state {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    ArrowColor DarkSlateGray
+    FontSize 12
+}
+
+[*] --> Pending : User submits problem\n(CreateProblemCommand)
+
+state Pending {
+    Pending : Problem record created\nin database
+    Pending : Image not yet uploaded
+    Pending : Status = 0 (Pending)
+}
+
+state Processing {
+    Processing : Image uploaded to storage
+    Processing : OCR extraction started\n(TrOCR model)
+    Processing : Status = 1 (Processing)
+    Processing : Background task running
+}
+
+state Completed {
+    Completed : ExtractedText populated
+    Completed : Solution steps generated
+    Completed : CompletedAt timestamp set
+    Completed : Status = 2 (Completed)
+}
+
+state Failed {
+    Failed : OCR or solving failed
+    Failed : Error details recorded\nin ProblemHistory
+    Failed : Status = 3 (Failed)
+}
+
+state Deleted {
+    Deleted : Soft deleted or\nhard deleted from DB
+    Deleted : Image file removed\nfrom storage
+}
+
+Pending --> Processing : User uploads image\n(UploadImageCommand)\n[image quality >= threshold]
+
+Processing --> Completed : OCR + solving\nsuccessful\n(UpdateProblemStatusCommand\nstatus=Completed)
+
+Processing --> Failed : OCR or model\nfails or times out\n(UpdateProblemStatusCommand\nstatus=Failed)
+
+Failed --> Processing : User retries problem\n(RetryProblemCommand\nRevertToPending → re-upload)
+
+Pending --> Deleted : User deletes\nbefore upload\n(DeleteProblemCommand)
+
+Completed --> Deleted : User deletes\ncompleted problem\n(DeleteProblemCommand)
+
+Failed --> Deleted : User deletes\nfailed problem\n(DeleteProblemCommand)
+
+Deleted --> [*]
+Completed --> [*] : (persisted)
+
+note right of Pending
+  **Entry Actions:**
+  Problem.Create() called
+  DomainEvent: ProblemCreated
+  ProblemHistory.Create(Action="Created")
+end note
+
+note right of Processing
+  **Entry Actions:**
+  problem.SetImage(imagePath)
+  problem.SetProcessing()
+  DomainEvent: ProblemProcessingStarted
+  ProblemHistory.Create(Action="ProcessingStarted")
+  MLServiceClient.ExtractTextAsync() called
+end note
+
+note right of Completed
+  **Entry Actions:**
+  problem.SetCompleted(extractedText)
+  DomainEvent: ProblemCompleted
+  ProblemHistory.Create(Action="Completed")
+  Push notification sent to user
+end note
+
+note right of Failed
+  **Entry Actions:**
+  problem.SetFailed()
+  DomainEvent: ProblemFailed
+  ProblemHistory.Create(Action="Failed")
+  Error logged to Serilog
+end note
+
+@enduml

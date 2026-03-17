@@ -1,0 +1,119 @@
+@startuml 18_ERD_Databases
+title Database Entity Relationship Diagram
+
+skinparam class {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    ArrowColor DarkSlateGray
+    FontSize 11
+}
+
+hide circle
+hide methods
+
+package "Auth Service Database (MySQL)" {
+    entity "Users" as Users {
+        * **Id** : CHAR(36) PK
+        --
+        * Username : VARCHAR(50) <<unique, idx>>
+        * Email : VARCHAR(100) <<unique, idx>>
+        * PasswordHash : VARCHAR(255)
+        FullName : VARCHAR(100) NULL
+        * Role : VARCHAR(20) DEFAULT 'User'
+        * IsActive : TINYINT(1) <<idx>>
+        LastLoginAt : DATETIME NULL
+        * CreatedAt : DATETIME <<idx>>
+        UpdatedAt : DATETIME NULL <<idx>>
+    }
+}
+
+package "Redis Store" {
+    entity "RefreshTokens" as RefreshTokens {
+        * **Key** : STRING\n"refresh_token:{userId}:{tokenId}"
+        --
+        * Value : STRING (encrypted token)
+        * TTL : 30 days
+    }
+}
+
+package "Problem Service Database (MySQL)" {
+    entity "Problems" as Problems {
+        * **Id** : CHAR(36) PK
+        --
+        * UserId : CHAR(36) <<idx>> [FK → Users.Id]
+        * Title : VARCHAR(255)
+        Description : TEXT NULL
+        ImagePath : VARCHAR(500) NULL
+        ExtractedText : TEXT NULL
+        * Category : VARCHAR(50) <<idx>>
+        * Difficulty : VARCHAR(20) <<idx>>
+        * Status : TINYINT <<idx>>\n(0=Pending, 1=Processing\n2=Completed, 3=Failed)
+        CompletedAt : DATETIME NULL
+        * CreatedAt : DATETIME <<idx>>
+        UpdatedAt : DATETIME NULL <<idx>>
+    }
+
+    entity "ProblemHistories" as ProblemHistories {
+        * **Id** : CHAR(36) PK
+        --
+        * ProblemId : CHAR(36) <<idx>> [FK → Problems.Id]
+        * UserId : CHAR(36) <<idx>>
+        * Action : VARCHAR(50) <<idx>>\n(Created, ProcessingStarted\nCompleted, Failed, Deleted)
+        Details : TEXT NULL
+        * CreatedAt : DATETIME
+    }
+}
+
+package "ML Service (No Persistent DB)" {
+    entity "TaskQueue\n(In-Memory)" as TaskQueue {
+        * **task_id** : UUID
+        --
+        * task_type : ENUM (OCR, SOLUTION)
+        * status : ENUM (QUEUED, PROCESSING\nCOMPLETED, FAILED)
+        * created_at : DATETIME
+        completed_at : DATETIME NULL
+        result : JSON NULL
+        error : TEXT NULL
+    }
+}
+
+' Relationships
+Users ||--o{ Problems : "UserId\n(logical FK,\ncross-service)"
+Problems ||--o{ ProblemHistories : "ProblemId"
+Users ||--o{ RefreshTokens : "userId in key"
+
+note right of Problems
+  **Indexes (14 total):**
+  IX_Problems_UserId
+  IX_Problems_Status
+  IX_Problems_Category
+  IX_Problems_Difficulty
+  IX_Problems_CreatedAt
+  Full-text: Title, Description
+end note
+
+note right of ProblemHistories
+  **Indexes:**
+  IX_ProblemHistories_ProblemId
+  IX_ProblemHistories_UserId
+  IX_ProblemHistories_Action
+  IX_ProblemHistories_CreatedAt
+end note
+
+note right of Users
+  **Indexes:**
+  IX_Users_Username (unique)
+  IX_Users_Email (unique)
+  IX_Users_IsActive
+  IX_Users_CreatedAt
+  IX_Users_UpdatedAt
+end note
+
+note bottom of RefreshTokens
+  Cross-service: Problem Service validates
+  JWT tokens by calling Auth Service
+  (GET /api/v1/auth/validate)
+  No direct DB-to-DB communication
+end note
+
+@enduml

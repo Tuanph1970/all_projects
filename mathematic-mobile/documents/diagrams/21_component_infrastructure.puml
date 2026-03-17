@@ -1,0 +1,155 @@
+@startuml 21_Component_Infrastructure
+title Infrastructure & Deployment - Component Diagram
+
+skinparam node {
+    BackgroundColor LightYellow
+    BorderColor DarkSlateGray
+    FontSize 11
+}
+skinparam component {
+    BackgroundColor WhiteSmoke
+    BorderColor DarkSlateGray
+    FontSize 10
+}
+skinparam database {
+    BackgroundColor LightBlue
+    BorderColor DarkSlateGray
+}
+skinparam cloud {
+    BackgroundColor LightGreen
+    BorderColor DarkSlateGray
+}
+skinparam arrow {
+    Color DarkSlateGray
+}
+
+cloud "Mobile Network / Internet" as Internet
+
+node "Mobile Device\n(iOS / Android)" as Device {
+    [React Native App\n(Expo Go / Standalone)] as App
+}
+
+node "CI/CD Pipeline\n(GitHub Actions)" as CICD {
+    [Build & Test\nWorkflow] as Build
+    [Docker Build\n& Push] as DockerBuild
+    [Deploy Workflow] as Deploy
+}
+
+node "Container Registry\n(Docker Hub / GHCR)" as Registry {
+    [auth-service:latest] as AuthImg
+    [problem-service:latest] as ProbImg
+    [llm-ocr-service:latest] as MLImg
+}
+
+node "Production Server / Docker Host" as Server {
+
+    node "Docker Network: mathematic-network" as DockerNet {
+
+        node "Traefik Container\n(:80, :443)" as TraefikNode {
+            [Traefik Reverse Proxy\nSSL Termination\nLoad Balancer\nRate Limiting] as Traefik
+        }
+
+        node "auth-service Container\n(Port 8001)" as AuthContainer {
+            [Auth Service\n(.NET 8 ASP.NET Core)\nSerilog Logging\nHealthChecks] as AuthSvc
+        }
+
+        node "problem-service Container\n(Port 8002)" as ProbContainer {
+            [Problem Service\n(.NET 8 ASP.NET Core)\nPolly Retry\nSerilog Logging] as ProbSvc
+        }
+
+        node "llm-ocr Container\n(Port 8003)" as MLContainer {
+            [ML/OCR Service\n(FastAPI Python)\nTrOCR Model\nFLAN-T5 Model\nSymPy Solver] as MLSvc
+        }
+
+        database "MySQL Container\nauth-db (:3307)" as AuthDB {
+            [Users Table\nIndexed for\nperformance]
+        }
+
+        database "MySQL Container\nproblem-db (:3308)" as ProbDB {
+            [Problems Table\nProblemHistories Table\n14 indexes]
+        }
+
+        database "Redis Container\n(:6379)" as RedisDB {
+            [Refresh Tokens\n(TTL: 30 days)\nRate Limit Counters\nSession Cache]
+        }
+
+        node "Observability Stack" as ObsNode {
+            [Prometheus\n(:9090)\nMetrics Scraping] as Prometheus
+            [Grafana\n(:3000)\nDashboards &\nAlerts] as Grafana
+            [Seq\n(:5341)\nStructured Log\nVisualization] as Seq
+        }
+
+        node "File Storage" as FileNode {
+            [Local Volume\n/uploads\nor\nCloud Storage\n(S3/Azure Blob)] as Storage
+        }
+    }
+
+    node "Docker Compose\nOrchestration" as Compose {
+        [docker-compose.yml\nService definitions\nHealth checks\nNetwork config\nVolume mounts] as ComposeFile
+    }
+}
+
+' Network flows
+Device --> Internet : HTTPS
+Internet --> TraefikNode : HTTPS :443
+
+' Traefik routing rules
+Traefik --> AuthContainer : Rule: Path(/api/v1/auth/*)\nLoadBalancer
+Traefik --> ProbContainer : Rule: Path(/api/v1/problems/*)\nLoadBalancer
+
+' Service to database connections
+AuthContainer --> AuthDB : EF Core\nMySQL (port 3307)
+AuthContainer --> RedisDB : StackExchange.Redis\n(port 6379)
+ProbContainer --> ProbDB : EF Core\nMySQL (port 3308)
+ProbContainer --> RedisDB : Rate limiting cache
+
+' Service to service
+ProbContainer --> AuthContainer : JWT Validation\nGET /auth/validate
+ProbContainer --> MLContainer : OCR + Solve\nAsync HTTP POST
+MLContainer --> ProbContainer : Status Callback\nPOST /problems/{id}/status
+
+' Storage
+ProbContainer --> Storage : Image upload\nFile read
+MLContainer --> Storage : Image read\nfor processing
+
+' Observability
+AuthContainer --> Prometheus : /metrics endpoint
+ProbContainer --> Prometheus : /metrics endpoint
+MLContainer --> Prometheus : /metrics endpoint
+Prometheus --> Grafana : metrics data
+AuthContainer --> Seq : Serilog sink
+ProbContainer --> Seq : Serilog sink
+MLContainer --> Seq : loguru output
+
+' CI/CD
+CICD --> Registry : Push Docker images
+Registry --> Server : Pull & deploy images
+CICD --> Deploy : trigger on main merge
+
+' Compose manages all containers
+ComposeFile --> AuthContainer : defines
+ComposeFile --> ProbContainer : defines
+ComposeFile --> MLContainer : defines
+ComposeFile --> AuthDB : defines
+ComposeFile --> ProbDB : defines
+ComposeFile --> RedisDB : defines
+ComposeFile --> TraefikNode : defines
+
+note right of MLContainer
+  ML Models loaded at startup:
+  - microsoft/trocr-base-handwritten
+    (~500MB VRAM)
+  - google/flan-t5-base
+    (~1GB VRAM)
+  CPU fallback if no GPU
+end note
+
+note right of Traefik
+  Routes by path prefix:
+  /api/v1/auth/* → auth-service
+  /api/v1/problems/* → problem-service
+  /api/v1/ocr/* → llm-ocr (internal only)
+  /api/v1/solution/* → llm-ocr (internal)
+end note
+
+@enduml
