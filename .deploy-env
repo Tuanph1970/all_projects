@@ -20,13 +20,5 @@ STOCK_DB_NAME=stockpredict_db
 STOCK_DB_USER=stock_user
 STOCK_DB_PASSWORD=Mysql_2025
 
-# Mathematic Mobile Project Configuration
-MATH_API_PORT=8003
-MATH_DB_PORT=3310
-MATH_DB_NAME=mathematic_db
-MATH_DB_USER=mathematic_user
-MATH_DB_PASSWORD=Mysql_2025
-MATH_REDIS_PORT=6380
-
 # General Configuration
 ENVIRONMENT=production

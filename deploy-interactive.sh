@@ -6,7 +6,6 @@
 # This script provides an interactive dialog-based deployment for:
 #   - Ceramic Mobile App Backend (Port 8002)
 #   - Stock Predict Backend (Port 8004)
-#   - Mathematic Mobile Backend (Port 8003)
 #   - Ollama LLM Setup (GPU/CPU)
 #
 # Usage: ./deploy-interactive.sh
@@ -31,9 +30,6 @@ BASE_DIR="$SCRIPT_DIR"
 # Project directories (relative to BASE_DIR)
 CERAMIC_DIR="$BASE_DIR/ceramic_mobile_app/back_end"
 STOCK_DIR="$BASE_DIR/stockpredict/stock_microservices"
-MATH_DIR="$BASE_DIR/mathematic-mobile"
-MATH_BACKEND_DIR="$MATH_DIR/backend"
-
 # Environment files
 ENV_FILE="$BASE_DIR/.deploy-env"
 
@@ -44,7 +40,6 @@ SELECTED_PROJECTS=()
 SETUP_OLLAMA=false
 OLLAMA_PROFILE=""
 SETUP_NGINX=false
-DOWNLOAD_MATH_MODELS=false
 
 # Function to print colored output
 print_color() {
@@ -313,7 +308,6 @@ setup_nginx_config() {
     print_color $CYAN "Unified API Gateway available at: http://localhost/"
     print_color $CYAN "  - Ceramic API: http://localhost/ceramic/"
     print_color $CYAN "  - Stock API:   http://localhost/stock/"
-    print_color $CYAN "  - Math API:    http://localhost/math/"
 }
 
 # Function to create environment file if not exists
@@ -345,14 +339,6 @@ STOCK_DB_NAME=stockpredict_db
 STOCK_DB_USER=stock_user
 STOCK_DB_PASSWORD=Mysql_2025
 
-# Mathematic Mobile Project Configuration
-MATH_API_PORT=8003
-MATH_DB_PORT=3310
-MATH_DB_NAME=mathematic_db
-MATH_DB_USER=mathematic_user
-MATH_DB_PASSWORD=Mysql_2025
-MATH_REDIS_PORT=6380
-
 # General Configuration
 ENVIRONMENT=production
 EOF
@@ -378,10 +364,6 @@ show_project_info() {
         stock)
             print_box "Stock Predict Full-Stack" \
                      "API: 8004 | Frontend: 3004 | MySQL: 3309 | Grafana: 3100"
-            ;;
-        math)
-            print_box "Mathematics Mobile Backend" \
-                     "API Port: 8003 | DB Port: 3310 | Redis: 6380"
             ;;
     esac
 }
@@ -410,7 +392,6 @@ check_project_dir() {
     case $project in
         ceramic) dir="$CERAMIC_DIR" ;;
         stock) dir="$STOCK_DIR" ;;
-        math) dir="$MATH_DIR" ;;
     esac
 
     if [ ! -d "$dir" ]; then
@@ -455,10 +436,6 @@ deploy_project() {
         stock)
             project_dir="$STOCK_DIR"
             project_name="stockpredict"
-            ;;
-        math)
-            project_dir="$MATH_DIR"
-            project_name="mathematic"
             ;;
     esac
 
@@ -527,23 +504,6 @@ deploy_project() {
                 return 1
             fi
             ;;
-        math)
-            # Math uses docker-compose.yml in backend directory
-            local math_compose_dir="$MATH_BACKEND_DIR"
-            if [ -f "$math_compose_dir/docker-compose.yml" ]; then
-                cd "$math_compose_dir"
-                # Build with --no-cache if requested
-                if [ -n "$NO_CACHE_FLAG" ] && [ -n "$BUILD_FLAG" ]; then
-                    print_color $YELLOW "🔨 Building Math with --no-cache..."
-                    $COMPOSE_CMD -f docker-compose.yml -p "$project_name" build --no-cache
-                fi
-                print_color $YELLOW "🚀 Starting Math services..."
-                $COMPOSE_CMD -f docker-compose.yml -p "$project_name" up -d $build_args
-            else
-                print_color $RED "docker-compose.yml not found in $math_compose_dir"
-                return 1
-            fi
-            ;;
     esac
 
     print_color $GREEN "✓ $project_name deployed successfully!"
@@ -563,9 +523,6 @@ show_deployment_summary() {
             stock)
                 print_color $GREEN "  ✓ Stock Predict Backend"
                 ;;
-            math)
-                print_color $GREEN "  ✓ Mathematics Mobile Backend"
-                ;;
         esac
     done
     
@@ -573,15 +530,11 @@ show_deployment_summary() {
         print_color $GREEN "  ✓ Ollama LLM Setup"
     fi
 
-    if [ "$DOWNLOAD_MATH_MODELS" = true ]; then
-        print_color $GREEN "  ✓ Mathematics LLM OCR Models Download"
-    fi
-
     if [ "$SETUP_NGINX" = true ]; then
         print_color $GREEN "  ✓ Nginx Unified Gateway"
     fi
 
-    if [ ${#SELECTED_PROJECTS[@]} -eq 0 ] && [ "$SETUP_OLLAMA" = false ] && [ "$DOWNLOAD_MATH_MODELS" = false ] && [ "$SETUP_NGINX" = false ]; then
+    if [ ${#SELECTED_PROJECTS[@]} -eq 0 ] && [ "$SETUP_OLLAMA" = false ] && [ "$SETUP_NGINX" = false ]; then
         print_color $YELLOW "  No projects selected for deployment"
     fi
     
@@ -751,104 +704,6 @@ setup_ollama() {
     print_color $GREEN "✓ Ollama setup complete! (Profile: $OLLAMA_PROFILE)"
 }
 
-# Function to setup Mathematic Mobile OCR and LLM models
-setup_math_models() {
-    local math_llmocr_dir="$MATH_DIR/llmOCR"
-    local download_script="$math_llmocr_dir/scripts/download_models.py"
-
-    if [ ! -d "$math_llmocr_dir" ]; then
-        print_color $RED "Error: Mathematic llmOCR directory not found: $math_llmocr_dir"
-        return 1
-    fi
-
-    if [ ! -f "$download_script" ]; then
-        print_color $RED "Error: Model download script not found: $download_script"
-        return 1
-    fi
-
-    print_header "Mathematics LLM OCR Model Download"
-
-    # Step 1: Check Python environment
-    print_color $BLUE "🔍 Checking Python environment..."
-    if ! command -v python3 &> /dev/null; then
-        print_color $RED "✗ Python3 is not installed"
-        return 1
-    fi
-
-    print_color $GREEN "✓ Python3 found: $(python3 --version)"
-
-    # Step 2: Check/install required dependencies
-    print_color $BLUE "📦 Checking required dependencies..."
-    local missing_deps=()
-
-    if ! python3 -c "import huggingface_hub" &> /dev/null; then
-        missing_deps+=("huggingface_hub")
-    fi
-
-    if ! python3 -c "import transformers" &> /dev/null; then
-        missing_deps+=("transformers")
-    fi
-
-    if ! python3 -c "import loguru" &> /dev/null; then
-        missing_deps+=("loguru")
-    fi
-
-    if ! python3 -c "import pydantic" &> /dev/null; then
-        missing_deps+=("pydantic")
-    fi
-
-    if [ ${#missing_deps[@]} -gt 0 ]; then
-        print_color $YELLOW "⚠ Missing dependencies: ${missing_deps[*]}"
-        if ask_yes_no "Do you want to install missing dependencies?" "y"; then
-            print_color $CYAN "Installing dependencies..."
-            pip3 install -q "${missing_deps[@]}"
-            if [ $? -eq 0 ]; then
-                print_color $GREEN "✓ Dependencies installed"
-            else
-                print_color $RED "✗ Failed to install dependencies"
-                return 1
-            fi
-        else
-            print_color $YELLOW "○ Skipping dependency installation, model download may fail"
-        fi
-    else
-        print_color $GREEN "✓ All required dependencies are installed"
-    fi
-
-    # Step 3: Download models
-    echo
-    print_color $BLUE "📥 Downloading OCR and LLM models for Mathematic Mobile..."
-    print_color $YELLOW "This may take a while on first run (models are ~500MB-2GB)"
-    echo
-
-    cd "$math_llmocr_dir"
-
-    # Run the download script
-    python3 "$download_script" --type all --verbose
-
-    if [ $? -eq 0 ]; then
-        print_color $GREEN "✓ Model download complete!"
-
-        # Show downloaded models
-        echo
-        print_color $CYAN "Downloaded models:"
-        python3 "$download_script" --list-downloaded
-
-        echo
-        print_color $GREEN "✓ Mathematics LLM OCR models are ready!"
-        print_color $YELLOW "Models are stored in: $math_llmocr_dir/models"
-    else
-        print_color $RED "✗ Model download failed"
-        print_color $YELLOW "You can download models manually later:"
-        print_color $WHITE "  cd $math_llmocr_dir"
-        print_color $WHITE "  python3 scripts/download_models.py --type all"
-        return 1
-    fi
-
-    echo
-    print_color $GREEN "✓ Mathematics LLM OCR setup complete!"
-}
-
 # Main interactive flow
 main() {
     clear
@@ -891,7 +746,6 @@ main() {
     echo
     printf "  %-30s %s\n" "Ceramic Mobile App:" "$(get_project_status ceramic)"
     printf "  %-30s %s\n" "Stock Predict:" "$(get_project_status stockpredict)"
-    printf "  %-30s %s\n" "Mathematics Mobile:" "$(get_project_status mathematic)"
     echo
     
     # Ask about deployment mode
@@ -939,15 +793,6 @@ main() {
     
     echo
     
-    # Mathematics
-    show_project_info "math"
-    if ask_yes_no "Do you want to deploy Mathematics Mobile Backend?" "y"; then
-        SELECTED_PROJECTS+=("math")
-        print_color $GREEN "✓ Mathematics Mobile Backend selected"
-    else
-        print_color $YELLOW "○ Skipping Mathematics Mobile Backend"
-    fi
-
     echo
 
     # Ollama LLM Setup
@@ -961,16 +806,6 @@ main() {
     fi
 
     echo
-
-    # Mathematic Mobile OCR and LLM Models
-    print_box "Mathematics LLM OCR Models" \
-             "OCR: microsoft/trocr-base-math | LLM: google/flan-t5-base"
-    if ask_yes_no "Do you want to download OCR and LLM models for Mathematic Mobile?" "n"; then
-        DOWNLOAD_MATH_MODELS=true
-        print_color $GREEN "✓ Mathematics LLM OCR models download selected"
-    else
-        print_color $YELLOW "○ Skipping Mathematics LLM OCR models download"
-    fi
 
     echo
 
@@ -987,7 +822,7 @@ main() {
     # Show summary and confirm
     show_deployment_summary
 
-    if [ ${#SELECTED_PROJECTS[@]} -eq 0 ] && [ "$SETUP_OLLAMA" = false ] && [ "$DOWNLOAD_MATH_MODELS" = false ] && [ "$SETUP_NGINX" = false ]; then
+    if [ ${#SELECTED_PROJECTS[@]} -eq 0 ] && [ "$SETUP_OLLAMA" = false ] && [ "$SETUP_NGINX" = false ]; then
         print_color $YELLOW "No projects selected. Exiting."
         exit 0
     fi
@@ -1004,12 +839,6 @@ main() {
         if [ "$SETUP_OLLAMA" = true ]; then
             echo
             setup_ollama
-        fi
-
-        # Download Mathematic Mobile OCR and LLM models if selected
-        if [ "$DOWNLOAD_MATH_MODELS" = true ]; then
-            echo
-            setup_math_models
         fi
 
         # Setup Nginx if selected
@@ -1049,17 +878,6 @@ main() {
             print_color $WHITE "  └─────────────────────────────────────────────────────────┘"
         fi
 
-        if [[ " ${SELECTED_PROJECTS[@]} " =~ " math " ]]; then
-            echo
-            print_color $WHITE "  ┌─ Mathematics Mobile ─────────────────────────────────┐"
-            print_color $YELLOW "  │ API Gateway:        http://localhost:8003"
-            print_color $YELLOW "  │ Traefik Dashboard:  http://localhost:8083"
-            print_color $YELLOW "  │ Auth API:           http://localhost:8003/api/v1/auth"
-            print_color $YELLOW "  │ Problems API:       http://localhost:8003/api/v1/problems"
-            print_color $YELLOW "  │ Solutions API:      http://localhost:8003/api/v1/solutions"
-            print_color $WHITE "  └─────────────────────────────────────────────────────┘"
-        fi
-
         if [ "$SETUP_OLLAMA" = true ]; then
             echo
             print_color $WHITE "  ┌─ Ollama LLM ────────────────────────────────────────┐"
@@ -1070,23 +888,12 @@ main() {
             print_color $WHITE "  └─────────────────────────────────────────────────────┘"
         fi
 
-        if [ "$DOWNLOAD_MATH_MODELS" = true ]; then
-            echo
-            print_color $WHITE "  ┌─ Mathematics LLM OCR Models ────────────────────────┐"
-            print_color $YELLOW "  │ OCR Model:          microsoft/trocr-base-math"
-            print_color $YELLOW "  │ LLM Model:          google/flan-t5-base"
-            print_color $YELLOW "  │ Models Directory:   $MATH_DIR/llmOCR/models"
-            print_color $YELLOW "  │ List models:        python3 scripts/download_models.py --list-downloaded"
-            print_color $WHITE "  └─────────────────────────────────────────────────────┘"
-        fi
-
         if [ "$SETUP_NGINX" = true ]; then
             echo
             print_color $WHITE "  ┌─ Nginx Unified API Gateway ───────────────────────────┐"
             print_color $YELLOW "  │ Unified Gateway:    http://localhost/"
             print_color $YELLOW "  │ Ceramic API:        http://localhost/ceramic/"
             print_color $YELLOW "  │ Stock API:          http://localhost/stock/"
-            print_color $YELLOW "  │ Math API:           http://localhost/math/"
             print_color $YELLOW "  │ Stock Frontend:     http://localhost/stock-app/"
             print_color $YELLOW "  │ Health Check:       http://localhost/health"
             print_color $WHITE "  └─────────────────────────────────────────────────────┘"
@@ -1094,7 +901,7 @@ main() {
 
         echo
         print_color $CYAN "Port Allocation Summary:"
-        print_color $WHITE "  Ceramic: 8002 | Math: 8003 | Stock: 8004"
+        print_color $WHITE "  Ceramic: 8002 | Stock: 8004"
         echo
         print_color $CYAN "To check the status of your services, run:"
         print_color $WHITE "  $SCRIPT_DIR/deploy-projects.sh status"

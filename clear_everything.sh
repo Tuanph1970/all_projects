@@ -45,12 +45,6 @@ DEPLOYMENT_PORTS=(
     5672    # RabbitMQ AMQP
     11434   # Ollama LLM
 
-    # Mathematics Mobile
-    8003    # API Gateway
-    8083    # Traefik Dashboard (Math)
-    3310    # MySQL
-    6380    # Redis
-
     # Common ports that might conflict
     80      # HTTP
     443     # HTTPS
@@ -400,7 +394,7 @@ main() {
 
     print_color $MAGENTA "This script will:"
     print_color $WHITE "  1. Stop and remove all Docker containers"
-    print_color $WHITE "  2. Remove Docker Compose stacks (ceramic, stock, math, ollama)"
+    print_color $WHITE "  2. Remove Docker Compose stacks (ceramic, stock, ollama)"
     print_color $WHITE "  3. Remove Docker networks"
     print_color $WHITE "  4. Optionally remove Docker volumes (DATA LOSS!)"
     print_color $WHITE "  5. Remove dangling Docker images"
