@@ -5,7 +5,7 @@ Study notes derived from Schwager, *Getting Started in Technical Analysis*, Chap
 ## Folder layout
 
 ```
-Chapter_08_Midtrend_Entry_Pyramiding/
+chapter_8_midtrend_entry_pyramiding/
 ├── obsidian/         ← drop into your Obsidian vault as-is
 │   ├── Chapter_08_Index.md
 │   ├── Midtrend_Entry.md
