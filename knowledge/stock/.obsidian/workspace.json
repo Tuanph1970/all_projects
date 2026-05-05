@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/13 - Chapter 3 Big Picture.md",
+                "file": "books/getting-started-in-technical-analysis_compress.pdf/Part 2 Trading Issues/Chapter 8 Mid Trending and Pyramiding/Pyramiding Rules.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "13 - Chapter 3 Big Picture"
+              "title": "Pyramiding Rules"
             }
           }
         ]
@@ -201,23 +201,8 @@
   },
   "active": "c574bdeaa16a9c82",
   "lastOpenFiles": [
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/05 - TD Lines (DeMark).md",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/06 - Trend Channels.md",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/04 - Internal Trend Lines.md",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/03 - Conventional Trend Lines.md",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/02 - Uptrend and Downtrend.md",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/01 - Relative Highs and Relative Lows.md",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/trending_vs_sideways.png",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/trend_lines_comparison.png",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/trend_channels_comparison.png",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/trend_channel_detail.png",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/rules_combined.png",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/rule3_channel_profit_taking.png",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/rule2_penetration_signal.png",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/rule1_entry_at_trendline.png",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/conventional_vs_internal.png",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 2 Trading Issues/Chapter 8 Mid Trending and Pyramiding/Continuation Pattern Breakouts.md",
     "books/getting-started-in-technical-analysis_compress.pdf/Part 2 Trading Issues/Chapter 8 Mid Trending and Pyramiding/Percent Retracement Entry.md",
+    "books/getting-started-in-technical-analysis_compress.pdf/Part 2 Trading Issues/Chapter 8 Mid Trending and Pyramiding/Continuation Pattern Breakouts.md",
     "books/getting-started-in-technical-analysis_compress.pdf/Part 2 Trading Issues/Chapter 8 Mid Trending and Pyramiding/Pyramiding Rules.md",
     "books/getting-started-in-technical-analysis_compress.pdf/Part 2 Trading Issues/Chapter 8 Mid Trending and Pyramiding/Reaction to Long-Term Moving Average.md",
     "books/getting-started-in-technical-analysis_compress.pdf/Part 2 Trading Issues/Chapter 8 Mid Trending and Pyramiding/The Midtrend Entry Problem.md",
@@ -244,7 +229,22 @@
     "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators/RSI - Chapter 6 - Schwager.md",
     "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators/Price Oscillator - Chapter 6 - Schwager.md",
     "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators/Overbought and Oversold - Chapter 6 - Schwager.md",
+    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators/Oscillators - Chapter 6 - Schwager.md",
+    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators/Oscillator Sensitivity - Chapter 6 - Schwager.md",
+    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators/Moving Average-Based Oscillator - Chapter 6 - Schwager.md",
+    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators/Momentum Indicator - Chapter 6 - Schwager.md",
+    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators/Momentum - Chapter 6 - Schwager.md",
+    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators/MACD - Chapter 6 - Schwager.md",
     "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 5: Stock-patterns"
+    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 5: Stock-patterns",
+    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/trending_vs_sideways.png",
+    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/trend_lines_comparison.png",
+    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/trend_channels_comparison.png",
+    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/trend_channel_detail.png",
+    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/rules_combined.png",
+    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/rule3_channel_profit_taking.png",
+    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/rule2_penetration_signal.png",
+    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/rule1_entry_at_trendline.png",
+    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/conventional_vs_internal.png"
   ]
 }

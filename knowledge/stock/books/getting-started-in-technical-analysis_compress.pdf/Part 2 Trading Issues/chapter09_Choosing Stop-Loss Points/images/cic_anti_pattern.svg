@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 400" font-family="Arial, sans-serif">
+  <rect width="700" height="400" fill="#fafafa"/>
+  <text x="350" y="28" text-anchor="middle" font-size="18" font-weight="bold" fill="#222">CIC Anti-Pattern — The Stop Cancelled at the Worst Possible Moment</text>
+
+  <line x1="60" y1="60" x2="60" y2="340" stroke="#333"/>
+  <line x1="60" y1="340" x2="660" y2="340" stroke="#333"/>
+
+  <!-- Falling price -->
+  <polyline points="80,140 120,150 160,165 200,180 240,200 280,225 320,265 360,290 400,310 440,318 480,322 520,325" 
+            fill="none" stroke="#1f77b4" stroke-width="2"/>
+
+  <!-- Entry -->
+  <circle cx="80" cy="140" r="6" fill="#2ca02c"/>
+  <text x="88" y="138" font-size="11" fill="#2ca02c" font-weight="bold">ENTRY $50</text>
+
+  <!-- Original stop level $48 -->
+  <line x1="60" y1="195" x2="660" y2="195" stroke="#d62728" stroke-width="1.6" stroke-dasharray="6,3"/>
+  <text x="660" y="190" font-size="11" fill="#d62728" text-anchor="end" font-weight="bold">original GTC stop $48</text>
+
+  <!-- Mark where price approaches the stop -->
+  <circle cx="240" cy="200" r="6" fill="#ff7f0e"/>
+  <text x="250" y="187" font-size="11" fill="#ff7f0e" font-weight="bold">"oh no, it'll hit the stop..."</text>
+
+  <!-- Cancel mark -->
+  <line x1="232" y1="190" x2="248" y2="206" stroke="#d62728" stroke-width="3"/>
+  <line x1="232" y1="206" x2="248" y2="190" stroke="#d62728" stroke-width="3"/>
+  <text x="220" y="220" font-size="11" fill="#d62728" font-weight="bold">CANCEL</text>
+
+  <!-- Final price collapse and damage  -->
+  <circle cx="520" cy="325" r="6" fill="#9467bd"/>
+  <text x="530" y="328" font-size="11" fill="#9467bd" font-weight="bold">final exit @ $38 — loss 6× larger</text>
+
+  <!-- Loss bracket -->
+  <line x1="540" y1="140" x2="540" y2="195" stroke="#2ca02c" stroke-width="2"/>
+  <text x="548" y="170" font-size="10" fill="#2ca02c">planned loss: $2</text>
+
+  <line x1="600" y1="140" x2="600" y2="325" stroke="#d62728" stroke-width="2"/>
+  <text x="608" y="240" font-size="10" fill="#d62728">actual loss: $12</text>
+
+  <text x="350" y="375" text-anchor="middle" font-size="11" fill="#555" font-style="italic">Stops should ONLY be moved to reduce risk — never to escape one.</text>
+</svg>

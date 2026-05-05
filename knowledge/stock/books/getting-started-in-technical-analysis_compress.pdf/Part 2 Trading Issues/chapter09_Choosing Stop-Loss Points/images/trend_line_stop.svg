@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 400" font-family="Arial, sans-serif">
+  <rect width="700" height="400" fill="#fafafa"/>
+  <text x="350" y="28" text-anchor="middle" font-size="18" font-weight="bold" fill="#222">Trend Line Stop — Earliest Warning, Most False Signals</text>
+
+  <!-- Axes -->
+  <line x1="60" y1="60" x2="60" y2="340" stroke="#333"/>
+  <line x1="60" y1="340" x2="660" y2="340" stroke="#333"/>
+
+  <!-- Uptrend line (extended) -->
+  <line x1="80" y1="300" x2="640" y2="120" stroke="#888" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="555" y="135" font-size="11" fill="#888" font-style="italic">uptrend line</text>
+
+  <!-- Stop line just below trend line, slightly offset -->
+  <line x1="80" y1="312" x2="640" y2="132" stroke="#d62728" stroke-width="1.5"/>
+  <text x="80" y="328" font-size="11" fill="#d62728">stop just below the line</text>
+
+  <!-- Bouncing-up price action that hugs the trend line -->
+  <polyline points="90,295 120,255 150,275 180,235 210,255 240,210 280,230 320,180 360,205 400,160 440,185 480,150" 
+            fill="none" stroke="#1f77b4" stroke-width="2"/>
+
+  <!-- Pivot lows touching trend line -->
+  <circle cx="120" cy="255" r="4" fill="#2ca02c"/>
+  <circle cx="240" cy="210" r="4" fill="#2ca02c"/>
+  <circle cx="360" cy="205" r="4" fill="#2ca02c"/>
+  <text x="125" y="255" font-size="9" fill="#2ca02c">pivot</text>
+
+  <!-- Final break (whipsaw scenario) -->
+  <polyline points="480,150 510,170 540,200 565,220" fill="none" stroke="#1f77b4" stroke-width="2"/>
+  <circle cx="555" cy="218" r="6" fill="#d62728"/>
+  <text x="565" y="222" font-size="11" fill="#d62728" font-weight="bold">stop hit</text>
+
+  <!-- Recovery showing whipsaw -->
+  <polyline points="565,220 590,200 615,180 640,160" fill="none" stroke="#1f77b4" stroke-width="2" stroke-dasharray="3,2"/>
+  <text x="590" y="170" font-size="9" fill="#888" font-style="italic">...and rebounds (whipsaw)</text>
+
+  <text x="350" y="375" text-anchor="middle" font-size="11" fill="#555">Fast exit, but trend lines often get redrawn — see Chapter 3.</text>
+</svg>

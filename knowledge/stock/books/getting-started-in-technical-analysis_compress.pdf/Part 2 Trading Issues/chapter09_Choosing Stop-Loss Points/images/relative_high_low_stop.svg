@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 400" font-family="Arial, sans-serif">
+  <rect width="700" height="400" fill="#fafafa"/>
+  <text x="350" y="28" text-anchor="middle" font-size="18" font-weight="bold" fill="#222">Relative Low Stop — The Last Step You Stood On</text>
+
+  <line x1="60" y1="60" x2="60" y2="340" stroke="#333"/>
+  <line x1="60" y1="340" x2="660" y2="340" stroke="#333"/>
+
+  <!-- Stair-step uptrend with three visible relative lows -->
+  <polyline points="80,300 110,275 140,290 170,250 200,265 230,225 260,240 290,200 320,215 350,175 380,190 410,150 440,165 470,130 500,145 530,120 560,160" 
+            fill="none" stroke="#1f77b4" stroke-width="2"/>
+
+  <!-- Relative lows -->
+  <circle cx="200" cy="265" r="6" fill="#2ca02c"/>
+  <text x="195" y="285" font-size="11" fill="#2ca02c" font-weight="bold">RL1 $45</text>
+
+  <circle cx="320" cy="215" r="6" fill="#2ca02c"/>
+  <text x="315" y="235" font-size="11" fill="#2ca02c" font-weight="bold">RL2 $48</text>
+
+  <circle cx="440" cy="165" r="6" fill="#2ca02c"/>
+  <text x="435" y="185" font-size="11" fill="#2ca02c" font-weight="bold">RL3 $51 (most recent)</text>
+
+  <!-- Current position arrow -->
+  <circle cx="530" cy="120" r="6" fill="#9467bd"/>
+  <text x="540" y="115" font-size="11" fill="#9467bd" font-weight="bold">long @ $54</text>
+
+  <!-- Stop level (just below RL3) -->
+  <line x1="60" y1="170" x2="660" y2="170" stroke="#d62728" stroke-width="1.6" stroke-dasharray="6,3"/>
+  <text x="660" y="187" font-size="11" fill="#d62728" text-anchor="end" font-weight="bold">STOP — close below RL3 ($51)</text>
+
+  <!-- Annotation: each pivot validated by N bars on each side -->
+  <text x="350" y="375" text-anchor="middle" font-size="11" fill="#555" font-style="italic">A relative low requires N lower bars before AND after it (typical N: 5–15).</text>
+</svg>

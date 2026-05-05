@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 400" font-family="Arial, sans-serif">
+  <rect width="700" height="400" fill="#fafafa"/>
+  <text x="350" y="28" text-anchor="middle" font-size="18" font-weight="bold" fill="#222">Trailing Stop — Stair-Stepping Up With Each New Pivot Low</text>
+
+  <line x1="60" y1="60" x2="60" y2="340" stroke="#333"/>
+  <line x1="60" y1="340" x2="660" y2="340" stroke="#333"/>
+
+  <!-- Rising price with reactions -->
+  <polyline points="80,290 110,275 140,295 170,260 200,275 230,235 260,250 290,210 320,225 350,185 380,200 410,160 440,175 470,135 500,150 530,180 560,210" 
+            fill="none" stroke="#1f77b4" stroke-width="2"/>
+
+  <!-- Entry -->
+  <circle cx="80" cy="290" r="6" fill="#2ca02c"/>
+  <text x="88" y="287" font-size="11" fill="#2ca02c" font-weight="bold">ENTRY $50</text>
+
+  <!-- Successive pivot lows -->
+  <circle cx="170" cy="260" r="5" fill="#444"/>
+  <circle cx="290" cy="210" r="5" fill="#444"/>
+  <circle cx="410" cy="160" r="5" fill="#444"/>
+
+  <!-- Stop step lines (only ever moved up) -->
+  <line x1="80"  y1="295" x2="170" y2="295" stroke="#d62728" stroke-width="2"/>
+  <text x="85"  y="312" font-size="10" fill="#d62728">stop 1: $46</text>
+
+  <line x1="170" y1="265" x2="290" y2="265" stroke="#d62728" stroke-width="2"/>
+  <text x="180" y="280" font-size="10" fill="#d62728">stop 2: $52 (raised)</text>
+
+  <line x1="290" y1="215" x2="410" y2="215" stroke="#d62728" stroke-width="2"/>
+  <text x="300" y="230" font-size="10" fill="#d62728">stop 3: $58 (raised)</text>
+
+  <line x1="410" y1="165" x2="560" y2="165" stroke="#d62728" stroke-width="2"/>
+  <text x="420" y="180" font-size="10" fill="#d62728">stop 4: $64 (raised)</text>
+
+  <!-- Stop-out point -->
+  <circle cx="560" cy="210" r="6" fill="#d62728"/>
+  <text x="568" y="208" font-size="11" fill="#d62728" font-weight="bold">stopped out @ $64 — locked-in profit $14</text>
+
+  <text x="350" y="375" text-anchor="middle" font-size="11" fill="#555" font-style="italic">Stops only ever move in the direction of LESS risk. Never down.</text>
+</svg>
