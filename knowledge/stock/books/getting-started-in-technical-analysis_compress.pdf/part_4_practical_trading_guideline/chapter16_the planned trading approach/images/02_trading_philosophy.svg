@@ -1,0 +1,37 @@
+<svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="500" fill="#f8fafc"/>
+  <text x="400" y="35" text-anchor="middle" font-size="20" font-weight="bold" fill="#0f172a">Trading Philosophy: From Vague to Specific</text>
+  
+  <!-- Bad approaches -->
+  <rect x="40" y="70" width="340" height="180" rx="10" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="210" y="95" text-anchor="middle" font-size="14" font-weight="bold" fill="#991b1b">✗ Vague (Not Ready to Trade)</text>
+  <text x="60" y="125" font-size="12" fill="#7f1d1d">"When my friend gets a hot tip..."</text>
+  <text x="60" y="150" font-size="12" fill="#7f1d1d">"When I read something in the news..."</text>
+  <text x="60" y="175" font-size="12" fill="#7f1d1d">"On market feel watching quotes..."</text>
+  <text x="60" y="200" font-size="12" fill="#7f1d1d">"My broker said it looks good..."</text>
+  <text x="60" y="225" font-size="12" font-style="italic" fill="#7f1d1d">→ no rules = no edge = no consistency</text>
+  
+  <!-- Good approaches -->
+  <rect x="420" y="70" width="340" height="180" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="590" y="95" text-anchor="middle" font-size="14" font-weight="bold" fill="#14532d">✓ Specific (Ready to Trade)</text>
+  <text x="440" y="125" font-size="12" fill="#14532d">Fundamental analysis (earnings, macro)</text>
+  <text x="440" y="150" font-size="12" fill="#14532d">Chart analysis (defined patterns)</text>
+  <text x="440" y="175" font-size="12" fill="#14532d">Technical trading systems (mechanical)</text>
+  <text x="440" y="200" font-size="12" fill="#14532d">Combination — different per market</text>
+  <text x="440" y="225" font-size="12" font-style="italic" fill="#14532d">→ rules = repeatable decisions</text>
+
+  <!-- Specificity ladder -->
+  <text x="400" y="290" text-anchor="middle" font-size="15" font-weight="bold" fill="#0f172a">Specificity Ladder (more specific = better)</text>
+  
+  <rect x="100" y="310" width="600" height="35" rx="5" fill="#fecaca" stroke="#991b1b"/>
+  <text x="400" y="333" text-anchor="middle" font-size="13" fill="#7f1d1d">Level 1: "I'll trade based on charts" (too vague)</text>
+  
+  <rect x="100" y="350" width="600" height="35" rx="5" fill="#fed7aa" stroke="#9a3412"/>
+  <text x="400" y="373" text-anchor="middle" font-size="13" fill="#7c2d12">Level 2: "I'll trade chart breakouts" (better, but still loose)</text>
+  
+  <rect x="100" y="390" width="600" height="35" rx="5" fill="#fef08a" stroke="#854d0e"/>
+  <text x="400" y="413" text-anchor="middle" font-size="13" fill="#713f12">Level 3: "Buy on close above 20-day high, with confirmation rule" (good)</text>
+  
+  <rect x="100" y="430" width="600" height="35" rx="5" fill="#bbf7d0" stroke="#15803d"/>
+  <text x="400" y="453" text-anchor="middle" font-size="13" fill="#14532d">Level 4: Mechanical system — every rule coded, no ambiguity (best)</text>
+</svg>

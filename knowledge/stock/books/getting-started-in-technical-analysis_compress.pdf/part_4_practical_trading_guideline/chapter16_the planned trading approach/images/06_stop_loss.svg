@@ -1,0 +1,63 @@
+<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="600" fill="#f8fafc"/>
+  <text x="400" y="35" text-anchor="middle" font-size="20" font-weight="bold" fill="#0f172a">Stop-Loss Strategy: "Know your exit before you enter"</text>
+
+  <!-- Price chart simulation -->
+  <g transform="translate(50, 80)">
+    <rect x="0" y="0" width="700" height="280" fill="white" stroke="#cbd5e1"/>
+    <text x="350" y="20" text-anchor="middle" font-size="13" font-weight="bold" fill="#0f172a">Hypothetical Trade with Pre-set Stop</text>
+    
+    <!-- Y-axis labels -->
+    <text x="-5" y="60" text-anchor="end" font-size="10" fill="#475569">$220</text>
+    <text x="-5" y="110" text-anchor="end" font-size="10" fill="#475569">$210</text>
+    <text x="-5" y="160" text-anchor="end" font-size="10" fill="#475569">$200</text>
+    <text x="-5" y="210" text-anchor="end" font-size="10" fill="#475569">$190</text>
+    <text x="-5" y="260" text-anchor="end" font-size="10" fill="#475569">$180</text>
+    
+    <!-- Grid -->
+    <line x1="0" y1="60" x2="700" y2="60" stroke="#e2e8f0"/>
+    <line x1="0" y1="110" x2="700" y2="110" stroke="#e2e8f0"/>
+    <line x1="0" y1="160" x2="700" y2="160" stroke="#e2e8f0"/>
+    <line x1="0" y1="210" x2="700" y2="210" stroke="#e2e8f0"/>
+    <line x1="0" y1="260" x2="700" y2="260" stroke="#e2e8f0"/>
+    
+    <!-- Entry line -->
+    <line x1="0" y1="160" x2="700" y2="160" stroke="#22c55e" stroke-width="2" stroke-dasharray="4,2"/>
+    <text x="710" y="160" font-size="11" fill="#16a34a">ENTRY $200</text>
+    
+    <!-- Stop line -->
+    <line x1="0" y1="210" x2="700" y2="210" stroke="#dc2626" stroke-width="2" stroke-dasharray="4,2"/>
+    <text x="710" y="213" font-size="11" fill="#dc2626">STOP $190</text>
+    
+    <!-- Price candlestick path (winning then stop) -->
+    <polyline points="50,160 100,150 150,135 200,140 250,125 300,135 350,125 400,135 450,150 500,170 550,185 600,205 620,210" 
+              stroke="#1e40af" stroke-width="2" fill="none"/>
+    
+    <!-- Entry marker -->
+    <circle cx="50" cy="160" r="5" fill="#22c55e"/>
+    <text x="55" y="180" font-size="10" fill="#16a34a">BUY</text>
+    
+    <!-- Stop hit marker -->
+    <circle cx="620" cy="210" r="6" fill="#dc2626"/>
+    <text x="610" y="230" font-size="10" fill="#dc2626">STOP HIT</text>
+  </g>
+
+  <!-- Two columns of guidance -->
+  <rect x="50" y="380" width="340" height="190" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="220" y="405" text-anchor="middle" font-size="14" font-weight="bold" fill="#14532d">✓ With a Pre-set Stop</text>
+  <text x="65" y="430" font-size="12" fill="#14532d">• Place a GTC stop the moment you enter</text>
+  <text x="65" y="452" font-size="12" fill="#14532d">• Loss is bounded: $10/share × 300 = $3,000</text>
+  <text x="65" y="474" font-size="12" fill="#14532d">• No emotional decision needed mid-loss</text>
+  <text x="65" y="496" font-size="12" fill="#14532d">• Trader keeps control, not the market</text>
+  <text x="65" y="525" font-size="12" font-style="italic" fill="#14532d">"One discipline lapse can knock you out</text>
+  <text x="65" y="543" font-size="12" font-style="italic" fill="#14532d">of the game permanently."</text>
+  
+  <rect x="410" y="380" width="340" height="190" rx="10" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="580" y="405" text-anchor="middle" font-size="14" font-weight="bold" fill="#991b1b">✗ Without a Stop</text>
+  <text x="425" y="430" font-size="12" fill="#7f1d1d">• "It'll come back…" (often it doesn't)</text>
+  <text x="425" y="452" font-size="12" fill="#7f1d1d">• Hope replaces analysis</text>
+  <text x="425" y="474" font-size="12" fill="#7f1d1d">• Position size grows relative to equity as price falls</text>
+  <text x="425" y="496" font-size="12" fill="#7f1d1d">• Eventually capitulation at the worst price</text>
+  <text x="425" y="525" font-size="12" font-style="italic" fill="#7f1d1d">"Procrastinating in liquidating</text>
+  <text x="425" y="543" font-size="12" font-style="italic" fill="#7f1d1d">a losing position" — Schwager</text>
+</svg>

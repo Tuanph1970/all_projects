@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" font-family="Arial, sans-serif">
+  <rect width="800" height="600" fill="#fafafa"/>
+  <text x="400" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#1a1a1a">High-Reliability Market Patterns (Schwager's Favorites)</text>
+
+  <!-- Pattern 1: New highs that hold -->
+  <g>
+    <rect x="30" y="55" width="240" height="160" fill="#fff" stroke="#999"/>
+    <text x="150" y="75" text-anchor="middle" font-size="13" font-weight="bold" fill="#2e7d32">New Historical Highs Hold</text>
+
+    <line x1="50" y1="160" x2="250" y2="160" stroke="#999" stroke-dasharray="3,2"/>
+    <text x="55" y="158" font-size="9" fill="#666">prior high</text>
+
+    <polyline points="50,180 75,170 100,175 125,165 150,170 175,150 200,140 225,135 245,130"
+              fill="none" stroke="#1976d2" stroke-width="2"/>
+    <circle cx="175" cy="150" r="5" fill="#2e7d32"/>
+    <text x="150" y="200" font-size="10" fill="#2e7d32" font-weight="bold">→ Expect a far bigger move</text>
+  </g>
+
+  <!-- Pattern 2: Breakout from extended range -->
+  <g>
+    <rect x="280" y="55" width="240" height="160" fill="#fff" stroke="#999"/>
+    <text x="400" y="75" text-anchor="middle" font-size="13" font-weight="bold" fill="#2e7d32">Range Breakout (1-2 weeks+)</text>
+
+    <line x1="300" y1="135" x2="430" y2="135" stroke="#999" stroke-dasharray="3,2"/>
+    <line x1="300" y1="170" x2="430" y2="170" stroke="#999" stroke-dasharray="3,2"/>
+
+    <polyline points="300,160 320,140 340,165 360,145 380,160 400,150 420,140 440,135 460,115 480,105 500,95"
+              fill="none" stroke="#1976d2" stroke-width="2"/>
+    <circle cx="430" cy="135" r="5" fill="#2e7d32"/>
+    <text x="400" y="200" font-size="10" fill="#2e7d32" font-weight="bold">→ Most reliable trend signal</text>
+  </g>
+
+  <!-- Pattern 3: Wide gap in trend direction -->
+  <g>
+    <rect x="530" y="55" width="240" height="160" fill="#fff" stroke="#999"/>
+    <text x="650" y="75" text-anchor="middle" font-size="13" font-weight="bold" fill="#2e7d32">Trade WITH Wide Gaps</text>
+
+    <polyline points="550,165 570,160 590,155 610,150 630,145" fill="none" stroke="#1976d2" stroke-width="2"/>
+    <polyline points="660,120 680,115 700,110 720,105 740,100" fill="none" stroke="#1976d2" stroke-width="2"/>
+
+    <!-- Gap area -->
+    <rect x="630" y="120" width="30" height="25" fill="#a5d6a7" opacity="0.6"/>
+    <text x="645" y="180" text-anchor="middle" font-size="11" fill="#2e7d32" font-weight="bold">GAP</text>
+    <text x="650" y="200" font-size="10" fill="#2e7d32" font-weight="bold">→ Don't fade. Trade the gap direction</text>
+  </g>
+
+  <!-- Pattern 4: Failed breakout (Bull Trap) -->
+  <g>
+    <rect x="30" y="240" width="240" height="160" fill="#fff" stroke="#999"/>
+    <text x="150" y="260" font-size="13" font-weight="bold" fill="#c62828" text-anchor="middle">Bull/Bear Trap (Failed Signal)</text>
+
+    <line x1="50" y1="305" x2="245" y2="305" stroke="#999" stroke-dasharray="3,2"/>
+    <text x="55" y="303" font-size="9" fill="#666">range top</text>
+
+    <polyline points="50,330 75,320 100,335 125,315 150,290 175,300 200,330 225,360 245,380"
+              fill="none" stroke="#1976d2" stroke-width="2"/>
+    <circle cx="150" cy="290" r="5" fill="#c62828"/>
+    <text x="150" y="385" text-anchor="middle" font-size="10" fill="#c62828" font-weight="bold">→ Strong reversal — trade other way</text>
+  </g>
+
+  <!-- Pattern 5: Tight flag/pennant -->
+  <g>
+    <rect x="280" y="240" width="240" height="160" fill="#fff" stroke="#999"/>
+    <text x="400" y="260" text-anchor="middle" font-size="13" font-weight="bold" fill="#2e7d32">Tight Flag/Pennant</text>
+
+    <polyline points="300,360 320,330 340,310 360,290 380,275 400,280 415,275 430,278 445,272 460,275 480,250 500,235"
+              fill="none" stroke="#1976d2" stroke-width="2"/>
+    <line x1="380" y1="270" x2="465" y2="265" stroke="#666" stroke-width="1"/>
+    <line x1="380" y1="290" x2="465" y2="280" stroke="#666" stroke-width="1"/>
+    <text x="400" y="385" text-anchor="middle" font-size="10" fill="#2e7d32" font-weight="bold">→ Reliable continuation; tight stop</text>
+  </g>
+
+  <!-- Pattern 6: Wide-ranging day counter to trend -->
+  <g>
+    <rect x="530" y="240" width="240" height="160" fill="#fff" stroke="#999"/>
+    <text x="650" y="260" text-anchor="middle" font-size="13" font-weight="bold" fill="#c62828">Wide-Range Day Against Trend</text>
+
+    <polyline points="550,290 570,280 590,275 610,270 630,265 650,275" fill="none" stroke="#1976d2" stroke-width="2"/>
+    <line x1="660" y1="265" x2="660" y2="370" stroke="#c62828" stroke-width="3"/>
+    <line x1="657" y1="370" x2="663" y2="370" stroke="#c62828" stroke-width="3"/>
+    <line x1="657" y1="265" x2="663" y2="265" stroke="#c62828" stroke-width="3"/>
+    <polyline points="660,365 680,360 700,355 720,350 740,345" fill="none" stroke="#1976d2" stroke-width="2"/>
+    <text x="650" y="385" text-anchor="middle" font-size="10" fill="#c62828" font-weight="bold">→ Early warning: trend may be over</text>
+  </g>
+
+  <!-- Failed Signal Principle -->
+  <g>
+    <rect x="50" y="430" width="700" height="140" fill="#fff8e1" stroke="#f9a825" stroke-width="2" rx="8"/>
+    <text x="400" y="455" text-anchor="middle" font-size="16" font-weight="bold" fill="#f57f17">⭐ The Master Pattern Principle</text>
+    <text x="400" y="482" text-anchor="middle" font-size="13" fill="#333">"A failed signal is more reliable than the original signal."</text>
+    <text x="400" y="510" text-anchor="middle" font-size="12" fill="#555" font-style="italic">When a textbook breakout fails to follow through, the market is telling you</text>
+    <text x="400" y="528" text-anchor="middle" font-size="12" fill="#555" font-style="italic">something powerful: trade the OPPOSITE direction with a stop just past the failure point.</text>
+    <text x="400" y="555" text-anchor="middle" font-size="11" fill="#666">This single principle underlies bull traps, bear traps, counter-to-anticipated breakouts, and runaway gap fills.</text>
+  </g>
+</svg>

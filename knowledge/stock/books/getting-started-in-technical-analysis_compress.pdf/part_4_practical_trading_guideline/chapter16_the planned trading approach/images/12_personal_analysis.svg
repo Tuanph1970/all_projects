@@ -1,0 +1,92 @@
+<svg viewBox="0 0 900 600" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="600" fill="#f8fafc"/>
+  <text x="450" y="35" text-anchor="middle" font-size="20" font-weight="bold" fill="#0f172a">Step 7 — Analyze Personal Trading</text>
+
+  <!-- Left: Segmented Trades Bar Chart -->
+  <text x="225" y="75" text-anchor="middle" font-size="15" font-weight="bold" fill="#1e3a8a">Segmented Trades — Where do I actually make money?</text>
+  
+  <g transform="translate(50, 90)">
+    <rect x="0" y="0" width="380" height="280" fill="white" stroke="#cbd5e1"/>
+    
+    <!-- Y-axis -->
+    <line x1="50" y1="20" x2="50" y2="240" stroke="#475569"/>
+    <line x1="50" y1="240" x2="370" y2="240" stroke="#475569"/>
+    
+    <!-- Y-axis labels -->
+    <text x="45" y="25" text-anchor="end" font-size="10" fill="#475569">+$10k</text>
+    <text x="45" y="75" text-anchor="end" font-size="10" fill="#475569">+$5k</text>
+    <text x="45" y="125" text-anchor="end" font-size="10" fill="#475569">$0</text>
+    <text x="45" y="175" text-anchor="end" font-size="10" fill="#475569">−$5k</text>
+    <text x="45" y="225" text-anchor="end" font-size="10" fill="#475569">−$10k</text>
+    
+    <line x1="50" y1="125" x2="370" y2="125" stroke="#94a3b8" stroke-dasharray="3,3"/>
+    
+    <!-- Bars -->
+    <rect x="70" y="40" width="40" height="85" fill="#16a34a"/>
+    <text x="90" y="255" text-anchor="middle" font-size="10" fill="#475569">Long</text>
+    <text x="90" y="270" text-anchor="middle" font-size="10" fill="#475569">stocks</text>
+    
+    <rect x="130" y="100" width="40" height="25" fill="#16a34a"/>
+    <text x="150" y="255" text-anchor="middle" font-size="10" fill="#475569">Short</text>
+    <text x="150" y="270" text-anchor="middle" font-size="10" fill="#475569">stocks</text>
+    
+    <rect x="190" y="125" width="40" height="60" fill="#dc2626"/>
+    <text x="210" y="255" text-anchor="middle" font-size="10" fill="#475569">Day</text>
+    <text x="210" y="270" text-anchor="middle" font-size="10" fill="#475569">trades</text>
+    
+    <rect x="250" y="65" width="40" height="60" fill="#16a34a"/>
+    <text x="270" y="255" text-anchor="middle" font-size="10" fill="#475569">Swing</text>
+    <text x="270" y="270" text-anchor="middle" font-size="10" fill="#475569">trades</text>
+    
+    <rect x="310" y="50" width="40" height="75" fill="#16a34a"/>
+    <text x="330" y="255" text-anchor="middle" font-size="10" fill="#475569">Position</text>
+    <text x="330" y="270" text-anchor="middle" font-size="10" fill="#475569">trades</text>
+  </g>
+  
+  <text x="225" y="395" text-anchor="middle" font-size="11" fill="#475569">Day trades drag down P&amp;L — consider stopping that segment</text>
+  
+  <!-- Right: Equity Chart -->
+  <text x="675" y="75" text-anchor="middle" font-size="15" font-weight="bold" fill="#7c2d12">Equity Chart — Early warning system</text>
+  
+  <g transform="translate(470, 90)">
+    <rect x="0" y="0" width="400" height="280" fill="white" stroke="#cbd5e1"/>
+    
+    <!-- Y-axis labels -->
+    <text x="-5" y="25" text-anchor="end" font-size="10" fill="#475569">$140k</text>
+    <text x="-5" y="80" text-anchor="end" font-size="10" fill="#475569">$120k</text>
+    <text x="-5" y="135" text-anchor="end" font-size="10" fill="#475569">$100k</text>
+    <text x="-5" y="190" text-anchor="end" font-size="10" fill="#475569">$80k</text>
+    <text x="-5" y="245" text-anchor="end" font-size="10" fill="#475569">$60k</text>
+    
+    <line x1="0" y1="135" x2="400" y2="135" stroke="#94a3b8" stroke-dasharray="3,3"/>
+    
+    <!-- Equity line - steady climb then sharp drop -->
+    <polyline points="0,135 30,128 60,118 90,110 120,95 150,82 180,72 210,60 240,55 270,50 300,52 330,90 360,140 390,180" 
+              stroke="#1e40af" stroke-width="2.5" fill="none"/>
+    
+    <!-- Sharp drop annotation -->
+    <circle cx="270" cy="50" r="5" fill="#16a34a"/>
+    <text x="270" y="40" text-anchor="middle" font-size="10" fill="#16a34a">Peak</text>
+    
+    <circle cx="390" cy="180" r="5" fill="#dc2626"/>
+    <line x1="270" y1="50" x2="390" y2="180" stroke="#dc2626" stroke-width="1" stroke-dasharray="4,2"/>
+    
+    <!-- Sharp turn marker -->
+    <path d="M 320 90 L 350 130" stroke="#dc2626" stroke-width="3" fill="none"/>
+    <text x="335" y="80" text-anchor="middle" font-size="10" font-weight="bold" fill="#dc2626">⚠ ALERT</text>
+    <text x="335" y="100" text-anchor="middle" font-size="9" fill="#dc2626">Sudden steep drop</text>
+    <text x="335" y="115" text-anchor="middle" font-size="9" fill="#dc2626">→ reduce size,</text>
+    <text x="335" y="128" text-anchor="middle" font-size="9" fill="#dc2626">reassess approach</text>
+  </g>
+  
+  <text x="670" y="395" text-anchor="middle" font-size="11" fill="#475569">Sudden equity-curve breakdown ≠ random — investigate</text>
+
+  <!-- Bottom: action items -->
+  <rect x="50" y="430" width="800" height="150" rx="10" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/>
+  <text x="450" y="455" text-anchor="middle" font-size="14" font-weight="bold" fill="#78350f">Useful segmentations to compute</text>
+  <text x="65" y="480" font-size="12" fill="#78350f">• Long vs Short — detect directional bias</text>
+  <text x="65" y="500" font-size="12" fill="#78350f">• By market — find personal "good" and "bad" markets</text>
+  <text x="65" y="520" font-size="12" fill="#78350f">• Day trades vs swing trades vs position trades — match holding period to skill</text>
+  <text x="65" y="540" font-size="12" fill="#78350f">• Trades aligned with system signals vs against them — measure discretionary "edge" or lack of it</text>
+  <text x="65" y="565" font-size="12" font-weight="bold" fill="#78350f">A spreadsheet does the heavy lifting; the lesson does the rest.</text>
+</svg>

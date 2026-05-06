@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" font-family="Arial, sans-serif">
+  <rect width="800" height="500" fill="#fafafa"/>
+  <text x="400" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#1a1a1a">Exiting Losing Trades — The Three Triggers</text>
+
+  <!-- Price chart simulation -->
+  <g>
+    <rect x="50" y="70" width="700" height="280" fill="#fff" stroke="#999"/>
+    <!-- Grid -->
+    <line x1="50" y1="140" x2="750" y2="140" stroke="#eee"/>
+    <line x1="50" y1="210" x2="750" y2="210" stroke="#eee"/>
+    <line x1="50" y1="280" x2="750" y2="280" stroke="#eee"/>
+
+    <!-- Entry -->
+    <line x1="120" y1="200" x2="120" y2="220" stroke="#2e7d32" stroke-width="3"/>
+    <text x="120" y="250" text-anchor="middle" font-size="11" fill="#2e7d32" font-weight="bold">ENTRY (Long)</text>
+    <text x="120" y="265" text-anchor="middle" font-size="10" fill="#2e7d32">$100</text>
+
+    <!-- Stop loss -->
+    <line x1="50" y1="290" x2="750" y2="290" stroke="#c62828" stroke-width="2" stroke-dasharray="6,3"/>
+    <text x="60" y="305" font-size="11" fill="#c62828" font-weight="bold">Hard Stop $94 (Trigger 1)</text>
+
+    <!-- Price path - shows three exit signals -->
+    <polyline points="120,210 160,205 200,200 240,195 280,200 320,210 360,220 400,225 440,235 480,245 520,250 560,255 600,260 640,275 680,290"
+              fill="none" stroke="#1976d2" stroke-width="2"/>
+
+    <!-- Trigger 2 marker - chart pattern violated -->
+    <circle cx="320" cy="210" r="8" fill="none" stroke="#f57c00" stroke-width="2"/>
+    <text x="320" y="180" text-anchor="middle" font-size="11" fill="#f57c00" font-weight="bold">Trigger 2</text>
+    <text x="320" y="167" text-anchor="middle" font-size="9" fill="#f57c00">Pattern fails</text>
+    <line x1="320" y1="195" x2="320" y2="186" stroke="#f57c00" stroke-width="1"/>
+
+    <!-- Trigger 3 marker - volatility spike against -->
+    <circle cx="520" cy="250" r="8" fill="none" stroke="#7b1fa2" stroke-width="2"/>
+    <text x="520" y="225" text-anchor="middle" font-size="11" fill="#7b1fa2" font-weight="bold">Trigger 3</text>
+    <text x="520" y="212" text-anchor="middle" font-size="9" fill="#7b1fa2">Vol spike against</text>
+    <line x1="520" y1="240" x2="520" y2="231" stroke="#7b1fa2" stroke-width="1"/>
+
+    <!-- Trigger 1 marker - hard stop hit -->
+    <circle cx="680" cy="290" r="8" fill="none" stroke="#c62828" stroke-width="2"/>
+
+    <!-- Y-axis labels -->
+    <text x="40" y="145" text-anchor="end" font-size="10" fill="#666">$108</text>
+    <text x="40" y="215" text-anchor="end" font-size="10" fill="#666">$100</text>
+    <text x="40" y="285" text-anchor="end" font-size="10" fill="#666">$94</text>
+
+    <text x="400" y="370" text-anchor="middle" font-size="11" fill="#666">Time →</text>
+  </g>
+
+  <!-- Three triggers legend -->
+  <g>
+    <rect x="50" y="395" width="225" height="90" fill="#ffebee" stroke="#c62828" rx="6"/>
+    <text x="60" y="415" font-size="13" font-weight="bold" fill="#c62828">Trigger 1: Hard Stop</text>
+    <text x="60" y="435" font-size="11" fill="#333">Price hits pre-defined stop</text>
+    <text x="60" y="450" font-size="11" fill="#333">level set BEFORE the trade.</text>
+    <text x="60" y="470" font-size="10" fill="#666" font-style="italic">Mechanical, no thinking.</text>
+
+    <rect x="287" y="395" width="225" height="90" fill="#fff3e0" stroke="#f57c00" rx="6"/>
+    <text x="297" y="415" font-size="13" font-weight="bold" fill="#f57c00">Trigger 2: Premise Broken</text>
+    <text x="297" y="435" font-size="11" fill="#333">The original chart reason</text>
+    <text x="297" y="450" font-size="11" fill="#333">for the trade no longer holds.</text>
+    <text x="297" y="470" font-size="10" fill="#666" font-style="italic">Exit even before the stop.</text>
+
+    <rect x="525" y="395" width="225" height="90" fill="#f3e5f5" stroke="#7b1fa2" rx="6"/>
+    <text x="535" y="415" font-size="13" font-weight="bold" fill="#7b1fa2">Trigger 3: Vol Shock</text>
+    <text x="535" y="435" font-size="11" fill="#333">A move 2-3x normal range</text>
+    <text x="535" y="450" font-size="11" fill="#333">against the position. Get out.</text>
+    <text x="535" y="470" font-size="10" fill="#666" font-style="italic">Especially gap breakouts.</text>
+  </g>
+</svg>

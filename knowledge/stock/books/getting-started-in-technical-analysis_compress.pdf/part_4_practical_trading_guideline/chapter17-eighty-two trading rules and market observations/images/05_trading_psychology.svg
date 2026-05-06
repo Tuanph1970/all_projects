@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" font-family="Arial, sans-serif">
+  <rect width="800" height="500" fill="#fafafa"/>
+  <text x="400" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#1a1a1a">Trading Psychology — The Inner Discipline</text>
+
+  <!-- Central principle -->
+  <circle cx="400" cy="250" r="70" fill="#fff8e1" stroke="#f9a825" stroke-width="3"/>
+  <text x="400" y="240" text-anchor="middle" font-size="13" font-weight="bold" fill="#f57f17">Action over</text>
+  <text x="400" y="258" text-anchor="middle" font-size="13" font-weight="bold" fill="#f57f17">Procrastination</text>
+  <text x="400" y="280" text-anchor="middle" font-size="11" font-style="italic" fill="#666">When you know — act</text>
+
+  <!-- Surrounding principles -->
+  <!-- Top -->
+  <g>
+    <rect x="290" y="70" width="220" height="70" fill="#e3f2fd" stroke="#1976d2" rx="8"/>
+    <text x="400" y="92" text-anchor="middle" font-size="13" font-weight="bold" fill="#0d47a1">Winners feel right early</text>
+    <text x="400" y="110" text-anchor="middle" font-size="11" fill="#333">Good trades tend to be in profit</text>
+    <text x="400" y="125" text-anchor="middle" font-size="11" fill="#333">from very near entry</text>
+    <line x1="400" y1="140" x2="400" y2="180" stroke="#999" stroke-width="1.5" stroke-dasharray="3,3"/>
+  </g>
+
+  <!-- Top-right -->
+  <g>
+    <rect x="555" y="120" width="220" height="70" fill="#e8f5e9" stroke="#2e7d32" rx="8"/>
+    <text x="665" y="142" text-anchor="middle" font-size="13" font-weight="bold" fill="#1b5e20">Trust the long-term view</text>
+    <text x="665" y="160" text-anchor="middle" font-size="11" fill="#333">Never trade against your own</text>
+    <text x="665" y="175" text-anchor="middle" font-size="11" fill="#333">long-term opinion</text>
+    <line x1="555" y1="180" x2="475" y2="220" stroke="#999" stroke-width="1.5" stroke-dasharray="3,3"/>
+  </g>
+
+  <!-- Bottom-right -->
+  <g>
+    <rect x="555" y="305" width="220" height="70" fill="#fce4ec" stroke="#c2185b" rx="8"/>
+    <text x="665" y="327" text-anchor="middle" font-size="13" font-weight="bold" fill="#880e4f">Avoid intraday noise</text>
+    <text x="665" y="345" text-anchor="middle" font-size="11" fill="#333">Most intraday decisions lose</text>
+    <text x="665" y="360" text-anchor="middle" font-size="11" fill="#333">— review at end of day</text>
+    <line x1="555" y1="318" x2="475" y2="280" stroke="#999" stroke-width="1.5" stroke-dasharray="3,3"/>
+  </g>
+
+  <!-- Bottom -->
+  <g>
+    <rect x="290" y="365" width="220" height="70" fill="#f3e5f5" stroke="#7b1fa2" rx="8"/>
+    <text x="400" y="387" text-anchor="middle" font-size="13" font-weight="bold" fill="#4a148c">Friday close clarity</text>
+    <text x="400" y="405" text-anchor="middle" font-size="11" fill="#333">Decisions are clearer at week's</text>
+    <text x="400" y="420" text-anchor="middle" font-size="11" fill="#333">end than at Monday's open</text>
+    <line x1="400" y1="365" x2="400" y2="320" stroke="#999" stroke-width="1.5" stroke-dasharray="3,3"/>
+  </g>
+
+  <!-- Bottom-left -->
+  <g>
+    <rect x="25" y="305" width="220" height="70" fill="#fff3e0" stroke="#f57c00" rx="8"/>
+    <text x="135" y="327" text-anchor="middle" font-size="13" font-weight="bold" fill="#e65100">Fight market action ≠</text>
+    <text x="135" y="345" text-anchor="middle" font-size="11" fill="#333">Pay more attention to evolving</text>
+    <text x="135" y="360" text-anchor="middle" font-size="11" fill="#333">patterns than fixed objectives</text>
+    <line x1="245" y1="318" x2="325" y2="280" stroke="#999" stroke-width="1.5" stroke-dasharray="3,3"/>
+  </g>
+
+  <!-- Top-left -->
+  <g>
+    <rect x="25" y="120" width="220" height="70" fill="#ffebee" stroke="#c62828" rx="8"/>
+    <text x="135" y="142" text-anchor="middle" font-size="13" font-weight="bold" fill="#b71c1c">Bad habits stay latent</text>
+    <text x="135" y="160" text-anchor="middle" font-size="11" fill="#333">You're never cured —</text>
+    <text x="135" y="175" text-anchor="middle" font-size="11" fill="#333">stay vigilant always</text>
+    <line x1="245" y1="180" x2="325" y2="220" stroke="#999" stroke-width="1.5" stroke-dasharray="3,3"/>
+  </g>
+</svg>

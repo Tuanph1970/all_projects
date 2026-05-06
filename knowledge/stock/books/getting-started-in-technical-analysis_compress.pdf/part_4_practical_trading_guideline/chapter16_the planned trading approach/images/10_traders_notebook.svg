@@ -1,0 +1,115 @@
+<svg viewBox="0 0 900 560" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="560" fill="#f8fafc"/>
+  <text x="450" y="35" text-anchor="middle" font-size="20" font-weight="bold" fill="#0f172a">Trader's Notebook — The Spreadsheet of Truth</text>
+  <text x="450" y="58" text-anchor="middle" font-size="13" fill="#64748b" font-style="italic">17 columns covering entry, risk, exit, and lessons</text>
+
+  <!-- Spreadsheet illustration -->
+  <g transform="translate(30, 80)">
+    <!-- Header row -->
+    <rect x="0" y="0" width="840" height="35" fill="#1e40af"/>
+    <text x="35" y="22" text-anchor="middle" font-size="11" font-weight="bold" fill="white">Date</text>
+    <text x="105" y="22" text-anchor="middle" font-size="11" font-weight="bold" fill="white">Symbol</text>
+    <text x="175" y="22" text-anchor="middle" font-size="11" font-weight="bold" fill="white">L/S</text>
+    <text x="240" y="22" text-anchor="middle" font-size="11" font-weight="bold" fill="white">Entry $</text>
+    <text x="310" y="22" text-anchor="middle" font-size="11" font-weight="bold" fill="white">Init Stop</text>
+    <text x="380" y="22" text-anchor="middle" font-size="11" font-weight="bold" fill="white">Cur Stop</text>
+    <text x="450" y="22" text-anchor="middle" font-size="11" font-weight="bold" fill="white">Risk$</text>
+    <text x="520" y="22" text-anchor="middle" font-size="11" font-weight="bold" fill="white">Risk%</text>
+    <text x="595" y="22" text-anchor="middle" font-size="11" font-weight="bold" fill="white">Target</text>
+    <text x="665" y="22" text-anchor="middle" font-size="11" font-weight="bold" fill="white">Exit $</text>
+    <text x="735" y="22" text-anchor="middle" font-size="11" font-weight="bold" fill="white">P/L</text>
+    <text x="800" y="22" text-anchor="middle" font-size="11" font-weight="bold" fill="white">Notes</text>
+    
+    <!-- Data rows -->
+    <rect x="0" y="35" width="840" height="30" fill="#dcfce7"/>
+    <text x="35" y="55" text-anchor="middle" font-size="11" fill="#14532d">Mar 15</text>
+    <text x="105" y="55" text-anchor="middle" font-size="11" fill="#14532d">AAPL</text>
+    <text x="175" y="55" text-anchor="middle" font-size="11" fill="#14532d">L</text>
+    <text x="240" y="55" text-anchor="middle" font-size="11" fill="#14532d">175.00</text>
+    <text x="310" y="55" text-anchor="middle" font-size="11" fill="#14532d">170.00</text>
+    <text x="380" y="55" text-anchor="middle" font-size="11" fill="#14532d">178.00</text>
+    <text x="450" y="55" text-anchor="middle" font-size="11" fill="#14532d">$1,500</text>
+    <text x="520" y="55" text-anchor="middle" font-size="11" fill="#14532d">1.5%</text>
+    <text x="595" y="55" text-anchor="middle" font-size="11" fill="#14532d">190.00</text>
+    <text x="665" y="55" text-anchor="middle" font-size="11" fill="#14532d">188.50</text>
+    <text x="735" y="55" text-anchor="middle" font-size="11" fill="#14532d">+$4,050</text>
+    <text x="800" y="55" text-anchor="middle" font-size="11" fill="#14532d">breakout</text>
+    
+    <rect x="0" y="65" width="840" height="30" fill="#fee2e2"/>
+    <text x="35" y="85" text-anchor="middle" font-size="11" fill="#7f1d1d">Mar 18</text>
+    <text x="105" y="85" text-anchor="middle" font-size="11" fill="#7f1d1d">NVDA</text>
+    <text x="175" y="85" text-anchor="middle" font-size="11" fill="#7f1d1d">L</text>
+    <text x="240" y="85" text-anchor="middle" font-size="11" fill="#7f1d1d">450.00</text>
+    <text x="310" y="85" text-anchor="middle" font-size="11" fill="#7f1d1d">435.00</text>
+    <text x="380" y="85" text-anchor="middle" font-size="11" fill="#7f1d1d">435.00</text>
+    <text x="450" y="85" text-anchor="middle" font-size="11" fill="#7f1d1d">$1,500</text>
+    <text x="520" y="85" text-anchor="middle" font-size="11" fill="#7f1d1d">1.5%</text>
+    <text x="595" y="85" text-anchor="middle" font-size="11" fill="#7f1d1d">480.00</text>
+    <text x="665" y="85" text-anchor="middle" font-size="11" fill="#7f1d1d">435.00</text>
+    <text x="735" y="85" text-anchor="middle" font-size="11" fill="#7f1d1d">−$1,500</text>
+    <text x="800" y="85" text-anchor="middle" font-size="11" fill="#7f1d1d">false bo</text>
+    
+    <rect x="0" y="95" width="840" height="30" fill="#dcfce7"/>
+    <text x="35" y="115" text-anchor="middle" font-size="11" fill="#14532d">Mar 22</text>
+    <text x="105" y="115" text-anchor="middle" font-size="11" fill="#14532d">JPM</text>
+    <text x="175" y="115" text-anchor="middle" font-size="11" fill="#14532d">S</text>
+    <text x="240" y="115" text-anchor="middle" font-size="11" fill="#14532d">155.00</text>
+    <text x="310" y="115" text-anchor="middle" font-size="11" fill="#14532d">160.00</text>
+    <text x="380" y="115" text-anchor="middle" font-size="11" fill="#14532d">152.00</text>
+    <text x="450" y="115" text-anchor="middle" font-size="11" fill="#14532d">$1,500</text>
+    <text x="520" y="115" text-anchor="middle" font-size="11" fill="#14532d">1.5%</text>
+    <text x="595" y="115" text-anchor="middle" font-size="11" fill="#14532d">145.00</text>
+    <text x="665" y="115" text-anchor="middle" font-size="11" fill="#14532d">147.00</text>
+    <text x="735" y="115" text-anchor="middle" font-size="11" fill="#14532d">+$2,400</text>
+    <text x="800" y="115" text-anchor="middle" font-size="11" fill="#14532d">H&amp;S top</text>
+    
+    <!-- Vertical lines -->
+    <line x1="70" y1="0" x2="70" y2="125" stroke="#cbd5e1"/>
+    <line x1="140" y1="0" x2="140" y2="125" stroke="#cbd5e1"/>
+    <line x1="205" y1="0" x2="205" y2="125" stroke="#cbd5e1"/>
+    <line x1="275" y1="0" x2="275" y2="125" stroke="#cbd5e1"/>
+    <line x1="345" y1="0" x2="345" y2="125" stroke="#cbd5e1"/>
+    <line x1="415" y1="0" x2="415" y2="125" stroke="#cbd5e1"/>
+    <line x1="485" y1="0" x2="485" y2="125" stroke="#cbd5e1"/>
+    <line x1="555" y1="0" x2="555" y2="125" stroke="#cbd5e1"/>
+    <line x1="630" y1="0" x2="630" y2="125" stroke="#cbd5e1"/>
+    <line x1="700" y1="0" x2="700" y2="125" stroke="#cbd5e1"/>
+    <line x1="770" y1="0" x2="770" y2="125" stroke="#cbd5e1"/>
+  </g>
+
+  <!-- Why each column matters -->
+  <text x="450" y="240" text-anchor="middle" font-size="15" font-weight="bold" fill="#0f172a">Why each block of columns matters</text>
+  
+  <rect x="40" y="260" width="200" height="100" rx="8" fill="#dbeafe" stroke="#2563eb"/>
+  <text x="140" y="285" text-anchor="middle" font-size="13" font-weight="bold" fill="#1e3a8a">Identification</text>
+  <text x="55" y="308" font-size="11" fill="#1e40af">Date, Symbol, Direction</text>
+  <text x="55" y="328" font-size="11" fill="#1e40af">→ Sortable, searchable</text>
+  <text x="55" y="345" font-size="11" fill="#1e40af">→ Foundation for analysis</text>
+
+  <rect x="250" y="260" width="200" height="100" rx="8" fill="#fee2e2" stroke="#dc2626"/>
+  <text x="350" y="285" text-anchor="middle" font-size="13" font-weight="bold" fill="#991b1b">Risk Tracking</text>
+  <text x="265" y="308" font-size="11" fill="#7f1d1d">Initial Stop, Risk $, Risk %</text>
+  <text x="265" y="328" font-size="11" fill="#7f1d1d">→ Sum across positions</text>
+  <text x="265" y="345" font-size="11" fill="#7f1d1d">→ Cap at 25-35% of equity</text>
+
+  <rect x="460" y="260" width="200" height="100" rx="8" fill="#dcfce7" stroke="#16a34a"/>
+  <text x="560" y="285" text-anchor="middle" font-size="13" font-weight="bold" fill="#14532d">Exit Tracking</text>
+  <text x="475" y="308" font-size="11" fill="#14532d">Target, Exit, P/L</text>
+  <text x="475" y="328" font-size="11" fill="#14532d">→ Trade duration</text>
+  <text x="475" y="345" font-size="11" fill="#14532d">→ Win rate &amp; expectancy</text>
+
+  <rect x="670" y="260" width="200" height="100" rx="8" fill="#fef3c7" stroke="#d97706"/>
+  <text x="770" y="285" text-anchor="middle" font-size="13" font-weight="bold" fill="#78350f">Reflection</text>
+  <text x="685" y="308" font-size="11" fill="#92400e">Reason, Hindsight Note</text>
+  <text x="685" y="328" font-size="11" fill="#92400e">→ Pattern recognition</text>
+  <text x="685" y="345" font-size="11" fill="#92400e">→ Learn from past trades</text>
+
+  <!-- Bottom summary -->
+  <rect x="40" y="385" width="830" height="150" rx="10" fill="#f1f5f9" stroke="#64748b"/>
+  <text x="450" y="410" text-anchor="middle" font-size="14" font-weight="bold" fill="#0f172a">Two non-obvious uses</text>
+  <text x="55" y="438" font-size="12" fill="#334155">• <tspan font-weight="bold">Total exposure check:</tspan> sum the Risk $ column across all open positions before adding a new trade.</text>
+  <text x="55" y="458" font-size="12" fill="#334155">  Rule of thumb: cumulative implied risk on open positions should not exceed 25-35% of total equity.</text>
+  <text x="55" y="485" font-size="12" fill="#334155">• <tspan font-weight="bold">Paper trading:</tspan> the notebook is also the perfect tool for practicing with imaginary money.</text>
+  <text x="55" y="505" font-size="12" fill="#334155">  By the time you trade real capital, the routine is already automatic.</text>
+  <text x="450" y="528" text-anchor="middle" font-size="12" font-style="italic" fill="#475569">"What gets measured gets managed."</text>
+</svg>

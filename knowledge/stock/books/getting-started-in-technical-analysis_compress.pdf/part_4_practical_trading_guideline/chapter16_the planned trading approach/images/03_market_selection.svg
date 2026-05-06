@@ -1,0 +1,58 @@
+<svg viewBox="0 0 800 550" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="550" fill="#f8fafc"/>
+  <text x="400" y="35" text-anchor="middle" font-size="20" font-weight="bold" fill="#0f172a">Market Selection: Three Filters</text>
+  
+  <!-- Three pillars -->
+  <g>
+    <rect x="60" y="80" width="220" height="280" rx="10" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+    <text x="170" y="115" text-anchor="middle" font-size="16" font-weight="bold" fill="#1e3a8a">Suitability</text>
+    <line x1="80" y1="125" x2="260" y2="125" stroke="#2563eb"/>
+    <text x="170" y="155" text-anchor="middle" font-size="12" fill="#1e40af">Does the market fit</text>
+    <text x="170" y="172" text-anchor="middle" font-size="12" fill="#1e40af">your trading approach?</text>
+    <text x="80" y="210" font-size="11" fill="#1e3a8a">• Has the strategy worked</text>
+    <text x="80" y="225" font-size="11" fill="#1e3a8a">  there in the past?</text>
+    <text x="80" y="250" font-size="11" fill="#1e3a8a">• Trend-followers prefer</text>
+    <text x="80" y="265" font-size="11" fill="#1e3a8a">  trending markets</text>
+    <text x="80" y="290" font-size="11" fill="#1e3a8a">• Mean-reverters prefer</text>
+    <text x="80" y="305" font-size="11" fill="#1e3a8a">  range-bound markets</text>
+    <text x="80" y="335" font-size="11" font-style="italic" fill="#1e3a8a">→ Test before you trust</text>
+  </g>
+
+  <g>
+    <rect x="290" y="80" width="220" height="280" rx="10" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+    <text x="400" y="115" text-anchor="middle" font-size="16" font-weight="bold" fill="#14532d">Diversification</text>
+    <line x1="310" y1="125" x2="490" y2="125" stroke="#16a34a"/>
+    <text x="400" y="155" text-anchor="middle" font-size="12" fill="#15803d">Pick markets that are</text>
+    <text x="400" y="172" text-anchor="middle" font-size="12" fill="#15803d">NOT closely related</text>
+    <text x="310" y="210" font-size="11" fill="#14532d">• Avoid: gold + silver +</text>
+    <text x="310" y="225" font-size="11" fill="#14532d">  platinum (all metals)</text>
+    <text x="310" y="250" font-size="11" fill="#14532d">• Avoid: 3 airlines or</text>
+    <text x="310" y="265" font-size="11" fill="#14532d">  3 banks (same sector)</text>
+    <text x="310" y="290" font-size="11" fill="#14532d">• Prefer: stocks +</text>
+    <text x="310" y="305" font-size="11" fill="#14532d">  bonds + commodities</text>
+    <text x="310" y="335" font-size="11" font-style="italic" fill="#14532d">→ Different drivers = </text>
+  </g>
+
+  <g>
+    <rect x="520" y="80" width="220" height="280" rx="10" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+    <text x="630" y="115" text-anchor="middle" font-size="16" font-weight="bold" fill="#78350f">Volatility</text>
+    <line x1="540" y1="125" x2="720" y2="125" stroke="#d97706"/>
+    <text x="630" y="155" text-anchor="middle" font-size="12" fill="#92400e">Match dollar-volatility</text>
+    <text x="630" y="172" text-anchor="middle" font-size="12" fill="#92400e">to your account size</text>
+    <text x="540" y="210" font-size="11" fill="#78350f">• Small account: avoid</text>
+    <text x="540" y="225" font-size="11" fill="#78350f">  high-volatility names</text>
+    <text x="540" y="250" font-size="11" fill="#78350f">• High vol = wider stops</text>
+    <text x="540" y="265" font-size="11" fill="#78350f">  = bigger $ at risk</text>
+    <text x="540" y="290" font-size="11" fill="#78350f">• Trade more low-vol</text>
+    <text x="540" y="305" font-size="11" fill="#78350f">  markets to diversify</text>
+    <text x="540" y="335" font-size="11" font-style="italic" fill="#78350f">→ Coffee may eat your account</text>
+  </g>
+
+  <!-- Bottom: example -->
+  <rect x="60" y="400" width="680" height="130" rx="10" fill="#f1f5f9" stroke="#64748b" stroke-width="1"/>
+  <text x="400" y="425" text-anchor="middle" font-size="14" font-weight="bold" fill="#0f172a">Example: Building a 6-Market Stock Portfolio</text>
+  <text x="80" y="450" font-size="12" fill="#334155">✗ Bad: AAPL, MSFT, GOOGL, META, AMZN, NVDA</text>
+  <text x="80" y="468" font-size="12" fill="#dc2626">  → All mega-cap tech. Highly correlated. One sector shock takes them all down.</text>
+  <text x="80" y="495" font-size="12" fill="#334155">✓ Better: AAPL (tech), JPM (banks), XOM (energy), JNJ (healthcare), PG (staples), CAT (industrials)</text>
+  <text x="80" y="513" font-size="12" fill="#16a34a">  → Six unrelated drivers. A bad day in one sector rarely poisons the whole portfolio.</text>
+</svg>

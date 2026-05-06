@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="sans-serif">
+  <style>
+    .price { stroke: #333; stroke-width: 1.8; fill: none; }
+    .neckline { stroke: #1976d2; stroke-width: 1.5; stroke-dasharray: 5 3; fill: none; }
+    .resist { stroke: #c62828; stroke-width: 1.2; stroke-dasharray: 4 4; fill: none; }
+    .target-line { stroke: #2e7d32; stroke-width: 1.5; stroke-dasharray: 3 3; fill: none; }
+    .label { font-size: 12px; fill: #222; }
+    .title { font-size: 16px; font-weight: bold; fill: #111; }
+    .sub { font-size: 13px; font-weight: 600; fill: #444; }
+    .anchor { fill: #c62828; }
+  </style>
+
+  <text x="400" y="22" text-anchor="middle" class="title">Triple Top and Triple Bottom</text>
+
+  <!-- TRIPLE TOP -->
+  <text x="200" y="55" text-anchor="middle" class="sub">Triple Top</text>
+
+  <polyline points="20,310 50,270 80,225 110,180 130,115" class="price"/>
+  <circle cx="130" cy="115" r="4" class="anchor"/>
+  <text x="130" y="103" text-anchor="middle" class="label" fill="#c62828">peak 1</text>
+  <polyline points="130,115 155,150 180,180 200,200" class="price"/>
+  <circle cx="200" cy="200" r="3" fill="#1976d2"/>
+  <polyline points="200,200 220,170 245,140 265,118" class="price"/>
+  <circle cx="265" cy="118" r="4" class="anchor"/>
+  <text x="265" y="106" text-anchor="middle" class="label" fill="#c62828">peak 2</text>
+  <polyline points="265,118 285,150 305,180 325,205" class="price"/>
+  <circle cx="325" cy="205" r="3" fill="#1976d2"/>
+  <polyline points="325,205 345,170 365,140 385,116" class="price"/>
+  <circle cx="385" cy="116" r="4" class="anchor"/>
+  <text x="385" y="106" text-anchor="middle" class="label" fill="#c62828">peak 3</text>
+  <polyline points="385,116 405,150 420,185 435,210" class="price"/>
+
+  <line x1="50" y1="115" x2="435" y2="115" class="resist"/>
+  <text x="40" y="118" text-anchor="end" class="label" fill="#c62828">resistance</text>
+
+  <line x1="50" y1="205" x2="435" y2="205" class="neckline"/>
+  <text x="40" y="208" text-anchor="end" class="label" fill="#1976d2">neckline</text>
+
+  <!-- breakdown -->
+  <polyline points="435,210 455,235 470,255" class="price" stroke="#c62828" stroke-width="2"/>
+  <text x="465" y="278" class="label" fill="#c62828">break</text>
+
+  <!-- target -->
+  <line x1="130" y1="115" x2="130" y2="205" class="target-line"/>
+  <text x="120" y="160" text-anchor="end" class="label" fill="#2e7d32">H</text>
+  <line x1="435" y1="205" x2="435" y2="295" class="target-line"/>
+  <line x1="395" y1="295" x2="475" y2="295" class="target-line"/>
+  <text x="480" y="298" class="label" fill="#2e7d32">target</text>
+
+  <!-- DIVIDER -->
+  <line x1="450" y1="50" x2="450" y2="370" stroke="#999" stroke-width="0.5"/>
+
+  <!-- TRIPLE BOTTOM -->
+  <text x="630" y="55" text-anchor="middle" class="sub">Triple Bottom</text>
+
+  <polyline points="475,90 500,140 530,190 555,235 575,290" class="price"/>
+  <circle cx="575" cy="290" r="4" class="anchor"/>
+  <text x="575" y="308" text-anchor="middle" class="label" fill="#c62828">trough 1</text>
+  <polyline points="575,290 595,260 615,230 635,210" class="price"/>
+  <circle cx="635" cy="210" r="3" fill="#1976d2"/>
+  <polyline points="635,210 655,240 675,265 695,288" class="price"/>
+  <circle cx="695" cy="288" r="4" class="anchor"/>
+  <text x="695" y="308" text-anchor="middle" class="label" fill="#c62828">trough 2</text>
+  <polyline points="695,288 712,255 730,225 745,210" class="price"/>
+  <circle cx="745" cy="210" r="3" fill="#1976d2"/>
+  <polyline points="745,210 760,240 775,270 790,287" class="price"/>
+  <circle cx="790" cy="287" r="4" class="anchor"/>
+  <text x="790" y="308" text-anchor="middle" class="label" fill="#c62828">trough 3</text>
+
+  <line x1="500" y1="290" x2="790" y2="290" class="resist"/>
+  <text x="495" y="293" text-anchor="end" class="label" fill="#c62828">support</text>
+
+  <line x1="500" y1="210" x2="790" y2="210" class="neckline"/>
+  <text x="495" y="213" text-anchor="end" class="label" fill="#1976d2">neckline</text>
+</svg>

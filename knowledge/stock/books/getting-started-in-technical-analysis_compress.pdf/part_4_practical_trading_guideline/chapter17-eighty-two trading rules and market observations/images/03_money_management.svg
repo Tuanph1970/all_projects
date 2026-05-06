@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" font-family="Arial, sans-serif">
+  <rect width="800" height="500" fill="#fafafa"/>
+  <text x="400" y="30" text-anchor="middle" font-size="20" font-weight="bold" fill="#1a1a1a">Money Management — Adapting to Performance</text>
+
+  <!-- Two-panel diagram: when winning vs when losing -->
+
+  <!-- LEFT: When Trading is Going Badly -->
+  <g>
+    <rect x="40" y="65" width="350" height="400" fill="#ffebee" stroke="#c62828" stroke-width="2" rx="8"/>
+    <text x="215" y="92" text-anchor="middle" font-size="16" font-weight="bold" fill="#b71c1c">When Trading is Going Badly</text>
+    <text x="215" y="112" text-anchor="middle" font-size="12" font-style="italic" fill="#666">Reduce risk, defend capital</text>
+
+    <!-- Equity curve declining -->
+    <polyline points="60,140 90,135 120,150 150,160 180,180 210,175 240,200 270,210 300,225 330,235 370,250"
+              fill="none" stroke="#c62828" stroke-width="2.5"/>
+    <line x1="60" y1="260" x2="370" y2="260" stroke="#999" stroke-width="1"/>
+    <text x="215" y="278" text-anchor="middle" font-size="10" fill="#666">Equity declining</text>
+
+    <!-- Action items -->
+    <g font-size="12" fill="#333">
+      <circle cx="65" cy="305" r="4" fill="#c62828"/>
+      <text x="80" y="309">Cut position sizes</text>
+
+      <circle cx="65" cy="335" r="4" fill="#c62828"/>
+      <text x="80" y="339">Tighten stop-losses</text>
+
+      <circle cx="65" cy="365" r="4" fill="#c62828"/>
+      <text x="80" y="369">Take fewer new trades</text>
+
+      <circle cx="65" cy="395" r="4" fill="#c62828"/>
+      <text x="80" y="399">Liquidate losers, keep winners</text>
+
+      <circle cx="65" cy="425" r="4" fill="#c62828"/>
+      <text x="80" y="429">Don't average down — ever</text>
+    </g>
+  </g>
+
+  <!-- RIGHT: When Trading is Going Well -->
+  <g>
+    <rect x="410" y="65" width="350" height="400" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2" rx="8"/>
+    <text x="585" y="92" text-anchor="middle" font-size="16" font-weight="bold" fill="#1b5e20">When Trading is Going Well</text>
+    <text x="585" y="112" text-anchor="middle" font-size="12" font-style="italic" fill="#666">Stay disciplined, don't get reckless</text>
+
+    <!-- Equity curve rising -->
+    <polyline points="430,250 460,240 490,220 520,225 550,200 580,180 610,165 640,160 670,140 700,135 740,120"
+              fill="none" stroke="#2e7d32" stroke-width="2.5"/>
+    <line x1="430" y1="260" x2="740" y2="260" stroke="#999" stroke-width="1"/>
+    <text x="585" y="278" text-anchor="middle" font-size="10" fill="#666">Equity rising</text>
+
+    <!-- Action items -->
+    <g font-size="12" fill="#333">
+      <circle cx="435" cy="305" r="4" fill="#2e7d32"/>
+      <text x="450" y="309">Same risk rules as day one</text>
+
+      <circle cx="435" cy="335" r="4" fill="#2e7d32"/>
+      <text x="450" y="339">Increase size GRADUALLY</text>
+
+      <circle cx="435" cy="365" r="4" fill="#2e7d32"/>
+      <text x="450" y="369">Don't take riskier setups</text>
+
+      <circle cx="435" cy="395" r="4" fill="#2e7d32"/>
+      <text x="450" y="399">Treat every trade seriously</text>
+
+      <circle cx="435" cy="425" r="4" fill="#2e7d32"/>
+      <text x="450" y="429">Avoid big positions into reports</text>
+    </g>
+  </g>
+</svg>

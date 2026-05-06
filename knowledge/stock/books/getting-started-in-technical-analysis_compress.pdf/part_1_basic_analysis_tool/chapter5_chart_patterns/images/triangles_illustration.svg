@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="sans-serif">
+  <style>
+    .price { stroke: #333; stroke-width: 1.5; fill: none; }
+    .tline { stroke: #1976d2; stroke-width: 2; stroke-dasharray: 5 3; fill: none; }
+    .target { stroke: #2e7d32; stroke-width: 1.5; stroke-dasharray: 3 3; fill: none; }
+    .label { font-size: 12px; fill: #222; }
+    .title { font-size: 16px; font-weight: bold; fill: #111; }
+    .sub { font-size: 13px; font-weight: 600; fill: #444; }
+  </style>
+
+  <text x="400" y="22" text-anchor="middle" class="title">Three Triangle Types</text>
+
+  <!-- SYMMETRICAL -->
+  <text x="135" y="55" text-anchor="middle" class="sub">Symmetrical</text>
+  <polyline points="20,180 40,140 60,170 80,150 100,165 120,155 140,160 160,158 180,159"
+            class="price"/>
+  <line x1="20" y1="180" x2="180" y2="159" class="tline"/>
+  <line x1="40" y1="140" x2="180" y2="158" class="tline"/>
+  <polyline points="180,159 200,130 220,180" class="price" stroke="#2e7d32" stroke-width="2"/>
+  <text x="135" y="220" text-anchor="middle" class="label">↕ converging from both sides</text>
+  <text x="135" y="238" text-anchor="middle" class="label">usually continues prior trend</text>
+
+  <!-- ASCENDING -->
+  <text x="380" y="55" text-anchor="middle" class="sub">Ascending</text>
+  <polyline points="265,200 285,140 305,175 325,140 345,165 365,140 385,160 405,140 425,150"
+            class="price"/>
+  <line x1="285" y1="140" x2="425" y2="140" class="tline"/>
+  <line x1="265" y1="200" x2="425" y2="148" class="tline"/>
+  <polyline points="425,150 445,110 465,90" class="price" stroke="#2e7d32" stroke-width="2"/>
+  <text x="380" y="220" text-anchor="middle" class="label">flat top, rising lows</text>
+  <text x="380" y="238" text-anchor="middle" class="label" fill="#2e7d32">conventional bias: bullish</text>
+
+  <!-- DESCENDING -->
+  <text x="635" y="55" text-anchor="middle" class="sub">Descending</text>
+  <polyline points="510,140 530,205 550,165 570,205 590,180 610,205 630,195 650,205 670,200"
+            class="price"/>
+  <line x1="530" y1="205" x2="670" y2="205" class="tline"/>
+  <line x1="510" y1="140" x2="670" y2="200" class="tline"/>
+  <polyline points="670,200 690,240 710,260" class="price" stroke="#c62828" stroke-width="2"/>
+  <text x="635" y="220" text-anchor="middle" class="label">flat bottom, falling highs</text>
+  <text x="635" y="238" text-anchor="middle" class="label" fill="#c62828">conventional bias: bearish</text>
+
+  <!-- BOTTOM PANEL: measured target -->
+  <text x="400" y="285" text-anchor="middle" class="sub">Measured Target</text>
+  <line x1="220" y1="370" x2="580" y2="370" stroke="#888"/>
+
+  <line x1="240" y1="370" x2="240" y2="320" class="target"/>
+  <text x="248" y="345" class="label">widest height H</text>
+
+  <polyline points="280,370 320,335 360,355 400,340 440,348 470,345" class="price"/>
+  <line x1="320" y1="335" x2="470" y2="345" class="tline"/>
+  <line x1="280" y1="370" x2="470" y2="345" class="tline"/>
+  <polyline points="470,345 500,305 540,275" class="price" stroke="#2e7d32" stroke-width="2"/>
+
+  <line x1="470" y1="345" x2="540" y2="295" class="target"/>
+  <text x="555" y="295" class="label" fill="#2e7d32">target = breakout + H</text>
+</svg>

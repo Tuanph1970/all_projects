@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" font-family="sans-serif">
+  <style>
+    .price { stroke: #333; stroke-width: 1.6; fill: none; }
+    .upper { stroke: #c62828; stroke-width: 1.4; stroke-dasharray: 5 3; fill: none; }
+    .lower { stroke: #2e7d32; stroke-width: 1.4; stroke-dasharray: 5 3; fill: none; }
+    .label { font-size: 12px; fill: #222; }
+    .title { font-size: 16px; font-weight: bold; fill: #111; }
+    .sub { font-size: 13px; font-weight: 600; fill: #444; }
+    .annot { font-size: 11px; fill: #555; font-style: italic; }
+    .breakout-down { stroke: #c62828; stroke-width: 2.2; fill: none; }
+    .breakout-up { stroke: #2e7d32; stroke-width: 2.2; fill: none; }
+  </style>
+
+  <text x="400" y="22" text-anchor="middle" class="title">Rising Wedge (bearish) and Falling Wedge (bullish)</text>
+
+  <!-- RISING WEDGE -->
+  <text x="200" y="55" text-anchor="middle" class="sub">Rising Wedge → typically resolves DOWN</text>
+
+  <!-- both lines slope up but lower slopes more steeply, so they converge -->
+  <line x1="40" y1="110" x2="380" y2="80" class="upper"/>
+  <line x1="40" y1="280" x2="380" y2="100" class="lower"/>
+
+  <!-- price action: each bounce makes higher highs and higher lows but momentum waning -->
+  <polyline points="40,280 70,200 95,140 90,150 115,220 145,180 170,130 165,140 190,190 220,160 245,120 240,128 265,160 290,135 310,110 305,115 325,130 345,115" class="price"/>
+
+  <!-- breakdown -->
+  <polyline points="345,115 360,140 380,180 400,220" class="breakout-down"/>
+  <text x="395" y="240" class="label" fill="#c62828">break ↓</text>
+
+  <text x="200" y="320" text-anchor="middle" class="annot">price grinds higher but slope flattens</text>
+  <text x="200" y="338" text-anchor="middle" class="annot">→ buying pressure exhausted</text>
+
+  <!-- DIVIDER -->
+  <line x1="430" y1="50" x2="430" y2="370" stroke="#999" stroke-width="0.5"/>
+
+  <!-- FALLING WEDGE -->
+  <text x="615" y="55" text-anchor="middle" class="sub">Falling Wedge → typically resolves UP</text>
+
+  <!-- both lines slope down but upper slopes more steeply -->
+  <line x1="460" y1="100" x2="780" y2="240" class="upper"/>
+  <line x1="460" y1="180" x2="780" y2="260" class="lower"/>
+
+  <polyline points="460,180 485,110 510,160 530,140 555,200 580,170 605,225 625,200 650,240 670,225 690,250 710,240 730,255 745,250 760,260" class="price"/>
+
+  <!-- breakout -->
+  <polyline points="760,260 770,235 780,200 790,160" class="breakout-up"/>
+  <text x="780" y="180" text-anchor="end" class="label" fill="#2e7d32">break ↑</text>
+
+  <text x="615" y="320" text-anchor="middle" class="annot">price slips lower but downside slowing</text>
+  <text x="615" y="338" text-anchor="middle" class="annot">→ selling pressure exhausted</text>
+</svg>
