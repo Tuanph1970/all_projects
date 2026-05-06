@@ -14,9 +14,23 @@ const TrainingSolution = (props)=>{
     const [validateionNumber,setValidationNumber] = useState(0.2)
     const [rmseValue,setRmseValue] = useState(null)
     const [trainingStatus,setTrainingStatus] = useState('')
+    const [trainingProgress, setTrainingProgress] = useState(0)
     const [isPolling, setIsPolling] = useState(false)
     const pollingIntervalRef = useRef(null)
+    const pollAttemptsRef = useRef(0)
+    // ~10 minutes at 3s interval — plenty of headroom for slow trainings
+    // without polling forever if the backend silently dies.
+    const MAX_POLL_ATTEMPTS = 200
     const { register,handleSubmit,reset,formState: { errors },watch} = useForm();
+
+    const stopPolling = () => {
+        setIsPolling(false);
+        if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+        }
+        pollAttemptsRef.current = 0;
+    };
 
     const handleValidationChange = ()=>{
         setValidation(!validation);
@@ -24,6 +38,15 @@ const TrainingSolution = (props)=>{
 
     // Poll for training status
     const pollTrainingStatus = async (solutionId) => {
+        pollAttemptsRef.current += 1;
+        // Bail out if we've polled too long — assumption is the backend
+        // forgot about us. Surface as a recoverable error rather than spin.
+        if (pollAttemptsRef.current > MAX_POLL_ATTEMPTS) {
+            stopPolling();
+            setTrainingStatus('Training timed out. Please retry or contact support.');
+            return;
+        }
+
         try {
             const result = await httpClient.get(API_ENDPOINTS.SOLUTION_TRAINING_STATUS(solutionId));
             if (!result.success) {
@@ -33,40 +56,38 @@ const TrainingSolution = (props)=>{
             const statusData = result.data;
 
             if (statusData.status === 'completed') {
-                // Training completed successfully
-                setIsPolling(false);
-                if (pollingIntervalRef.current) {
-                    clearInterval(pollingIntervalRef.current);
-                    pollingIntervalRef.current = null;
-                }
+                stopPolling();
+                setTrainingProgress(100);
 
-                const result = statusData.result;
-                if (result && result.rmse !== undefined) {
-                    setRmseValue(result.rmse);
-                } else if (result && result.RMSE !== undefined) {
-                    setRmseValue(result.RMSE);
+                const trainingResult = statusData.result;
+                if (trainingResult && trainingResult.rmse !== undefined) {
+                    setRmseValue(trainingResult.rmse);
+                } else if (trainingResult && trainingResult.RMSE !== undefined) {
+                    setRmseValue(trainingResult.RMSE);
                 }
                 setTrainingStatus('Training completed successfully!');
 
-                // Call parent callback with training result (includes prediction_dates)
-                if (props.onTrainingComplete && result) {
-                    props.onTrainingComplete(result);
+                if (props.onTrainingComplete && trainingResult) {
+                    props.onTrainingComplete(trainingResult);
                 }
             } else if (statusData.status === 'failed') {
-                // Training failed
-                setIsPolling(false);
-                if (pollingIntervalRef.current) {
-                    clearInterval(pollingIntervalRef.current);
-                    pollingIntervalRef.current = null;
-                }
+                stopPolling();
                 setTrainingStatus('Training failed: ' + (statusData.message || 'Unknown error'));
+            } else if (statusData.status === 'not_found') {
+                // Backend has no record. Most likely the in-memory training_status
+                // dict was reset (service restart) or the request silently dropped.
+                // Stop polling so the user can retry.
+                stopPolling();
+                setTrainingStatus('Training session not found on server. Please retry.');
             } else if (statusData.status === 'training') {
-                // Still training
-                setTrainingStatus(`Training in progress... ${statusData.progress ? statusData.progress + '%' : ''}`);
+                const pct = typeof statusData.progress === 'number' ? statusData.progress : 0;
+                setTrainingProgress(pct);
+                const detail = statusData.message || 'Training in progress...';
+                setTrainingStatus(pct > 0 ? `${detail} (${pct}%)` : detail);
             }
         } catch (error) {
             console.error('Error polling training status:', error);
-            // Don't stop polling on network errors, just log
+            // Network blips are tolerated — pollAttemptsRef caps total time spent
         }
     };
 
@@ -89,29 +110,20 @@ const TrainingSolution = (props)=>{
         }
 
         setTrainingStatus('Training in progress...')
+        setTrainingProgress(0)
         setRmseValue(null)
         setIsPolling(true)
+        pollAttemptsRef.current = 0;
 
         try {
             const response = await httpClient.post(API_ENDPOINTS.SOLUTION_TRAIN, data);
 
-            if (response.status === 202 || (response.success && !response.data?.rmse)) {
-                // Training started asynchronously, start polling
-                console.log('Training started, polling for status...');
-
-                // Start polling every 3 seconds
-                pollingIntervalRef.current = setInterval(() => {
-                    pollTrainingStatus(props.solution['id']);
-                }, 3000);
-
-                // Also poll immediately
-                pollTrainingStatus(props.solution['id']);
-
-            } else if (response.success && response.data?.rmse !== undefined) {
-                // Synchronous response (legacy)
+            if (response.success && response.data?.rmse !== undefined) {
+                // Legacy synchronous training — done in one shot.
                 setRmseValue(response.data.rmse);
                 setTrainingStatus('Training completed successfully!');
-                setIsPolling(false);
+                setTrainingProgress(100);
+                stopPolling();
 
                 if (props.onTrainingComplete) {
                     props.onTrainingComplete(response.data);
@@ -119,23 +131,24 @@ const TrainingSolution = (props)=>{
             } else if (response.success && response.data?.RMSE !== undefined) {
                 setRmseValue(response.data.RMSE);
                 setTrainingStatus('Training completed successfully!');
-                setIsPolling(false);
+                setTrainingProgress(100);
+                stopPolling();
 
                 if (props.onTrainingComplete) {
                     props.onTrainingComplete(response.data);
                 }
             } else if (response.success) {
-                setTrainingStatus('Training started...');
+                // Async path — backend returns {status: "training"} and we poll.
+                pollingIntervalRef.current = setInterval(() => {
+                    pollTrainingStatus(props.solution['id']);
+                }, 3000);
+                pollTrainingStatus(props.solution['id']);
             } else {
                 setTrainingStatus('Training failed: ' + (response.error?.message || 'Unknown error'));
-                setIsPolling(false);
+                stopPolling();
             }
         } catch (error) {
-            setIsPolling(false);
-            if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current);
-                pollingIntervalRef.current = null;
-            }
+            stopPolling();
             setTrainingStatus('Training failed: ' + (error.message || 'Unknown error'));
             console.error('Training error:', error);
         }
@@ -227,7 +240,7 @@ const TrainingSolution = (props)=>{
                     {trainingStatus && (
                         <div className="row mb-3">
                             <div className="col-md-12">
-                                <div className={`alert alert-sm ${trainingStatus.includes('failed') ? 'alert-danger' : trainingStatus.includes('progress') ? 'alert-info' : 'alert-success'} py-2`}>
+                                <div className={`alert alert-sm ${trainingStatus.includes('failed') || trainingStatus.includes('not found') || trainingStatus.includes('timed out') ? 'alert-danger' : trainingStatus.includes('progress') ? 'alert-info' : 'alert-success'} py-2`}>
                                     <small>{trainingStatus}</small>
                                     {isPolling && (
                                         <span className="spinner-border spinner-border-sm ms-2" role="status">
@@ -235,6 +248,19 @@ const TrainingSolution = (props)=>{
                                         </span>
                                     )}
                                 </div>
+                                {/* Live progress bar — reflects backend `progress` field */}
+                                {(isPolling || (trainingProgress > 0 && trainingProgress < 100)) && (
+                                    <div className="progress" style={{ height: '6px' }}>
+                                        <div
+                                            className="progress-bar progress-bar-striped progress-bar-animated"
+                                            role="progressbar"
+                                            style={{ width: `${trainingProgress}%` }}
+                                            aria-valuenow={trainingProgress}
+                                            aria-valuemin="0"
+                                            aria-valuemax="100"
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

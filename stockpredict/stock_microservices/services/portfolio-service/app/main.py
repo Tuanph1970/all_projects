@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.api.routes import router
 from app.api.dependencies import engine
 from app.models.domain import Base
+from app.services.alert_event_handler import start_alert_consumer, stop_alert_consumer
 
 settings = get_settings()
 
@@ -45,9 +46,14 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables created")
 
+    # Subscribe to stock.price.updated events for event-driven alert evaluation.
+    # Returns None silently if RabbitMQ is unavailable — service still serves CRUD.
+    await start_alert_consumer(service_name=settings.SERVICE_NAME)
+
     yield
 
     # Cleanup
+    await stop_alert_consumer()
     await engine.dispose()
     logger.info(f"Shutting down {settings.SERVICE_NAME}")
 

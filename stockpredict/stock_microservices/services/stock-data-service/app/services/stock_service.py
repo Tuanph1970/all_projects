@@ -1770,6 +1770,15 @@ class StockService:
 
         await session.commit()
         logger.info(f"Refreshed price board for {group_upper}: {len(records)} records")
+
+        # Fan out price updates so portfolio-service alerts (and others)
+        # can react. Best-effort — does not block or fail the refresh.
+        try:
+            from app.services.event_publisher import publish_price_updates
+            await publish_price_updates(records)
+        except Exception as e:
+            logger.error(f"Failed to publish price updates: {e}")
+
         return len(records)
 
     async def _fetch_price_board_live(self, group: str = "VN30") -> List[dict]:

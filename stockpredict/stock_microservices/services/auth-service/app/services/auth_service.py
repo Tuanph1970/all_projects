@@ -3,6 +3,7 @@ Auth Service - Business logic for authentication
 """
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
+import logging
 import secrets
 import jwt
 from passlib.context import CryptContext
@@ -17,6 +18,9 @@ from app.models.schemas import (
     TokenVerifyResponse,
 )
 from app.repositories.user_repository import UserRepository
+from app.services.email_service import send_password_reset_email
+
+logger = logging.getLogger(__name__)
 
 
 settings = get_settings()
@@ -259,13 +263,76 @@ class AuthService:
         """Get current user by ID"""
         return await self.repository.get_user_by_id(user_id)
 
-    async def request_password_reset(self, email: str) -> str:
-        """Request password reset (returns reset token)"""
-        user = await self.repository.get_user_by_email(email)
-        if not user:
-            # Don't reveal if email exists
-            return "If the email exists, a reset link will be sent"
+    @staticmethod
+    def create_password_reset_token(user_id: int, email: str) -> str:
+        """Issue a short-lived JWT scoped to password reset."""
+        expires_minutes = settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
+        payload = {
+            "sub": str(user_id),
+            "email": email,
+            "type": "password_reset",
+            "iat": datetime.utcnow(),
+            "exp": datetime.utcnow() + timedelta(minutes=expires_minutes),
+        }
+        return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
-        # In production, send email with reset link
-        # For now, just return a success message
-        return "If the email exists, a reset link will be sent"
+    async def request_password_reset(self, email: str) -> str:
+        """Issue a reset token and email a reset link.
+
+        The response is the same regardless of whether the email exists, so
+        callers cannot enumerate accounts. If SMTP is not configured the link
+        is logged (development) and the response stays generic.
+        """
+        generic_message = "If the email exists, a reset link will be sent"
+        user = await self.repository.get_user_by_email(email)
+        if not user or not user.is_active:
+            return generic_message
+
+        token = self.create_password_reset_token(user.id, user.email)
+        reset_link = (
+            f"{settings.FRONTEND_BASE_URL.rstrip('/')}"
+            f"{settings.FRONTEND_RESET_PATH}?token={token}"
+        )
+        try:
+            await send_password_reset_email(
+                to_email=user.email,
+                reset_link=reset_link,
+                expires_minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES,
+            )
+        except Exception as e:
+            # Log but still return the generic message to avoid leaking state.
+            logger.error("Password reset email send raised: %s", e)
+
+        return generic_message
+
+    async def confirm_password_reset(self, token: str, new_password: str) -> bool:
+        """Verify a password-reset JWT and set the new password."""
+        try:
+            payload = jwt.decode(
+                token,
+                settings.JWT_SECRET_KEY,
+                algorithms=[settings.JWT_ALGORITHM],
+            )
+        except jwt.ExpiredSignatureError:
+            raise ValueError("Reset token has expired")
+        except jwt.InvalidTokenError:
+            raise ValueError("Invalid reset token")
+
+        if payload.get("type") != "password_reset":
+            raise ValueError("Invalid reset token")
+
+        try:
+            user_id = int(payload.get("sub"))
+        except (TypeError, ValueError):
+            raise ValueError("Invalid reset token")
+
+        user = await self.repository.get_user_by_id(user_id)
+        if not user or not user.is_active:
+            raise ValueError("Invalid reset token")
+
+        hashed_password = self.hash_password(new_password)
+        success = await self.repository.update_password(user_id, hashed_password)
+        if success:
+            # Invalidate any existing sessions on password change.
+            await self.repository.revoke_all_user_tokens(user_id)
+        return success

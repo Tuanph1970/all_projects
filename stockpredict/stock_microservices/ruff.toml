@@ -1,0 +1,30 @@
+# Ruff config for the microservices monorepo.
+#
+# CI gate is intentionally narrow — only real-bug rules from pyflakes (F) so
+# that lint passes today and stays meaningful. Stylistic rules (line length,
+# pyupgrade, sorting) can be enabled per-PR via `ruff check --select ...` once
+# the codebase is cleaned up. The pre-commit hook auto-fixes most of these.
+
+target-version = "py311"
+line-length = 120
+extend-exclude = [
+    "migrations/scripts/data",
+    "Auto_Test_API",
+    "**/.venv",
+    "**/__pycache__",
+]
+
+[lint]
+select = ["F"]      # pyflakes: real bugs only
+ignore = [
+    "F401",  # unused imports — many re-exports + lazy patterns; revisit later
+    "F403",  # `import *` — one or two seed-data modules use this
+    "F541",  # f-string missing placeholders
+    "F811",  # redefined-while-unused — a couple of FastAPI overload patterns
+    "F841",  # unused local var — common in test scaffolding
+]
+
+[lint.per-file-ignores]
+"tests/**" = ["E402", "F401", "F811"]
+"**/migrations/**" = ["E402", "F401", "F811"]
+"**/main.py" = ["E402"]

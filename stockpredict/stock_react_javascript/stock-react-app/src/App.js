@@ -6,6 +6,7 @@ import { RouterProvider } from './context/RouterContext';
 import { StockProvider } from './context/StockContext';
 import { useAuth } from './context/AuthContext';
 import LoginForm from './components/Auth/LoginForm';
+import ResetPasswordConfirm from './components/Auth/ResetPasswordConfirm';
 import MainLayout from './components/Layout/MainLayout';
 import shouldForwardProp from './utils/shouldForwardProp';
 
@@ -20,8 +21,20 @@ import './styles/performance.css';
 import './styles/knowledge-qa.css';
 
 
+// Top-level path match for password-reset deep links. The custom RouterContext
+// is in-memory only, so we read window.location directly here. Matches both
+// /reset-password and the homepage-prefixed /stock-app/reset-password.
+const isResetPasswordRoute = () => {
+  const path = window.location.pathname || '';
+  return path === '/reset-password' || path.endsWith('/reset-password');
+};
+
 const AppContent = () => {
   const { user, loading, isInitializing } = useAuth();
+
+  if (isResetPasswordRoute()) {
+    return <ResetPasswordConfirm />;
+  }
 
   // Only show loading state during initial token validation, not during login/register
   if (isInitializing) {

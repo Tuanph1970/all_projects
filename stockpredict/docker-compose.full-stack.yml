@@ -46,7 +46,7 @@ services:
       - "--metrics.prometheus=true"
       - "--metrics.prometheus.buckets=0.1,0.3,1.2,5.0"
     ports:
-      - "8004:80"     # API Gateway
+      - "18004:80"    # API Gateway (temp remap from 8004 to avoid math-solver conflict)
       - "8444:443"    # HTTPS
       - "8084:8080"   # Traefik dashboard
     volumes:
@@ -70,7 +70,7 @@ services:
       dockerfile: Dockerfile
       args:
         # API Gateway URL for direct frontend access on port 3004
-        - REACT_APP_API_URL=http://localhost:8004
+        - REACT_APP_API_URL=http://localhost:18004
     container_name: stock_frontend
     environment:
       - NODE_ENV=production

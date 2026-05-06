@@ -1,0 +1,43 @@
+name: integration-tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'stock_microservices/**'
+      - '.github/workflows/integration-tests.yml'
+  pull_request:
+    paths:
+      - 'stock_microservices/**'
+      - '.github/workflows/integration-tests.yml'
+  # Allow manual runs — integration suite is heavier than unit CI.
+  workflow_dispatch:
+
+jobs:
+  integration:
+    name: docker-compose integration suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: stock_microservices
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test images
+        run: docker compose -f docker-compose.test.yml build --pull
+        # Note: docker-compose.test.yml is the harness used by ./scripts/run-tests.sh --docker
+
+      - name: Run integration tests
+        run: ./scripts/run-tests.sh --docker --integration
+
+      - name: Upload junit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-reports
+          path: stock_microservices/reports/
+          if-no-files-found: ignore

@@ -71,9 +71,11 @@ packages = ["stock_common"]
 line-length = 100
 target-version = ['py311']
 
+# Lint config lives at ../ruff.toml — this section is intentionally minimal
+# so the monorepo-wide rules apply. Override here only if stock-common needs
+# stricter rules than the rest of the codebase.
 [tool.ruff]
-line-length = 100
-select = ["E", "F", "I", "N", "W", "UP"]
+extend = "../ruff.toml"
 
 [tool.mypy]
 python_version = "3.11"

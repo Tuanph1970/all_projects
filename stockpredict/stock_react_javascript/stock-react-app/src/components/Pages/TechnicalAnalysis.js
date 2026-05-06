@@ -365,6 +365,55 @@ export const TechnicalAnalysis = () => {
     setAllIndicators(ALL_INDICATORS);
   };
 
+  // Map keys from the comprehensive ALL_INDICATORS popup to the subset that
+  // the chart actually knows how to render (INDICATOR_GROUPS / indicatorSettings).
+  // Keys not listed here are visible in the popup but not yet renderable; we
+  // surface them in the "skipped" toast below so the UX is honest.
+  const APPLY_MAP = {
+    'movingAverages.sma20':       ['priceOverlay', 'sma20'],
+    'movingAverages.sma50':       ['priceOverlay', 'sma50'],
+    'movingAverages.ema12':       ['priceOverlay', 'ema12'],
+    'movingAverages.ema26':       ['priceOverlay', 'ema26'],
+    'volatility.bollingerBands':  ['priceOverlay', 'bollingerBands'],
+    'momentum.rsi':               ['oscillators',  'rsi'],
+    'momentum.stochastic':        ['oscillators',  'stochastic'],
+    'momentum.macd':              ['momentum',     'macd'],
+    'volume.volume':              ['volume',       'volume'],
+    'volume.obv':                 ['volume',       'obv'],
+  };
+
+  const applyIndicators = () => {
+    // Snapshot the current chart settings, then walk every popup selection
+    // and flip its mapped chart setting to match.
+    const next = JSON.parse(JSON.stringify(indicatorSettings));
+    const skipped = [];
+
+    Object.entries(allIndicators).forEach(([category, group]) => {
+      Object.entries(group.indicators).forEach(([key, ind]) => {
+        const mapped = APPLY_MAP[`${category}.${key}`];
+        if (mapped) {
+          const [chartGroup, chartKey] = mapped;
+          if (next[chartGroup]?.indicators?.[chartKey]) {
+            next[chartGroup].indicators[chartKey].enabled = !!ind.enabled;
+          }
+        } else if (ind.enabled) {
+          skipped.push(ind.shortName || ind.name || key);
+        }
+      });
+    });
+
+    setIndicatorSettings(next);
+    setShowIndicatorPopup(false);
+
+    if (skipped.length > 0) {
+      // Lightweight feedback — chart can't render every catalogue entry yet.
+      // eslint-disable-next-line no-console
+      console.info(
+        `Selected indicators not yet renderable on chart: ${skipped.join(', ')}`
+      );
+    }
+  };
+
   // Get count of selected indicators
   const getSelectedCount = () => {
     let count = 0;
@@ -722,10 +771,7 @@ export const TechnicalAnalysis = () => {
                 Close
               </button>
               <button
-                onClick={() => {
-                  setShowIndicatorPopup(false);
-                  // TODO: Apply indicators to chart
-                }}
+                onClick={applyIndicators}
                 className="px-6 py-2.5 font-semibold rounded-lg transition-all shadow-md hover:shadow-lg"
                 style={{ backgroundColor: '#4f46e5', color: '#ffffff' }}
               >

@@ -107,6 +107,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables initialized")
 
+    # Open the shared EventBus connection used by refresh_price_board()
+    # to publish stock.price.updated events. Best-effort — service still
+    # serves data if RabbitMQ is unreachable.
+    from app.services.event_publisher import init_event_publisher, shutdown_event_publisher
+    await init_event_publisher(service_name=settings.SERVICE_NAME)
+
     # Spawn non-blocking background sync for VN30 company data
     sync_task = asyncio.create_task(_background_company_sync())
 
@@ -114,6 +120,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
 
     # Shutdown
     sync_task.cancel()
+    await shutdown_event_publisher()
     logger.info(f"Shutting down {settings.SERVICE_NAME}")
     await engine.dispose()
 

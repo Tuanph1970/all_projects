@@ -15,6 +15,7 @@ from app.models.schemas import (
     TokenVerifyResponse,
     PasswordChange,
     PasswordReset,
+    PasswordResetConfirm,
     MessageResponse,
     ErrorResponse,
 )
@@ -249,3 +250,40 @@ async def reset_password(
     """
     message = await auth_service.request_password_reset(reset_data.email)
     return MessageResponse(message=message)
+
+
+@router.post(
+    "/reset-password/confirm",
+    response_model=MessageResponse,
+    responses={
+        400: {"model": ErrorResponse, "description": "Invalid or expired token"},
+    },
+)
+async def reset_password_confirm(
+    confirm_data: PasswordResetConfirm,
+    auth_service: AuthService = Depends(get_auth_service),
+):
+    """
+    Confirm a password reset using the token issued by /reset-password.
+
+    - **token**: JWT issued by request endpoint (sent via email)
+    - **new_password**: New password (same complexity rules as registration)
+
+    On success all existing sessions for the user are revoked.
+    """
+    try:
+        success = await auth_service.confirm_password_reset(
+            confirm_data.token,
+            confirm_data.new_password,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to reset password",
+        )
+    return MessageResponse(message="Password reset successfully")

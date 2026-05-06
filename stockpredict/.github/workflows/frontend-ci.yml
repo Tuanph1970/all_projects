@@ -1,0 +1,66 @@
+name: frontend-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'stock_react_javascript/**'
+      - '.github/workflows/frontend-ci.yml'
+  pull_request:
+    paths:
+      - 'stock_react_javascript/**'
+      - '.github/workflows/frontend-ci.yml'
+
+defaults:
+  run:
+    working-directory: stock_react_javascript/stock-react-app
+
+jobs:
+  lint-and-build:
+    name: Lint + build
+    runs-on: ubuntu-latest
+    env:
+      CI: 'true'
+      # Disable CRA's "warnings as errors" — too noisy until we burn down lint debt.
+      DISABLE_ESLINT_PLUGIN: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: stock_react_javascript/stock-react-app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: ESLint (informational)
+        # CRA bundles ESLint into the build; surface lint output as a separate
+        # step but don't fail the job — gate it with `continue-on-error` until
+        # the existing lint warnings are cleaned up.
+        continue-on-error: true
+        run: npx eslint "src/**/*.{js,jsx}" --max-warnings 9999
+
+      - name: Production build
+        run: npm run build
+
+  test:
+    name: Tests (Jest / RTL)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: stock_react_javascript/stock-react-app/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Run tests (skip cleanly if none)
+        env:
+          CI: 'true'
+        run: |
+          if find src -name '*.test.js' -o -name '*.test.jsx' | grep -q .; then
+            npm test -- --watchAll=false --passWithNoTests
+          else
+            echo "::notice::No frontend tests yet; skipping."
+          fi

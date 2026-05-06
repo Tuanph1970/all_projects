@@ -1,0 +1,134 @@
+name: backend-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'stock_microservices/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    paths:
+      - 'stock_microservices/**'
+      - '.github/workflows/backend-ci.yml'
+
+defaults:
+  run:
+    working-directory: stock_microservices
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install ruff
+        run: pip install 'ruff>=0.5.0'
+      - name: Ruff check
+        run: ruff check services stock-common tests
+
+  unit-tests:
+    name: Unit tests · ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - auth-service
+          - stock-data-service
+          - portfolio-service
+          - prediction-service
+          - analysis-service
+          - ai-insights-service
+          - chatbot-service
+          - journal-service
+          - knowledge-qa-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install service deps
+        run: |
+          set -e
+          python -m pip install --upgrade pip
+          pip install -e ./stock-common
+          if [ -f services/${{ matrix.service }}/requirements.txt ]; then
+            pip install -r services/${{ matrix.service }}/requirements.txt
+          fi
+          pip install pytest pytest-asyncio pytest-timeout pytest-cov httpx
+      - name: Run pytest with coverage (skip if no tests)
+        env:
+          PYTHONPATH: services/${{ matrix.service }}
+        run: |
+          if [ -d services/${{ matrix.service }}/tests ] && \
+             [ -n "$(find services/${{ matrix.service }}/tests -name 'test_*.py' -print -quit)" ]; then
+            pytest services/${{ matrix.service }}/tests -v --tb=short \
+              --cov=services/${{ matrix.service }}/app \
+              --cov-config=.coveragerc \
+              --cov-report=term \
+              --cov-report=xml:reports/coverage-${{ matrix.service }}.xml
+          else
+            echo "::notice::No tests found for ${{ matrix.service }}; skipping."
+          fi
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.service }}
+          path: stock_microservices/reports/coverage-${{ matrix.service }}.xml
+          if-no-files-found: ignore
+
+  bandit:
+    name: SAST (bandit, informational)
+    runs-on: ubuntu-latest
+    # Informational gate — surfaces issues without blocking PRs until the
+    # SECURITY_AUDIT.md backlog is burned down. Flip to required once clean.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install bandit
+        run: pip install 'bandit[toml]>=1.7.7'
+      - name: Run bandit
+        run: |
+          bandit -r services stock-common \
+            --severity-level medium \
+            --confidence-level medium \
+            --skip B101,B104 \
+            --quiet || true
+
+  shared-lib-tests:
+    name: stock-common tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install stock-common
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ./stock-common
+          pip install pytest pytest-asyncio pytest-timeout
+      - name: Run stock-common tests (if any)
+        run: |
+          if [ -d stock-common/tests ] && \
+             [ -n "$(find stock-common/tests -name 'test_*.py' -print -quit)" ]; then
+            pytest stock-common/tests -v --tb=short
+          else
+            echo "::notice::No tests for stock-common; skipping."
+          fi

@@ -1,0 +1,30 @@
+[run]
+branch = True
+source =
+    services
+    stock-common/stock_common
+omit =
+    */tests/*
+    */__pycache__/*
+    */migrations/*
+    services/*/tests/*
+    stock-common/tests/*
+    Auto_Test_API/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @overload
+    \.\.\.
+precision = 1
+show_missing = True
+skip_covered = False
+
+[html]
+directory = reports/coverage_html
+
+[xml]
+output = reports/coverage.xml

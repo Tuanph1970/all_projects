@@ -8,6 +8,13 @@ import numpy as np
 import pandas as pd
 import redis.asyncio as redis
 
+try:
+    # Lazy / soft import — service still runs in template-only mode if the
+    # SDK isn't installed yet (e.g. during a container rebuild).
+    from anthropic import AsyncAnthropic
+except ImportError:  # pragma: no cover
+    AsyncAnthropic = None  # type: ignore
+
 from app.config import get_settings
 from app.models.schemas import (
     InsightType, InsightResponse, ComparisonResponse,
@@ -27,6 +34,7 @@ logger = logging.getLogger(__name__)
 class InsightsService:
     def __init__(self):
         self.redis_client = None
+        self._anthropic_client = None
         self._init_redis()
 
     def _init_redis(self):
@@ -39,6 +47,28 @@ class InsightsService:
             )
         except Exception as e:
             logger.warning(f"Redis connection failed: {e}")
+
+    def _get_anthropic_client(self) -> Optional["AsyncAnthropic"]:
+        """Lazily build the AsyncAnthropic client. Cached after first call."""
+        if self._anthropic_client is not None:
+            return self._anthropic_client
+        if not settings.ANTHROPIC_API_KEY or AsyncAnthropic is None:
+            return None
+        self._anthropic_client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+        return self._anthropic_client
+
+    def _resolve_provider(self) -> str:
+        """Resolve LLM_PROVIDER='auto' to a concrete provider given which
+        keys are configured. Pinned values pass through unchanged.
+        """
+        provider = (settings.LLM_PROVIDER or "auto").lower()
+        if provider != "auto":
+            return provider
+        if settings.ANTHROPIC_API_KEY and AsyncAnthropic is not None:
+            return "anthropic"
+        if settings.OPENAI_API_KEY:
+            return "openai"
+        return "template"
 
     async def _get_cached(self, key: str) -> Optional[str]:
         if self.redis_client:
@@ -88,34 +118,87 @@ class InsightsService:
         return data
 
     async def _call_llm(self, prompt: str, system_prompt: str = None) -> str:
-        """Call LLM API (OpenAI or fallback to template)"""
-        if settings.OPENAI_API_KEY:
-            try:
-                async with httpx.AsyncClient() as client:
-                    response = await client.post(
-                        "https://api.openai.com/v1/chat/completions",
-                        headers={
-                            "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
-                            "Content-Type": "application/json"
-                        },
-                        json={
-                            "model": settings.LLM_MODEL,
-                            "messages": [
-                                {"role": "system", "content": system_prompt or "You are a professional stock analyst."},
-                                {"role": "user", "content": prompt}
-                            ],
-                            "temperature": settings.LLM_TEMPERATURE,
-                            "max_tokens": settings.LLM_MAX_TOKENS
-                        },
-                        timeout=60.0
-                    )
-                    if response.status_code == 200:
-                        return response.json()["choices"][0]["message"]["content"]
-            except Exception as e:
-                logger.error(f"LLM API call failed: {e}")
+        """Dispatch to the configured LLM provider with graceful fallback.
 
-        # Fallback to template-based response
+        Provider priority (when LLM_PROVIDER=auto):
+            anthropic (Claude) -> openai (GPT) -> template.
+        Each path falls through to the next on any error so a flaky upstream
+        never breaks the API contract — callers always receive prose.
+        """
+        sys_text = system_prompt or "You are a professional stock analyst."
+        provider = self._resolve_provider()
+
+        if provider in ("anthropic", "auto"):
+            text = await self._call_anthropic(prompt, sys_text)
+            if text is not None:
+                return text
+
+        if provider in ("openai", "auto") and settings.OPENAI_API_KEY:
+            text = await self._call_openai(prompt, sys_text)
+            if text is not None:
+                return text
+
         return self._generate_template_response(prompt)
+
+    async def _call_anthropic(self, prompt: str, system_prompt: str) -> Optional[str]:
+        """Call Claude via the Anthropic SDK. Returns None on any failure
+        so the dispatcher can fall through to OpenAI / template.
+
+        Uses prompt caching: the system prompt is largely stable across
+        requests of the same insight type, so marking it ephemeral lets us
+        amortize the prefix over batches of analyses.
+        """
+        client = self._get_anthropic_client()
+        if client is None:
+            return None
+        try:
+            message = await client.messages.create(
+                model=settings.ANTHROPIC_MODEL,
+                max_tokens=settings.LLM_MAX_TOKENS,
+                system=[{
+                    "type": "text",
+                    "text": system_prompt,
+                    "cache_control": {"type": "ephemeral"},
+                }],
+                messages=[{"role": "user", "content": prompt}],
+            )
+            for block in message.content:
+                if getattr(block, "type", None) == "text":
+                    return block.text
+            return None
+        except Exception as e:
+            logger.error("Anthropic call failed: %s", e)
+            return None
+
+    async def _call_openai(self, prompt: str, system_prompt: str) -> Optional[str]:
+        """OpenAI fallback — kept on raw httpx since we don't ship the SDK.
+        Returns None on any failure.
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": settings.LLM_MODEL,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": prompt},
+                        ],
+                        "temperature": settings.LLM_TEMPERATURE,
+                        "max_tokens": settings.LLM_MAX_TOKENS,
+                    },
+                    timeout=60.0,
+                )
+                if response.status_code == 200:
+                    return response.json()["choices"][0]["message"]["content"]
+                logger.warning("OpenAI returned %s: %s", response.status_code, response.text[:200])
+        except Exception as e:
+            logger.error("OpenAI call failed: %s", e)
+        return None
 
     def _generate_template_response(self, prompt: str) -> str:
         """Generate template-based response when LLM is unavailable"""

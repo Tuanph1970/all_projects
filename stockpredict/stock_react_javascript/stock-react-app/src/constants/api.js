@@ -67,6 +67,7 @@ export const API_ENDPOINTS = {
   AUTH_ME: `${API_BASE_URLS.AUTH_API}/me`,
   AUTH_CHANGE_PASSWORD: `${API_BASE_URLS.AUTH_API}/change-password`,
   AUTH_RESET_PASSWORD: `${API_BASE_URLS.AUTH_API}/reset-password`,
+  AUTH_RESET_PASSWORD_CONFIRM: `${API_BASE_URLS.AUTH_API}/reset-password/confirm`,
 
   // ==========================================
   // STOCK DATA SERVICE ENDPOINTS (/api/v2/stocks, /api/v2/companies)

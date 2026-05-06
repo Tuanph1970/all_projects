@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { REQUEST_TIMEOUT, API_BASE_URLS } from '../constants/api';
+import { REQUEST_TIMEOUT, API_BASE_URLS, API_ENDPOINTS } from '../constants/api';
 
 /**
  * HTTP Client Service
@@ -28,7 +28,60 @@ class HttpClient {
       }
     });
 
+    // Single-flight refresh promise. While a refresh is in progress all other
+    // 401s wait on the same promise instead of stampeding the auth-service.
+    this._refreshPromise = null;
+
     this.setupInterceptors();
+  }
+
+  _isAuthEndpoint(url) {
+    if (!url) return false;
+    return (
+      url.includes(API_ENDPOINTS.AUTH_REFRESH) ||
+      url.includes(API_ENDPOINTS.AUTH_LOGIN) ||
+      url.includes(API_ENDPOINTS.AUTH_REGISTER)
+    );
+  }
+
+  _clearAuthStorage() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('email');
+    localStorage.removeItem('userId');
+  }
+
+  async _refreshAccessToken() {
+    if (this._refreshPromise) {
+      return this._refreshPromise;
+    }
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (!refreshToken) {
+      return Promise.reject(new Error('No refresh token'));
+    }
+
+    this._refreshPromise = axios
+      .post(
+        API_ENDPOINTS.AUTH_REFRESH,
+        { refresh_token: refreshToken },
+        { headers: { 'Content-Type': 'application/json' } }
+      )
+      .then((res) => {
+        const data = res.data || {};
+        if (data.access_token) {
+          localStorage.setItem('token', data.access_token);
+        }
+        if (data.refresh_token) {
+          localStorage.setItem('refreshToken', data.refresh_token);
+        }
+        return data.access_token;
+      })
+      .finally(() => {
+        // Release the slot whether refresh succeeded or failed.
+        this._refreshPromise = null;
+      });
+
+    return this._refreshPromise;
   }
 
   setupInterceptors() {
@@ -47,10 +100,36 @@ class HttpClient {
       }
     );
 
-    // Response interceptor
+    // Response interceptor — retry once after a refresh on 401
     this.client.interceptors.response.use(
       (response) => response,
-      (error) => {
+      async (error) => {
+        const originalRequest = error.config;
+        const status = error.response?.status;
+
+        const refreshable =
+          status === 401 &&
+          originalRequest &&
+          !originalRequest._retry &&
+          !this._isAuthEndpoint(originalRequest.url) &&
+          !!localStorage.getItem('refreshToken');
+
+        if (refreshable) {
+          originalRequest._retry = true;
+          try {
+            const newToken = await this._refreshAccessToken();
+            if (newToken) {
+              originalRequest.headers = originalRequest.headers || {};
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+              return this.client.request(originalRequest);
+            }
+          } catch (refreshError) {
+            // Fall through to logout below.
+          }
+          // Refresh failed — clear auth so the app drops to login.
+          this._clearAuthStorage();
+        }
+
         return Promise.reject(this.handleError(error));
       }
     );

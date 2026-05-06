@@ -31,7 +31,10 @@ class Settings(BaseSettings):
     # LLM Configuration
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
-    LLM_MODEL: str = "gpt-4"
+    # auto = anthropic > openai > template; or pin explicitly
+    LLM_PROVIDER: str = "auto"  # auto | anthropic | openai | template
+    ANTHROPIC_MODEL: str = "claude-opus-4-7"
+    LLM_MODEL: str = "gpt-4o-mini"  # used when provider falls back to OpenAI
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 2000
 

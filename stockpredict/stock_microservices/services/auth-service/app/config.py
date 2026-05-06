@@ -47,6 +47,18 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: Optional[str] = None
 
+    # SMTP / Email (password reset)
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_USE_TLS: bool = True
+    SMTP_FROM_EMAIL: str = "no-reply@stockhelper.local"
+    SMTP_FROM_NAME: str = "Stock Helper"
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
+    FRONTEND_BASE_URL: str = "http://localhost:3004"
+    FRONTEND_RESET_PATH: str = "/stock-app/reset-password"
+
     # Tracing
     TRACING_ENABLED: bool = True
     TRACING_JAEGER_HOST: str = "jaeger"
@@ -90,7 +102,30 @@ class Settings(BaseSettings):
         extra = "ignore"  # Allow extra environment variables
 
 
+_PLACEHOLDER_JWT_SECRET = "your-secret-key-change-in-production"
+_PLACEHOLDER_DB_PASSWORD = "Mysql_2025"
+
+
+def _validate_secrets(s: "Settings") -> None:
+    """Refuse to start in non-development environments with placeholder secrets.
+    Documented in SECURITY_AUDIT.md (HIGH #1, #2)."""
+    if s.ENVIRONMENT == "development":
+        return  # local dev convenience
+    problems = []
+    if s.JWT_SECRET_KEY == _PLACEHOLDER_JWT_SECRET:
+        problems.append("JWT_SECRET_KEY is unset (still default placeholder)")
+    if s.DATABASE_PASSWORD == _PLACEHOLDER_DB_PASSWORD:
+        problems.append("DATABASE_PASSWORD is unset (still default placeholder)")
+    if problems:
+        raise RuntimeError(
+            "auth-service refuses to start with default secrets in environment "
+            f"'{s.ENVIRONMENT}'. Set the env vars: " + ", ".join(problems)
+        )
+
+
 @lru_cache()
 def get_settings() -> Settings:
     """Get cached settings instance"""
-    return Settings()
+    s = Settings()
+    _validate_secrets(s)
+    return s

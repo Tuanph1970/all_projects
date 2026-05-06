@@ -362,12 +362,62 @@ async def get_simulation_models():
 
 @router.get("/simulation/trained-solutions")
 async def get_trained_solutions(
+    db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user_optional)
 ):
-    """Get list of user's trained solutions for simulation"""
-    # TODO: Implement trained solutions storage
-    # For now, return empty list - users will train new models
-    return []
+    """Return solutions whose models are already trained, for the simulation
+    dashboard's "use pretrained model" picker. Filtered to the current user
+    when authenticated; otherwise returns all trained solutions.
+    """
+    try:
+        params: dict = {}
+        where_clauses = ["s.train_status IN ('trained', 'predicted')"]
+        if current_user and current_user.get("user_id"):
+            where_clauses.append("s.user_id = :user_id")
+            params["user_id"] = str(current_user["user_id"])
+
+        query = f"""
+            SELECT
+                s.id            AS solution_id,
+                s.solution_name AS solution_name,
+                s.ticker        AS ticker,
+                s.start_training_date AS start_training_date,
+                s.end_training_date   AS end_training_date,
+                s.updated_date  AS updated_date,
+                m.model_name    AS model_name,
+                m.model_type    AS model_type,
+                m.model_sub_type AS model_sub_type
+            FROM tbl_solution s
+            INNER JOIN model_instances m ON s.model_id = m.id
+            WHERE {' AND '.join(where_clauses)}
+            ORDER BY s.updated_date DESC, s.id DESC
+        """
+        result = await db.execute(text(query), params)
+        rows = result.mappings().all()
+
+        solutions = []
+        for row in rows:
+            start = row.get("start_training_date") or ""
+            end = row.get("end_training_date") or ""
+            if start and end:
+                training_period = f"{start} → {end}"
+            elif start:
+                training_period = f"từ {start}"
+            else:
+                training_period = "—"
+            solutions.append({
+                "solution_id": row["solution_id"],
+                "solution_name": row["solution_name"],
+                "ticker": row["ticker"],
+                "model_name": row["model_name"],
+                "model_type": row.get("model_type"),
+                "model_sub_type": row.get("model_sub_type"),
+                "training_period": training_period,
+            })
+        return solutions
+    except Exception as e:
+        logger.error(f"Failed to fetch trained solutions: {e}")
+        return []
 
 
 # ==========================================
