@@ -1,5 +1,6 @@
 // src/App.js
 import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { StyleSheetManager } from 'styled-components';
 import { AuthProvider } from './context/AuthContext';
 import { RouterProvider } from './context/RouterContext';
@@ -20,23 +21,12 @@ import './styles/table_style.css';
 import './styles/performance.css';
 import './styles/knowledge-qa.css';
 
+// homepage in package.json — BrowserRouter strips this prefix from routes.
+const BASENAME = '/stock-app';
 
-// Top-level path match for password-reset deep links. The custom RouterContext
-// is in-memory only, so we read window.location directly here. Matches both
-// /reset-password and the homepage-prefixed /stock-app/reset-password.
-const isResetPasswordRoute = () => {
-  const path = window.location.pathname || '';
-  return path === '/reset-password' || path.endsWith('/reset-password');
-};
+const AppShell = () => {
+  const { user, isInitializing } = useAuth();
 
-const AppContent = () => {
-  const { user, loading, isInitializing } = useAuth();
-
-  if (isResetPasswordRoute()) {
-    return <ResetPasswordConfirm />;
-  }
-
-  // Only show loading state during initial token validation, not during login/register
   if (isInitializing) {
     return (
       <div style={{
@@ -52,23 +42,35 @@ const AppContent = () => {
     );
   }
 
-  if (!user) {
-    return <LoginForm />;
-  }
-
-  return <MainLayout />;
+  return user ? <MainLayout /> : <LoginForm />;
 };
 
 const App = () => {
   return (
     <StyleSheetManager shouldForwardProp={shouldForwardProp}>
-      <AuthProvider>
-        <RouterProvider>
-          <StockProvider>
-            <AppContent />
-          </StockProvider>
-        </RouterProvider>
-      </AuthProvider>
+      <BrowserRouter basename={BASENAME}>
+        <AuthProvider>
+          <Routes>
+            {/* Reset-password is the one route that intentionally bypasses
+                auth — users arrive here via an emailed token. */}
+            <Route path="/reset-password" element={<ResetPasswordConfirm />} />
+
+            {/* Everything else is gated by auth and goes through MainLayout's
+                in-app routing (RouterContext + the renderCurrentPage switch).
+                The wildcard captures any path so back/forward keep working. */}
+            <Route
+              path="/*"
+              element={
+                <RouterProvider>
+                  <StockProvider>
+                    <AppShell />
+                  </StockProvider>
+                </RouterProvider>
+              }
+            />
+          </Routes>
+        </AuthProvider>
+      </BrowserRouter>
     </StyleSheetManager>
   );
 };

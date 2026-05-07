@@ -258,24 +258,9 @@ export const stockAPI = {
       return data;
     } catch (error) {
       console.error('Error searching stocks:', error);
-      // Fallback to Vietnamese mock data if API fails
-      const mockStocks = [
-        { symbol: 'VIC', name: 'Vingroup Joint Stock Company', price: 42500 },
-        { symbol: 'VNM', name: 'Vietnam Dairy Products JSC', price: 72000 },
-        { symbol: 'VCB', name: 'Vietcombank', price: 89000 },
-        { symbol: 'TCB', name: 'Techcombank', price: 35000 },
-        { symbol: 'FPT', name: 'FPT Corporation', price: 125000 },
-        { symbol: 'HPG', name: 'Hoa Phat Group JSC', price: 26500 },
-        { symbol: 'MWG', name: 'Mobile World Investment Corp', price: 52000 },
-        { symbol: 'VHM', name: 'Vinhomes JSC', price: 45000 },
-        { symbol: 'MSN', name: 'Masan Group Corporation', price: 78000 },
-        { symbol: 'VRE', name: 'Vincom Retail JSC', price: 24500 }
-      ];
-
-      return mockStocks.filter(stock =>
-        stock.symbol.toLowerCase().includes(query.toLowerCase()) ||
-        stock.name.toLowerCase().includes(query.toLowerCase())
-      );
+      // No fake fallback — return empty so the UI shows "no results" rather
+      // than tricking users with a hardcoded VN30 sample. Backlog #9.
+      return [];
     }
   },
 
@@ -687,16 +672,10 @@ export const stockAPI = {
       return data.recommendations || data;
     } catch (error) {
       console.error('Error fetching recommendations:', error);
-      // Fallback - try to show loading state or minimal info
-      return [
-        {
-          type: 'HOLD',
-          symbol: 'N/A',
-          name: 'Loading recommendations...',
-          reason: 'Please wait while we analyze the market. If this persists, check if the AI service is running.',
-          confidence: 0
-        }
-      ];
+      // No mock fallback — empty list lets the dashboard render its own
+      // empty-state UI rather than a fake "Loading..." pseudo-recommendation
+      // that lingers after the network actually fails. Backlog #10.
+      return [];
     }
   },
 
@@ -738,59 +717,9 @@ export const stockAPI = {
       return [];
     } catch (error) {
       console.error('Error fetching prospective stocks:', error);
-      // Fallback to mock data based on fundamental analysis criteria
-      return [
-        {
-          symbol: 'FPT',
-          name: 'FPT Corporation',
-          price: 125.50,
-          peRatio: 18.5,
-          epsGrowth2Y: 22.4,
-          netProfitGrowth2Y: 25.8,
-          news: 'Signed major AI partnership with NVIDIA, expanding digital transformation services globally.',
-          sector: 'Technology'
-        },
-        {
-          symbol: 'MWG',
-          name: 'Mobile World Investment Corporation',
-          price: 52.80,
-          peRatio: 14.2,
-          epsGrowth2Y: 18.6,
-          netProfitGrowth2Y: 20.3,
-          news: 'Strong retail expansion with new store openings and e-commerce growth accelerating.',
-          sector: 'Retail'
-        },
-        {
-          symbol: 'VHM',
-          name: 'Vinhomes JSC',
-          price: 42.30,
-          peRatio: 8.9,
-          epsGrowth2Y: 15.2,
-          netProfitGrowth2Y: 17.8,
-          news: 'New mega-project launch in Ho Chi Minh City with strong pre-sales performance.',
-          sector: 'Real Estate'
-        },
-        {
-          symbol: 'HPG',
-          name: 'Hoa Phat Group JSC',
-          price: 28.45,
-          peRatio: 10.3,
-          epsGrowth2Y: 28.5,
-          netProfitGrowth2Y: 32.1,
-          news: 'Steel demand surge from infrastructure projects, export volume increased 40% YoY.',
-          sector: 'Steel'
-        },
-        {
-          symbol: 'ACB',
-          name: 'Asia Commercial Bank',
-          price: 24.80,
-          peRatio: 7.8,
-          epsGrowth2Y: 19.7,
-          netProfitGrowth2Y: 21.4,
-          news: 'Digital banking transformation success, NPL ratio at historic low of 0.8%.',
-          sector: 'Banking'
-        }
-      ];
+      // Empty list rather than five fake hand-curated picks. The dashboard
+      // empty-state already handles this case. Backlog #10.
+      return [];
     }
   }
 };

@@ -33,6 +33,8 @@ import JournalDashboard from '../Pages/Journal/JournalDashboard';
 import DailyPlanning from '../Pages/Journal/DailyPlanning';
 import WeeklyReview from '../Pages/Journal/WeeklyReview';
 import KnowledgeQAChat from '../Pages/KnowledgeQAChat';
+import Watchlist from '../Pages/Watchlist';
+import PositionCalculator from '../Pages/PositionCalculator';
 
 const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -128,11 +130,11 @@ const MainLayout = () => {
       case 'weekly-review':
         return <WeeklyReview />;
       case 'screener':
-        return <Dashboard />; // Could be separate component
+        return <StockScreener />;
       case 'calculator':
-        return <Dashboard />; // Could be separate component
+        return <PositionCalculator />;
       case 'watchlist':
-        return <Dashboard />; // Could be separate component
+        return <Watchlist />;
       default:
         return <Dashboard />;
     }
