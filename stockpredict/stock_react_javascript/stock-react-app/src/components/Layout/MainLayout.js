@@ -4,7 +4,7 @@ import { useRouter } from '../../context/RouterContext';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import Dashboard from '../Dashboard/Dashboard';
-import PriceBoardWrapper from '../Pages/PriceBoardWrapper';
+import PriceBoard from '../Pages/PriceBoard';
 import { TechnicalAnalysis } from '../Pages/TechnicalAnalysis';
 import { FundamentalAnalysis } from '../Pages/FundamentalAnalysis';
 import { StocksByIndustry } from '../Pages/Stocks';
@@ -75,7 +75,7 @@ const MainLayout = () => {
       case 'dashboard':
         return <Dashboard />;
       case 'priceboard':
-        return <PriceBoardWrapper/>      
+        return <PriceBoard/>
       case 'stockscreener':
         return <StockScreener/>
       case 'byindustry':

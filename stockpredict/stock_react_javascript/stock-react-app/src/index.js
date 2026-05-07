@@ -4,6 +4,21 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 
+// Strip dev-only console output from production builds. The codebase has
+// ~188 console.log/debug/info calls scattered across components; rather
+// than touch each file, we no-op them here in prod and preserve them in
+// dev. console.error / console.warn intentionally pass through so genuine
+// error reporting still surfaces. Backlog #16.
+if (process.env.NODE_ENV === 'production') {
+  const noop = () => {};
+  // eslint-disable-next-line no-console
+  console.log = noop;
+  // eslint-disable-next-line no-console
+  console.debug = noop;
+  // eslint-disable-next-line no-console
+  console.info = noop;
+}
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
