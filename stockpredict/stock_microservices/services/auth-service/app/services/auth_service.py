@@ -263,9 +263,33 @@ class AuthService:
         """Get current user by ID"""
         return await self.repository.get_user_by_id(user_id)
 
-    @staticmethod
-    def create_password_reset_token(user_id: int, email: str) -> str:
-        """Issue a short-lived JWT scoped to password reset."""
+    # Reset-password tokens are signed with a key derived from JWT_SECRET_KEY
+    # rather than the secret itself. This means a leaked access token (or its
+    # signing key) can't be used to forge a reset token, and vice versa, even
+    # though we still only operate one shared secret.
+    # SECURITY_AUDIT.md LOW #15 / Backlog #33.
+    _RESET_KEY_INFO = b"stockpredict-password-reset-v1"
+
+    @classmethod
+    def _password_reset_signing_key(cls) -> bytes:
+        """HKDF-derive a signing key for password-reset tokens.
+        Stable across processes given the same JWT_SECRET_KEY, so existing
+        reset links survive a service restart.
+        """
+        from hashlib import sha256
+        from hmac import HMAC
+        # Lightweight HKDF-Expand: one block of HMAC-SHA256 is enough for HS256.
+        secret = settings.JWT_SECRET_KEY.encode()
+        # HKDF-Extract: PRK = HMAC(salt=service-id, IKM=secret).
+        prk = HMAC(b"auth-service", secret, sha256).digest()
+        # HKDF-Expand: T(1) = HMAC(PRK, info || 0x01).
+        return HMAC(prk, cls._RESET_KEY_INFO + b"\x01", sha256).digest()
+
+    @classmethod
+    def create_password_reset_token(cls, user_id: int, email: str) -> str:
+        """Issue a short-lived JWT scoped to password reset.
+        Signed with a key separate from access tokens (see Backlog #33).
+        """
         expires_minutes = settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
         payload = {
             "sub": str(user_id),
@@ -274,7 +298,14 @@ class AuthService:
             "iat": datetime.utcnow(),
             "exp": datetime.utcnow() + timedelta(minutes=expires_minutes),
         }
-        return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+        # `kid` lets verifiers route to the right signing key in the future
+        # if we add real key rotation. Today there's only one.
+        return jwt.encode(
+            payload,
+            cls._password_reset_signing_key(),
+            algorithm=settings.JWT_ALGORITHM,
+            headers={"kid": "pwreset-v1"},
+        )
 
     async def request_password_reset(self, email: str) -> str:
         """Issue a reset token and email a reset link.
@@ -306,11 +337,13 @@ class AuthService:
         return generic_message
 
     async def confirm_password_reset(self, token: str, new_password: str) -> bool:
-        """Verify a password-reset JWT and set the new password."""
+        """Verify a password-reset JWT and set the new password.
+        Verified against the dedicated reset signing key, not JWT_SECRET_KEY.
+        """
         try:
             payload = jwt.decode(
                 token,
-                settings.JWT_SECRET_KEY,
+                self._password_reset_signing_key(),
                 algorithms=[settings.JWT_ALGORITHM],
             )
         except jwt.ExpiredSignatureError:

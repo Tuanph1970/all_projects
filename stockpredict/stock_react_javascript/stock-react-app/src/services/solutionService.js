@@ -135,4 +135,5 @@ class SolutionService {
   }
 }
 
-export default new SolutionService();
+const solutionServiceInstance = new SolutionService();
+export default solutionServiceInstance;

@@ -152,10 +152,12 @@ export const getGraphStats = async () => {
   }
 };
 
-export default {
+const knowledgeQAServiceInstance = {
   askQuestion,
   getHistory,
   clearSession,
   searchNotes,
   getGraphStats,
 };
+
+export default knowledgeQAServiceInstance;

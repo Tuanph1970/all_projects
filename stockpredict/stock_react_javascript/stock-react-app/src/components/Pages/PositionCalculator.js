@@ -79,8 +79,9 @@ const PositionCalculator = () => {
           <h3 style={{ marginTop: 0, marginBottom: 16 }}>Tham số</h3>
 
           <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'block', fontSize: 13, color: '#4b5563', marginBottom: 4 }}>Vốn tài khoản (VND)</label>
+            <label htmlFor="pc-equity" style={{ display: 'block', fontSize: 13, color: '#4b5563', marginBottom: 4 }}>Vốn tài khoản (VND)</label>
             <input
+              id="pc-equity"
               type="number"
               value={equity}
               onChange={(e) => setEquity(e.target.value)}
@@ -91,8 +92,9 @@ const PositionCalculator = () => {
           </div>
 
           <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'block', fontSize: 13, color: '#4b5563', marginBottom: 4 }}>Rủi ro tối đa mỗi lệnh (%)</label>
+            <label htmlFor="pc-risk-pct" style={{ display: 'block', fontSize: 13, color: '#4b5563', marginBottom: 4 }}>Rủi ro tối đa mỗi lệnh (%)</label>
             <input
+              id="pc-risk-pct"
               type="number"
               value={riskPct}
               onChange={(e) => setRiskPct(e.target.value)}
@@ -124,8 +126,9 @@ const PositionCalculator = () => {
           </div>
 
           <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'block', fontSize: 13, color: '#4b5563', marginBottom: 4 }}>Giá vào</label>
+            <label htmlFor="pc-entry" style={{ display: 'block', fontSize: 13, color: '#4b5563', marginBottom: 4 }}>Giá vào</label>
             <input
+              id="pc-entry"
               type="number"
               value={entry}
               onChange={(e) => setEntry(e.target.value)}
@@ -136,8 +139,9 @@ const PositionCalculator = () => {
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: 13, color: '#4b5563', marginBottom: 4 }}>Giá stop (cắt lỗ)</label>
+            <label htmlFor="pc-stop" style={{ display: 'block', fontSize: 13, color: '#4b5563', marginBottom: 4 }}>Giá stop (cắt lỗ)</label>
             <input
+              id="pc-stop"
               type="number"
               value={stop}
               onChange={(e) => setStop(e.target.value)}
@@ -165,7 +169,7 @@ const PositionCalculator = () => {
 
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 12, color: '#6b7280' }}>Số cổ phiếu</div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: '#2563eb' }}>{fmtNum(result.shares)}</div>
+                <div data-testid="pc-shares" style={{ fontSize: 28, fontWeight: 700, color: '#2563eb' }}>{fmtNum(result.shares)}</div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>

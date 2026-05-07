@@ -2,19 +2,21 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import PositionCalculator from './PositionCalculator';
 
-// Inputs are number-type, so RTL exposes them as 'spinbutton' role.
-// Order matches DOM source: equity, riskPct, entry, stop.
-const NUMERIC = { equity: 0, risk: 1, entry: 2, stop: 3 };
+// Inputs now have htmlFor/id linkage, so we can use the accessible
+// getByLabelText API instead of indexing into role queries.
+const LABELS = {
+  equity: /Vốn tài khoản/i,
+  risk: /Rủi ro tối đa/i,
+  entry: /Giá vào/i,
+  stop: /Giá stop/i,
+};
 
 const setInput = (which, value) => {
-  const inputs = screen.getAllByRole('spinbutton');
-  fireEvent.change(inputs[NUMERIC[which]], { target: { value: String(value) } });
+  const input = screen.getByLabelText(LABELS[which]);
+  fireEvent.change(input, { target: { value: String(value) } });
 };
 
-const findShares = () => {
-  const heading = screen.getByText(/Số cổ phiếu/i);
-  return heading.parentElement.querySelector('div:nth-child(2)').textContent;
-};
+const findShares = () => screen.getByTestId('pc-shares').textContent;
 
 describe('PositionCalculator', () => {
   test('renders with sensible defaults and computes a position size', () => {

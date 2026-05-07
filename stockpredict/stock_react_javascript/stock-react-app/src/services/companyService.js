@@ -114,4 +114,5 @@ class CompanyService {
   }
 }
 
-export default new CompanyService();
+const companyServiceInstance = new CompanyService();
+export default companyServiceInstance;

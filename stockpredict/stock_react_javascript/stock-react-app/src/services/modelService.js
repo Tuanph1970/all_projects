@@ -207,4 +207,5 @@ class ModelService {
   }
 }
 
-export default new ModelService();
+const modelServiceInstance = new ModelService();
+export default modelServiceInstance;

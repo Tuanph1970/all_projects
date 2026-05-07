@@ -118,8 +118,9 @@ const ResetPasswordConfirm = () => {
         ) : (
           <form onSubmit={handleSubmit} className="auth-form">
             <div className="form-group">
-              <label className="form-label">Mật khẩu mới</label>
+              <label htmlFor="rpc-new-password" className="form-label">Mật khẩu mới</label>
               <input
+                id="rpc-new-password"
                 type="password"
                 name="password"
                 value={password}
@@ -135,8 +136,9 @@ const ResetPasswordConfirm = () => {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Xác nhận mật khẩu mới</label>
+              <label htmlFor="rpc-confirm-password" className="form-label">Xác nhận mật khẩu mới</label>
               <input
+                id="rpc-confirm-password"
                 type="password"
                 name="confirmPassword"
                 value={confirmPassword}

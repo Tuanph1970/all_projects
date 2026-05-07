@@ -114,4 +114,5 @@ class PortfolioService {
   }
 }
 
-export default new PortfolioService();
+const portfolioServiceInstance = new PortfolioService();
+export default portfolioServiceInstance;

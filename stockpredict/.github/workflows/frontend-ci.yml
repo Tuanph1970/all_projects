@@ -19,10 +19,6 @@ jobs:
   lint-and-build:
     name: Lint + build
     runs-on: ubuntu-latest
-    env:
-      CI: 'true'
-      # Disable CRA's "warnings as errors" — too noisy until we burn down lint debt.
-      DISABLE_ESLINT_PLUGIN: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -35,13 +31,16 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: ESLint (informational)
-        # CRA bundles ESLint into the build; surface lint output as a separate
-        # step but don't fail the job — gate it with `continue-on-error` until
-        # the existing lint warnings are cleaned up.
+        # Surfaces warnings without failing the job. Flip to required once
+        # Backlog #28 brings the count to zero.
         continue-on-error: true
         run: npx eslint "src/**/*.{js,jsx}" --max-warnings 9999
 
       - name: Production build
+        # CI=false so CRA leaves warnings as warnings rather than upgrading
+        # them to errors. Once #28 is fully burned down, set CI=true here.
+        env:
+          CI: 'false'
         run: npm run build
 
   test:

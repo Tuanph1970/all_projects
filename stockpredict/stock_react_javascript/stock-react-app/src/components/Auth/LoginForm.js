@@ -97,8 +97,8 @@ const LoginForm = () => {
         <form onSubmit={handleSubmit} className="auth-form">
           {(formType === 'login' || formType === 'register') && (
             <div className="form-group">
-              <label className="form-label">Tên đăng nhập</label>
-              <input
+              <label htmlFor="lf-username" className="form-label">Tên đăng nhập</label>
+              <input id="lf-username"
                 type="text"
                 name="username"
                 value={formData.username}
@@ -111,8 +111,8 @@ const LoginForm = () => {
 
           {(formType === 'register' || formType === 'forgot') && (
             <div className="form-group">
-              <label className="form-label">Email</label>
-              <input
+              <label htmlFor="lf-email" className="form-label">Email</label>
+              <input id="lf-email"
                 type="email"
                 name="email"
                 value={formData.email}
@@ -125,8 +125,8 @@ const LoginForm = () => {
 
           {(formType === 'login' || formType === 'register') && (
             <div className="form-group">
-              <label className="form-label">Mật khẩu</label>
-              <input
+              <label htmlFor="lf-password" className="form-label">Mật khẩu</label>
+              <input id="lf-password"
                 type="password"
                 name="password"
                 value={formData.password}
@@ -139,8 +139,8 @@ const LoginForm = () => {
 
           {formType === 'register' && (
             <div className="form-group">
-              <label className="form-label">Xác nhận mật khẩu</label>
-              <input
+              <label htmlFor="lf-confirmPassword" className="form-label">Xác nhận mật khẩu</label>
+              <input id="lf-confirmPassword"
                 type="password"
                 name="confirmPassword"
                 value={formData.confirmPassword}
@@ -154,8 +154,8 @@ const LoginForm = () => {
           {formType === 'changePassword' && (
             <>
               <div className="form-group">
-                <label className="form-label">Mật khẩu hiện tại</label>
-                <input
+                <label htmlFor="lf-currentPassword" className="form-label">Mật khẩu hiện tại</label>
+                <input id="lf-currentPassword"
                   type="password"
                   name="currentPassword"
                   value={formData.currentPassword}
@@ -165,8 +165,8 @@ const LoginForm = () => {
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Mật khẩu mới</label>
-                <input
+                <label htmlFor="lf-newPassword" className="form-label">Mật khẩu mới</label>
+                <input id="lf-newPassword"
                   type="password"
                   name="newPassword"
                   value={formData.newPassword}
@@ -176,8 +176,8 @@ const LoginForm = () => {
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Xác nhận mật khẩu mới</label>
-                <input
+                <label htmlFor="lf-confirmPassword" className="form-label">Xác nhận mật khẩu mới</label>
+                <input id="lf-confirmPassword"
                   type="password"
                   name="confirmPassword"
                   value={formData.confirmPassword}

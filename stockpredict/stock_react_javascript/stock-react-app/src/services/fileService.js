@@ -107,4 +107,5 @@ class FileService {
   }
 }
 
-export default new FileService();
+const fileServiceInstance = new FileService();
+export default fileServiceInstance;

@@ -34,7 +34,10 @@ describe('ResetPasswordConfirm', () => {
     global.fetch = jest.fn();
 
     render(<ResetPasswordConfirm />);
-    const inputs = document.querySelectorAll('input[type="password"]');
+    const inputs = [
+      screen.getByLabelText('Mật khẩu mới'),
+      screen.getByLabelText('Xác nhận mật khẩu mới'),
+    ];
     fireEvent.change(inputs[0], { target: { value: 'Password123' } });
     fireEvent.change(inputs[1], { target: { value: 'Different456' } });
     fireEvent.click(screen.getByRole('button', { name: /Đặt lại mật khẩu/ }));
@@ -48,7 +51,10 @@ describe('ResetPasswordConfirm', () => {
     global.fetch = jest.fn();
 
     render(<ResetPasswordConfirm />);
-    const inputs = document.querySelectorAll('input[type="password"]');
+    const inputs = [
+      screen.getByLabelText('Mật khẩu mới'),
+      screen.getByLabelText('Xác nhận mật khẩu mới'),
+    ];
     // The form's HTML5 minLength=8 will block submission below 8 chars,
     // so use 8+ chars but missing other complexity rules to exercise our
     // validatePassword JS path explicitly.
@@ -69,7 +75,10 @@ describe('ResetPasswordConfirm', () => {
     });
 
     render(<ResetPasswordConfirm />);
-    const inputs = document.querySelectorAll('input[type="password"]');
+    const inputs = [
+      screen.getByLabelText('Mật khẩu mới'),
+      screen.getByLabelText('Xác nhận mật khẩu mới'),
+    ];
     fireEvent.change(inputs[0], { target: { value: 'NewPassword123' } });
     fireEvent.change(inputs[1], { target: { value: 'NewPassword123' } });
     fireEvent.click(screen.getByRole('button', { name: /Đặt lại mật khẩu/ }));
@@ -92,7 +101,10 @@ describe('ResetPasswordConfirm', () => {
     });
 
     render(<ResetPasswordConfirm />);
-    const inputs = document.querySelectorAll('input[type="password"]');
+    const inputs = [
+      screen.getByLabelText('Mật khẩu mới'),
+      screen.getByLabelText('Xác nhận mật khẩu mới'),
+    ];
     fireEvent.change(inputs[0], { target: { value: 'NewPassword123' } });
     fireEvent.change(inputs[1], { target: { value: 'NewPassword123' } });
     fireEvent.click(screen.getByRole('button', { name: /Đặt lại mật khẩu/ }));

@@ -102,30 +102,10 @@ class Settings(BaseSettings):
         extra = "ignore"  # Allow extra environment variables
 
 
-_PLACEHOLDER_JWT_SECRET = "your-secret-key-change-in-production"
-_PLACEHOLDER_DB_PASSWORD = "Mysql_2025"
-
-
-def _validate_secrets(s: "Settings") -> None:
-    """Refuse to start in non-development environments with placeholder secrets.
-    Documented in SECURITY_AUDIT.md (HIGH #1, #2)."""
-    if s.ENVIRONMENT == "development":
-        return  # local dev convenience
-    problems = []
-    if s.JWT_SECRET_KEY == _PLACEHOLDER_JWT_SECRET:
-        problems.append("JWT_SECRET_KEY is unset (still default placeholder)")
-    if s.DATABASE_PASSWORD == _PLACEHOLDER_DB_PASSWORD:
-        problems.append("DATABASE_PASSWORD is unset (still default placeholder)")
-    if problems:
-        raise RuntimeError(
-            "auth-service refuses to start with default secrets in environment "
-            f"'{s.ENVIRONMENT}'. Set the env vars: " + ", ".join(problems)
-        )
-
-
 @lru_cache()
 def get_settings() -> Settings:
     """Get cached settings instance"""
+    from stock_common.secrets_validation import assert_no_placeholder_secrets
     s = Settings()
-    _validate_secrets(s)
+    assert_no_placeholder_secrets(s, service_name="auth-service")
     return s

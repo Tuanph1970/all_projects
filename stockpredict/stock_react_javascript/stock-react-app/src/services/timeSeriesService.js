@@ -109,4 +109,5 @@ class TimeSeriesService {
   }
 }
 
-export default new TimeSeriesService();
+const timeSeriesServiceInstance = new TimeSeriesService();
+export default timeSeriesServiceInstance;

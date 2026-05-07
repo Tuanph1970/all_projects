@@ -99,5 +99,8 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    """Get cached settings instance"""
-    return Settings()
+    """Get cached settings instance, validated against placeholder secrets."""
+    from stock_common.secrets_validation import assert_no_placeholder_secrets
+    s = Settings()
+    assert_no_placeholder_secrets(s, service_name="stock-data-service")
+    return s

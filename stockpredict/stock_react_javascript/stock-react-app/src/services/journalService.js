@@ -242,4 +242,5 @@ class JournalService {
   }
 }
 
-export default new JournalService();
+const journalServiceInstance = new JournalService();
+export default journalServiceInstance;

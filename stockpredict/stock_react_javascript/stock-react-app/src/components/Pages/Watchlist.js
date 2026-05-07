@@ -97,7 +97,11 @@ const Watchlist = () => {
 
       {showAdd && (
         <form onSubmit={handleAdd} style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <label htmlFor="wl-symbol" className="visually-hidden" style={{ position: 'absolute', left: '-10000px' }}>
+            Mã cổ phiếu
+          </label>
           <input
+            id="wl-symbol"
             type="text"
             value={newSymbol}
             onChange={(e) => setNewSymbol(e.target.value)}

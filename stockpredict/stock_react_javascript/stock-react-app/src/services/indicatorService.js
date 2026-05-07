@@ -162,4 +162,5 @@ class IndicatorService {
   }
 }
 
-export default new IndicatorService();
+const indicatorServiceInstance = new IndicatorService();
+export default indicatorServiceInstance;
