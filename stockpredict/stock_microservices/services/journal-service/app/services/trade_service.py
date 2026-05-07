@@ -261,8 +261,12 @@ class TradeService:
                 return None
             return self.enrich_trade(trade, account.current_equity)
 
-        # If closing trade, ensure exit fields are present
-        if update_data.get("status") == TradeStatus.CLOSED:
+        # If closing trade, ensure exit fields are present.
+        # `model_dump(exclude_unset=True)` serializes the schema enum to its
+        # string value ("Closed"), so compare against `.value` rather than the
+        # enum member — the prior `== TradeStatus.CLOSED` check silently never
+        # matched and let post-close requests through without an exit price.
+        if update_data.get("status") == TradeStatus.CLOSED.value:
             trade = await self.trade_repo.get_trade_by_id(trade_id, account_id)
             if not trade:
                 return None

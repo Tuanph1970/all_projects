@@ -38,6 +38,15 @@ class Settings(BaseSettings):
     MAX_CONVERSATION_HISTORY: int = 20
     SESSION_TIMEOUT_MINUTES: int = 30
 
+
+    # CORS — comma-separated list of allowed origins. Wildcard with credentials
+    # is unsafe (CSRF risk); SECURITY_AUDIT.md HIGH #3.
+    CORS_ORIGINS: str = "http://localhost:3004,http://localhost:3000"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
     class Config:
         env_file = ".env"
 

@@ -20,7 +20,7 @@ from app.models.schemas import (
     CompanyFinancialsResponse,
 )
 from app.services.stock_service import StockService
-from app.api.dependencies import get_stock_service
+from app.api.dependencies import get_stock_service, require_admin
 
 
 router = APIRouter(tags=["Stock Data"])
@@ -180,10 +180,14 @@ async def get_historical_data(
 )
 async def sync_company_data(
     stock_service: StockService = Depends(get_stock_service),
+    _user: dict = Depends(require_admin),
 ):
     """
     Manually trigger a full re-sync of VN30 company profiles,
     financial statements, and historical price data.
+
+    Admin-only — gated to prevent unauthenticated request floods that would
+    hammer VNStock and the database (SECURITY_AUDIT.md HIGH #4).
     """
     import asyncio
     asyncio.create_task(stock_service.sync_all_company_data())
@@ -493,10 +497,14 @@ async def get_price_board(
 async def refresh_price_board(
     group: str = Query("VN30", description="Stock group (VN30, VN100)"),
     stock_service: StockService = Depends(get_stock_service),
+    _user: dict = Depends(require_admin),
 ):
     """
     Fetch fresh price board data from Vietcap API and store in DB.
     Called after login to warm the cache. Slow (~20s) but non-blocking for the caller.
+
+    Admin-only — the call is expensive and previously could be triggered by
+    any unauthenticated client (SECURITY_AUDIT.md HIGH #4).
     """
     try:
         count = await stock_service.refresh_price_board(group=group)

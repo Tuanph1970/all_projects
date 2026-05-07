@@ -147,6 +147,24 @@ async def test_trade_update_with_exit_info_closes_trade(
 
 
 @pytest.mark.asyncio
+async def test_trade_close_without_exit_price_rejected(
+    client, headers, account, trade
+):
+    """Regression for Backlog #25: PUT /trades with status=Closed but no
+    exit_price must 400. Prior to the fix, model_dump serialized the enum
+    to "Closed" so the guard against TradeStatus.CLOSED never fired and
+    the close went through silently with no exit recorded.
+    """
+    aid, tid = account["id"], trade["id"]
+    r = await client.put(
+        f"{API_PREFIX}/accounts/{aid}/trades/{tid}",
+        json={"status": "Closed"},
+        headers=headers,
+    )
+    assert r.status_code == 400, r.text
+
+
+@pytest.mark.asyncio
 async def test_get_risk_info_includes_account_limits(client, headers, account, trade):
     r = await client.get(f"{API_PREFIX}/accounts/{account['id']}/risk", headers=headers)
     assert r.status_code == 200

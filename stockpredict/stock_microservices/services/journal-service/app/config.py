@@ -54,6 +54,15 @@ class Settings(BaseSettings):
     def database_url(self) -> str:
         return f"mysql+asyncmy://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
 
+
+    # CORS — comma-separated list of allowed origins. Wildcard with credentials
+    # is unsafe (CSRF risk); SECURITY_AUDIT.md HIGH #3.
+    CORS_ORIGINS: str = "http://localhost:3004,http://localhost:3000"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
     class Config:
         env_file = ".env"
 

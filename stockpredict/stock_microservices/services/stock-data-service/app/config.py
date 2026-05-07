@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: Optional[str] = None
     CACHE_TTL: int = 300  # 5 minutes default cache
 
+    # JWT — shared secret with auth-service for validating bearer tokens.
+    # Currently only used to gate admin endpoints (/companies/sync,
+    # /priceboards/refresh). SECURITY_AUDIT.md HIGH #4.
+    JWT_SECRET_KEY: str = "your-secret-key-change-in-production"
+    JWT_ALGORITHM: str = "HS256"
+
     # VNStock Configuration
     VNSTOCK_DATA_SOURCE: str = "VCI"
 
