@@ -162,41 +162,16 @@ async def get_batch_insights(
 
 @router.get("/trending", response_model=TrendingResponse)
 async def get_trending(
-    current_user: Optional[dict] = Depends(get_current_user_optional)
+    current_user: Optional[dict] = Depends(get_current_user_optional),
 ):
-    """Get trending topics and hot stocks"""
-    # In production, this would aggregate from news, social media, trading volume
-    # For now, return mock trending data
-    topics = [
-        TrendingTopic(
-            topic="VN-Index rally",
-            category="market",
-            mentions=150,
-            sentiment="bullish",
-            related_symbols=["VNM", "VIC", "VHM"]
-        ),
-        TrendingTopic(
-            topic="Banking sector growth",
-            category="sector",
-            mentions=89,
-            sentiment="bullish",
-            related_symbols=["VCB", "BID", "CTG", "TCB"]
-        ),
-        TrendingTopic(
-            topic="Tech stocks momentum",
-            category="sector",
-            mentions=67,
-            sentiment="neutral",
-            related_symbols=["FPT", "CMG"]
-        ),
-    ]
-
-    return TrendingResponse(
-        topics=topics,
-        hot_stocks=["VNM", "FPT", "VCB", "VIC", "HPG"],
-        market_mood="cautiously_optimistic",
-        generated_at=datetime.now()
-    )
+    """Get trending topics and hot stocks computed from real top-mover
+    data (Backlog #2). Topics derive from gainer/loser concentration;
+    hot_stocks are top-actives by volume; market_mood reflects breadth.
+    Degrades gracefully (empty topics, mood='unknown') if the upstream
+    stock-data feed is down.
+    """
+    service = InsightsService()
+    return await service.get_trending_data()
 
 
 @router.get("/recommendations")
@@ -286,64 +261,16 @@ async def get_portfolio_insight(
 
 @router.get("/sectors", response_model=SectorsResponse)
 async def get_sectors_insight(
-    current_user: Optional[dict] = Depends(get_current_user_optional)
+    current_user: Optional[dict] = Depends(get_current_user_optional),
 ):
-    """Get AI insights for market sectors"""
-    sectors = [
-        SectorInsight(
-            sector_code="BANK",
-            sector_name="Banking",
-            sentiment="bullish",
-            outlook="positive",
-            key_drivers=["Interest rate stability", "Credit growth", "Digital transformation"],
-            top_picks=["VCB", "TCB", "MBB"]
-        ),
-        SectorInsight(
-            sector_code="REAL",
-            sector_name="Real Estate",
-            sentiment="neutral",
-            outlook="mixed",
-            key_drivers=["Policy changes", "Infrastructure development", "Urbanization"],
-            top_picks=["VHM", "NVL", "KDH"]
-        ),
-        SectorInsight(
-            sector_code="TECH",
-            sector_name="Technology",
-            sentiment="bullish",
-            outlook="positive",
-            key_drivers=["Digital transformation", "Outsourcing growth", "AI adoption"],
-            top_picks=["FPT", "CMG"]
-        ),
-        SectorInsight(
-            sector_code="CONS",
-            sector_name="Consumer Goods",
-            sentiment="neutral",
-            outlook="stable",
-            key_drivers=["Domestic consumption", "Export recovery", "Brand strength"],
-            top_picks=["VNM", "MSN", "SAB"]
-        ),
-        SectorInsight(
-            sector_code="MANU",
-            sector_name="Manufacturing",
-            sentiment="neutral",
-            outlook="recovering",
-            key_drivers=["Export orders", "Raw material costs", "Labor availability"],
-            top_picks=["HPG", "HSG", "NKG"]
-        ),
-    ]
-
-    # Determine best and worst sectors
-    sentiment_scores = {"bullish": 2, "neutral": 1, "bearish": 0}
-    best = max(sectors, key=lambda s: sentiment_scores.get(s.sentiment, 1))
-    worst = min(sectors, key=lambda s: sentiment_scores.get(s.sentiment, 1))
-
-    return SectorsResponse(
-        sectors=sectors,
-        best_sector=best.sector_code,
-        worst_sector=worst.sector_code,
-        market_rotation="Growth sectors favored, defensive sectors stable",
-        generated_at=datetime.now()
-    )
+    """Get AI insights for market sectors, computed from real industry data
+    (Backlog #3). Sentiment is derived from average daily change_percent
+    across each sector's constituents; top_picks are the day's best
+    performers in that sector. Returns whatever sectors had data available
+    — empty list if the upstream industries feed is down.
+    """
+    service = InsightsService()
+    return await service.get_sectors_data()
 
 
 # ==========================================

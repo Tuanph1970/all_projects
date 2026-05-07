@@ -400,6 +400,207 @@ Maintain current position and monitor for clearer signals before taking action.
         )
 
     # ==========================================
+    # Real trending + sectors signals (replace prior hardcoded mocks)
+    # ==========================================
+
+    async def _fetch_top_movers(self) -> Dict[str, list]:
+        """Pull top gainers / losers / actives from stock-data-service.
+        Returns empty lists for any endpoint that fails — callers degrade
+        gracefully rather than 500.
+        """
+        out: Dict[str, list] = {"gainers": [], "losers": [], "actives": []}
+        endpoints = {
+            "gainers": "/companies/top-gainers",
+            "losers": "/companies/top-losers",
+            "actives": "/companies/top-actives",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                for key, path in endpoints.items():
+                    try:
+                        resp = await client.get(
+                            f"{settings.STOCK_DATA_SERVICE_URL}/{settings.API_PREFIX}/api/v2/stocks{path}",
+                            params={"limit": 10},
+                        )
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            out[key] = data if isinstance(data, list) else data.get("stocks") or data.get("data") or []
+                    except Exception as e:
+                        logger.debug("Top-mover %s fetch failed: %s", key, e)
+        except Exception as e:
+            logger.warning("Top-mover client failed: %s", e)
+        return out
+
+    async def get_trending_data(self):
+        """Compute trending topics + hot stocks from real top-mover data.
+
+        Replaces the prior hardcoded sample (Backlog #2). Topics are
+        synthesized from the gainer/loser concentration; hot_stocks are
+        the top-actives by volume.
+        """
+        from app.models.schemas import TrendingTopic, TrendingResponse
+
+        movers = await self._fetch_top_movers()
+        gainers = movers["gainers"][:5]
+        losers = movers["losers"][:5]
+        actives = movers["actives"][:5]
+
+        topics: List[TrendingTopic] = []
+
+        if gainers:
+            top_gainer = gainers[0]
+            topics.append(TrendingTopic(
+                topic=f"Bull move led by {top_gainer.get('symbol', '?')}",
+                category="market",
+                mentions=len(gainers),
+                sentiment="bullish",
+                related_symbols=[s.get("symbol") for s in gainers if s.get("symbol")],
+            ))
+
+        if losers:
+            top_loser = losers[0]
+            topics.append(TrendingTopic(
+                topic=f"Pressure on {top_loser.get('symbol', '?')} and peers",
+                category="market",
+                mentions=len(losers),
+                sentiment="bearish",
+                related_symbols=[s.get("symbol") for s in losers if s.get("symbol")],
+            ))
+
+        if actives:
+            topics.append(TrendingTopic(
+                topic="High-volume names",
+                category="volume",
+                mentions=len(actives),
+                sentiment="neutral",
+                related_symbols=[s.get("symbol") for s in actives if s.get("symbol")],
+            ))
+
+        # Market mood from gainer-vs-loser balance.
+        gainer_count = len(gainers)
+        loser_count = len(losers)
+        if gainer_count > loser_count + 2:
+            mood = "bullish"
+        elif loser_count > gainer_count + 2:
+            mood = "bearish"
+        elif gainer_count + loser_count == 0:
+            mood = "unknown"  # data feed down
+        else:
+            mood = "cautiously_optimistic" if gainer_count >= loser_count else "cautious"
+
+        hot_stocks = [s.get("symbol") for s in actives[:5] if s.get("symbol")]
+
+        return TrendingResponse(
+            topics=topics,
+            hot_stocks=hot_stocks,
+            market_mood=mood,
+            generated_at=datetime.now(),
+        )
+
+    async def _fetch_industry_companies(self, industry_code: str) -> list:
+        """Get companies for a single industry. Empty list on failure."""
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(
+                    f"{settings.STOCK_DATA_SERVICE_URL}/{settings.API_PREFIX}/api/v2/industries/{industry_code}/companies",
+                    params={"limit": 20},
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, list):
+                        return data
+                    return data.get("companies") or data.get("data") or []
+        except Exception as e:
+            logger.debug("Industry %s fetch failed: %s", industry_code, e)
+        return []
+
+    async def get_sectors_data(self):
+        """Compute sector sentiment from average daily change_percent across
+        each sector's constituents (Backlog #3).
+        """
+        from app.models.schemas import SectorInsight, SectorsResponse
+
+        # Subset of major Vietnamese market sectors. Each tuple is
+        # (industry_code, display_name) — industry_code matches the codes
+        # served by stock-data-service /industries/<code>/companies.
+        sectors_to_check = [
+            ("8300", "Banking"),
+            ("8770", "Real Estate"),
+            ("9530", "Technology"),
+            ("1750", "Industrial Materials"),
+            ("3500", "Food & Beverage"),
+        ]
+
+        insights: List[SectorInsight] = []
+        for code, name in sectors_to_check:
+            companies = await self._fetch_industry_companies(code)
+            if not companies:
+                continue
+
+            changes = [
+                c.get("change_percent") or c.get("changePercent") or 0
+                for c in companies
+                if isinstance(c.get("change_percent") or c.get("changePercent"), (int, float))
+            ]
+            if not changes:
+                continue
+
+            avg_change = sum(changes) / len(changes)
+            if avg_change > 0.8:
+                sentiment, outlook = "bullish", "positive"
+            elif avg_change < -0.8:
+                sentiment, outlook = "bearish", "negative"
+            else:
+                sentiment, outlook = "neutral", "stable"
+
+            sorted_companies = sorted(
+                companies,
+                key=lambda c: c.get("change_percent") or c.get("changePercent") or 0,
+                reverse=True,
+            )
+            top_picks = [
+                c.get("symbol")
+                for c in sorted_companies[:3]
+                if c.get("symbol")
+            ]
+            drivers = [f"Avg sector move {avg_change:+.2f}% on {len(changes)} names"]
+
+            insights.append(SectorInsight(
+                sector_code=code,
+                sector_name=name,
+                sentiment=sentiment,
+                outlook=outlook,
+                key_drivers=drivers,
+                top_picks=top_picks,
+            ))
+
+        # Best/worst by sentiment ranking, with neutral mid.
+        sentiment_score = {"bullish": 1, "neutral": 0, "bearish": -1}
+        if insights:
+            best = max(insights, key=lambda s: sentiment_score.get(s.sentiment, 0))
+            worst = min(insights, key=lambda s: sentiment_score.get(s.sentiment, 0))
+            best_name, worst_name = best.sector_name, worst.sector_name
+        else:
+            best_name = worst_name = "—"
+
+        bullish_count = sum(1 for i in insights if i.sentiment == "bullish")
+        bearish_count = sum(1 for i in insights if i.sentiment == "bearish")
+        if bullish_count > bearish_count:
+            rotation = "Risk-on rotation into growth sectors"
+        elif bearish_count > bullish_count:
+            rotation = "Defensive rotation; growth under pressure"
+        else:
+            rotation = "Mixed sector breadth"
+
+        return SectorsResponse(
+            sectors=insights,
+            best_sector=best_name,
+            worst_sector=worst_name,
+            market_rotation=rotation,
+            generated_at=datetime.now(),
+        )
+
+    # ==========================================
     # Comprehensive AI Insights Methods
     # ==========================================
 

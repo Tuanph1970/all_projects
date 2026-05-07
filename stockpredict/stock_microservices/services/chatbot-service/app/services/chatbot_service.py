@@ -52,6 +52,119 @@ class ChatbotService:
             except Exception:
                 pass
 
+    # ------------------------------------------------------------------
+    # Usage stats — Redis-backed counters powering GET /stats.
+    #
+    # Two granularities are kept side-by-side so /stats can answer any
+    # period in O(constant) reads:
+    #   * Daily counters at chatbot:stats:YYYY-MM-DD:* — used for today /
+    #     week / month aggregations (summed at read time).
+    #   * All-time counters at chatbot:stats:total:* — used for "all"
+    #     directly, no aggregation needed.
+    # All counters are best-effort: if Redis is down, /stats degrades
+    # to zeros rather than failing.
+    # ------------------------------------------------------------------
+    async def _track_usage(
+        self,
+        intent_name: str,
+        is_new_session: bool,
+        response_ms: float,
+    ) -> None:
+        if not self.redis_client:
+            return
+        try:
+            today = datetime.utcnow().strftime("%Y-%m-%d")
+            daily = f"chatbot:stats:{today}"
+            total = "chatbot:stats:total"
+
+            pipe = self.redis_client.pipeline()
+            pipe.incr(f"{daily}:messages")
+            pipe.incr(f"{total}:messages")
+            pipe.incrby(f"{daily}:response_ms_sum", int(response_ms))
+            pipe.incrby(f"{total}:response_ms_sum", int(response_ms))
+            pipe.incr(f"{daily}:response_count")
+            pipe.incr(f"{total}:response_count")
+            pipe.hincrby(f"{daily}:intents", intent_name, 1)
+            pipe.hincrby(f"{total}:intents", intent_name, 1)
+            if is_new_session:
+                pipe.incr(f"{daily}:sessions")
+                pipe.incr(f"{total}:sessions")
+            # Keep daily counters for ~90 days so month aggregations stay
+            # accurate and we don't grow Redis indefinitely.
+            pipe.expire(f"{daily}:messages", 90 * 86400)
+            pipe.expire(f"{daily}:response_ms_sum", 90 * 86400)
+            pipe.expire(f"{daily}:response_count", 90 * 86400)
+            pipe.expire(f"{daily}:intents", 90 * 86400)
+            pipe.expire(f"{daily}:sessions", 90 * 86400)
+            await pipe.execute()
+        except Exception as e:
+            logger.debug("Usage tracking failed (non-fatal): %s", e)
+
+    async def get_usage_stats(self, period: str) -> Dict[str, Any]:
+        """Aggregate usage stats over the requested period.
+
+        Returns a dict matching the UsageStats schema. Falls back to zeros
+        if Redis is unavailable so the endpoint stays up.
+        """
+        zero_stats = {
+            "total_sessions": 0,
+            "total_messages": 0,
+            "avg_messages_per_session": 0.0,
+            "top_intents": {},
+            "avg_response_time_ms": 0.0,
+            "satisfaction_rate": None,
+        }
+        if not self.redis_client:
+            return zero_stats
+
+        try:
+            if period == "all":
+                date_keys = ["chatbot:stats:total"]
+            else:
+                days = {"today": 1, "week": 7, "month": 30}.get(period, 1)
+                today = datetime.utcnow().date()
+                date_keys = [
+                    f"chatbot:stats:{(today - timedelta(days=i)).isoformat()}"
+                    for i in range(days)
+                ]
+
+            sessions = 0
+            messages = 0
+            response_ms_sum = 0
+            response_count = 0
+            intents: Dict[str, int] = {}
+            for key in date_keys:
+                pipe = self.redis_client.pipeline()
+                pipe.get(f"{key}:sessions")
+                pipe.get(f"{key}:messages")
+                pipe.get(f"{key}:response_ms_sum")
+                pipe.get(f"{key}:response_count")
+                pipe.hgetall(f"{key}:intents")
+                s, m, rs, rc, intent_map = await pipe.execute()
+                sessions += int(s or 0)
+                messages += int(m or 0)
+                response_ms_sum += int(rs or 0)
+                response_count += int(rc or 0)
+                for name, count in (intent_map or {}).items():
+                    intents[name] = intents.get(name, 0) + int(count)
+
+            avg_messages = (messages / sessions) if sessions else 0.0
+            avg_response_ms = (response_ms_sum / response_count) if response_count else 0.0
+            top_intents = dict(
+                sorted(intents.items(), key=lambda kv: kv[1], reverse=True)[:10]
+            )
+            return {
+                "total_sessions": sessions,
+                "total_messages": messages,
+                "avg_messages_per_session": round(avg_messages, 2),
+                "top_intents": top_intents,
+                "avg_response_time_ms": round(avg_response_ms, 1),
+                "satisfaction_rate": None,  # No feedback signal wired yet
+            }
+        except Exception as e:
+            logger.warning("Failed to read usage stats: %s", e)
+            return zero_stats
+
     def _detect_intent(self, message: str) -> DetectedIntent:
         """Simple rule-based intent detection"""
         message_lower = message.lower()
@@ -184,12 +297,16 @@ class ChatbotService:
     async def chat(self, message: str, session_id: Optional[str] = None,
                   user_id: Optional[int] = None, context: Optional[Dict] = None) -> ChatResponse:
         """Process chat message and return response"""
+        import time
+        start_time = time.perf_counter()
 
         # Get or create session
         if not session_id:
             session_id = str(uuid.uuid4())
 
-        session = await self._get_session(session_id) or {
+        existing = await self._get_session(session_id)
+        is_new_session = existing is None
+        session = existing or {
             "messages": [],
             "context": context or {},
             "user_id": user_id,
@@ -222,6 +339,14 @@ class ChatbotService:
 
         # Save session
         await self._save_session(session_id, session)
+
+        # Best-effort usage tracking — never blocks the response.
+        elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+        await self._track_usage(
+            intent_name=intent.intent.value,
+            is_new_session=is_new_session,
+            response_ms=elapsed_ms,
+        )
 
         # Generate suggestions
         suggestions = self._generate_suggestions(intent)

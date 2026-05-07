@@ -265,30 +265,19 @@ async def get_intents():
 @router.get("/stats", response_model=StatsResponse)
 async def get_stats(
     period: str = Query(default="today", regex="^(today|week|month|all)$"),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
-    """Get chatbot usage statistics (admin only)"""
-    # In production, aggregate from database/analytics
-    # For now, return mock statistics
+    """Get chatbot usage statistics (admin only).
 
-    stats = UsageStats(
-        total_sessions=1250,
-        total_messages=8750,
-        avg_messages_per_session=7.0,
-        top_intents={
-            "stock_price": 3500,
-            "stock_analysis": 2100,
-            "stock_prediction": 1500,
-            "market_overview": 850,
-            "stock_comparison": 500,
-            "general_question": 300
-        },
-        avg_response_time_ms=245.5,
-        satisfaction_rate=0.82
-    )
-
+    Numbers are aggregated from Redis counters that the /chat endpoint
+    increments per turn. Returns zeros when Redis is unavailable rather
+    than failing — the endpoint stays up so admin dashboards keep working.
+    Backlog #4.
+    """
+    service = ChatbotService()
+    raw = await service.get_usage_stats(period)
     return StatsResponse(
         period=period,
-        stats=stats,
-        generated_at=datetime.now()
+        stats=UsageStats(**raw),
+        generated_at=datetime.now(),
     )
