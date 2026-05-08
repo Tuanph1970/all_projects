@@ -1,0 +1,89 @@
+name: publish-images
+
+on:
+  push:
+    tags:
+      - 'v*'           # e.g. v1.2.0, v2026.05.07
+  workflow_dispatch:    # manual trigger from the Actions tab
+    inputs:
+      tag:
+        description: 'Image tag to publish (e.g. nightly, hotfix-2026-05-07)'
+        required: true
+        default: 'manual'
+
+# Builds and pushes all 9 microservice images to GitHub Container Registry
+# (ghcr.io/<owner>/<repo>/<service>:<tag>). Tag-triggered: every `git tag v*`
+# push produces a coherent set of images sharing the same git revision.
+#
+# To deploy a published tag locally:
+#   IMAGE_TAG=v1.2.0 docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+#   IMAGE_TAG=v1.2.0 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# (compose files reference ${IMAGE_TAG} per service.)
+
+defaults:
+  run:
+    working-directory: stock_microservices
+
+permissions:
+  contents: read
+  packages: write   # required to push to ghcr.io
+
+jobs:
+  build-and-push:
+    name: Build & push · ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - auth-service
+          - stock-data-service
+          - portfolio-service
+          - prediction-service
+          - analysis-service
+          - ai-insights-service
+          - chatbot-service
+          - journal-service
+          - knowledge-qa-service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve image tag
+        id: tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "value=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            # Strip leading "refs/tags/" from $GITHUB_REF
+            echo "value=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push
+        uses: docker/build-push-action@v5
+        with:
+          # Build context is stock_microservices/ so each service's Dockerfile
+          # can COPY stock-common alongside its own source.
+          context: stock_microservices
+          file: stock_microservices/services/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/${{ matrix.service }}:${{ steps.tag.outputs.value }}
+            ghcr.io/${{ github.repository }}/${{ matrix.service }}:latest
+          # Re-use buildx cache between runs of the same workflow.
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.tag.outputs.value }}
