@@ -25,8 +25,13 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "llama3.1"
     OLLAMA_TIMEOUT: float = 120.0
 
-    # CORS
-    CORS_ORIGINS: str = "*"
+    # CORS — comma-separated list of allowed origins. Wildcard with credentials
+    # is unsafe (CSRF risk); SECURITY_AUDIT.md HIGH #3.
+    CORS_ORIGINS: str = "http://localhost:3004,http://localhost:3000"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
     # Tracing
     TRACING_ENABLED: bool = True
