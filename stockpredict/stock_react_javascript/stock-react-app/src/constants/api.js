@@ -114,6 +114,13 @@ export const API_ENDPOINTS = {
   WATCHLIST: `${API_BASE_URLS.PORTFOLIO_API}/watchlist`,
   WATCHLIST_REMOVE: (symbol) => `${API_BASE_URLS.PORTFOLIO_API}/watchlist/${symbol}`,
 
+  // Notifications endpoints — backend persists portfolio.alert.triggered
+  // events as Notification rows; the bell-icon widget consumes these.
+  NOTIFICATIONS_LIST: `${API_BASE_URLS.PORTFOLIO_API}/notifications`,
+  NOTIFICATION_MARK_READ: (id) => `${API_BASE_URLS.PORTFOLIO_API}/notifications/${id}/read`,
+  NOTIFICATIONS_READ_ALL: `${API_BASE_URLS.PORTFOLIO_API}/notifications/read-all`,
+  NOTIFICATION_DELETE: (id) => `${API_BASE_URLS.PORTFOLIO_API}/notifications/${id}`,
+
   // Alerts endpoints (/api/v2/alerts)
   ALERTS_LIST: `${API_BASE_URLS.ALERTS_API}`,
   ALERT_CREATE: `${API_BASE_URLS.ALERTS_API}`,

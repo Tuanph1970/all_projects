@@ -1,7 +1,8 @@
 // src/components/Layout/Header.js
 import React from 'react';
-import { LogOut, Menu, Bell, User, ChevronRight, ChevronLeft } from 'lucide-react';
+import { LogOut, Menu, User, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import NotificationBell from './NotificationBell';
 
 const Header = ({ onToggleSidebar, isSidebarCollapsed }) => {
   const { user, logout } = useAuth();
@@ -30,10 +31,7 @@ const Header = ({ onToggleSidebar, isSidebarCollapsed }) => {
         </div>
 
         <div className="header-right">
-          <button className="notification-button">
-            <Bell />
-            <span className="notification-badge">3</span>
-          </button>
+          <NotificationBell />
 
           <div className="user-section">
             <div className="user-avatar">
