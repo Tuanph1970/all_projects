@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { useRouter } from "../../../context/RouterContext";
 import { Button, ButtonGroup } from "react-bootstrap";
 import DataTable from 'react-data-table-component'
 import solutionService from "../../../services/solutionService";
@@ -7,7 +6,8 @@ import SolutionModal from "./SolutionModal";
 import "../../../styles/solution-list.css";
 
 const SolutionList = () => {
-  const { navigate } = useRouter();
+  // navigate was destructured here but never called — dropped during the
+  // useRouter → react-router migration. Add useNavigate back if needed.
   const [solutionList, setSolutionList] = useState([]);
   const [filteredSolutions, setFilteredSolutions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);

@@ -10,9 +10,14 @@ import logging
 
 from app.config import get_settings
 from app.api.routes import router
+from app.api.notification_routes import router as notification_router
 from app.api.dependencies import engine
 from app.models.domain import Base
 from app.services.alert_event_handler import start_alert_consumer, stop_alert_consumer
+from app.services.notification_consumer import (
+    start_notification_consumer,
+    stop_notification_consumer,
+)
 
 settings = get_settings()
 
@@ -50,10 +55,15 @@ async def lifespan(app: FastAPI):
     # Returns None silently if RabbitMQ is unavailable — service still serves CRUD.
     await start_alert_consumer(service_name=settings.SERVICE_NAME)
 
+    # Subscribe to portfolio.alert.triggered (the alert handler emits this
+    # after marking an alert) and persist as a Notification row.
+    await start_notification_consumer(service_name=settings.SERVICE_NAME)
+
     yield
 
     # Cleanup
     await stop_alert_consumer()
+    await stop_notification_consumer()
     await engine.dispose()
     logger.info(f"Shutting down {settings.SERVICE_NAME}")
 
@@ -99,6 +109,15 @@ async def metrics_middleware(request: Request, call_next):
 
     return response
 
+
+# Notifications router included BEFORE the main portfolio router so its
+# static `/notifications` paths aren't shadowed by the main router's
+# trailing `/{portfolio_id}` catch-all.
+app.include_router(
+    notification_router,
+    prefix=f"/{settings.API_PREFIX}/api/v2/portfolio",
+    tags=["Notifications"]
+)
 
 # Include API routes
 app.include_router(

@@ -2,9 +2,9 @@ import React,{useEffect,useState} from "react";
 import { useForm } from "react-hook-form"
 import httpClient from "../../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../../constants/api";
-import { useRouter } from "../../../../context/RouterContext";
+import { useNavigate } from "react-router-dom";
 const GeneralSollutionInfo = (props) =>{
-    const { navigate } = useRouter();
+    const navigate = useNavigate();
     const [showPastCovariate,setShowPastCovariate] = useState(false)
     const [showFutureCovariate,setShowFutureCovariate] = useState(false)
     const { register,handleSubmit,reset,formState: { errors },watch} = useForm();
@@ -117,7 +117,7 @@ const GeneralSollutionInfo = (props) =>{
                     <button
                         type="button"
                         className="btn btn-primary"
-                        onClick={() => navigate('models')}
+                        onClick={() => navigate('/models')}
                     >
                         Go to Models
                     </button>

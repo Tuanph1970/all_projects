@@ -93,3 +93,33 @@ class PriceAlert(Base):
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class NotificationType(enum.Enum):
+    ALERT_TRIGGERED = "alert.triggered"
+    JOURNAL_REMINDER = "journal.reminder"   # reserved for future
+    TRAINING_DONE = "training.done"          # reserved for future
+    SYSTEM = "system"
+
+
+class Notification(Base):
+    """User-facing notifications. Persisted from event-bus events
+    (currently portfolio.alert.triggered) so the UI can render an
+    inbox / bell-icon dropdown. New notifications are unread; the
+    UI updates `read_at` when the user dismisses one.
+    """
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    type = Column(SQLEnum(NotificationType), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    body = Column(Text, nullable=True)
+    # Free-form per-type metadata (symbol, alert_id, trigger_price, etc.)
+    # — kept JSON-serialized in TEXT to avoid a new column per notif type.
+    metadata_json = Column(Text, nullable=True)
+    # The event_id of the source event that produced this notification.
+    # Lets us dedupe if the same event is replayed (DLQ retry / restart).
+    source_event_id = Column(String(64), nullable=True, index=True)
+    read_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)

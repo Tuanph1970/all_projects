@@ -2,7 +2,7 @@ import React,{useEffect,useState} from "react";
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
 import 'react-tabs/style/react-tabs.css';
 import "bootstrap/dist/css/bootstrap.min.css";
-import { useRouter } from '../../../context/RouterContext';
+import { useLocation } from 'react-router-dom';
 import GeneralSollutionInfo from './SolutionDetailComponents/GeneralSolutionInfo';
 import TrainingSolution from './SolutionDetailComponents/TrainingSolution';
 import PredictSolution from "./SolutionDetailComponents/PredictSolution";
@@ -43,7 +43,7 @@ export async function getTimeSeries(){
 }
 
 const SolutionEdit = ()=>{
-    const { currentRoute } = useRouter();
+    const location = useLocation();
     const [isLoading,setIsLoading] = useState(true)
     const [solution,setSolution] = useState(null)
     const [tickerList,setTickerList ] = useState([])
@@ -55,8 +55,10 @@ const SolutionEdit = ()=>{
     // State for trained model info
     const [trainedModelInfo, setTrainedModelInfo] = useState(null)
 
-    // Extract solutionId from currentRoute
-    const solutionId = currentRoute.split('/')[1];
+    // Extract solutionId from the current URL path. Pathname is
+    // "/solution-edit/<id>"; .split("/").filter(Boolean) yields
+    // ["solution-edit", "<id>"], so [1] is the id.
+    const solutionId = location.pathname.split('/').filter(Boolean)[1];
 
     // Callback to receive prediction dates from TrainingSolution
     const handleTrainingComplete = (trainingResult) => {

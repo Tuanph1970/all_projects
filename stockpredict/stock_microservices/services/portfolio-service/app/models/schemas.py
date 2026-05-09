@@ -200,3 +200,28 @@ class BulkTransactionResponse(BaseModel):
     failed: int
     transactions: List[TransactionResponse]
     errors: List[str]
+
+
+# Notifications
+class NotificationResponse(BaseModel):
+    id: int
+    type: str
+    title: str
+    body: Optional[str] = None
+    metadata: Optional[dict] = None
+    read: bool
+    created_at: datetime
+    read_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class NotificationListResponse(BaseModel):
+    items: List[NotificationResponse]
+    total: int
+    unread: int
+
+
+class MarkReadResponse(BaseModel):
+    updated: int
