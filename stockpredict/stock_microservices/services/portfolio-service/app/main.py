@@ -18,6 +18,10 @@ from app.services.notification_consumer import (
     start_notification_consumer,
     stop_notification_consumer,
 )
+from app.services.email_consumer import (
+    start_email_consumer,
+    stop_email_consumer,
+)
 
 settings = get_settings()
 
@@ -59,11 +63,16 @@ async def lifespan(app: FastAPI):
     # after marking an alert) and persist as a Notification row.
     await start_notification_consumer(service_name=settings.SERVICE_NAME)
 
+    # Second subscriber on the same event for the email channel — uses a
+    # distinct queue name so RabbitMQ delivers a copy to each consumer.
+    await start_email_consumer(service_name=settings.SERVICE_NAME)
+
     yield
 
     # Cleanup
     await stop_alert_consumer()
     await stop_notification_consumer()
+    await stop_email_consumer()
     await engine.dispose()
     logger.info(f"Shutting down {settings.SERVICE_NAME}")
 

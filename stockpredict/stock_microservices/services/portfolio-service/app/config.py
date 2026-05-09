@@ -41,6 +41,16 @@ class Settings(BaseSettings):
     AUTH_SERVICE_URL: str = "http://auth-service:8007"
     STOCK_DATA_SERVICE_URL: str = "http://stock-data-service:8001"
 
+    # SMTP / Email — used by the alert email consumer to send notifications.
+    # Same shape as auth-service so dev/prod env vars can stay shared.
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_USE_TLS: bool = True
+    SMTP_FROM_EMAIL: str = "no-reply@stockhelper.local"
+    SMTP_FROM_NAME: str = "Stock Helper Alerts"
+
     # Tracing
     TRACING_ENABLED: bool = True
     TRACING_JAEGER_HOST: str = "jaeger"
