@@ -1,6 +1,13 @@
 // src/components/Layout/MainLayout.js
+//
+// Native react-router-dom routing — replaced the prior RouterContext-based
+// switch statement (Backlog #29). Each existing route string now maps to a
+// URL path of the same name; dynamic routes (company, solutions edit) use
+// useParams via tiny wrapper components so the existing page components
+// keep their original prop signatures.
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from '../../context/RouterContext';
+import { Route, Routes, useParams } from 'react-router-dom';
+
 import Sidebar from './Sidebar';
 import Header from './Header';
 import Dashboard from '../Dashboard/Dashboard';
@@ -10,13 +17,12 @@ import { FundamentalAnalysis } from '../Pages/FundamentalAnalysis';
 import { StocksByIndustry } from '../Pages/Stocks';
 import { AIInsights } from '../Pages/AIInsights';
 import { Company } from '../Pages/company';
-
 import { StockScreener } from '../Pages/Stocks';
 import { StockList } from '../Pages/Stocks';
 import Gainers from '../Pages/MarketMovers/Gainer';
 import Losers from '../Pages/MarketMovers/Losers';
 import Actives from '../Pages/MarketMovers/Actives';
-import { TimeSeries,Models,Solutions } from '../Pages/Predict';
+import { TimeSeries, Models, Solutions } from '../Pages/Predict';
 import SolutionAddNew from '../Pages/Solutions/SolutionAddNew';
 import SolutionEdit from '../Pages/Solutions/SolutionEdit';
 import { Agent } from '../Pages/Agent';
@@ -36,109 +42,27 @@ import KnowledgeQAChat from '../Pages/KnowledgeQAChat';
 import Watchlist from '../Pages/Watchlist';
 import PositionCalculator from '../Pages/PositionCalculator';
 
+// Thin wrapper: <Company> takes `symbol` as a prop, so we extract it from
+// the URL via useParams rather than touching the existing component.
+const CompanyRoute = () => {
+  const { symbol } = useParams();
+  return <Company symbol={symbol} />;
+};
+
 const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Start collapsed by default to maximize chart/content area
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  const { currentRoute } = useRouter();
 
-  // Toggle sidebar collapse state
   const handleToggleCollapse = useCallback(() => {
-    setSidebarCollapsed(prev => !prev);
+    setSidebarCollapsed((prev) => !prev);
   }, []);
 
   useEffect(() => {
-    const handleToggleSidebar = () => setSidebarOpen(!sidebarOpen);
+    const handleToggleSidebar = () => setSidebarOpen((s) => !s);
     document.addEventListener('toggleSidebar', handleToggleSidebar);
     return () => document.removeEventListener('toggleSidebar', handleToggleSidebar);
-  }, [sidebarOpen]);
-
-  const renderCurrentPage = () => {
-    // Handle company routes with symbol parameter
-    if (currentRoute.startsWith('company/')) {
-      const symbol = currentRoute.split('/')[1];
-      return <Company symbol={symbol} />;
-    }
-
-    // Handle solutions routes
-    if (currentRoute.startsWith('solutions/')) {
-      const path = currentRoute.split('/')[1];
-      if (path === 'add') {
-        return <SolutionAddNew />;
-      } else if (!isNaN(path)) {
-        // If path is a number, it's an ID for editing
-        return <SolutionEdit />;
-      }
-    }
-
-    switch (currentRoute) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'priceboard':
-        return <PriceBoard/>
-      case 'stockscreener':
-        return <StockScreener/>
-      case 'byindustry':
-        return <StocksByIndustry/>
-      case 'stocklist':
-        return <StockList/>
-      case 'topgainer':
-        return <Gainers/>
-      case 'toploser':
-        return <Losers/>
-      case 'topactive':
-        return <Actives/>
-      case "timeseries":
-        return <TimeSeries/>
-      case "indicators":
-        return <IndicatorsList/>
-      case "models":
-        return <Models/>;
-      case "solutions":
-        return <Solutions/>;
-      case "agents":
-        return <Agent/>
-      case "simulation":
-        return <SimulationDashboard/>
-      case "chatbot":
-        return <ChatbotAgent/>
-      case "knowledge-qa":
-        return <KnowledgeQAChat/>
-      case 'technical':
-        return <TechnicalAnalysis />;
-      case 'fundamental':
-        return <FundamentalAnalysis />;
-      case 'ai-insights':
-        return <AIInsights />;
-      case 'holdings':
-        return <Holdings />;
-      case 'performance':
-        return <Performance />;
-      case 'alerts':
-        return <Alerts />;
-      // Journal routes
-      case 'journal-accounts':
-        return <JournalAccounts />;
-      case 'journal-dashboard':
-        return <JournalDashboard />;
-      case 'trade-log':
-        return <TradeLog />;
-      case 'trade-diary':
-        return <TradeDiary />;
-      case 'daily-planning':
-        return <DailyPlanning />;
-      case 'weekly-review':
-        return <WeeklyReview />;
-      case 'screener':
-        return <StockScreener />;
-      case 'calculator':
-        return <PositionCalculator />;
-      case 'watchlist':
-        return <Watchlist />;
-      default:
-        return <Dashboard />;
-    }
-  };
+  }, []);
 
   return (
     <div className={`main-layout ${sidebarCollapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}>
@@ -153,7 +77,69 @@ const MainLayout = () => {
         <Header onToggleSidebar={handleToggleCollapse} isSidebarCollapsed={sidebarCollapsed} />
 
         <main className="page-content">
-          {renderCurrentPage()}
+          <Routes>
+            {/* Dashboard is both / and /dashboard so the legacy default-route
+                behavior (any unknown path → Dashboard) keeps working. */}
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+
+            <Route path="/priceboard" element={<PriceBoard />} />
+
+            {/* Stocks */}
+            <Route path="/stockscreener" element={<StockScreener />} />
+            <Route path="/byindustry" element={<StocksByIndustry />} />
+            <Route path="/stocklist" element={<StockList />} />
+
+            {/* Market movers */}
+            <Route path="/topgainer" element={<Gainers />} />
+            <Route path="/toploser" element={<Losers />} />
+            <Route path="/topactive" element={<Actives />} />
+
+            {/* Prediction */}
+            <Route path="/timeseries" element={<TimeSeries />} />
+            <Route path="/indicators" element={<IndicatorsList />} />
+            <Route path="/models" element={<Models />} />
+            <Route path="/solutions" element={<Solutions />} />
+            <Route path="/solutions/add" element={<SolutionAddNew />} />
+            {/* Numeric solution id — must come AFTER /solutions/add so it
+                doesn't shadow the static path. SolutionEdit reads :id from
+                useLocation().pathname. */}
+            <Route path="/solutions/:id" element={<SolutionEdit />} />
+
+            <Route path="/agents" element={<Agent />} />
+            <Route path="/simulation" element={<SimulationDashboard />} />
+            <Route path="/chatbot" element={<ChatbotAgent />} />
+            <Route path="/knowledge-qa" element={<KnowledgeQAChat />} />
+
+            {/* Analysis */}
+            <Route path="/technical" element={<TechnicalAnalysis />} />
+            <Route path="/fundamental" element={<FundamentalAnalysis />} />
+            <Route path="/ai-insights" element={<AIInsights />} />
+
+            {/* Portfolio */}
+            <Route path="/holdings" element={<Holdings />} />
+            <Route path="/performance" element={<Performance />} />
+            <Route path="/alerts" element={<Alerts />} />
+
+            {/* Journal */}
+            <Route path="/journal-accounts" element={<JournalAccounts />} />
+            <Route path="/journal-dashboard" element={<JournalDashboard />} />
+            <Route path="/trade-log" element={<TradeLog />} />
+            <Route path="/trade-diary" element={<TradeDiary />} />
+            <Route path="/daily-planning" element={<DailyPlanning />} />
+            <Route path="/weekly-review" element={<WeeklyReview />} />
+
+            {/* Tools */}
+            <Route path="/screener" element={<StockScreener />} />
+            <Route path="/calculator" element={<PositionCalculator />} />
+            <Route path="/watchlist" element={<Watchlist />} />
+
+            {/* Company detail with symbol param */}
+            <Route path="/company/:symbol" element={<CompanyRoute />} />
+
+            {/* Fallback — preserves the prior switch's default-to-Dashboard. */}
+            <Route path="*" element={<Dashboard />} />
+          </Routes>
         </main>
       </div>
     </div>

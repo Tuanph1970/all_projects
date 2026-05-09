@@ -17,11 +17,18 @@ import {
   Wrench,
   BookOpen
 } from 'lucide-react';
-import { useRouter } from '../../context/RouterContext';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
   const [expandedMenus, setExpandedMenus] = useState({});
-  const { navigate, currentRoute } = useRouter();
+  const navigate = useNavigate();
+  const location = useLocation();
+  // The menu items below use `route: 'foo'` as a string id (matching the
+  // legacy RouterContext convention). Derive the equivalent string from
+  // the URL pathname so the existing isRouteActive logic keeps working
+  // — '/' → 'dashboard', everything else → segments[0].
+  const segments = location.pathname.split('/').filter(Boolean);
+  const currentRoute = segments.length === 0 ? 'dashboard' : segments[0];
 
   const toggleMenu = (menuKey) => {
     // If sidebar is collapsed, expand it first when clicking on a menu with submenu
@@ -36,7 +43,11 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
 
   // Collapse sidebar when route changes (after menu selection)
   const handleNavigation = useCallback((route) => {
-    navigate(route);
+    // Menu items still use the legacy string convention ('foo'); convert
+    // to a URL path. Dashboard maps to '/' rather than '/dashboard' so
+    // home is the canonical location.
+    const path = route === 'dashboard' ? '/' : `/${route}`;
+    navigate(path);
     // Auto-collapse sidebar after navigation (with small delay for visual feedback)
     setTimeout(() => {
       if (!isCollapsed && window.innerWidth >= 1024) {

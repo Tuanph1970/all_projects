@@ -3,7 +3,6 @@ import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { StyleSheetManager } from 'styled-components';
 import { AuthProvider } from './context/AuthContext';
-import { RouterProvider } from './context/RouterContext';
 import { StockProvider } from './context/StockContext';
 import { useAuth } from './context/AuthContext';
 import LoginForm from './components/Auth/LoginForm';
@@ -55,17 +54,15 @@ const App = () => {
                 auth — users arrive here via an emailed token. */}
             <Route path="/reset-password" element={<ResetPasswordConfirm />} />
 
-            {/* Everything else is gated by auth and goes through MainLayout's
-                in-app routing (RouterContext + the renderCurrentPage switch).
-                The wildcard captures any path so back/forward keep working. */}
+            {/* Everything else is gated by auth. MainLayout handles its
+                own <Routes> for in-app navigation. The wildcard captures
+                any path so back/forward keep working. */}
             <Route
               path="/*"
               element={
-                <RouterProvider>
-                  <StockProvider>
-                    <AppShell />
-                  </StockProvider>
-                </RouterProvider>
+                <StockProvider>
+                  <AppShell />
+                </StockProvider>
               }
             />
           </Routes>
