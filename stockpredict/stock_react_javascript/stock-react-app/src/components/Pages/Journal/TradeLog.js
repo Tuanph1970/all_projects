@@ -6,7 +6,7 @@ import {
   XCircle, Clock, Target, Shield, BookOpen, ArrowUpDown
 } from 'lucide-react';
 import journalService from '../../../services/journalService';
-import { useRouter } from '../../../context/RouterContext';
+import { useNavigate } from 'react-router-dom';
 import '../../../styles/journal.css';
 
 const DIRECTIONS = [
@@ -28,7 +28,7 @@ const STATUS_OPTIONS = [
 ];
 
 const TradeLog = () => {
-  const { navigate } = useRouter();
+  const navigate = useNavigate();
 
   // Account selection
   const [accounts, setAccounts] = useState([]);
@@ -332,7 +332,7 @@ const TradeLog = () => {
           <BookOpen size={48} strokeWidth={1} />
           <h3>Chưa có tài khoản nhật ký</h3>
           <p>Vui lòng tạo tài khoản nhật ký giao dịch trước khi ghi sổ giao dịch.</p>
-          <button className="btn-primary" onClick={() => navigate('journal-accounts')} style={{ marginTop: '12px' }}>
+          <button className="btn-primary" onClick={() => navigate('/journal-accounts')} style={{ marginTop: '12px' }}>
             <Plus size={16} /> Tạo tài khoản nhật ký
           </button>
         </div>

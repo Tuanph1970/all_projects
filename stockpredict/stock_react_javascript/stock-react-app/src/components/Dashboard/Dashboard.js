@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, BarChart3, PieChart, Star, Newspaper } from 'lucide-react';
 import { stockAPI } from '../../services/api';
-import { useRouter } from '../../context/RouterContext';
+import { useNavigate } from 'react-router-dom';
 import Contact from '../Contact/Contact';
 
 const Dashboard = () => {
@@ -10,10 +10,10 @@ const Dashboard = () => {
   const [recommendations, setRecommendations] = useState([]);
   const [prospectiveStocks, setProspectiveStocks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { navigate } = useRouter();
+  const navigate = useNavigate();
 
   const handleSymbolClick = (symbol) => {
-    navigate(`company/${symbol}`);
+    navigate(`/company/${symbol}`);
   };
 
   useEffect(() => {

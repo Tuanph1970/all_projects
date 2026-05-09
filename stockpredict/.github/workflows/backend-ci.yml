@@ -64,7 +64,17 @@ jobs:
           if [ -f services/${{ matrix.service }}/requirements.txt ]; then
             pip install -r services/${{ matrix.service }}/requirements.txt
           fi
-          pip install pytest pytest-asyncio pytest-timeout pytest-cov httpx
+          pip install pytest pytest-asyncio pytest-timeout pytest-cov httpx aiosqlite
+
+      - name: Verify app.main imports cleanly
+        # Smoke test: catches half-migrated configs / missing deps with a
+        # one-line error rather than a confusing pytest collection failure.
+        # The 2026-05-08 knowledge-qa CORS bug (settings.cors_origins missing)
+        # would have surfaced here before any tests ran.
+        env:
+          PYTHONPATH: services/${{ matrix.service }}
+        run: python -c "from app.main import app; print('app.main imports OK')"
+
       - name: Run pytest with coverage (skip if no tests)
         env:
           PYTHONPATH: services/${{ matrix.service }}

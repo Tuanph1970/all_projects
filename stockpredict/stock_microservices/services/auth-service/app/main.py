@@ -9,9 +9,13 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from starlette.responses import Response
 
 from app.config import get_settings
+from app.api.rate_limit import limiter
 from app.api.routes import router as auth_router
 from app.api.dependencies import engine
 from app.models.domain import Base
@@ -69,6 +73,14 @@ app = FastAPI(
     openapi_url=f"/{settings.API_PREFIX}/api/v2/auth/openapi.json",
     lifespan=lifespan,
 )
+
+# Rate limiting — per-IP buckets on the brute-force-prone routes.
+# SECURITY_AUDIT.md MEDIUM #7. The limiter is registered as middleware so
+# it runs before CORS; the 429 handler emits a JSON body matching our
+# standard error shape.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # CORS Middleware - origins from environment or defaults
 import os

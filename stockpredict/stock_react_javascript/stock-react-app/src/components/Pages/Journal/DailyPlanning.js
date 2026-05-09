@@ -5,11 +5,11 @@ import {
   CheckCircle, Edit3
 } from 'lucide-react';
 import journalService from '../../../services/journalService';
-import { useRouter } from '../../../context/RouterContext';
+import { useNavigate } from 'react-router-dom';
 import '../../../styles/journal.css';
 
 const DailyPlanning = () => {
-  const { navigate } = useRouter();
+  const navigate = useNavigate();
   const [accounts, setAccounts] = useState([]);
   const [selectedAccountId, setSelectedAccountId] = useState(null);
   const [plans, setPlans] = useState([]);
@@ -144,7 +144,7 @@ const DailyPlanning = () => {
           <CalendarDays size={48} />
           <h3>Chưa có tài khoản nhật ký</h3>
           <p>Vui lòng tạo tài khoản nhật ký giao dịch trước khi lập kế hoạch.</p>
-          <button className="btn-primary" onClick={() => navigate('journal-accounts')} style={{ marginTop: '12px' }}>
+          <button className="btn-primary" onClick={() => navigate('/journal-accounts')} style={{ marginTop: '12px' }}>
             <Plus size={16} /> Tạo tài khoản nhật ký
           </button>
         </div>

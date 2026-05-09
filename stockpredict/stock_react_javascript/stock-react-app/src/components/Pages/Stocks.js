@@ -7,7 +7,7 @@ import { StockAnalysis } from "./stocks/StockAnalysis";
 import { StockDividend } from "./stocks/StockDividend";
 import { StockFinancial } from "./stocks/StockFinancial";
 import './stocks/StockComponents.css';
-import { useRouter } from "../../context/RouterContext";
+import { useNavigate } from "react-router-dom";
 import httpClient from "../../services/httpClient";
 import { API_ENDPOINTS } from "../../constants/api";
 
@@ -386,7 +386,7 @@ export const StockScreener = () => {
 };
 
 export const StocksByIndustry = () => {
-  const { navigate } = useRouter();
+  const navigate = useNavigate();
   const [industries, setIndustries] = useState([]);
   const [selectedIndustry, setSelectedIndustry] = useState('');
   const [stocksByIndustry, setStocksByIndustry] = useState([]);
@@ -539,7 +539,7 @@ export const StocksByIndustry = () => {
                   <td className="td-symbol">
                     <span
                       className="symbol-link"
-                      onClick={() => navigate('company/' + stock.symbol)}
+                      onClick={() => navigate('/company/' + stock.symbol)}
                     >
                       {stock.symbol || 'N/A'}
                     </span>
@@ -605,7 +605,7 @@ export const StocksByIndustry = () => {
 };
 
 export const StockList = () => {
-  const { navigate } = useRouter();
+  const navigate = useNavigate();
   const [stocks, setStocks] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [filters, setFilters] = useState({
@@ -855,7 +855,7 @@ export const StockList = () => {
                   <td className="td-symbol">
                     <span
                       className="symbol-link"
-                      onClick={() => navigate('company/' + stock.symbol)}
+                      onClick={() => navigate('/company/' + stock.symbol)}
                     >
                       {stock.symbol || 'N/A'}
                     </span>

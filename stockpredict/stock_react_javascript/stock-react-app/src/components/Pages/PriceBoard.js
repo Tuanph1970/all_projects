@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useTable } from "react-table";
-import { useRouter } from "../../context/RouterContext";
+import { useNavigate } from "react-router-dom";
 import httpClient from "../../services/httpClient";
 import { API_ENDPOINTS } from "../../constants/api";
 
@@ -14,12 +14,11 @@ function Table({
   getRowProps = defaultPropGetter,
   getCellProps = defaultPropGetter
 }) {
-  const { navigate } = useRouter()
-  const handleCellClicked =(cell)  => {
-     if (cell.column.id === 'symbol'){
-      console.log("aaaa")
-      navigate('company/' + cell.value)      
-     }
+  const navigate = useNavigate();
+  const handleCellClicked = (cell) => {
+    if (cell.column.id === 'symbol') {
+      navigate('/company/' + cell.value);
+    }
   };
   const {
     getTableProps,

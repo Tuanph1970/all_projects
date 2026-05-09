@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Star, Trash2, RefreshCw, Plus, X } from 'lucide-react';
 import httpClient from '../../services/httpClient';
 import { API_ENDPOINTS } from '../../constants/api';
-import { useRouter } from '../../context/RouterContext';
+import { useNavigate } from 'react-router-dom';
 
 const Watchlist = () => {
   const [items, setItems] = useState([]);
@@ -12,7 +12,7 @@ const Watchlist = () => {
   const [newSymbol, setNewSymbol] = useState('');
   const [adding, setAdding] = useState(false);
 
-  const { navigate } = useRouter();
+  const navigate = useNavigate();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -152,7 +152,7 @@ const Watchlist = () => {
                   <tr key={symbol} style={{ borderTop: '1px solid #f3f4f6' }}>
                     <td style={{ padding: 12 }}>
                       <button
-                        onClick={() => navigate(`company/${symbol}`)}
+                        onClick={() => navigate(`/company/${symbol}`)}
                         style={{ background: 'none', border: 'none', color: '#2563eb', fontWeight: 600, cursor: 'pointer' }}
                       >
                         {symbol}

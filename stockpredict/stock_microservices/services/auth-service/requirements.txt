@@ -22,6 +22,10 @@ python-jose[cryptography]>=3.3.0
 # HTTP Client
 httpx>=0.26.0
 
+# Rate limiting — gates /auth/login, /auth/register, /auth/reset-password
+# against brute force / enumeration. SECURITY_AUDIT.md MEDIUM #7.
+slowapi>=0.1.9
+
 # Message Queue
 aio-pika>=9.3.0
 

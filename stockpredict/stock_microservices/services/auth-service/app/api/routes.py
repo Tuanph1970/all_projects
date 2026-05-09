@@ -25,9 +25,16 @@ from app.api.dependencies import (
     get_current_user,
     get_client_info,
 )
+from app.api.rate_limit import limiter
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+# Per-IP rate limit applied to brute-force-prone endpoints. 5/minute is
+# strict enough to make password-spray attacks impractical without
+# blocking legitimate humans (a user fat-fingering their password 4-5
+# times will recover in a minute). SECURITY_AUDIT.md MEDIUM #7.
+SENSITIVE_RATE_LIMIT = "5/minute"
 
 
 @router.post(
@@ -37,10 +44,13 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
     responses={
         400: {"model": ErrorResponse, "description": "Validation error"},
         409: {"model": ErrorResponse, "description": "User already exists"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
     },
 )
+@limiter.limit(SENSITIVE_RATE_LIMIT)
 async def register(
     user_data: UserCreate,
+    request: Request,
     auth_service: AuthService = Depends(get_auth_service),
 ):
     """
@@ -66,8 +76,10 @@ async def register(
     response_model=TokenResponse,
     responses={
         401: {"model": ErrorResponse, "description": "Invalid credentials"},
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
     },
 )
+@limiter.limit(SENSITIVE_RATE_LIMIT)
 async def login(
     login_data: UserLogin,
     request: Request,
@@ -236,9 +248,14 @@ async def change_password(
 @router.post(
     "/reset-password",
     response_model=MessageResponse,
+    responses={
+        429: {"model": ErrorResponse, "description": "Rate limit exceeded"},
+    },
 )
+@limiter.limit(SENSITIVE_RATE_LIMIT)
 async def reset_password(
     reset_data: PasswordReset,
+    request: Request,
     auth_service: AuthService = Depends(get_auth_service),
 ):
     """

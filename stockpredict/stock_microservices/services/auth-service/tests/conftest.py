@@ -1,6 +1,15 @@
 """
 Test Configuration and Fixtures
 """
+import os
+
+# Disable rate limiting before app.main imports — slowapi's `enabled` is
+# evaluated at construction time, and PYTEST_CURRENT_TEST isn't set yet
+# during pytest's import phase. Without this, sequential test calls hit
+# /login or /register with the same client IP (testserver) and trigger
+# the 5/minute limiter.
+os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
+
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport

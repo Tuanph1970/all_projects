@@ -11,13 +11,13 @@ import {
   Area, AreaChart, Legend
 } from 'recharts';
 import journalService from '../../../services/journalService';
-import { useRouter } from '../../../context/RouterContext';
+import { useNavigate } from 'react-router-dom';
 import '../../../styles/journal.css';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
 
 const JournalDashboard = () => {
-  const { navigate } = useRouter();
+  const navigate = useNavigate();
   const [accounts, setAccounts] = useState([]);
   const [selectedAccountId, setSelectedAccountId] = useState(null);
   const [dashboard, setDashboard] = useState(null);
@@ -83,7 +83,7 @@ const JournalDashboard = () => {
           <BarChart3 size={48} />
           <h3>Chưa có tài khoản nhật ký</h3>
           <p>Vui lòng tạo tài khoản nhật ký giao dịch để bắt đầu theo dõi.</p>
-          <button className="btn-primary" onClick={() => navigate('journal-accounts')} style={{ marginTop: '12px' }}>
+          <button className="btn-primary" onClick={() => navigate('/journal-accounts')} style={{ marginTop: '12px' }}>
             <Plus size={16} /> Tạo tài khoản nhật ký
           </button>
         </div>
