@@ -2,8 +2,10 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import NotificationBell from './NotificationBell';
 import notificationService from '../../services/notificationService';
+import pushService from '../../services/pushService';
 
 jest.mock('../../services/notificationService');
+jest.mock('../../services/pushService');
 
 const ok = (data) => ({ success: true, data });
 const fail = (msg = 'boom') => ({ success: false, error: { message: msg } });
@@ -27,6 +29,11 @@ beforeEach(() => {
   notificationService.markRead = jest.fn().mockResolvedValue(ok({}));
   notificationService.markAllRead = jest.fn().mockResolvedValue(ok({ updated: 0 }));
   notificationService.remove = jest.fn().mockResolvedValue(ok({}));
+  // Default: browser doesn't support push (toggle hidden). Push-tests
+  // override per-case via mockResolvedValueOnce.
+  pushService.getStatus = jest.fn().mockResolvedValue('unsupported');
+  pushService.subscribe = jest.fn().mockResolvedValue(ok({}));
+  pushService.unsubscribe = jest.fn().mockResolvedValue(ok({}));
 });
 
 describe('NotificationBell', () => {
@@ -130,6 +137,56 @@ describe('NotificationBell', () => {
       expect(screen.queryByText('Notif 1')).toBeNull()
     );
     expect(screen.queryByTestId('notification-badge')).toBeNull();
+  });
+
+  test('push toggle is hidden when the browser does not support push', async () => {
+    pushService.getStatus.mockResolvedValueOnce('unsupported');
+    render(<NotificationBell />);
+    fireEvent.click(screen.getByLabelText('Thông báo'));
+    await screen.findByTestId('notification-dropdown');
+    expect(screen.queryByTestId('push-toggle')).toBeNull();
+  });
+
+  test('push toggle subscribes when clicked from idle', async () => {
+    pushService.getStatus.mockResolvedValueOnce('idle');
+    pushService.subscribe.mockResolvedValueOnce(ok({}));
+    render(<NotificationBell />);
+    fireEvent.click(screen.getByLabelText('Thông báo'));
+    const toggle = await screen.findByTestId('push-toggle');
+
+    fireEvent.click(toggle);
+    await waitFor(() => expect(pushService.subscribe).toHaveBeenCalled());
+    // After success, the toggle aria-label flips to "tắt" (disable).
+    await waitFor(() =>
+      expect(screen.getByTestId('push-toggle').getAttribute('aria-label')).toMatch(/tắt/i)
+    );
+  });
+
+  test('push toggle shows error when subscribe fails', async () => {
+    pushService.getStatus.mockResolvedValueOnce('idle');
+    pushService.subscribe.mockResolvedValueOnce(fail('permission denied'));
+    render(<NotificationBell />);
+    fireEvent.click(screen.getByLabelText('Thông báo'));
+    const toggle = await screen.findByTestId('push-toggle');
+
+    fireEvent.click(toggle);
+    await waitFor(() =>
+      expect(screen.getByTestId('push-error').textContent).toMatch(/permission denied/i)
+    );
+  });
+
+  test('push toggle unsubscribes when clicked from subscribed', async () => {
+    pushService.getStatus.mockResolvedValueOnce('subscribed');
+    pushService.unsubscribe.mockResolvedValueOnce(ok({}));
+    render(<NotificationBell />);
+    fireEvent.click(screen.getByLabelText('Thông báo'));
+    const toggle = await screen.findByTestId('push-toggle');
+
+    fireEvent.click(toggle);
+    await waitFor(() => expect(pushService.unsubscribe).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.getByTestId('push-toggle').getAttribute('aria-label')).toMatch(/bật/i)
+    );
   });
 
   test('delete on a read notification does not change the badge', async () => {

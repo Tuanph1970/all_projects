@@ -121,6 +121,12 @@ export const API_ENDPOINTS = {
   NOTIFICATIONS_READ_ALL: `${API_BASE_URLS.PORTFOLIO_API}/notifications/read-all`,
   NOTIFICATION_DELETE: (id) => `${API_BASE_URLS.PORTFOLIO_API}/notifications/${id}`,
 
+  // Web push — same Notifications loop, browser-channel.
+  PUSH_VAPID_PUBLIC_KEY: `${API_BASE_URLS.PORTFOLIO_API}/push/vapid-public-key`,
+  PUSH_SUBSCRIBE: `${API_BASE_URLS.PORTFOLIO_API}/push/subscribe`,
+  PUSH_UNSUBSCRIBE: (endpoint) =>
+    `${API_BASE_URLS.PORTFOLIO_API}/push/subscribe?endpoint=${encodeURIComponent(endpoint)}`,
+
   // Alerts endpoints (/api/v2/alerts)
   ALERTS_LIST: `${API_BASE_URLS.ALERTS_API}`,
   ALERT_CREATE: `${API_BASE_URLS.ALERTS_API}`,

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Bell, Check, CheckCheck, Trash2, X } from 'lucide-react';
+import { Bell, BellOff, Check, CheckCheck, Trash2, X } from 'lucide-react';
 import notificationService from '../../services/notificationService';
+import pushService from '../../services/pushService';
 
 /**
  * Bell-icon widget with an unread badge and a click-to-open dropdown.
@@ -15,6 +16,9 @@ const NotificationBell = () => {
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  // 'unsupported' | 'denied' | 'subscribed' | 'idle' | 'pending'
+  const [pushStatus, setPushStatus] = useState('idle');
+  const [pushError, setPushError] = useState(null);
   const containerRef = useRef(null);
 
   const refresh = useCallback(async () => {
@@ -33,6 +37,43 @@ const NotificationBell = () => {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Reflect the real browser push state once on mount so the toggle
+  // shows the correct icon. getStatus is non-prompting.
+  useEffect(() => {
+    let cancelled = false;
+    pushService.getStatus().then((s) => {
+      if (!cancelled) setPushStatus(s);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleTogglePush = async () => {
+    setPushError(null);
+    if (pushStatus === 'subscribed') {
+      setPushStatus('pending');
+      const res = await pushService.unsubscribe();
+      if (res.success) {
+        setPushStatus('idle');
+      } else {
+        setPushStatus('subscribed');
+        setPushError(res.error?.message || 'Hủy đăng ký thất bại');
+      }
+      return;
+    }
+    if (pushStatus === 'idle') {
+      setPushStatus('pending');
+      const res = await pushService.subscribe();
+      if (res.success) {
+        setPushStatus('subscribed');
+      } else {
+        setPushStatus('idle');
+        setPushError(res.error?.message || 'Đăng ký thất bại');
+      }
+    }
+  };
 
   // Refresh on each open so a returning user sees fresh data.
   useEffect(() => {
@@ -138,6 +179,24 @@ const NotificationBell = () => {
           >
             <strong>Thông báo</strong>
             <div style={{ display: 'flex', gap: 8 }}>
+              {pushStatus !== 'unsupported' && pushStatus !== 'denied' && (
+                <button
+                  onClick={handleTogglePush}
+                  disabled={pushStatus === 'pending'}
+                  aria-label={pushStatus === 'subscribed' ? 'Tắt thông báo trình duyệt' : 'Bật thông báo trình duyệt'}
+                  data-testid="push-toggle"
+                  title={pushStatus === 'subscribed' ? 'Tắt thông báo trình duyệt' : 'Bật thông báo trình duyệt'}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    background: 'none', border: 'none',
+                    color: pushStatus === 'subscribed' ? '#16a34a' : '#6b7280',
+                    cursor: pushStatus === 'pending' ? 'wait' : 'pointer',
+                    fontSize: 13,
+                  }}
+                >
+                  {pushStatus === 'subscribed' ? <Bell size={14} /> : <BellOff size={14} />}
+                </button>
+              )}
               <button
                 onClick={handleMarkAll}
                 disabled={unread === 0}
@@ -162,6 +221,16 @@ const NotificationBell = () => {
               </button>
             </div>
           </div>
+
+          {pushError && (
+            <div
+              role="alert"
+              data-testid="push-error"
+              style={{ padding: '8px 16px', color: '#b91c1c', fontSize: 12, background: '#fef2f2' }}
+            >
+              {pushError}
+            </div>
+          )}
 
           {loading && items.length === 0 ? (
             <div style={{ padding: 20, textAlign: 'center', color: '#6b7280' }}>
