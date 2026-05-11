@@ -51,6 +51,16 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: str = "no-reply@stockhelper.local"
     SMTP_FROM_NAME: str = "Stock Helper Alerts"
 
+    # VAPID — Web Push. Generate once with `vapid --gen` (py_vapid) or any
+    # web-push key generator; commit only the public key to the frontend.
+    # When VAPID_PRIVATE_KEY is unset the push consumer logs instead of
+    # sending so local dev without keys still exercises the flow.
+    VAPID_PUBLIC_KEY: Optional[str] = None
+    VAPID_PRIVATE_KEY: Optional[str] = None
+    # mailto: address the push service uses to contact us about delivery
+    # issues — required by the VAPID spec.
+    VAPID_SUBJECT: str = "mailto:admin@stockhelper.local"
+
     # Tracing
     TRACING_ENABLED: bool = True
     TRACING_JAEGER_HOST: str = "jaeger"

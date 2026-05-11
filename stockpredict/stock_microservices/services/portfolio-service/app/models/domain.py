@@ -123,3 +123,26 @@ class Notification(Base):
     source_event_id = Column(String(64), nullable=True, index=True)
     read_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class PushSubscription(Base):
+    """Browser push-notification subscription registered from the frontend
+    after the user grants notification permission.
+
+    Each browser session produces one (endpoint, keys) tuple. Endpoint is
+    unique per browser/profile and acts as the dedupe key — re-subscribing
+    from the same browser refreshes the keys + updated_at rather than
+    inserting a duplicate row.
+    """
+    __tablename__ = "push_subscriptions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    endpoint = Column(String(500), nullable=False, unique=True, index=True)
+    # p256dh + auth are returned by PushSubscription.toJSON() in the browser.
+    # Both are required by pywebpush to encrypt the payload.
+    p256dh_key = Column(String(255), nullable=False)
+    auth_key = Column(String(255), nullable=False)
+    user_agent = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

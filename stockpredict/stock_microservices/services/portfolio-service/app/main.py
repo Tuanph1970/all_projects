@@ -11,6 +11,7 @@ import logging
 from app.config import get_settings
 from app.api.routes import router
 from app.api.notification_routes import router as notification_router
+from app.api.push_routes import router as push_router
 from app.api.dependencies import engine
 from app.models.domain import Base
 from app.services.alert_event_handler import start_alert_consumer, stop_alert_consumer
@@ -21,6 +22,10 @@ from app.services.notification_consumer import (
 from app.services.email_consumer import (
     start_email_consumer,
     stop_email_consumer,
+)
+from app.services.push_consumer import (
+    start_push_consumer,
+    stop_push_consumer,
 )
 
 settings = get_settings()
@@ -67,12 +72,16 @@ async def lifespan(app: FastAPI):
     # distinct queue name so RabbitMQ delivers a copy to each consumer.
     await start_email_consumer(service_name=settings.SERVICE_NAME)
 
+    # Third subscriber: browser web-push delivery.
+    await start_push_consumer(service_name=settings.SERVICE_NAME)
+
     yield
 
     # Cleanup
     await stop_alert_consumer()
     await stop_notification_consumer()
     await stop_email_consumer()
+    await stop_push_consumer()
     await engine.dispose()
     logger.info(f"Shutting down {settings.SERVICE_NAME}")
 
@@ -126,6 +135,13 @@ app.include_router(
     notification_router,
     prefix=f"/{settings.API_PREFIX}/api/v2/portfolio",
     tags=["Notifications"]
+)
+
+# Same reasoning — static /push paths mount before /{portfolio_id}.
+app.include_router(
+    push_router,
+    prefix=f"/{settings.API_PREFIX}/api/v2/portfolio",
+    tags=["Push"]
 )
 
 # Include API routes

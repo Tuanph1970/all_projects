@@ -30,3 +30,6 @@ prometheus-client>=0.19.0
 
 # Utilities
 python-dotenv>=1.0.0
+
+# Web push (VAPID-signed Push API delivery)
+pywebpush>=2.0.0

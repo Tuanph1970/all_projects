@@ -225,3 +225,31 @@ class NotificationListResponse(BaseModel):
 
 class MarkReadResponse(BaseModel):
     updated: int
+
+
+# Web push
+class PushKeys(BaseModel):
+    p256dh: str
+    auth: str
+
+
+class PushSubscriptionCreate(BaseModel):
+    """Body sent from the frontend after PushManager.subscribe(). The
+    shape matches the JSON returned by `subscription.toJSON()` so the
+    frontend can POST it directly."""
+    endpoint: str = Field(..., max_length=500)
+    keys: PushKeys
+    user_agent: Optional[str] = Field(default=None, max_length=255)
+
+
+class PushSubscriptionResponse(BaseModel):
+    id: int
+    endpoint: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class VapidPublicKeyResponse(BaseModel):
+    public_key: str
