@@ -596,6 +596,32 @@ async def metrics_middleware(request: Request, call_next):
     return response
 
 
+# Service info endpoint — registered BEFORE the main router so its
+# /{symbol} / /{model_id} catch-alls don't shadow /info (would return
+# 404 trying to look up a "info" symbol).
+@app.get(f"/{settings.API_PREFIX}/api/v2/predict/info")
+async def service_info():
+    """Service information"""
+    return {
+        "service": settings.SERVICE_NAME,
+        "version": settings.SERVICE_VERSION,
+        "environment": settings.ENVIRONMENT,
+        "ml_config": {
+            "model_path": settings.MODEL_PATH,
+            "default_prediction_days": settings.DEFAULT_PREDICTION_DAYS,
+            "max_prediction_days": settings.MAX_PREDICTION_DAYS,
+            "lookback_period": settings.LOOKBACK_PERIOD
+        },
+        "endpoints": {
+            "predict": f"/{settings.API_PREFIX}/api/v2/predict/predict",
+            "models": f"/{settings.API_PREFIX}/api/v2/predict/models",
+            "train": f"/{settings.API_PREFIX}/api/v2/predict/models/train",
+            "backtest": f"/{settings.API_PREFIX}/api/v2/predict/backtest",
+            "compare": f"/{settings.API_PREFIX}/api/v2/predict/compare"
+        }
+    }
+
+
 # Include API routes for /predict path
 app.include_router(
     router,
@@ -653,30 +679,6 @@ async def metrics():
         content=generate_latest(),
         media_type=CONTENT_TYPE_LATEST
     )
-
-
-# Service info endpoint
-@app.get(f"/{settings.API_PREFIX}/api/v2/predict/info")
-async def service_info():
-    """Service information"""
-    return {
-        "service": settings.SERVICE_NAME,
-        "version": settings.SERVICE_VERSION,
-        "environment": settings.ENVIRONMENT,
-        "ml_config": {
-            "model_path": settings.MODEL_PATH,
-            "default_prediction_days": settings.DEFAULT_PREDICTION_DAYS,
-            "max_prediction_days": settings.MAX_PREDICTION_DAYS,
-            "lookback_period": settings.LOOKBACK_PERIOD
-        },
-        "endpoints": {
-            "predict": f"/{settings.API_PREFIX}/api/v2/predict/predict",
-            "models": f"/{settings.API_PREFIX}/api/v2/predict/models",
-            "train": f"/{settings.API_PREFIX}/api/v2/predict/models/train",
-            "backtest": f"/{settings.API_PREFIX}/api/v2/predict/backtest",
-            "compare": f"/{settings.API_PREFIX}/api/v2/predict/compare"
-        }
-    }
 
 
 # Error handlers

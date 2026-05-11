@@ -28,7 +28,7 @@ async def test_liveness(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_service_info(client: AsyncClient):
     """Test service info endpoint"""
-    response = await client.get("/stock_helper/api/v2/predictions/info")
+    response = await client.get("/stock_helper/api/v2/predict/info")
     assert response.status_code == 200
     data = response.json()
     assert data["service"] == "prediction-service"
@@ -40,7 +40,7 @@ async def test_service_info(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_get_supported_models(client: AsyncClient):
     """Test supported models endpoint"""
-    response = await client.get("/stock_helper/api/v2/predictions/supported-models")
+    response = await client.get("/stock_helper/api/v2/predict/supported-models")
     assert response.status_code == 200
     data = response.json()
     assert "models" in data
@@ -61,7 +61,7 @@ async def test_predict_price(client: AsyncClient, prediction_request_data, mock_
         MockService.return_value = mock_service
 
         response = await client.post(
-            "/stock_helper/api/v2/predictions/predict",
+            "/stock_helper/api/v2/predict/predict",
             json=prediction_request_data
         )
         assert response.status_code == 200
@@ -80,7 +80,7 @@ async def test_predict_price_get(client: AsyncClient, mock_prediction):
         MockService.return_value = mock_service
 
         response = await client.get(
-            "/stock_helper/api/v2/predictions/predict/VNM?days=5"
+            "/stock_helper/api/v2/predict/predict/VNM?days=5"
         )
         assert response.status_code == 200
         data = response.json()
@@ -99,7 +99,7 @@ async def test_predict_price_not_found(client: AsyncClient, prediction_request_d
 
         prediction_request_data["symbol"] = "UNKNOWN"
         response = await client.post(
-            "/stock_helper/api/v2/predictions/predict",
+            "/stock_helper/api/v2/predict/predict",
             json=prediction_request_data
         )
         assert response.status_code == 404
@@ -114,7 +114,7 @@ async def test_predict_bulk(client: AsyncClient, mock_prediction):
         MockService.return_value = mock_service
 
         response = await client.post(
-            "/stock_helper/api/v2/predictions/predict/bulk",
+            "/stock_helper/api/v2/predict/predict/bulk",
             json={
                 "symbols": ["VNM", "FPT"],
                 "days": 5,
@@ -136,7 +136,7 @@ async def test_list_models(client: AsyncClient, mock_model):
         mock_service.get_models = AsyncMock(return_value=[mock_model])
         MockService.return_value = mock_service
 
-        response = await client.get("/stock_helper/api/v2/predictions/models")
+        response = await client.get("/stock_helper/api/v2/predict/models")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
@@ -151,7 +151,7 @@ async def test_get_model_by_id(client: AsyncClient, mock_model):
         mock_service.get_model = AsyncMock(return_value=mock_model)
         MockService.return_value = mock_service
 
-        response = await client.get("/stock_helper/api/v2/predictions/models/1")
+        response = await client.get("/stock_helper/api/v2/predict/models/1")
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == 1
@@ -165,7 +165,7 @@ async def test_get_model_not_found(client: AsyncClient):
         mock_service.get_model = AsyncMock(return_value=None)
         MockService.return_value = mock_service
 
-        response = await client.get("/stock_helper/api/v2/predictions/models/999")
+        response = await client.get("/stock_helper/api/v2/predict/models/999")
         assert response.status_code == 404
 
 
@@ -178,7 +178,7 @@ async def test_train_model(client: AsyncClient, train_request_data, mock_train_r
         MockService.return_value = mock_service
 
         response = await client.post(
-            "/stock_helper/api/v2/predictions/models/train",
+            "/stock_helper/api/v2/predict/models/train",
             json=train_request_data
         )
         assert response.status_code == 200
@@ -194,7 +194,7 @@ async def test_get_feature_importance(client: AsyncClient, mock_feature_importan
         mock_service.get_feature_importance = AsyncMock(return_value=mock_feature_importance)
         MockService.return_value = mock_service
 
-        response = await client.get("/stock_helper/api/v2/predictions/models/1/features")
+        response = await client.get("/stock_helper/api/v2/predict/models/1/features")
         assert response.status_code == 200
         data = response.json()
         assert "features" in data
@@ -211,7 +211,7 @@ async def test_run_backtest(client: AsyncClient, backtest_request_data, mock_bac
         MockService.return_value = mock_service
 
         response = await client.post(
-            "/stock_helper/api/v2/predictions/backtest",
+            "/stock_helper/api/v2/predict/backtest",
             json=backtest_request_data
         )
         assert response.status_code == 200
@@ -229,7 +229,7 @@ async def test_backtest_no_data(client: AsyncClient, backtest_request_data):
         MockService.return_value = mock_service
 
         response = await client.post(
-            "/stock_helper/api/v2/predictions/backtest",
+            "/stock_helper/api/v2/predict/backtest",
             json=backtest_request_data
         )
         assert response.status_code == 404
@@ -258,7 +258,7 @@ async def test_compare_models(client: AsyncClient, comparison_request_data, mock
         MockService.return_value = mock_service
 
         response = await client.post(
-            "/stock_helper/api/v2/predictions/compare",
+            "/stock_helper/api/v2/predict/compare",
             json=comparison_request_data
         )
         assert response.status_code == 200
@@ -293,7 +293,7 @@ async def test_models_health(client: AsyncClient, mock_model):
         mock_service.repo = mock_repo
         MockService.return_value = mock_service
 
-        response = await client.get("/stock_helper/api/v2/predictions/health/models")
+        response = await client.get("/stock_helper/api/v2/predict/health/models")
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
@@ -311,7 +311,7 @@ async def test_predict_unauthenticated(unauthenticated_client: AsyncClient, mock
         MockService.return_value = mock_service
 
         response = await unauthenticated_client.post(
-            "/stock_helper/api/v2/predictions/predict",
+            "/stock_helper/api/v2/predict/predict",
             json={"symbol": "VNM", "days": 5}
         )
         # Prediction should work without auth (optional auth)
@@ -323,7 +323,7 @@ async def test_predict_unauthenticated(unauthenticated_client: AsyncClient, mock
 async def test_predict_invalid_days(client: AsyncClient):
     """Test prediction with invalid days parameter"""
     response = await client.post(
-        "/stock_helper/api/v2/predictions/predict",
+        "/stock_helper/api/v2/predict/predict",
         json={"symbol": "VNM", "days": 100}  # Max is 30
     )
     assert response.status_code == 422
@@ -333,7 +333,7 @@ async def test_predict_invalid_days(client: AsyncClient):
 async def test_bulk_predict_too_many_symbols(client: AsyncClient):
     """Test bulk prediction with too many symbols"""
     response = await client.post(
-        "/stock_helper/api/v2/predictions/predict/bulk",
+        "/stock_helper/api/v2/predict/predict/bulk",
         json={
             "symbols": [f"SYM{i}" for i in range(25)],  # Max is 20
             "days": 5

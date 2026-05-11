@@ -287,8 +287,29 @@ async def test_portfolio_insight_holding_structure(client: AsyncClient, mock_ins
 # Sectors Insights Tests
 # ============================================================================
 
+# Stub for the /sectors path so tests don't hit the real stock-data-service.
+# Each sector probe in InsightsService._fetch_industry_companies opens an
+# httpx.AsyncClient with a 15s timeout — without this mock the 5-sector
+# loop can stack up to ~75s of waiting in a full-suite run (the pytest
+# 30s timeout would then kill the test). Returning the same canned list
+# for every industry is fine; the assertions don't care about per-sector
+# specifics, only that the response is shaped correctly.
+@pytest.fixture
+def _mock_industry_companies():
+    sample_companies = [
+        {"symbol": "FPT", "change_percent": 1.5},
+        {"symbol": "VNM", "change_percent": -0.3},
+        {"symbol": "VCB", "change_percent": 0.8},
+    ]
+    with patch(
+        "app.services.insights_service.InsightsService._fetch_industry_companies",
+        new=AsyncMock(return_value=sample_companies),
+    ):
+        yield
+
+
 @pytest.mark.asyncio
-async def test_get_sectors_insight(client: AsyncClient):
+async def test_get_sectors_insight(client: AsyncClient, _mock_industry_companies):
     """Test getting sector insights"""
     response = await client.get("/stock_helper/api/v2/ai/sectors")
 
@@ -302,7 +323,7 @@ async def test_get_sectors_insight(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_sectors_insight_structure(client: AsyncClient):
+async def test_sectors_insight_structure(client: AsyncClient, _mock_industry_companies):
     """Test sector insight data structure"""
     response = await client.get("/stock_helper/api/v2/ai/sectors")
 
@@ -323,7 +344,7 @@ async def test_sectors_insight_structure(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_sectors_insight_unauthenticated(unauthenticated_client: AsyncClient):
+async def test_sectors_insight_unauthenticated(unauthenticated_client: AsyncClient, _mock_industry_companies):
     """Test sectors insight works without authentication"""
     response = await unauthenticated_client.get("/stock_helper/api/v2/ai/sectors")
     assert response.status_code == 200

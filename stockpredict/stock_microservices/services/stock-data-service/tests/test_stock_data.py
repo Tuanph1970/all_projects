@@ -131,10 +131,20 @@ async def test_get_historical_data_not_found(client: AsyncClient, mock_stock_ser
 @pytest.mark.asyncio
 async def test_get_companies_by_industry(client: AsyncClient, mock_company, mock_stock_service):
     """Test get companies by industry"""
-    mock_stock_service.get_companies_by_industry = AsyncMock(return_value=[mock_company])
-    response = await client.get("/stock_helper/api/v2/industries/1/companies")
+    # Route calls get_companies_by_industry_code and returns a
+    # PaginatedResponse[CompanyResponse], not a bare list.
+    paged = {
+        "items": [mock_company.dict() if hasattr(mock_company, "dict") else mock_company],
+        "total": 1,
+        "page": 1,
+        "page_size": 50,
+        "total_pages": 1,
+    }
+    mock_stock_service.get_companies_by_industry_code = AsyncMock(return_value=paged)
+    response = await client.get("/stock_helper/api/v2/industries/8300/companies")
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    body = response.json()
+    assert "items" in body and isinstance(body["items"], list)
 
 
 @pytest.mark.asyncio
@@ -151,7 +161,9 @@ async def test_companies_pagination(client: AsyncClient, mock_company, mock_stoc
 @pytest.mark.asyncio
 async def test_get_all_companies_list(client: AsyncClient, mock_company, mock_stock_service):
     """Test get all companies without pagination"""
-    mock_stock_service.get_all_companies = AsyncMock(return_value=([mock_company], 1, 1))
+    # Route calls get_all_companies_live (the /companies/all endpoint
+    # bypasses pagination and returns a flat list from VNStock).
+    mock_stock_service.get_all_companies_live = AsyncMock(return_value=[mock_company])
     response = await client.get("/stock_helper/api/v2/companies/all")
     assert response.status_code == 200
     assert isinstance(response.json(), list)
