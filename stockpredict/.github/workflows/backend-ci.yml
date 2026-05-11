@@ -40,16 +40,34 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service:
-          - auth-service
-          - stock-data-service
-          - portfolio-service
-          - prediction-service
-          - analysis-service
-          - ai-insights-service
-          - chatbot-service
-          - journal-service
-          - knowledge-qa-service
+        # cov_min is a "ratchet" floor: ~5pp below current measured
+        # coverage (unit tests only — integration/e2e tests are skipped
+        # below). CI fails if coverage drops below the floor. Bumping
+        # the floor upward when coverage rises is intentional — it
+        # locks in gains and prevents quiet regression. Never lower
+        # these. Last measured 2026-05-11:
+        #   auth=67.98%  stock-data=33.77%  portfolio=60.82%
+        #   prediction=22.67%  analysis=54.97%  ai-insights=41.48%
+        #   chatbot=61.54%  journal=63.58%  knowledge-qa=70.91% (unit-only)
+        include:
+          - service: auth-service
+            cov_min: 63
+          - service: stock-data-service
+            cov_min: 28
+          - service: portfolio-service
+            cov_min: 55
+          - service: prediction-service
+            cov_min: 18
+          - service: analysis-service
+            cov_min: 50
+          - service: ai-insights-service
+            cov_min: 36
+          - service: chatbot-service
+            cov_min: 56
+          - service: journal-service
+            cov_min: 58
+          - service: knowledge-qa-service
+            cov_min: 65
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -81,11 +99,18 @@ jobs:
         run: |
           if [ -d services/${{ matrix.service }}/tests ] && \
              [ -n "$(find services/${{ matrix.service }}/tests -name 'test_*.py' -print -quit)" ]; then
+            # Integration/e2e tests are excluded — they require live infra
+            # (Neo4j, RabbitMQ, MySQL) that this job doesn't provision.
+            # The dedicated integration-tests.yml workflow runs those with
+            # docker-compose. Coverage floor below is calibrated against
+            # unit-only runs accordingly.
             pytest services/${{ matrix.service }}/tests -v --tb=short \
+              -m "not integration and not e2e" \
               --cov=services/${{ matrix.service }}/app \
               --cov-config=.coveragerc \
               --cov-report=term \
-              --cov-report=xml:reports/coverage-${{ matrix.service }}.xml
+              --cov-report=xml:reports/coverage-${{ matrix.service }}.xml \
+              --cov-fail-under=${{ matrix.cov_min }}
           else
             echo "::notice::No tests found for ${{ matrix.service }}; skipping."
           fi

@@ -144,6 +144,28 @@ app.include_router(
     tags=["Push"]
 )
 
+
+# Service info endpoint — registered BEFORE the main router so the
+# /{portfolio_id} catch-all on that router doesn't try to parse "info"
+# as an int and return 422. Mirrors the rationale for the notification
+# and push routers above.
+@app.get(f"/{settings.API_PREFIX}/api/v2/portfolio/info")
+async def service_info():
+    """Service information"""
+    return {
+        "service": settings.SERVICE_NAME,
+        "version": settings.SERVICE_VERSION,
+        "environment": settings.ENVIRONMENT,
+        "endpoints": {
+            "portfolios": f"/{settings.API_PREFIX}/api/v2/portfolio/portfolios",
+            "holdings": f"/{settings.API_PREFIX}/api/v2/portfolio/portfolios/{{id}}/holdings",
+            "transactions": f"/{settings.API_PREFIX}/api/v2/portfolio/portfolios/{{id}}/transactions",
+            "alerts": f"/{settings.API_PREFIX}/api/v2/portfolio/alerts",
+            "watchlist": f"/{settings.API_PREFIX}/api/v2/portfolio/watchlist"
+        }
+    }
+
+
 # Include API routes
 app.include_router(
     router,
@@ -187,24 +209,6 @@ async def metrics():
         content=generate_latest(),
         media_type=CONTENT_TYPE_LATEST
     )
-
-
-# Service info endpoint
-@app.get(f"/{settings.API_PREFIX}/api/v2/portfolio/info")
-async def service_info():
-    """Service information"""
-    return {
-        "service": settings.SERVICE_NAME,
-        "version": settings.SERVICE_VERSION,
-        "environment": settings.ENVIRONMENT,
-        "endpoints": {
-            "portfolios": f"/{settings.API_PREFIX}/api/v2/portfolio/portfolios",
-            "holdings": f"/{settings.API_PREFIX}/api/v2/portfolio/portfolios/{{id}}/holdings",
-            "transactions": f"/{settings.API_PREFIX}/api/v2/portfolio/portfolios/{{id}}/transactions",
-            "alerts": f"/{settings.API_PREFIX}/api/v2/portfolio/alerts",
-            "watchlist": f"/{settings.API_PREFIX}/api/v2/portfolio/watchlist"
-        }
-    }
 
 
 # Error handlers

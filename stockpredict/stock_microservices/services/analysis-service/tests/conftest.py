@@ -11,7 +11,7 @@ from app.main import app
 from app.api.dependencies import get_db, get_current_user, get_current_user_optional
 from app.models.schemas import (
     TechnicalAnalysisResponse, FundamentalAnalysisResponse,
-    TechnicalIndicator, FundamentalMetric, SignalType
+    TechnicalIndicator, FundamentalMetric, SignalType, CurrentPriceData
 )
 
 
@@ -53,7 +53,10 @@ def mock_technical_analysis():
     """Mock technical analysis response"""
     return TechnicalAnalysisResponse(
         symbol="VNM",
-        current_price=75000.0,
+        # Routes that build StockComparisonItem / QuickSummaryResponse require
+        # change_percent as a float (not Optional), so set it explicitly here
+        # rather than relying on CurrentPriceData's None default.
+        current_price=CurrentPriceData(price=75000.0, change_percent=0.0, volume=0),
         indicators=[
             TechnicalIndicator(name="RSI", value=45.0, signal="neutral"),
             TechnicalIndicator(name="MACD", value=0.5, signal="bullish"),
