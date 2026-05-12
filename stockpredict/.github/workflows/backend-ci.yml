@@ -45,12 +45,13 @@ jobs:
         # below). CI fails if coverage drops below the floor. Bumping
         # the floor upward when coverage rises is intentional — it
         # locks in gains and prevents quiet regression. Never lower
-        # these. Last measured 2026-05-12 (after #69 portfolio climb):
+        # these. Last measured 2026-05-12 (after #70 analysis climb):
         #   auth=87.0%  stock-data=83.5%  portfolio=83.6%
-        #   prediction=43.2%  analysis=54.97%  ai-insights=91.9%
+        #   prediction=43.2%  analysis=91.1%  ai-insights=91.9%
         #   chatbot=96.3%  journal=80.1%   knowledge-qa=91.1% (unit-only)
-        # 7 of 9 past Phase 3 80%: auth, stock-data, knowledge-qa,
-        # ai-insights, journal, chatbot, portfolio.
+        # 8 of 9 past Phase 3 80%: auth, stock-data, knowledge-qa,
+        # ai-insights, journal, chatbot, portfolio, analysis.
+        # Only prediction-service (43%) remains below 80%.
         include:
           - service: auth-service
             cov_min: 83
@@ -61,7 +62,7 @@ jobs:
           - service: prediction-service
             cov_min: 38
           - service: analysis-service
-            cov_min: 50
+            cov_min: 87
           - service: ai-insights-service
             cov_min: 87
           - service: chatbot-service
