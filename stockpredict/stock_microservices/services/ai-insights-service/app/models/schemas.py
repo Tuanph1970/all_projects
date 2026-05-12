@@ -319,8 +319,13 @@ class ComprehensiveInsights(BaseModel):
 
 
 class ComprehensiveInsightsResponse(BaseModel):
-    """Response for comprehensive insights endpoint"""
+    """Response for comprehensive insights endpoint.
+
+    `insights` is Optional so the error path (insufficient data, fetch
+    failure) can return {status: "error", insights: None} without
+    tripping pydantic validation. See Backlog #42.
+    """
     status: str
     symbol: str
-    insights: ComprehensiveInsights
+    insights: Optional[ComprehensiveInsights] = None
     generated_at: datetime

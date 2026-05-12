@@ -315,29 +315,29 @@ async def test_get_predictions_falls_back_on_exception():
 
 @pytest.mark.asyncio
 async def test_comprehensive_insights_returns_error_status_when_data_missing():
-    """When _fetch_historical_prices returns None the method tries to
-    build a ComprehensiveInsightsResponse with insights=None — but the
-    schema declares `insights: ComprehensiveInsights` (non-Optional),
-    so pydantic raises ValidationError. This test pins the bug down
-    rather than silently passing; see Backlog #42."""
+    """Fetch returns None → response has status='error' and insights=None.
+    Closes Backlog #42 (insights is now Optional in the schema)."""
     svc = _make_service()
     with patch.object(svc, "_fetch_historical_prices", AsyncMock(return_value=None)):
-        with pytest.raises(Exception):  # pydantic ValidationError today
-            await svc.get_comprehensive_insights(
-                "FPT", "2026-01-01", "2026-05-01", {}
-            )
+        out = await svc.get_comprehensive_insights(
+            "FPT", "2026-01-01", "2026-05-01", {}
+        )
+    assert out.status == "error"
+    assert out.symbol == "FPT"
+    assert out.insights is None
 
 
 @pytest.mark.asyncio
-async def test_comprehensive_insights_short_dataframe_path_also_errors():
-    """Same path: <20 rows triggers the same insights=None construction."""
+async def test_comprehensive_insights_short_dataframe_returns_error_status():
+    """<20 rows hits the same error path: error status + insights=None."""
     svc = _make_service()
     short_df = _trend_df(rows=10, start=100.0, drift=0.0)
     with patch.object(svc, "_fetch_historical_prices", AsyncMock(return_value=short_df)):
-        with pytest.raises(Exception):
-            await svc.get_comprehensive_insights(
-                "FPT", "2026-04-01", "2026-05-01", {}
-            )
+        out = await svc.get_comprehensive_insights(
+            "FPT", "2026-04-01", "2026-05-01", {}
+        )
+    assert out.status == "error"
+    assert out.insights is None
 
 
 @pytest.mark.asyncio
