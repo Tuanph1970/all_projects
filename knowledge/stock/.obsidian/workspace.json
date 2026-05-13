@@ -13,28 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "books/getting-started-in-technical-analysis_compress.pdf/Part 2 Trading Issues/Chapter 8 Mid Trending and Pyramiding/Pyramiding Rules.md",
+                "file": "books/getting-started-in-technical-analysis_compress.pdf/part_1_basic_analysis_tool/chapter_3_trends/obsidian/01_Uptrend.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Pyramiding Rules"
-            }
-          }
-        ]
-      },
-      {
-        "id": "9c0d29783018884b",
-        "type": "tabs",
-        "children": [
-          {
-            "id": "f057468b0af3866c",
-            "type": "leaf",
-            "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Graph view"
+              "title": "01_Uptrend"
             }
           }
         ]
@@ -201,6 +185,11 @@
   },
   "active": "c574bdeaa16a9c82",
   "lastOpenFiles": [
+    "books/getting-started-in-technical-analysis_compress.pdf/part_1_basic_analysis_tool/chapter_3_trends/obsidian/00_Chapter_3_MOC.md",
+    "books/getting-started-in-technical-analysis_compress.pdf/part_2_trading_issues/chapter_12_realworld_chart_analysis/concepts/07_Flag_and_Pennant_Continuation.md",
+    "books/getting-started-in-technical-analysis_compress.pdf/part_2_trading_issues/chapter_12_realworld_chart_analysis/concepts/03_Stop_Placement_Quality.md",
+    "books/getting-started-in-technical-analysis_compress.pdf/part_2_trading_issues/chapter_12_realworld_chart_analysis/concepts/02_Market_vs_Limit_Orders.md",
+    "books/getting-started-in-technical-analysis_compress.pdf/part_2_trading_issues/chapter_12_realworld_chart_analysis/concepts/01_Primary_Premise_Violation.md",
     "books/getting-started-in-technical-analysis_compress.pdf/Part 2 Trading Issues/Chapter 8 Mid Trending and Pyramiding/Percent Retracement Entry.md",
     "books/getting-started-in-technical-analysis_compress.pdf/Part 2 Trading Issues/Chapter 8 Mid Trending and Pyramiding/Continuation Pattern Breakouts.md",
     "books/getting-started-in-technical-analysis_compress.pdf/Part 2 Trading Issues/Chapter 8 Mid Trending and Pyramiding/Pyramiding Rules.md",
@@ -230,11 +219,6 @@
     "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators/Price Oscillator - Chapter 6 - Schwager.md",
     "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators/Overbought and Oversold - Chapter 6 - Schwager.md",
     "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators/Oscillators - Chapter 6 - Schwager.md",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators/Oscillator Sensitivity - Chapter 6 - Schwager.md",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators/Moving Average-Based Oscillator - Chapter 6 - Schwager.md",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators/Momentum Indicator - Chapter 6 - Schwager.md",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators/Momentum - Chapter 6 - Schwager.md",
-    "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators/MACD - Chapter 6 - Schwager.md",
     "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 6 Oscillators",
     "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 5: Stock-patterns",
     "books/getting-started-in-technical-analysis_compress.pdf/Part 1 Basic Analys Tool/Chapter 3: Trend/assets/charts/trending_vs_sideways.png",

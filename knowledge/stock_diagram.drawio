@@ -1,0 +1,73 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/28.2.5 Chrome/138.0.7204.251 Electron/37.6.1 Safari/537.36" version="28.2.5">
+  <diagram name="Page-1" id="qlvMCaOVVaz9iw31H3cl">
+    <mxGraphModel dx="1360" dy="843" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-1" value="Select 5 goods stock ticker base on fundamental analysis&amp;nbsp;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="190" y="60" width="340" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-2" value="Get historical data Open, High, Low, Close, Volume of daily" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="240" y="170" width="250" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-4" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" target="PPM3xJx1Hu-zR6PYHk53-2">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="360" y="120" as="sourcePoint" />
+            <mxPoint x="410" y="70" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-5" value="Try dedtect the trend" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="280" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-6" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="PPM3xJx1Hu-zR6PYHk53-2" target="PPM3xJx1Hu-zR6PYHk53-5">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="340" y="350" as="sourcePoint" />
+            <mxPoint x="390" y="300" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-7" value="Is Trend ?&amp;nbsp;" style="rhombus;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="255" y="390" width="210" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-8" value="" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="PPM3xJx1Hu-zR6PYHk53-5" target="PPM3xJx1Hu-zR6PYHk53-7">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="340" y="350" as="sourcePoint" />
+            <mxPoint x="390" y="300" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-9" value="Tranding Range support" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="500" y="500" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-10" value="" style="endArrow=classic;html=1;rounded=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" target="PPM3xJx1Hu-zR6PYHk53-9">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="460" y="430" as="sourcePoint" />
+            <mxPoint x="510" y="380" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="560" y="430" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-11" value="No" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="490" y="400" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-12" value="Checking False Signal" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="520" width="120" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-13" value="" style="endArrow=classic;html=1;rounded=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.4;entryY=-0.033;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="PPM3xJx1Hu-zR6PYHk53-7" target="PPM3xJx1Hu-zR6PYHk53-12">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="340" y="350" as="sourcePoint" />
+            <mxPoint x="110" y="440" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="120" y="430" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-14" value="Yes" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="150" y="400" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-15" value="Wait Confirmatio Trend" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="620" width="120" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
