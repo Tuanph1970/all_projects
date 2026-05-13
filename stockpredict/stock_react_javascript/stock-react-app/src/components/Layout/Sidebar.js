@@ -107,7 +107,8 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
         { key: 'timeseries', label: 'Chuỗi thời gian', route: 'timeseries' },
         { key: 'models', label: 'Mô hình', route: 'models' },
         { key: 'solutions', label: 'Giải pháp', route: 'solutions' },
-        { key: 'indicators', label: 'Chỉ báo', route: 'indicators' }
+        { key: 'indicators', label: 'Chỉ báo', route: 'indicators' },
+        { key: 'backtest', label: 'Backtest', route: 'backtest' }
       ]
     },
     {

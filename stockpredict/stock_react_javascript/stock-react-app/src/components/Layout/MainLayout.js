@@ -41,6 +41,7 @@ import WeeklyReview from '../Pages/Journal/WeeklyReview';
 import KnowledgeQAChat from '../Pages/KnowledgeQAChat';
 import Watchlist from '../Pages/Watchlist';
 import PositionCalculator from '../Pages/PositionCalculator';
+import Backtest from '../Pages/Backtest';
 
 // Thin wrapper: <Company> takes `symbol` as a prop, so we extract it from
 // the URL via useParams rather than touching the existing component.
@@ -105,6 +106,7 @@ const MainLayout = () => {
                 doesn't shadow the static path. SolutionEdit reads :id from
                 useLocation().pathname. */}
             <Route path="/solutions/:id" element={<SolutionEdit />} />
+            <Route path="/backtest" element={<Backtest />} />
 
             <Route path="/agents" element={<Agent />} />
             <Route path="/simulation" element={<SimulationDashboard />} />

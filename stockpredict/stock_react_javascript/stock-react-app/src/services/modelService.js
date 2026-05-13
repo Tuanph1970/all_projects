@@ -205,6 +205,29 @@ class ModelService {
       };
     }
   }
+
+  async runBacktest({ symbol, model_type, start_date, end_date, prediction_horizon }) {
+    try {
+      if (!symbol) throw new Error('Symbol is required');
+      if (!start_date || !end_date) throw new Error('Start and end date are required');
+
+      const response = await httpClient.post(API_ENDPOINTS.PREDICT_BACKTEST, {
+        symbol,
+        model_type,
+        start_date,
+        end_date,
+        prediction_horizon,
+      });
+
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to run backtest');
+      }
+
+      return { success: true, data: response.data };
+    } catch (error) {
+      return { success: false, error: error.message || 'Failed to run backtest' };
+    }
+  }
 }
 
 const modelServiceInstance = new ModelService();
