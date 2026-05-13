@@ -3,7 +3,8 @@ import { LoadingSpinner, ErrorMessage, ConfirmDialog } from '../../ui';
 import {
   Plus, Edit3, Trash2, X, ChevronDown, ChevronUp,
   AlertTriangle, TrendingUp, TrendingDown, CheckCircle,
-  XCircle, Clock, Target, Shield, BookOpen, ArrowUpDown
+  XCircle, Clock, Target, Shield, BookOpen, ArrowUpDown,
+  CalendarDays, Lightbulb
 } from 'lucide-react';
 import journalService from '../../../services/journalService';
 import { useNavigate } from 'react-router-dom';
@@ -41,6 +42,10 @@ const TradeLog = () => {
   const [cumulativeRisk, setCumulativeRisk] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Today's plan (Journal polish B — surface DailyPlan in TradeLog)
+  const [todayPlan, setTodayPlan] = useState(null);
+  const [todayPlanCollapsed, setTodayPlanCollapsed] = useState(false);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('');
@@ -141,6 +146,27 @@ const TradeLog = () => {
       setSelectedAccount(acct || null);
     }
   }, [selectedAccountId, accounts]);
+
+  // Load today's DailyPlan so the trader can see their plan while logging.
+  // No by-date endpoint exists; list is ordered plan_date desc so today
+  // (if present) is at the top among recent entries.
+  useEffect(() => {
+    if (!selectedAccountId) {
+      setTodayPlan(null);
+      return;
+    }
+    (async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const res = await journalService.getDailyPlans(selectedAccountId, 30, 0);
+        const data = res.data || res || [];
+        const list = Array.isArray(data) ? data : (data.items || []);
+        setTodayPlan(list.find((p) => p.plan_date === today) || null);
+      } catch {
+        setTodayPlan(null);
+      }
+    })();
+  }, [selectedAccountId]);
 
   // =========================================================================
   // Sorting
@@ -407,6 +433,59 @@ const TradeLog = () => {
           </div>
         </div>
       )}
+
+      {/* Today's plan reminder (read-only, from /accounts/{id}/plans). */}
+      {todayPlan ? (
+        <div className="tlog-today-plan" data-testid="today-plan">
+          <div
+            className="tlog-today-plan-header"
+            onClick={() => setTodayPlanCollapsed((v) => !v)}
+            role="button"
+            tabIndex={0}
+          >
+            <CalendarDays size={16} />
+            <h4>Kế hoạch hôm nay</h4>
+            <span className="tlog-today-plan-spacer" />
+            {todayPlanCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+          </div>
+          {!todayPlanCollapsed && (
+            <div className="tlog-today-plan-body">
+              {todayPlan.new_trade_ideas && (
+                <div className="tlog-today-plan-section">
+                  <div className="tlog-today-plan-label">
+                    <Lightbulb size={13} />
+                    <span>Ý tưởng giao dịch</span>
+                  </div>
+                  <p>{todayPlan.new_trade_ideas}</p>
+                </div>
+              )}
+              {todayPlan.market_review && (
+                <div className="tlog-today-plan-section">
+                  <div className="tlog-today-plan-label">
+                    <BookOpen size={13} />
+                    <span>Nhận xét thị trường</span>
+                  </div>
+                  <p>{todayPlan.market_review}</p>
+                </div>
+              )}
+              <button
+                className="btn-secondary btn-sm tlog-today-plan-link"
+                onClick={() => navigate('/daily-planning')}
+              >
+                Mở Kế Hoạch Hàng Ngày
+              </button>
+            </div>
+          )}
+        </div>
+      ) : selectedAccountId ? (
+        <div className="tlog-today-plan tlog-today-plan-empty" data-testid="today-plan-empty">
+          <CalendarDays size={16} />
+          <span>Chưa có kế hoạch cho hôm nay.</span>
+          <button className="btn-secondary btn-sm" onClick={() => navigate('/daily-planning')}>
+            Lập kế hoạch
+          </button>
+        </div>
+      ) : null}
 
       {/* Filters */}
       <div className="trade-filters">

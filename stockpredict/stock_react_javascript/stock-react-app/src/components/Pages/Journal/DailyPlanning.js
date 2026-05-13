@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   CalendarDays, Plus, Save, Trash2, ChevronLeft, ChevronRight,
   Eye, TrendingUp, Lightbulb, Heart, RefreshCw,
-  CheckCircle, Edit3
+  CheckCircle, Edit3, Repeat
 } from 'lucide-react';
 import journalService from '../../../services/journalService';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +14,7 @@ const DailyPlanning = () => {
   const [selectedAccountId, setSelectedAccountId] = useState(null);
   const [plans, setPlans] = useState([]);
   const [selectedPlan, setSelectedPlan] = useState(null);
+  const [lastReview, setLastReview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
@@ -52,6 +53,33 @@ const DailyPlanning = () => {
   }, [selectedAccountId]);
 
   useEffect(() => { loadPlans(); }, [loadPlans]);
+
+  // Load latest weekly review for carry-forward of key_adjustments.
+  // Repository orders by week_start desc, so limit=1 gives the most recent.
+  useEffect(() => {
+    if (!selectedAccountId) {
+      setLastReview(null);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await journalService.getWeeklyReviews(selectedAccountId, 1, 0);
+        const data = res.data || res || [];
+        const list = Array.isArray(data) ? data : (data.items || []);
+        setLastReview(list[0] || null);
+      } catch {
+        setLastReview(null);
+      }
+    })();
+  }, [selectedAccountId]);
+
+  const lastWeekBullets = useMemo(() => {
+    if (!lastReview?.key_adjustments) return [];
+    return lastReview.key_adjustments
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }, [lastReview]);
 
   // Load or create plan for selected date
   const loadPlanForDate = useCallback(async () => {
@@ -176,6 +204,23 @@ const DailyPlanning = () => {
         <em>"Mỗi ngày trước khi thị trường mở cửa, bạn nên xem xét toàn bộ các vị thế đang mở và lên kế hoạch giao dịch cho ngày hôm đó."</em>
         <span>— Jack Schwager, Getting Started in Technical Analysis</span>
       </div>
+
+      {lastWeekBullets.length > 0 && (
+        <div className="jplan-last-adjustments" data-testid="last-adjustments">
+          <div className="jplan-last-adjustments-header">
+            <Repeat size={16} />
+            <h4>Điều chỉnh từ tuần trước</h4>
+            {lastReview?.week_start && (
+              <span className="jplan-last-adjustments-week">
+                Tuần {formatDateVN(lastReview.week_start)}
+              </span>
+            )}
+          </div>
+          <ul>
+            {lastWeekBullets.map((b, i) => <li key={i}>{b}</li>)}
+          </ul>
+        </div>
+      )}
 
       <div className="jplan-layout">
         {/* Left: Plan History */}
