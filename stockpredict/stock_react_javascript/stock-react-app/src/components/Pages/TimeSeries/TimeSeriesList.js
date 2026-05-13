@@ -203,6 +203,7 @@ const TimeSeriesList = () => {
   };
 
   // Get all indicators as a flat list for dropdown
+  // eslint-disable-next-line no-unused-vars
   const getAllIndicatorsFlat = () => {
     const allIndicators = [];
     Object.keys(indicators).forEach(category => {

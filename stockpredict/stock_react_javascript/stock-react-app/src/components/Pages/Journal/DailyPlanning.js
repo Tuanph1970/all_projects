@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   CalendarDays, Plus, Save, Trash2, ChevronLeft, ChevronRight,
-  Eye, TrendingUp, Lightbulb, Heart, RefreshCw, AlertTriangle,
+  Eye, TrendingUp, Lightbulb, Heart, RefreshCw,
   CheckCircle, Edit3
 } from 'lucide-react';
 import journalService from '../../../services/journalService';

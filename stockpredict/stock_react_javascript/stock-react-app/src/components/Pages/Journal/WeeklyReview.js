@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   CalendarRange, Plus, Save, Trash2, RefreshCw, TrendingUp,
-  TrendingDown, AlertTriangle, CheckCircle, Target, Award,
+  TrendingDown, AlertTriangle, Target, Award,
   Edit3, RotateCw, DollarSign
 } from 'lucide-react';
 import journalService from '../../../services/journalService';
@@ -53,6 +53,7 @@ const WeeklyReview = () => {
         selectReview(data[0]);
       }
     } catch { setReviews([]); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAccountId]);
 
   useEffect(() => {

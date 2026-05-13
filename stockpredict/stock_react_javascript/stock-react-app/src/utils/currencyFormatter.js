@@ -21,18 +21,7 @@ export const formatVND = (amount, options = {}) => {
 
   const numericAmount = parseFloat(amount);
 
-  const formatOptions = {
-    style: 'currency',
-    currency: 'VND',
-    minimumFractionDigits: showDecimals ? 2 : 0,
-    maximumFractionDigits: showDecimals ? 2 : 0
-  };
-
   try {
-    const formatted = new Intl.NumberFormat(locale, formatOptions).format(numericAmount);
-
-    // For Vietnamese locale, Intl.NumberFormat might not show ₫ symbol correctly
-    // So we'll handle it manually
     if (showSymbol) {
       const numberPart = numericAmount.toLocaleString(locale, {
         minimumFractionDigits: showDecimals ? 2 : 0,
@@ -167,7 +156,7 @@ export const parseVND = (vndString) => {
 };
 
 // Export all utilities as default
-export default {
+const currencyFormatter = {
   formatVND,
   formatStockPrice,
   formatPercentageChange,
@@ -176,3 +165,5 @@ export default {
   formatVolume,
   parseVND
 };
+
+export default currencyFormatter;

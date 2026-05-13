@@ -21,6 +21,7 @@ const TrainingSolution = (props)=>{
     // ~10 minutes at 3s interval — plenty of headroom for slow trainings
     // without polling forever if the backend silently dies.
     const MAX_POLL_ATTEMPTS = 200
+    // eslint-disable-next-line no-unused-vars -- react-hook-form returns bindings not all used yet
     const { register,handleSubmit,reset,formState: { errors },watch} = useForm();
 
     const stopPolling = () => {

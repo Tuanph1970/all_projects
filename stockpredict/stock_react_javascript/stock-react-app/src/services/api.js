@@ -1,7 +1,7 @@
 // src/services/api.js
 // API Service for Microservices Architecture
 
-import { API_ENDPOINTS, API_BASE_URLS } from '../constants/api';
+import { API_ENDPOINTS } from '../constants/api';
 
 /**
  * Helper function to get auth headers
@@ -109,7 +109,7 @@ export const authAPI = {
         throw new Error('Password reset failed');
       }
 
-      const data = await response.json();
+      await response.json();
       return { message: 'Password reset email sent' };
     } catch (error) {
       throw new Error('Password reset failed');
@@ -131,7 +131,7 @@ export const authAPI = {
         throw new Error('Failed to change password');
       }
 
-      const data = await response.json();
+      await response.json();
       return { message: 'Password changed successfully' };
     } catch (error) {
       throw new Error('Failed to change password');

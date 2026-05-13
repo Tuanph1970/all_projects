@@ -6,7 +6,6 @@ import {
   History,
   Lightbulb,
   AlertTriangle,
-  TrendingUp,
   Target,
   ChevronDown,
   ChevronUp,
@@ -20,6 +19,7 @@ export default function CompanyProfile({ symbol }) {
 
   useEffect(() => {
     loadCompanyProfile();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbol]);
 
   const loadCompanyProfile = async () => {

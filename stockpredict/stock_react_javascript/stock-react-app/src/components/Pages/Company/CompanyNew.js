@@ -6,7 +6,6 @@ import { Newspaper, ExternalLink, TrendingUp, TrendingDown } from "lucide-react"
 import {
   customTableStyles,
   formatNumber,
-  formatPercent,
   LoadingComponent,
   NoDataComponent,
 } from "./Reports/tableStyles";

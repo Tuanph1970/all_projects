@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { LoadingSpinner, ErrorMessage, ConfirmDialog } from '../../ui';
 import {
-  BookOpen, Plus, Save, Trash2, Upload, Image, X,
+  BookOpen, Plus, Save, Trash2, Upload, Image,
   TrendingUp, TrendingDown, Clock, CheckCircle, Lock,
   ChevronDown, ChevronRight, AlertTriangle, Heart, Brain
 } from 'lucide-react';
@@ -263,12 +263,15 @@ const TradeDiary = () => {
   // =========================================================================
 
   const isTradeOpen = selectedTrade && selectedTrade.status === 'Open';
+  // preserved for an upcoming closed-state UI branch
+  // eslint-disable-next-line no-unused-vars
   const isTradeClosed = selectedTrade && selectedTrade.status === 'Closed';
 
   const toggleSection = (section) => {
     setExpandedSection(prev => prev === section ? null : section);
   };
 
+  // eslint-disable-next-line no-unused-vars -- emoji labels for future render
   const getEmotionLabel = (value) => {
     const state = EMOTIONAL_STATES.find(s => s.value === value);
     return state ? `${state.emoji} ${state.label}` : value;

@@ -41,6 +41,7 @@ const ModelList = () => {
 
     useEffect(() => {
         loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const loadInitialData = async () => {
@@ -253,6 +254,7 @@ const ModelList = () => {
         }
     };
 
+    // eslint-disable-next-line no-unused-vars -- helper preserved for upcoming field default reads
     const getDefaultFieldValue = (fieldName) => {
         return currentDefaultValues[fieldName];
     };

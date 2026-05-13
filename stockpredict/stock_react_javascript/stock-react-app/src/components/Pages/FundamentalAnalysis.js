@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { analysisAPI, stockAPI } from '../../services/api';
-import { TrendingUp, TrendingDown, AlertCircle, DollarSign, BarChart2, Activity, PieChart, Briefcase, Search } from 'lucide-react';
+import { TrendingUp, AlertCircle, DollarSign, BarChart2, Activity, Briefcase, Search } from 'lucide-react';
 
 export const FundamentalAnalysis = () => {
   const [selectedSymbol, setSelectedSymbol] = useState('');

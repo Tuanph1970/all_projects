@@ -1,7 +1,7 @@
 import React,{useEffect,useState} from "react";
 import httpClient from "../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../constants/api";
-import {Form, FormGroup, FormLabel} from 'react-bootstrap';
+import {Form, FormGroup} from 'react-bootstrap';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import '../../../node_modules/bootstrap/dist/css/bootstrap.min.css';

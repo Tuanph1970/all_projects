@@ -7,6 +7,7 @@ const GeneralSollutionInfo = (props) =>{
     const navigate = useNavigate();
     const [showPastCovariate,setShowPastCovariate] = useState(false)
     const [showFutureCovariate,setShowFutureCovariate] = useState(false)
+    // eslint-disable-next-line no-unused-vars -- react-hook-form returns bindings not all used yet
     const { register,handleSubmit,reset,formState: { errors },watch} = useForm();
     let sol_name = ""
     let model_id = -1
@@ -34,7 +35,7 @@ const GeneralSollutionInfo = (props) =>{
             models_filters = props.models.filter(model=>model['id'] === model_id)
         }
         else {
-            models_filters = props.models.filter(model=>model['id'] == model_id)
+            models_filters = props.models.filter(model => String(model['id']) === String(model_id))
         }
         console.log(models_filters)
         console.log(props.models)
@@ -105,9 +106,10 @@ const GeneralSollutionInfo = (props) =>{
         
         
     }
-    useEffect(() => {        
+    useEffect(() => {
         show_covariates(modelId)
-        
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
     if (!props.models || props.models.length === 0) {
         return (

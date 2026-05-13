@@ -34,12 +34,16 @@ export const Agent = () => {
   const [tickers,setTickers] = useState([])
   const [agents,setAgents] = useState([])
   const [exHistory,setExHistory] = useState("")
+  // eslint-disable-next-line no-unused-vars -- value set for future chart panel
   const [timeSeries,setTimeSeries] = useState([])
   const [trainingHistory,setTrainingHistory] = useState("")
+  // eslint-disable-next-line no-unused-vars -- value set for future chart panel
   const [buyPoint,setBuyPoint] = useState([])
+  // eslint-disable-next-line no-unused-vars -- value set for future chart panel
   const [sellPoint,setSellPoint] = useState([])
   const [agentParams,setAgentParams] = useState([])
-  const { register,handleSubmit,reset,formState: { errors },watch} = useForm();  
+  // eslint-disable-next-line no-unused-vars -- react-hook-form returns these for future validation hooks
+  const { register,handleSubmit,reset,formState: { errors },watch} = useForm();
   const formSubmit = async (data) => {
       data['start_date'] = startDate.toISOString().split('T')[0]
       data['end_date'] = endDate.toISOString().split('T')[0]

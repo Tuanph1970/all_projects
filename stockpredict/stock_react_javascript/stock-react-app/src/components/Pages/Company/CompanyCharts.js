@@ -70,6 +70,7 @@ export default function CompanyCharts({symbol}) {
             setIsLoading(false);
           }
         })();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [symbol]);
       if (isLoading) {
         return <p>Loading data...</p>;

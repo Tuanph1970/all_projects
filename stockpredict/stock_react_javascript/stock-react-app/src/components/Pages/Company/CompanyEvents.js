@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import DataTable from "react-data-table-component";
 import httpClient from "../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../constants/api";
-import { Calendar, TrendingUp, TrendingDown, Activity } from "lucide-react";
+import { Calendar, Activity } from "lucide-react";
 import {
   customTableStyles,
   formatNumber,
@@ -14,6 +14,7 @@ export default function CompanyEvents({ symbol }) {
   const [tableRowsData, setTableRowsData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // eslint-disable-next-line no-unused-vars -- helper retained for upcoming column
   const getChangeStyle = (value) => {
     if (value === null || value === undefined) return "";
     const num = Number(value);
@@ -22,6 +23,7 @@ export default function CompanyEvents({ symbol }) {
     return "text-gray-600";
   };
 
+  // eslint-disable-next-line no-unused-vars -- helper retained for upcoming column
   const getRSIStyle = (value) => {
     if (value === null || value === undefined) return "";
     const num = Number(value);

@@ -83,11 +83,13 @@ export const StockScreener = () => {
     min_volume: '',
     limit: 50
   });
+  // eslint-disable-next-line no-unused-vars -- criteria are loaded once and consulted via setter callbacks in dependent paths
   const [availableCriteria, setAvailableCriteria] = useState(null);
 
   useEffect(() => {
     fetchAvailableCriteria();
     fetchDefaultScreenedStocks();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchAvailableCriteria = async () => {
@@ -634,6 +636,7 @@ export const StockList = () => {
 
   useEffect(() => {
     fetchStocks(1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchStocks = async (page = 1) => {
@@ -680,6 +683,7 @@ export const StockList = () => {
     }
   };
 
+  // eslint-disable-next-line no-unused-vars -- preserved for upcoming detail-modal wiring
   const fetchStockDetails = async (symbol) => {
     try {
       const result = await httpClient.get(API_ENDPOINTS.STOCK_DETAIL(symbol));

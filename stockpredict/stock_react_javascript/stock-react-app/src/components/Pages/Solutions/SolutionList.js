@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Button, ButtonGroup } from "react-bootstrap";
+import { Button } from "react-bootstrap";
 import DataTable from 'react-data-table-component'
 import solutionService from "../../../services/solutionService";
 import SolutionModal from "./SolutionModal";

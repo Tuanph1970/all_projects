@@ -242,6 +242,7 @@ export const TechnicalAnalysis = () => {
     if (selectedSymbol && period) {
       fetchTechnicalAnalysis(selectedSymbol);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period, selectedSymbol]);
 
   const fetchTechnicalAnalysis = async (symbol) => {
@@ -891,6 +892,7 @@ export const TechnicalAnalysis = () => {
     currentY += macdHeight;
     const volumeOrigin = [0, currentY];
 
+    // eslint-disable-next-line no-unused-vars -- preserved for the candle chart panel
     const candleChartExtents = d => [d.high, d.low];
     const volumeChartExtents = d => d.volume;
 

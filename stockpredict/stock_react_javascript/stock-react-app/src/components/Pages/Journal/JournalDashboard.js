@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   BarChart3, TrendingUp, TrendingDown, Target, Activity,
-  DollarSign, Percent, Clock, Award, AlertTriangle,
-  Shield, ChevronDown, RefreshCw, ArrowUpRight, ArrowDownRight,
+  DollarSign, Clock, Award, AlertTriangle,
+  Shield, RefreshCw, ArrowUpRight, ArrowDownRight,
   PieChart, Calendar, Zap, Plus
 } from 'lucide-react';
 import {
-  LineChart, Line, BarChart, Bar, PieChart as RechartsPie, Pie, Cell,
+  BarChart, Bar, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  Area, AreaChart, Legend
+  Area, AreaChart
 } from 'recharts';
 import journalService from '../../../services/journalService';
 import { useNavigate } from 'react-router-dom';

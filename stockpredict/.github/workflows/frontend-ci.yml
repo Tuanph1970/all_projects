@@ -30,17 +30,17 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: ESLint (informational)
-        # Surfaces warnings without failing the job. Flip to required once
-        # Backlog #28 brings the count to zero.
-        continue-on-error: true
-        run: npx eslint "src/**/*.{js,jsx}" --max-warnings 9999
+      - name: ESLint (strict)
+        # Backlog #28 burned the warning count to zero — any new warning
+        # fails the job. Do not raise --max-warnings without an explicit
+        # plan to bring it back to 0.
+        run: npx eslint "src/**/*.{js,jsx}" --max-warnings 0
 
       - name: Production build
-        # CI=false so CRA leaves warnings as warnings rather than upgrading
-        # them to errors. Once #28 is fully burned down, set CI=true here.
+        # CI=true so CRA upgrades warnings to errors. Pairs with the
+        # zero-warning ESLint gate above.
         env:
-          CI: 'false'
+          CI: 'true'
         run: npm run build
 
   test:

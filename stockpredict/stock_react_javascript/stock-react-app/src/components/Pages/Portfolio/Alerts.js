@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LoadingSpinner, ErrorMessage, DataTable, ConfirmDialog } from '../../ui';
 import { Bell, BellOff, Plus, Trash2, Edit, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
-import { alertsAPI, stockAPI } from '../../../services/api';
+import { alertsAPI } from '../../../services/api';
 import portfolioService from '../../../services/portfolioService';
 import { formatStockPrice } from '../../../utils/currencyFormatter';
 import '../../../styles/alerts.css';

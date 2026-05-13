@@ -59,6 +59,7 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
     if (solutionId) {
       loadSolutionIndicators();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [solutionId]);
 
   const loadIndicators = async () => {
@@ -318,6 +319,7 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
       // Only return new object if there are changes to avoid infinite loop
       return hasChanges ? updated : prev;
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modelCovariateConfig?.hasPastCovariate, modelCovariateConfig?.hasFutureCovariate]);
 
   const getSelectedIndicator = (type) => {

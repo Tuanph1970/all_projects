@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Button, ButtonGroup } from "react-bootstrap";
 import fileService from "../../services/fileService";
 import { useErrorHandler } from "../../hooks";
-import { DataTable, LoadingSpinner, ErrorMessage, ConfirmDialog } from "../ui";
+import { DataTable, ErrorMessage, ConfirmDialog } from "../ui";
 import FileUploader from "../WebControl/FileUploader";
 
 const FileUploadManager = () => {
@@ -145,6 +145,7 @@ const FileUploadManager = () => {
 
   useEffect(() => {
     getFileUploadList();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

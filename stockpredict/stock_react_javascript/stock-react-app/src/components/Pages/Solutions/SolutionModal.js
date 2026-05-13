@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button, Form, Row, Col, Alert, Spinner } from 'react-bootstrap';
 import DatePicker from 'react-datepicker';
-import { LineChart, Line, XAxis as RechartsXAxis, YAxis as RechartsYAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Bar, Area, ReferenceLine } from 'recharts';
 import { format } from "d3-format";
 import { timeFormat } from "d3-time-format";
 import {
@@ -25,7 +24,6 @@ import { getXAxisProps, getYAxisProps } from '../../../constants/chartTheme';
 import ChartWrapper from '../../ui/ChartWrapper';
 import IndicatorSelector from './IndicatorSelector';
 import solutionService from '../../../services/solutionService';
-import modelService from '../../../services/modelService';
 import indicatorService from '../../../services/indicatorService';
 import httpClient from '../../../services/httpClient';
 import { API_ENDPOINTS } from '../../../constants/api';
@@ -827,12 +825,13 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
   // Tab 3: Prediction State
   const [predictStartDate, setPredictStartDate] = useState(new Date());
   const [predictEndDate, setPredictEndDate] = useState(new Date());
+  // predictionResult value is set by callers but not yet consumed in the
+  // render path; kept so the data is available when a future result panel
+  // reads it.
+  // eslint-disable-next-line no-unused-vars
   const [predictionResult, setPredictionResult] = useState(null);
   const [predictionChartData, setPredictionChartData] = useState([]);
   const [predictionModelInfo, setPredictionModelInfo] = useState(null); // Store output_chunk_length and training info
-
-  // Training Charts Tab State
-  const [activeChartTab, setActiveChartTab] = useState('price');
 
   useEffect(() => {
     if (show) {
@@ -843,6 +842,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
         resetForm();
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show, solution]);
 
   // Helper function to add business days (skip weekends)

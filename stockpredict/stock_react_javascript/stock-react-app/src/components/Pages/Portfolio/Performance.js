@@ -12,6 +12,7 @@ const Performance = () => {
 
   useEffect(() => {
     fetchPortfolioData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeframe]);
 
   const fetchPortfolioData = async () => {

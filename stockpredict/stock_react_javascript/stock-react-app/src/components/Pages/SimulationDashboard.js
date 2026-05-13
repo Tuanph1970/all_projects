@@ -8,9 +8,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
-  ResponsiveContainer,
-  ReferenceDot
+  ResponsiveContainer
 } from "recharts";
 import { Settings, TrendingUp, BarChart3 } from "lucide-react";
 import { getRechartsGridProps } from "../../constants/chartTheme";
@@ -46,6 +44,7 @@ const SimulationDashboard = () => {
     loadTickers();
     loadModels();
     loadTrainedSolutions();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadTickers = async () => {
@@ -697,6 +696,7 @@ const ResultChart = ({ data, transactions }) => {
 };
 
 // Original Price Chart Component (kept for backward compatibility)
+// eslint-disable-next-line no-unused-vars -- legacy chart component preserved for re-enable
 const PriceChart = ({ data, transactions }) => {
   return <ResultChart data={data} transactions={transactions} />;
 };

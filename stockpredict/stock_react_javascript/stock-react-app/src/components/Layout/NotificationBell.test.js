@@ -78,16 +78,14 @@ describe('NotificationBell', () => {
   test('renders empty state when there are no notifications', async () => {
     render(<NotificationBell />);
     fireEvent.click(screen.getByLabelText('Thông báo'));
-    await waitFor(() =>
-      expect(screen.getByText(/Không có thông báo/i)).toBeInTheDocument()
-    );
+    await screen.findByText(/Không có thông báo/i);
   });
 
   test('renders error message when list fails', async () => {
     notificationService.list.mockResolvedValue(fail('network down'));
     render(<NotificationBell />);
     fireEvent.click(screen.getByLabelText('Thông báo'));
-    await waitFor(() => expect(screen.getByText(/network down/i)).toBeInTheDocument());
+    await screen.findByText(/network down/i);
   });
 
   test('mark-read decrements the unread badge optimistically', async () => {

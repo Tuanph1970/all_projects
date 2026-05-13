@@ -5,16 +5,12 @@ import DataTable from 'react-data-table-component'
 export const StockFinancial = ({data}) => {
   const [tableRowsData, setTableRowsData] = useState(data);
   const onChange = async (e) => {
-    var searchData = data.filter((item) => {
-      if (
-        item.ticker
-          .toString()
-          .toLowerCase()
-          .includes(e.target.value.toLowerCase())
-      ) {
-        return item;
-      }
-    });
+    var searchData = data.filter((item) =>
+      item.ticker
+        .toString()
+        .toLowerCase()
+        .includes(e.target.value.toLowerCase())
+    );
     setTableRowsData(searchData);
   };
   const general_columns = [

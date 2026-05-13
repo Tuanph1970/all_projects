@@ -2,26 +2,22 @@ import React from "react";
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import DataTable from 'react-data-table-component';
-import { formatStockPrice, formatPercentageChange, getChangeColorClass, formatMarketCap, formatVolume } from '../../../utils/currencyFormatter';
+import { formatStockPrice, formatPercentageChange, formatMarketCap, formatVolume } from '../../../utils/currencyFormatter';
 export const StockGeneral = ({data}) => {
   const [tableRowsData, setTableRowsData] = useState(data);  
   
   const onChange = async (e) => {
-    var searchData = data.filter((item) => {
-      if (
-        item.ticker
-          .toString()
-          .toLowerCase()
-          .includes(e.target.value.toLowerCase())
-      ) {
-        return item;
-      }
-    });
+    var searchData = data.filter((item) =>
+      item.ticker
+        .toString()
+        .toLowerCase()
+        .includes(e.target.value.toLowerCase())
+    );
     setTableRowsData(searchData);
   };
   function getFontColor(row) {
     if (row.close > row.open) return "blue";
-    else if (row.close == row.open) return "yellow";
+    else if (row.close === row.open) return "yellow";
     return "red";
   }
   

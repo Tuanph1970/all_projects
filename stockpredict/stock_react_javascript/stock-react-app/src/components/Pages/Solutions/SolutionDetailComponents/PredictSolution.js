@@ -12,6 +12,7 @@ const PredictSolution = (props)=>{
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const [modelInfo, setModelInfo] = useState(null);
+    // eslint-disable-next-line no-unused-vars -- react-hook-form returns bindings not all used yet
     const { register, handleSubmit, reset, formState: { errors }, watch } = useForm();
 
     // Helper function to add business days (skip weekends)

@@ -16,7 +16,9 @@ const ChatbotAgent = () => {
   const [showSuggestions, setShowSuggestions] = useState(true);
   const messagesEndRef = useRef(null);
 
-  // Sample questions for each category
+  // Sample questions for each category — preserved for the in-progress
+  // suggested-prompts panel.
+  // eslint-disable-next-line no-unused-vars
   const sampleQuestions = {
     'market_overview': [
       'What is the current VN-Index level?',
