@@ -4,68 +4,140 @@
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="PPM3xJx1Hu-zR6PYHk53-1" value="Select 5 goods stock ticker base on fundamental analysis&amp;nbsp;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="190" y="60" width="340" height="60" as="geometry" />
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-1" value="Select 5 goods stock ticker base on fundamental analysis&amp;nbsp;" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="210" y="20" width="340" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="PPM3xJx1Hu-zR6PYHk53-2" value="Get historical data Open, High, Low, Close, Volume of daily" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="240" y="170" width="250" height="60" as="geometry" />
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-2" value="Get historical data Open, High, Low, Close, Volume of daily" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="255" y="100" width="250" height="50" as="geometry" />
         </mxCell>
-        <mxCell id="PPM3xJx1Hu-zR6PYHk53-4" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" target="PPM3xJx1Hu-zR6PYHk53-2">
-          <mxGeometry width="50" height="50" relative="1" as="geometry">
-            <mxPoint x="360" y="120" as="sourcePoint" />
-            <mxPoint x="410" y="70" as="targetPoint" />
-          </mxGeometry>
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-5" value="Try dedtect the trend" style="rounded=1;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="320" y="190" width="120" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="PPM3xJx1Hu-zR6PYHk53-5" value="Try dedtect the trend" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="300" y="280" width="120" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="PPM3xJx1Hu-zR6PYHk53-6" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="PPM3xJx1Hu-zR6PYHk53-2" target="PPM3xJx1Hu-zR6PYHk53-5">
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-6" value="" style="endArrow=classic;html=1;rounded=0;" parent="1" source="PPM3xJx1Hu-zR6PYHk53-2" target="PPM3xJx1Hu-zR6PYHk53-5" edge="1">
           <mxGeometry width="50" height="50" relative="1" as="geometry">
             <mxPoint x="340" y="350" as="sourcePoint" />
             <mxPoint x="390" y="300" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="PPM3xJx1Hu-zR6PYHk53-7" value="Is Trend ?&amp;nbsp;" style="rhombus;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="255" y="390" width="210" height="80" as="geometry" />
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-7" value="Is Trend ?&amp;nbsp;" style="rhombus;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="280" y="290" width="210" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="PPM3xJx1Hu-zR6PYHk53-8" value="" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="PPM3xJx1Hu-zR6PYHk53-5" target="PPM3xJx1Hu-zR6PYHk53-7">
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-8" value="" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="PPM3xJx1Hu-zR6PYHk53-5" target="PPM3xJx1Hu-zR6PYHk53-7" edge="1">
           <mxGeometry width="50" height="50" relative="1" as="geometry">
             <mxPoint x="340" y="350" as="sourcePoint" />
             <mxPoint x="390" y="300" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="PPM3xJx1Hu-zR6PYHk53-9" value="Tranding Range support" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="500" y="500" width="120" height="60" as="geometry" />
+        <mxCell id="PPM3xJx1Hu-zR6PYHk53-9" value="Tranding Range support" style="rounded=0;whiteSpace=wrap;html=1;" parent="1" vertex="1">
+          <mxGeometry x="550" y="280" width="120" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="PPM3xJx1Hu-zR6PYHk53-10" value="" style="endArrow=classic;html=1;rounded=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" target="PPM3xJx1Hu-zR6PYHk53-9">
+        <mxCell id="WIsQImCYdiY55D6reAhu-3" value="BUY" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="450" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-4" value="HOLD" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="550" y="380" width="120" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-6" value="wait for breakout" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="550" y="460" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-9" value="Is Break out" style="rhombus;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="305" y="460" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-12" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="PPM3xJx1Hu-zR6PYHk53-1" target="PPM3xJx1Hu-zR6PYHk53-2">
           <mxGeometry width="50" height="50" relative="1" as="geometry">
-            <mxPoint x="460" y="430" as="sourcePoint" />
-            <mxPoint x="510" y="380" as="targetPoint" />
-            <Array as="points">
-              <mxPoint x="560" y="430" />
-            </Array>
+            <mxPoint x="380" y="-0.710678118654755" as="sourcePoint" />
+            <mxPoint x="380" y="-50.710678118654755" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="PPM3xJx1Hu-zR6PYHk53-11" value="No" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
-          <mxGeometry x="490" y="400" width="60" height="30" as="geometry" />
+        <mxCell id="WIsQImCYdiY55D6reAhu-19" value="Wait For confirmation Trend" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="90" y="380" width="120" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="PPM3xJx1Hu-zR6PYHk53-12" value="Checking False Signal" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="70" y="520" width="120" height="50" as="geometry" />
+        <mxCell id="WIsQImCYdiY55D6reAhu-21" value="Uptrend&amp;nbsp;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="290" width="120" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="PPM3xJx1Hu-zR6PYHk53-13" value="" style="endArrow=classic;html=1;rounded=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.4;entryY=-0.033;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="PPM3xJx1Hu-zR6PYHk53-7" target="PPM3xJx1Hu-zR6PYHk53-12">
+        <mxCell id="WIsQImCYdiY55D6reAhu-24" value="Check trend revert signal" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="185" y="530" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-46" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="WIsQImCYdiY55D6reAhu-25" target="WIsQImCYdiY55D6reAhu-44">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-25" value="wait for confirmation" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="190" y="610" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-26" value="Breakout confirmation" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="540" y="540" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-27" value="Uptrend&amp;nbsp;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="465" y="620" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-28" value="Down Trend" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="670" y="630" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-29" value="BUY" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="465" y="710" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-30" value="SELL( cutting lost)" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="670" y="710" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-31" value="Wrong Entry&amp;nbsp;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="10" y="520" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-32" value="Cutting Lost&lt;div&gt;SELL&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="10" y="610" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-33" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="WIsQImCYdiY55D6reAhu-24" target="WIsQImCYdiY55D6reAhu-24">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-35" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" target="WIsQImCYdiY55D6reAhu-21">
           <mxGeometry width="50" height="50" relative="1" as="geometry">
-            <mxPoint x="340" y="350" as="sourcePoint" />
-            <mxPoint x="110" y="440" as="targetPoint" />
-            <Array as="points">
-              <mxPoint x="120" y="430" />
-            </Array>
+            <mxPoint x="280" y="310" as="sourcePoint" />
+            <mxPoint x="330" y="260" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="PPM3xJx1Hu-zR6PYHk53-14" value="Yes" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
-          <mxGeometry x="150" y="400" width="60" height="30" as="geometry" />
+        <mxCell id="WIsQImCYdiY55D6reAhu-37" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="139" y="330" as="sourcePoint" />
+            <mxPoint x="146.1428571428571" y="380" as="targetPoint" />
+          </mxGeometry>
         </mxCell>
-        <mxCell id="PPM3xJx1Hu-zR6PYHk53-15" value="Wait Confirmatio Trend" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="70" y="620" width="120" height="60" as="geometry" />
+        <mxCell id="WIsQImCYdiY55D6reAhu-39" value="" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="WIsQImCYdiY55D6reAhu-19" target="WIsQImCYdiY55D6reAhu-3">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="400" y="370" as="sourcePoint" />
+            <mxPoint x="450" y="320" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-40" value="" style="endArrow=classic;html=1;rounded=0;entryX=0.558;entryY=-0.05;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="WIsQImCYdiY55D6reAhu-31" target="WIsQImCYdiY55D6reAhu-32">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="400" y="370" as="sourcePoint" />
+            <mxPoint x="450" y="320" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-41" value="" style="endArrow=classic;html=1;rounded=0;exitX=0.4;exitY=1.075;exitDx=0;exitDy=0;exitPerimeter=0;" edge="1" parent="1" source="WIsQImCYdiY55D6reAhu-3" target="WIsQImCYdiY55D6reAhu-31">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="400" y="370" as="sourcePoint" />
+            <mxPoint x="450" y="320" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-42" value="" style="endArrow=classic;html=1;rounded=0;entryX=0.433;entryY=-0.025;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" target="WIsQImCYdiY55D6reAhu-24">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="190" y="490" as="sourcePoint" />
+            <mxPoint x="240" y="440" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-43" value="" style="endArrow=classic;html=1;rounded=0;" edge="1" parent="1" source="WIsQImCYdiY55D6reAhu-24" target="WIsQImCYdiY55D6reAhu-25">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="250" y="580" as="sourcePoint" />
+            <mxPoint x="300" y="510" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-44" value="SELL&lt;div&gt;Make profit&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="185" y="690" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="WIsQImCYdiY55D6reAhu-45" value="" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="WIsQImCYdiY55D6reAhu-25">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="250" y="670" as="sourcePoint" />
+            <mxPoint x="300" y="620" as="targetPoint" />
+          </mxGeometry>
         </mxCell>
       </root>
     </mxGraphModel>
