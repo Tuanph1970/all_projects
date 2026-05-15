@@ -237,3 +237,6 @@ x86/
 *.nupkg
 packages/
 .nuget/
+
+# drawio auto-backup/lock files
+.$*.drawio.bkp
