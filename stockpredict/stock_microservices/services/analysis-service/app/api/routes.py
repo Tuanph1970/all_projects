@@ -12,7 +12,8 @@ from app.models.schemas import (
     ScreenerFilter, FilterOperator,
     StockComparisonRequest, StockComparisonResponse, StockComparisonItem,
     IndustryAnalysisResponse, CombinedAnalysisResponse,
-    TopSignalsResponse, SignalStock, QuickSummaryResponse, SignalType
+    TopSignalsResponse, SignalStock, QuickSummaryResponse, SignalType,
+    AtrResponse, SwingsResponse, SRResponse,
 )
 
 router = APIRouter()
@@ -362,6 +363,61 @@ async def get_top_signals(
         sell_signals=sell_signals,
         generated_at=datetime.utcnow()
     )
+
+
+@router.get("/atr/{symbol}", response_model=AtrResponse)
+async def get_atr(
+    symbol: str,
+    period: int = Query(default=14, ge=2, le=100),
+    days: int = Query(default=100, ge=30, le=500),
+    tail: int = Query(default=60, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+):
+    """Average True Range (Wilder) — input to stops & volatility-adjusted sizing (Ch 9, 16)."""
+    service = AnalysisService(db)
+    result = await service.get_atr(symbol, period=period, days=days, tail=tail)
+    if not result:
+        raise HTTPException(status_code=404, detail=f"Could not compute ATR for {symbol}")
+    return result
+
+
+@router.get("/swings/{symbol}", response_model=SwingsResponse)
+async def get_swing_pivots(
+    symbol: str,
+    window: int = Query(default=3, ge=1, le=20, description="Bars on each side"),
+    days: int = Query(default=200, ge=30, le=1000),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fractal swing-pivot detector — input to S/R, regime, and swing stops (Ch 3, 4, 9)."""
+    service = AnalysisService(db)
+    result = await service.get_swing_pivots(symbol, window=window, days=days)
+    if not result:
+        raise HTTPException(status_code=404, detail=f"Could not compute swing pivots for {symbol}")
+    return result
+
+
+@router.get("/sr/{symbol}", response_model=SRResponse)
+async def get_sr_levels(
+    symbol: str,
+    window: int = Query(default=3, ge=1, le=20, description="Swing-pivot window"),
+    tolerance_pct: float = Query(default=2.0, ge=0.1, le=10.0,
+                                 description="Pivots within ±this %% of the cluster mean merge"),
+    days: int = Query(default=200, ge=30, le=1000),
+    db: AsyncSession = Depends(get_db),
+):
+    """Typed S/R levels built by clustering swing pivots (Ch 4).
+
+    Each level carries price, type (support/resistance/flip), strength (touches)
+    and age_bars. Consumed by decision-helper-service for range bounces,
+    breakout detection, and target objectives.
+    """
+    service = AnalysisService(db)
+    result = await service.get_sr_levels(
+        symbol, window=window, tolerance_pct=tolerance_pct, days=days,
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail=f"Could not compute S/R levels for {symbol}")
+    return result
 
 
 @router.get("/summary/{symbol}", response_model=QuickSummaryResponse)

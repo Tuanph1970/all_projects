@@ -17,7 +17,9 @@ from app.models.schemas import (
     ScreenerResponse, ScreenerStock, ScreenerFilter,
     CurrentPriceData, MovingAverages, TradingAnalysis, ChartData,
     CompanyInfo, ValuationSummary, ValuationFactor, FinancialRatios,
-    GrowthMetrics, IncomeStatement, BalanceSheet, CashFlow
+    GrowthMetrics, IncomeStatement, BalanceSheet, CashFlow,
+    AtrPoint, AtrResponse, SwingType, SwingPivot, SwingsResponse,
+    SRLevelType, SRTouch, SRLevel, SRResponse,
 )
 
 settings = get_settings()
@@ -71,6 +73,114 @@ class AnalysisService:
         upper = sma + (std * 2)
         lower = sma - (std * 2)
         return float(upper.iloc[-1]), float(lower.iloc[-1]), float(sma.iloc[-1])
+
+    def _calculate_atr(self, ohlc: pd.DataFrame, period: int = 14) -> pd.Series:
+        """Average True Range (Wilder's RMA smoothing).
+
+        Returns the full ATR series indexed identically to `ohlc` so callers
+        can align it with their bars; consumers wanting only the latest value
+        read `.iloc[-1]`. Used by the trader-decision helper for swing stops
+        and volatility-adjusted sizing (Schwager Ch 9, 16).
+        """
+        high = ohlc["high"].astype(float)
+        low = ohlc["low"].astype(float)
+        close = ohlc["close"].astype(float)
+        prev_close = close.shift(1)
+        tr = pd.concat(
+            [(high - low), (high - prev_close).abs(), (low - prev_close).abs()],
+            axis=1,
+        ).max(axis=1)
+        # Wilder's smoothing == EMA with alpha = 1/period.
+        return tr.ewm(alpha=1.0 / period, adjust=False, min_periods=period).mean()
+
+    def _find_swing_pivots(self, ohlc: pd.DataFrame, window: int = 3) -> List[SwingPivot]:
+        """Fractal swing pivots over a rolling window of `window` bars each side.
+
+        A bar at index i is a swing high iff its high is strictly greater than
+        the highs of the `window` bars on either side; symmetric for swing low.
+        Deterministic across reruns; returns pivots in chronological order.
+        """
+        if window < 1 or len(ohlc) < 2 * window + 1:
+            return []
+        highs = ohlc["high"].astype(float).values
+        lows = ohlc["low"].astype(float).values
+        dates = ohlc["date"].dt.strftime("%Y-%m-%d").tolist() if "date" in ohlc.columns else [str(i) for i in range(len(ohlc))]
+
+        pivots: List[SwingPivot] = []
+        for i in range(window, len(ohlc) - window):
+            left = slice(i - window, i)
+            right = slice(i + 1, i + 1 + window)
+            if highs[i] > highs[left].max() and highs[i] > highs[right].max():
+                pivots.append(SwingPivot(
+                    bar_index=i, date=dates[i], type=SwingType.HIGH, price=float(highs[i])
+                ))
+            if lows[i] < lows[left].min() and lows[i] < lows[right].min():
+                pivots.append(SwingPivot(
+                    bar_index=i, date=dates[i], type=SwingType.LOW, price=float(lows[i])
+                ))
+        return pivots
+
+    def _find_sr_levels(
+        self,
+        ohlc: pd.DataFrame,
+        window: int = 3,
+        tolerance_pct: float = 2.0,
+    ) -> tuple:
+        """Cluster swing pivots into typed S/R levels (Schwager Ch 4).
+
+        Two pivots belong to the same level when their prices are within
+        `tolerance_pct` percent of the running cluster mean. Each cluster
+        emits a single `SRLevel` carrying mean price, dominant pivot type
+        (support / resistance / flip on ties), strength (touch count) and
+        age_bars (bars since the most recent touch).
+
+        Returns `(supports, resistances)` — both lists are sorted by price
+        ascending; a FLIP level appears in both.
+        """
+        pivots = self._find_swing_pivots(ohlc, window=window)
+        if not pivots:
+            return [], []
+
+        last_bar_index = len(ohlc) - 1
+        sorted_pivots = sorted(pivots, key=lambda p: p.price)
+
+        clusters: List[List[SwingPivot]] = [[sorted_pivots[0]]]
+        for p in sorted_pivots[1:]:
+            current = clusters[-1]
+            mean = sum(x.price for x in current) / len(current)
+            if mean > 0 and abs(p.price - mean) / mean * 100 <= tolerance_pct:
+                current.append(p)
+            else:
+                clusters.append([p])
+
+        levels: List[SRLevel] = []
+        for cluster in clusters:
+            prices = [p.price for p in cluster]
+            bars = [p.bar_index for p in cluster]
+            highs = sum(1 for p in cluster if p.type == SwingType.HIGH)
+            lows = len(cluster) - highs
+            if highs > lows:
+                kind = SRLevelType.RESISTANCE
+            elif lows > highs:
+                kind = SRLevelType.SUPPORT
+            else:
+                kind = SRLevelType.FLIP
+            levels.append(SRLevel(
+                price=round(sum(prices) / len(prices), 4),
+                type=kind,
+                strength=len(cluster),
+                age_bars=last_bar_index - max(bars),
+                touches=[
+                    SRTouch(
+                        bar_index=p.bar_index, date=p.date,
+                        price=p.price, pivot_type=p.type,
+                    ) for p in cluster
+                ],
+            ))
+
+        supports = [lv for lv in levels if lv.type in (SRLevelType.SUPPORT, SRLevelType.FLIP)]
+        resistances = [lv for lv in levels if lv.type in (SRLevelType.RESISTANCE, SRLevelType.FLIP)]
+        return supports, resistances
 
     def _find_support_resistance(self, prices: pd.Series) -> tuple:
         prices_list = prices.tolist()
@@ -593,3 +703,74 @@ class AnalysisService:
         elif filter.operator.value == "between":
             return filter.value <= value <= filter.value2
         return True
+
+    # ------------------------------------------------------------------
+    # Trader-helper foundations — F-001 (ATR), F-002 (swing pivots).
+    # Consumed by decision-helper-service for stops / regime / S/R.
+    # ------------------------------------------------------------------
+    async def get_atr(self, symbol: str, period: int = 14, days: int = 100,
+                      tail: int = 60) -> Optional[AtrResponse]:
+        df = await self._fetch_historical_data(symbol, days)
+        if df is None or len(df) < period + 1:
+            return None
+        if not {"high", "low", "close"}.issubset(df.columns):
+            return None
+
+        atr = self._calculate_atr(df, period=period).dropna()
+        if atr.empty:
+            return None
+
+        recent = atr.tail(tail)
+        dates = df["date"].dt.strftime("%Y-%m-%d").reindex(recent.index)
+        series = [
+            AtrPoint(date=d, atr=round(float(v), 6))
+            for d, v in zip(dates.tolist(), recent.tolist())
+        ]
+        return AtrResponse(
+            symbol=symbol.upper(),
+            period=period,
+            latest=round(float(atr.iloc[-1]), 6),
+            series=series,
+            generated_at=datetime.utcnow(),
+        )
+
+    async def get_swing_pivots(self, symbol: str, window: int = 3,
+                               days: int = 200) -> Optional[SwingsResponse]:
+        df = await self._fetch_historical_data(symbol, days)
+        if df is None or len(df) < 2 * window + 1:
+            return None
+        if not {"high", "low"}.issubset(df.columns):
+            return None
+
+        pivots = self._find_swing_pivots(df, window=window)
+        return SwingsResponse(
+            symbol=symbol.upper(),
+            window=window,
+            pivots=pivots,
+            generated_at=datetime.utcnow(),
+        )
+
+    async def get_sr_levels(
+        self,
+        symbol: str,
+        window: int = 3,
+        tolerance_pct: float = 2.0,
+        days: int = 200,
+    ) -> Optional[SRResponse]:
+        df = await self._fetch_historical_data(symbol, days)
+        if df is None or len(df) < 2 * window + 1:
+            return None
+        if not {"high", "low"}.issubset(df.columns):
+            return None
+
+        supports, resistances = self._find_sr_levels(
+            df, window=window, tolerance_pct=tolerance_pct,
+        )
+        return SRResponse(
+            symbol=symbol.upper(),
+            window=window,
+            tolerance_pct=tolerance_pct,
+            supports=supports,
+            resistances=resistances,
+            generated_at=datetime.utcnow(),
+        )

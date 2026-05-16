@@ -765,3 +765,317 @@ async def test_save_fundamental_data_updates_existing():
     out = await repo.save_fundamental_data(symbol="FPT", pe_ratio=15.5)
     assert out is existing
     assert existing.pe_ratio == 15.5
+
+
+# ---------------------------------------------------------------------------
+# F-001 ATR + F-002 swing pivots (road_map_version_11.xlsx)
+# ---------------------------------------------------------------------------
+
+def _ohlc_df(highs, lows, closes, start="2026-01-01"):
+    n = len(closes)
+    assert len(highs) == n and len(lows) == n
+    return pd.DataFrame({
+        "date": pd.date_range(start, periods=n, freq="D"),
+        "open": closes,
+        "high": highs,
+        "low": lows,
+        "close": closes,
+        "volume": np.full(n, 1000),
+    })
+
+
+class TestAtrIndicator:
+    def test_atr_is_constant_when_true_range_is_constant(self):
+        """If every bar has identical TR, Wilder ATR converges to that TR
+        from the very first valid bar."""
+        svc = _make_service()
+        # high=102, low=100 each bar, no gaps -> TR == 2 for every bar.
+        n = 30
+        df = _ohlc_df(
+            highs=[102.0] * n, lows=[100.0] * n,
+            closes=[101.0] * n,
+        )
+        atr = svc._calculate_atr(df, period=14)
+        # First period-1 values are NaN (min_periods=period); then constant 2.
+        assert pd.isna(atr.iloc[12])
+        assert atr.iloc[13] == pytest.approx(2.0, rel=1e-9)
+        assert atr.iloc[-1] == pytest.approx(2.0, rel=1e-9)
+
+    def test_atr_uses_prev_close_gap_in_true_range(self):
+        """A gap up that exceeds today's H-L should bump TR via |H - prev_close|.
+        We verify ATR rises after the gap bar."""
+        svc = _make_service()
+        # Flat bars (TR=1) for 20 days, then a gap-up bar.
+        n = 20
+        highs = [101.0] * n + [110.0]   # last bar gaps up
+        lows  = [100.0] * n + [108.0]
+        closes = [100.5] * n + [109.5]
+        df = _ohlc_df(highs, lows, closes)
+        atr = svc._calculate_atr(df, period=14)
+        # ATR before the gap bar.
+        before = atr.iloc[-2]
+        after = atr.iloc[-1]
+        assert before == pytest.approx(1.0, rel=1e-6)
+        # Gap bar TR = max(2, |110 - 100.5|=9.5, |108 - 100.5|=7.5) = 9.5
+        # Wilder: ATR_new = ATR_old + (TR - ATR_old)/14 = 1 + (9.5 - 1)/14 ≈ 1.6071
+        assert after == pytest.approx(1 + (9.5 - 1) / 14, rel=1e-6)
+        assert after > before
+
+    def test_atr_returns_empty_series_when_columns_missing(self):
+        svc = _make_service()
+        df = pd.DataFrame({"close": [1, 2, 3]})
+        with pytest.raises(KeyError):
+            svc._calculate_atr(df, period=14)
+
+
+class TestSwingPivots:
+    def test_finds_alternating_highs_and_lows(self):
+        """Synthetic zig-zag: every other peak/trough is a confirmed fractal pivot.
+        Note: pivots within `window` bars of either end cannot be confirmed."""
+        svc = _make_service()
+        # 16 bars: peak at i=3, trough at i=7, peak at i=11, trough at i=13 — but
+        # window=2 needs 2 bars on each side, so the last confirmable pivot is at
+        # i = len - 1 - window = 13. Add trailing bars to confirm i=11.
+        highs = [10, 12, 14, 16, 14, 12, 10,  8, 10, 12, 14, 16, 14, 12, 10]
+        lows  = [ 9, 11, 13, 15, 13, 11,  9,  7,  9, 11, 13, 15, 13, 11,  9]
+        df = _ohlc_df(highs, lows, closes=highs)
+        pivots = svc._find_swing_pivots(df, window=2)
+        idxs = [(p.bar_index, p.type.value, p.price) for p in pivots]
+        # Confirmed pivots: high at i=3, low at i=7 (=7.0, not 8.0), high at i=11.
+        assert (3, "high", 16.0) in idxs
+        assert (7, "low", 7.0) in idxs
+        assert (11, "high", 16.0) in idxs
+
+    def test_returns_empty_when_dataframe_too_short(self):
+        svc = _make_service()
+        df = _ohlc_df(highs=[1, 2], lows=[0, 1], closes=[1, 2])
+        assert svc._find_swing_pivots(df, window=3) == []
+
+    def test_is_deterministic_across_reruns(self):
+        svc = _make_service()
+        np.random.seed(0)
+        n = 80
+        closes = np.cumsum(np.random.randn(n)) + 100
+        df = _ohlc_df(highs=closes + 1, lows=closes - 1, closes=closes)
+        a = svc._find_swing_pivots(df, window=3)
+        b = svc._find_swing_pivots(df, window=3)
+        assert [(p.bar_index, p.type, p.price) for p in a] == \
+               [(p.bar_index, p.type, p.price) for p in b]
+
+    def test_monotonic_series_has_no_internal_pivots(self):
+        svc = _make_service()
+        # Strictly rising — no high or low can satisfy both sides.
+        closes = np.arange(20, dtype=float)
+        df = _ohlc_df(highs=closes + 1, lows=closes - 1, closes=closes)
+        assert svc._find_swing_pivots(df, window=2) == []
+
+
+@pytest.mark.asyncio
+async def test_get_atr_returns_none_when_history_too_short():
+    svc = _make_service()
+    with patch.object(svc, "_fetch_historical_data", AsyncMock(return_value=None)):
+        assert (await svc.get_atr("FPT")) is None
+
+
+@pytest.mark.asyncio
+async def test_get_atr_builds_response_with_latest_and_series():
+    svc = _make_service()
+    n = 40
+    df = _ohlc_df(
+        highs=[102.0] * n, lows=[100.0] * n, closes=[101.0] * n,
+    )
+    with patch.object(svc, "_fetch_historical_data", AsyncMock(return_value=df)):
+        out = await svc.get_atr("fpt", period=14, days=100, tail=10)
+    assert out is not None
+    assert out.symbol == "FPT"
+    assert out.period == 14
+    assert out.latest == pytest.approx(2.0, rel=1e-6)
+    assert len(out.series) == 10
+    assert out.series[-1].atr == pytest.approx(2.0, rel=1e-6)
+
+
+@pytest.mark.asyncio
+async def test_get_swing_pivots_returns_none_when_no_data():
+    svc = _make_service()
+    with patch.object(svc, "_fetch_historical_data", AsyncMock(return_value=None)):
+        assert (await svc.get_swing_pivots("FPT")) is None
+
+
+@pytest.mark.asyncio
+async def test_get_swing_pivots_uppercases_and_passes_window():
+    svc = _make_service()
+    highs = [10, 12, 14, 16, 14, 12, 10, 8, 10, 12, 14, 16, 14, 12, 10]
+    lows  = [ 9, 11, 13, 15, 13, 11,  9, 7,  9, 11, 13, 15, 13, 11,  9]
+    df = _ohlc_df(highs, lows, closes=highs)
+    with patch.object(svc, "_fetch_historical_data", AsyncMock(return_value=df)):
+        out = await svc.get_swing_pivots("fpt", window=2, days=200)
+    assert out is not None
+    assert out.symbol == "FPT"
+    assert out.window == 2
+    assert len(out.pivots) >= 3
+
+
+# ---------------------------------------------------------------------------
+# F-003 typed S/R levels (road_map_version_11.xlsx)
+# ---------------------------------------------------------------------------
+
+from app.models.schemas import SRLevelType, SwingType as _SwingType  # noqa: E402
+
+
+class TestSRClustering:
+    def test_returns_empty_when_no_swing_pivots(self):
+        """A monotonic series produces no fractal pivots → no S/R levels."""
+        svc = _make_service()
+        closes = np.arange(20, dtype=float)
+        df = _ohlc_df(highs=closes + 1, lows=closes - 1, closes=closes)
+        supports, resistances = svc._find_sr_levels(df, window=2)
+        assert supports == []
+        assert resistances == []
+
+    def test_two_close_pivots_merge_into_one_level(self):
+        """Two pivots within tolerance_pct of each other become a single level
+        with strength=2."""
+        svc = _make_service()
+        # 15 bars with two clean low pivots: i=3 (price 100) and i=11 (price 101).
+        # With window=2 the valid index range is [2, 12], so both are detectable.
+        #          idx:  0    1    2    3    4    5    6    7    8    9   10   11   12   13   14
+        highs = [110, 112, 110, 108, 110, 112, 110, 112, 110, 112, 110, 108, 110, 112, 110]
+        lows  = [109, 111, 109, 100, 109, 111, 109, 111, 109, 111, 109, 101, 109, 111, 109]
+        df = _ohlc_df(highs, lows, closes=lows)
+        supports, _ = svc._find_sr_levels(df, window=2, tolerance_pct=2.0)
+        assert len(supports) == 1
+        lvl = supports[0]
+        assert lvl.strength == 2
+        assert lvl.type == SRLevelType.SUPPORT
+        # Mean of 100 and 101 = 100.5
+        assert lvl.price == pytest.approx(100.5, rel=1e-6)
+
+    def test_two_distant_pivots_stay_separate(self):
+        """Pivots farther apart than tolerance_pct stay as separate levels."""
+        svc = _make_service()
+        # 15 bars: pivot lows at i=3 (price 100) and i=11 (price 120). ~20% apart.
+        highs = [110, 112, 110, 108, 110, 112, 110, 112, 110, 132, 130, 128, 130, 132, 130]
+        lows  = [109, 111, 109, 100, 109, 111, 109, 111, 109, 131, 129, 120, 129, 131, 129]
+        df = _ohlc_df(highs, lows, closes=lows)
+        supports, _ = svc._find_sr_levels(df, window=2, tolerance_pct=2.0)
+        # Two pivot lows at 100 and 120 → two separate levels.
+        assert len(supports) == 2
+        assert all(s.strength == 1 for s in supports)
+        prices = sorted(s.price for s in supports)
+        assert prices[0] == pytest.approx(100.0, rel=1e-6)
+        assert prices[1] == pytest.approx(120.0, rel=1e-6)
+
+    def test_age_bars_measures_distance_to_most_recent_touch(self):
+        """age_bars = last_bar_index - max(bar_index in cluster)."""
+        svc = _make_service()
+        # One low at index 5 in a 13-bar series → age = 12 - 5 = 7
+        highs = [110, 112, 114, 112, 110, 108, 110, 112, 114, 112, 110, 108, 110]
+        lows  = [109, 111, 113, 111, 109, 100, 109, 111, 113, 111, 109, 107, 109]
+        df = _ohlc_df(highs, lows, closes=lows)
+        supports, _ = svc._find_sr_levels(df, window=2, tolerance_pct=2.0)
+        # The low at i=5 (price 100) is far from i=11 (price 107) — won't cluster.
+        s_at_100 = [s for s in supports if abs(s.price - 100.0) < 1.0]
+        assert len(s_at_100) == 1
+        assert s_at_100[0].age_bars == 12 - 5
+
+    def test_flip_type_when_highs_and_lows_tie_in_cluster(self):
+        """A cluster with equal high+low pivot counts is a FLIP level
+        (price acted as both support and resistance — Ch 4 S/R flip)."""
+        svc = _make_service()
+        # Build a series where the SAME price is touched once as a high and
+        # once as a low (i.e. price rejected at it from both sides).
+        # High at i=3 (price 100), Low at i=9 (price 100) — both at value 100.
+        highs = [98, 99, 100, 100, 100, 99, 98, 99, 100, 102, 100, 99, 98]
+        lows  = [95, 96, 97, 99, 97, 96, 95, 96,  97, 100,  97, 96, 95]
+        # Reshape: we want a clear high pivot at one index and a clear low
+        # pivot at another, both at price ~100.
+        highs = [99, 102, 105, 102, 99, 96, 99, 102, 103, 102, 99, 96, 99]
+        lows  = [98, 101,  99, 101, 98, 95, 98, 101, 100, 101, 98, 95, 98]
+        # High pivot at i=2 (high=105), low pivot at i=5 (low=95).
+        # These are far apart in price → won't FLIP. Use a simpler approach:
+        # construct pivots manually-friendly OHLC so both pivot types land at
+        # similar prices.
+        highs = [99, 100, 101, 100, 99,  98,  99, 100, 101, 100, 99]
+        lows  = [98,  99,  99,  99, 98,  98,  98,  98, 100,  98, 98]
+        # i=2: high=101 with neighbors max(100,100)=100 left and max(100,99)=100 right → high pivot at 101.
+        # i=8: low=100 with neighbors min(98,98)=98 left and min(98,98)=98 right → NOT a low (100 > 98).
+        # The math of FLIP is fragile to construct; assert FLIP via direct call
+        # to the clustering on hand-built pivots instead.
+
+        # Direct test: build two pivots (one high, one low) at identical price
+        # and feed through clustering by stubbing _find_swing_pivots.
+        from app.models.schemas import SwingPivot
+        df = _ohlc_df(highs, lows, closes=lows)  # df shape only — content unused
+        fake_pivots = [
+            SwingPivot(bar_index=2, date="2026-01-03", type=_SwingType.HIGH, price=100.0),
+            SwingPivot(bar_index=8, date="2026-01-09", type=_SwingType.LOW,  price=100.0),
+        ]
+        with patch.object(svc, "_find_swing_pivots", return_value=fake_pivots):
+            supports, resistances = svc._find_sr_levels(df, window=2, tolerance_pct=2.0)
+        # Tied counts (1 high, 1 low) → FLIP — appears in both lists.
+        assert len(supports) == 1 and supports[0].type == SRLevelType.FLIP
+        assert len(resistances) == 1 and resistances[0].type == SRLevelType.FLIP
+        assert supports[0] is resistances[0] or supports[0].price == resistances[0].price
+
+    def test_tolerance_pct_widens_clustering(self):
+        """Same pivots, larger tolerance → fewer (merged) levels."""
+        svc = _make_service()
+        from app.models.schemas import SwingPivot
+        df = _ohlc_df(highs=[1] * 10, lows=[1] * 10, closes=[1] * 10)  # shape only
+        fake_pivots = [
+            SwingPivot(bar_index=1, date="d", type=_SwingType.LOW, price=100.0),
+            SwingPivot(bar_index=3, date="d", type=_SwingType.LOW, price=102.0),
+            SwingPivot(bar_index=5, date="d", type=_SwingType.LOW, price=104.0),
+        ]
+        with patch.object(svc, "_find_swing_pivots", return_value=fake_pivots):
+            tight, _ = svc._find_sr_levels(df, tolerance_pct=1.0)
+            loose, _ = svc._find_sr_levels(df, tolerance_pct=5.0)
+        # 1% tolerance: 100 vs 102 differ by 2% → don't merge → 3 levels.
+        # 5% tolerance: all three within 5% of running mean → 1 level.
+        assert len(tight) == 3
+        assert len(loose) == 1
+        assert loose[0].strength == 3
+
+
+@pytest.mark.asyncio
+async def test_get_sr_levels_returns_none_when_no_data():
+    svc = _make_service()
+    with patch.object(svc, "_fetch_historical_data", AsyncMock(return_value=None)):
+        assert (await svc.get_sr_levels("FPT")) is None
+
+
+@pytest.mark.asyncio
+async def test_get_sr_levels_returns_typed_response():
+    svc = _make_service()
+    # 15 bars — two low pivots within 1% of each other.
+    highs = [110, 112, 110, 108, 110, 112, 110, 112, 110, 112, 110, 108, 110, 112, 110]
+    lows  = [109, 111, 109, 100, 109, 111, 109, 111, 109, 111, 109, 101, 109, 111, 109]
+    df = _ohlc_df(highs, lows, closes=lows)
+    with patch.object(svc, "_fetch_historical_data", AsyncMock(return_value=df)):
+        out = await svc.get_sr_levels("fpt", window=2, tolerance_pct=2.0, days=200)
+    assert out is not None
+    assert out.symbol == "FPT"
+    assert out.window == 2
+    assert out.tolerance_pct == 2.0
+    # The clustered support level (price ≈ 100.5) appears in supports.
+    assert len(out.supports) >= 1
+    assert any(s.strength == 2 for s in out.supports)
+
+
+def test_existing_find_support_resistance_unchanged():
+    """Regression guard: F-003 must NOT change the legacy
+    _find_support_resistance signature or output that get_technical_analysis
+    relies on (backwards-compat requirement)."""
+    svc = _make_service()
+    prices = pd.Series([
+        100, 102, 105, 102, 100,
+        98, 95, 92, 95, 98,
+        101, 104, 107, 104, 101,
+    ], dtype=float)
+    supports, resistances = svc._find_support_resistance(prices)
+    # Old API: lists of numbers (the original impl returns whatever dtype the
+    # series held — float here, int when given int inputs; both are valid for
+    # backwards compat with the existing TechnicalAnalysisResponse).
+    assert isinstance(supports, list) and isinstance(resistances, list)
+    assert all(isinstance(s, (int, float)) for s in supports)
+    assert all(isinstance(r, (int, float)) for r in resistances)

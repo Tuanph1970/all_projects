@@ -298,6 +298,79 @@ class SignalStock(BaseModel):
     trigger_reason: str
 
 
+# ---------------------------------------------------------------------------
+# Trader-helper foundations (road_map_version_11.xlsx — F-001, F-002)
+# Consumed by the decision-helper-service (Ch 3, 9 of Schwager).
+# ---------------------------------------------------------------------------
+
+class AtrPoint(BaseModel):
+    """Single ATR bar."""
+    date: str
+    atr: float
+
+
+class AtrResponse(BaseModel):
+    """ATR series + latest value for a symbol."""
+    symbol: str
+    period: int
+    latest: float
+    series: List[AtrPoint]
+    generated_at: datetime
+
+
+class SwingType(str, Enum):
+    HIGH = "high"
+    LOW = "low"
+
+
+class SwingPivot(BaseModel):
+    """A confirmed swing pivot (HH/HL/LH/LL — Ch 3)."""
+    bar_index: int
+    date: str
+    type: SwingType
+    price: float
+
+
+class SwingsResponse(BaseModel):
+    symbol: str
+    window: int
+    pivots: List[SwingPivot]
+    generated_at: datetime
+
+
+class SRLevelType(str, Enum):
+    """A level acts as support, resistance, or both (Schwager Ch 4 — S/R flip)."""
+    SUPPORT = "support"
+    RESISTANCE = "resistance"
+    FLIP = "flip"
+
+
+class SRTouch(BaseModel):
+    """One swing pivot that contributes to an S/R level."""
+    bar_index: int
+    date: str
+    price: float
+    pivot_type: SwingType
+
+
+class SRLevel(BaseModel):
+    """A clustered support/resistance level built from swing pivots (Ch 4)."""
+    price: float                      # cluster mean
+    type: SRLevelType
+    strength: int                     # number of touches
+    age_bars: int                     # bars since most recent touch
+    touches: List[SRTouch]
+
+
+class SRResponse(BaseModel):
+    symbol: str
+    window: int
+    tolerance_pct: float
+    supports: List[SRLevel]           # type in {support, flip}, sorted price asc
+    resistances: List[SRLevel]        # type in {resistance, flip}, sorted price asc
+    generated_at: datetime
+
+
 class TopSignalsResponse(BaseModel):
     buy_signals: List[SignalStock]
     sell_signals: List[SignalStock]
