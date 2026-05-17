@@ -329,3 +329,35 @@ class ComprehensiveInsightsResponse(BaseModel):
     symbol: str
     insights: Optional[ComprehensiveInsights] = None
     generated_at: datetime
+
+
+# ==========================================
+# F-005 — Extended pattern catalog (Schwager Ch 5, 11, 12)
+# Day 1 ships the four reversal patterns; continuation + bar patterns
+# join the schema on Day 2 (flag/pennant/triangle/gap/WRD).
+# ==========================================
+
+class PatternMatch(BaseModel):
+    """Uniform detector result.
+
+    `measured_move_target` is the projected breakout price (Ch 5); for
+    bearish patterns it sits below the neckline, for bullish patterns
+    above. The decision-helper-service consumes this directly into its
+    target_module (Ch 10) and failed-signal detector (Ch 11).
+    """
+    pattern_name: str
+    pattern_type: str                    # "bullish" | "bearish"
+    found: bool
+    confidence: float                    # 0..1
+    key_bars: List[int]                  # bar indices defining the pattern
+    measured_move_target: Optional[float] = None
+    neckline: Optional[float] = None
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ReversalPatternsResponse(BaseModel):
+    """Aggregated reversal-pattern scan for one symbol."""
+    symbol: str
+    lookback_bars: int
+    patterns: List[PatternMatch]
+    generated_at: datetime

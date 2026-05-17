@@ -18,7 +18,9 @@ from app.models.schemas import (
     # Comprehensive insights
     AvailableIndicatorsResponse,
     IndicatorDataRequest, IndicatorDataResponse,
-    ComprehensiveInsightsRequest, ComprehensiveInsightsResponse
+    ComprehensiveInsightsRequest, ComprehensiveInsightsResponse,
+    # F-005 pattern catalog
+    ReversalPatternsResponse,
 )
 
 router = APIRouter()
@@ -361,6 +363,28 @@ async def get_indicator_data(
         "count": result.count,
         "indicators": indicators_metadata
     }
+
+
+# ==========================================
+# F-005 — Reversal patterns (Day 1 slice; full pattern catalog ships Day 3)
+# ==========================================
+
+@router.get("/insights/patterns/reversal/{symbol}", response_model=ReversalPatternsResponse)
+async def get_reversal_patterns(
+    symbol: str,
+    lookback_bars: int = 120,
+    current_user: Optional[dict] = Depends(get_current_user_optional),
+):
+    """Run reversal-pattern detectors (H&S, Inverse H&S, Double Top,
+    Double Bottom) on the most recent `lookback_bars` daily bars.
+
+    Empty `patterns` is a valid success response (nothing found in the
+    window). The decision-helper-service uses each match's
+    `measured_move_target` directly as a first-cut profit target (Ch 10)
+    and as the reference price for its failed-signal detector (Ch 11).
+    """
+    service = InsightsService()
+    return await service.get_reversal_patterns(symbol=symbol, lookback_bars=lookback_bars)
 
 
 @router.post("/insights/comprehensive")

@@ -24,8 +24,12 @@ from app.models.schemas import (
     IndicatorDataPoint, IndicatorDataResponse,
     AIScoreComponent, SentimentAnalysis, RiskFactor, RiskAssessment,
     PatternResult, PatternRecognition, PredictionModel, PricePrediction,
-    ComprehensiveInsights, ComprehensiveInsightsResponse
+    ComprehensiveInsights, ComprehensiveInsightsResponse,
+    # F-005 pattern catalog
+    PatternMatch as PatternMatchSchema,
+    ReversalPatternsResponse,
 )
+from app.services.patterns.reversal import run_reversal_detectors
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -1350,3 +1354,59 @@ Maintain current position and monitor for clearer signals before taking action.
         result.extend(remaining[:limit - len(result)])
 
         return result[:limit]
+
+    # ==========================================
+    # F-005 — Reversal pattern catalog (Schwager Ch 5)
+    # Day 1 of three. The aggregated /insights/patterns/{symbol} endpoint
+    # ships on Day 3 alongside continuation + bar patterns.
+    # ==========================================
+
+    async def get_reversal_patterns(
+        self, symbol: str, lookback_bars: int = 120
+    ) -> ReversalPatternsResponse:
+        """Run all reversal-pattern detectors on the most recent
+        `lookback_bars` daily bars and return whichever matched.
+
+        Empty `patterns` is the success-case "nothing detected" answer —
+        callers must distinguish that from the error path (insufficient
+        data) themselves by checking lookback vs. what was actually
+        available. We deliberately do not 500 on empty data; the trader
+        UI is happier rendering "no patterns" than an exception toast.
+        """
+        end_date = datetime.now().strftime("%Y-%m-%d")
+        # Pad the calendar window so weekends/holidays still yield enough
+        # trading bars to satisfy the detectors' min_bars guard.
+        start_date = (datetime.now() - timedelta(days=int(lookback_bars * 1.6))).strftime("%Y-%m-%d")
+
+        df = await self._fetch_historical_prices(symbol, start_date, end_date)
+        if df is None or len(df) == 0:
+            return ReversalPatternsResponse(
+                symbol=symbol.upper(),
+                lookback_bars=0,
+                patterns=[],
+                generated_at=datetime.now(),
+            )
+
+        # Trim to exactly the requested lookback so detectors see a stable
+        # window regardless of how much padding we pulled.
+        df = df.tail(lookback_bars).reset_index(drop=True)
+
+        matches = run_reversal_detectors(df)
+        return ReversalPatternsResponse(
+            symbol=symbol.upper(),
+            lookback_bars=len(df),
+            patterns=[
+                PatternMatchSchema(
+                    pattern_name=m.pattern_name,
+                    pattern_type=m.pattern_type,
+                    found=m.found,
+                    confidence=m.confidence,
+                    key_bars=m.key_bars,
+                    measured_move_target=m.measured_move_target,
+                    neckline=m.neckline,
+                    details=m.details,
+                )
+                for m in matches
+            ],
+            generated_at=datetime.now(),
+        )
