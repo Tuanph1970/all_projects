@@ -1062,6 +1062,221 @@ async def test_get_sr_levels_returns_typed_response():
     assert any(s.strength == 2 for s in out.supports)
 
 
+# ---------------------------------------------------------------------------
+# F-004 regime feature vector (road_map_version_11.xlsx)
+# ---------------------------------------------------------------------------
+
+from app.models.schemas import (  # noqa: E402
+    Regime, RegimeFeatures,
+    SwingPivot as _SwingPivot,
+    SwingType as _Sw,
+)
+
+
+class TestRegimeFeatureHelpers:
+    def test_ma_slope_zero_when_series_too_short(self):
+        svc = _make_service()
+        prices = pd.Series([100.0] * 30)  # < ma_window + lookback
+        assert svc._calculate_ma_slope(prices, ma_window=50, lookback=20) == 0.0
+
+    def test_ma_slope_positive_on_linear_uptrend(self):
+        """Linear close = 100 + 0.5*i → MA(50) climbs steadily; slope > 0."""
+        svc = _make_service()
+        prices = pd.Series([100 + 0.5 * i for i in range(120)])
+        slope = svc._calculate_ma_slope(prices, ma_window=50, lookback=20)
+        assert slope > 0.001  # above the default trend threshold
+
+    def test_ma_slope_negative_on_linear_downtrend(self):
+        svc = _make_service()
+        prices = pd.Series([200 - 0.5 * i for i in range(120)])
+        slope = svc._calculate_ma_slope(prices, ma_window=50, lookback=20)
+        assert slope < -0.001
+
+    def test_ma_slope_near_zero_on_flat_series(self):
+        svc = _make_service()
+        prices = pd.Series([100.0] * 120)
+        slope = svc._calculate_ma_slope(prices, ma_window=50, lookback=20)
+        assert slope == 0.0
+
+    def test_count_hh_hl_zero_when_too_few_pivots(self):
+        svc = _make_service()
+        assert svc._count_hh_hl([]) == 0
+        assert svc._count_hh_hl([_SwingPivot(
+            bar_index=0, date="d", type=_Sw.HIGH, price=100,
+        )]) == 0
+
+    def test_count_hh_hl_positive_for_higher_highs_and_higher_lows(self):
+        """HH + HL pattern: each new pivot beats the previous of its type."""
+        svc = _make_service()
+        pivots = [
+            _SwingPivot(bar_index=0, date="d", type=_Sw.LOW,  price=100),
+            _SwingPivot(bar_index=1, date="d", type=_Sw.HIGH, price=110),
+            _SwingPivot(bar_index=2, date="d", type=_Sw.LOW,  price=105),  # HL → +1
+            _SwingPivot(bar_index=3, date="d", type=_Sw.HIGH, price=115),  # HH → +1
+            _SwingPivot(bar_index=4, date="d", type=_Sw.LOW,  price=108),  # HL → +1
+            _SwingPivot(bar_index=5, date="d", type=_Sw.HIGH, price=120),  # HH → +1
+        ]
+        assert svc._count_hh_hl(pivots) == 4
+
+    def test_count_hh_hl_negative_for_lower_highs_and_lower_lows(self):
+        svc = _make_service()
+        pivots = [
+            _SwingPivot(bar_index=0, date="d", type=_Sw.HIGH, price=120),
+            _SwingPivot(bar_index=1, date="d", type=_Sw.LOW,  price=110),
+            _SwingPivot(bar_index=2, date="d", type=_Sw.HIGH, price=115),  # LH → -1
+            _SwingPivot(bar_index=3, date="d", type=_Sw.LOW,  price=105),  # LL → -1
+            _SwingPivot(bar_index=4, date="d", type=_Sw.HIGH, price=112),  # LH → -1
+            _SwingPivot(bar_index=5, date="d", type=_Sw.LOW,  price=100),  # LL → -1
+        ]
+        assert svc._count_hh_hl(pivots) == -4
+
+    def test_adx_strong_on_clean_linear_uptrend(self):
+        """A pure linear uptrend has all +DM and no -DM → ADX climbs high."""
+        svc = _make_service()
+        n = 80
+        closes = np.array([100 + 0.5 * i for i in range(n)], dtype=float)
+        df = _ohlc_df(highs=closes + 1, lows=closes - 1, closes=closes)
+        adx = svc._calculate_adx(df, period=14)
+        assert adx > 25
+
+    def test_adx_low_on_flat_series(self):
+        """No directional movement → no +DM/-DM accumulation → ADX ≈ 0."""
+        svc = _make_service()
+        n = 80
+        df = _ohlc_df(highs=[101.0] * n, lows=[99.0] * n, closes=[100.0] * n)
+        adx = svc._calculate_adx(df, period=14)
+        # Flat series — ADX may be 0 or NaN-fallback-to-0.
+        assert adx < 5
+
+    def test_range_atr_ratio_zero_when_atr_zero(self):
+        svc = _make_service()
+        df = _ohlc_df(highs=[101.0] * 30, lows=[99.0] * 30, closes=[100.0] * 30)
+        assert svc._range_atr_ratio(df, atr=0.0, lookback=20) == 0.0
+
+    def test_range_atr_ratio_grows_with_trend(self):
+        """Linear trend over N bars gives band ≈ N * drift; ATR ≈ drift+noise.
+        So ratio ≈ N for a clean trend, much smaller for sideways noise."""
+        svc = _make_service()
+        n = 60
+        trend = np.array([100 + 1.0 * i for i in range(n)], dtype=float)
+        df_trend = _ohlc_df(highs=trend + 1, lows=trend - 1, closes=trend)
+        atr_trend = svc._calculate_atr(df_trend, period=14).dropna().iloc[-1]
+        ratio_trend = svc._range_atr_ratio(df_trend, atr=float(atr_trend), lookback=20)
+        # 20 bars of drift=1 → band ≈ 21, atr ≈ 2 → ratio ≈ 10+
+        assert ratio_trend > 5
+
+
+class TestClassifyRegime:
+    def test_trend_when_strong_slope_high_adx_matching_structure(self):
+        svc = _make_service()
+        features = RegimeFeatures(
+            slope=0.005,         # well above 0.001
+            hh_hl_count=4,       # uptrend structure agrees with positive slope
+            adx=40.0,            # well above 20
+            range_atr_ratio=15.0,
+        )
+        regime, confidence = svc._classify_regime(features)
+        assert regime == Regime.TREND
+        assert 0.0 < confidence <= 1.0
+
+    def test_trend_negative_direction(self):
+        svc = _make_service()
+        features = RegimeFeatures(
+            slope=-0.005, hh_hl_count=-4, adx=40.0, range_atr_ratio=15.0,
+        )
+        regime, _ = svc._classify_regime(features)
+        assert regime == Regime.TREND
+
+    def test_undefined_when_slope_and_structure_disagree(self):
+        """Slope says up but HH/HL says down — conflicting signals → UNDEFINED."""
+        svc = _make_service()
+        features = RegimeFeatures(
+            slope=0.005, hh_hl_count=-3, adx=40.0, range_atr_ratio=15.0,
+        )
+        regime, confidence = svc._classify_regime(features)
+        assert regime == Regime.UNDEFINED
+        assert confidence == 0.0
+
+    def test_range_when_flat_slope_low_adx_narrow_band(self):
+        svc = _make_service()
+        features = RegimeFeatures(
+            slope=0.0001, hh_hl_count=0, adx=12.0, range_atr_ratio=5.0,
+        )
+        regime, confidence = svc._classify_regime(features)
+        assert regime == Regime.RANGE
+        assert 0.0 < confidence <= 1.0
+
+    def test_undefined_when_neither_trend_nor_range(self):
+        """Moderate slope, moderate ADX, wide band — falls in the gap."""
+        svc = _make_service()
+        features = RegimeFeatures(
+            slope=0.0005,        # below trend threshold
+            hh_hl_count=1,
+            adx=22.0,            # above range threshold
+            range_atr_ratio=20.0,
+        )
+        regime, confidence = svc._classify_regime(features)
+        assert regime == Regime.UNDEFINED
+        assert confidence == 0.0
+
+
+@pytest.mark.asyncio
+async def test_get_regime_returns_none_when_no_data():
+    svc = _make_service()
+    with patch.object(svc, "_fetch_historical_data", AsyncMock(return_value=None)):
+        assert (await svc.get_regime("FPT")) is None
+
+
+@pytest.mark.asyncio
+async def test_get_regime_returns_none_when_history_too_short():
+    """Need at least ma_window + lookback bars to compute the slope feature."""
+    svc = _make_service()
+    short = _ohlc_df(highs=[101.0] * 40, lows=[99.0] * 40, closes=[100.0] * 40)
+    with patch.object(svc, "_fetch_historical_data", AsyncMock(return_value=short)):
+        assert (await svc.get_regime("FPT", ma_window=50, lookback=20)) is None
+
+
+@pytest.mark.asyncio
+async def test_get_regime_classifies_clean_uptrend_as_trend():
+    svc = _make_service()
+    n = 200
+    closes = np.array([100 + 0.5 * i for i in range(n)], dtype=float)
+    df = _ohlc_df(highs=closes + 1, lows=closes - 1, closes=closes)
+    with patch.object(svc, "_fetch_historical_data", AsyncMock(return_value=df)):
+        out = await svc.get_regime("fpt")
+    assert out is not None
+    assert out.symbol == "FPT"
+    assert out.regime == Regime.TREND
+    assert out.features.slope > 0
+    assert out.features.adx > 20
+    assert out.confidence > 0
+
+
+@pytest.mark.asyncio
+async def test_get_regime_classifies_flat_series_as_range():
+    """A perfectly flat series has zero slope, zero ADX, narrow band → RANGE."""
+    svc = _make_service()
+    n = 200
+    df = _ohlc_df(highs=[101.0] * n, lows=[99.0] * n, closes=[100.0] * n)
+    with patch.object(svc, "_fetch_historical_data", AsyncMock(return_value=df)):
+        out = await svc.get_regime("FPT")
+    assert out is not None
+    assert out.regime == Regime.RANGE
+    assert out.features.slope == 0.0
+    assert out.features.adx < 20
+
+
+@pytest.mark.asyncio
+async def test_get_regime_returns_undefined_when_data_lacks_ohlc_columns():
+    svc = _make_service()
+    bad = pd.DataFrame({
+        "date": pd.date_range("2026-01-01", periods=120, freq="D"),
+        "close": [100.0] * 120,
+    })
+    with patch.object(svc, "_fetch_historical_data", AsyncMock(return_value=bad)):
+        assert (await svc.get_regime("FPT")) is None
+
+
 def test_existing_find_support_resistance_unchanged():
     """Regression guard: F-003 must NOT change the legacy
     _find_support_resistance signature or output that get_technical_analysis

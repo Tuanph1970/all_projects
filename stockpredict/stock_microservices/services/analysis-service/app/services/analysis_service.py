@@ -20,6 +20,7 @@ from app.models.schemas import (
     GrowthMetrics, IncomeStatement, BalanceSheet, CashFlow,
     AtrPoint, AtrResponse, SwingType, SwingPivot, SwingsResponse,
     SRLevelType, SRTouch, SRLevel, SRResponse,
+    Regime, RegimeFeatures, RegimeResponse,
 )
 
 settings = get_settings()
@@ -772,5 +773,171 @@ class AnalysisService:
             tolerance_pct=tolerance_pct,
             supports=supports,
             resistances=resistances,
+            generated_at=datetime.utcnow(),
+        )
+
+    # ------------------------------------------------------------------
+    # F-004 — Regime feature vector (Schwager Ch 3, 4).
+    # Aggregates long-MA slope, swing-structure count, ADX, and an
+    # ATR-normalised band width, then classifies the bar as TREND /
+    # RANGE / UNDEFINED. Consumed by decision-helper-service to branch
+    # between trend-following and range-trading signal generators.
+    # ------------------------------------------------------------------
+    def _calculate_adx(self, ohlc: pd.DataFrame, period: int = 14) -> float:
+        """Wilder ADX(14) — latest value (0..100). 0.0 when uncomputable."""
+        from ta.trend import ADXIndicator
+        adx = ADXIndicator(
+            high=ohlc["high"].astype(float),
+            low=ohlc["low"].astype(float),
+            close=ohlc["close"].astype(float),
+            window=period,
+            fillna=False,
+        ).adx()
+        if adx.empty or pd.isna(adx.iloc[-1]):
+            return 0.0
+        return float(adx.iloc[-1])
+
+    def _calculate_ma_slope(self, prices: pd.Series, ma_window: int = 50,
+                            lookback: int = 20) -> float:
+        """Long-MA slope as a per-bar fractional change.
+
+        Returns (MA[t] - MA[t-lookback]) / MA[t-lookback] / lookback —
+        i.e. average fractional rise per bar over the lookback window.
+        Normalising by price keeps the threshold comparable across symbols.
+        """
+        if len(prices) < ma_window + lookback:
+            return 0.0
+        ma = prices.rolling(window=ma_window).mean()
+        last = ma.iloc[-1]
+        past = ma.iloc[-1 - lookback]
+        if pd.isna(last) or pd.isna(past) or past == 0:
+            return 0.0
+        return float((last - past) / past / lookback)
+
+    def _count_hh_hl(self, pivots: List[SwingPivot]) -> int:
+        """Net trend-structure score from a list of swing pivots (Ch 3).
+
+        +1 for each higher-high or higher-low (uptrend evidence),
+        -1 for each lower-high or lower-low (downtrend evidence).
+        The sign agrees with the dominant trend direction; magnitude
+        reflects how consistently the structure holds.
+        """
+        if len(pivots) < 2:
+            return 0
+        score = 0
+        last_high = None
+        last_low = None
+        for p in pivots:
+            if p.type == SwingType.HIGH:
+                if last_high is not None:
+                    score += 1 if p.price > last_high else -1
+                last_high = p.price
+            else:
+                if last_low is not None:
+                    score += 1 if p.price > last_low else -1
+                last_low = p.price
+        return score
+
+    def _range_atr_ratio(self, ohlc: pd.DataFrame, atr: float,
+                         lookback: int = 20) -> float:
+        """Recent (high-low) band measured in ATRs.
+
+        For a clean trend the band grows linearly with bars (≈ lookback);
+        for a sideways range the band stays modest (a few ATRs). Used
+        together with slope and ADX — a small ratio with flat slope is
+        the canonical RANGE signature.
+        """
+        if atr <= 0 or len(ohlc) < lookback:
+            return 0.0
+        window = ohlc.tail(lookback)
+        band = float(window["high"].max() - window["low"].min())
+        return band / atr
+
+    def _classify_regime(
+        self,
+        features: RegimeFeatures,
+        slope_threshold: float = 0.001,    # ~0.1% per bar (~2% over 20 bars)
+        adx_threshold: float = 20.0,
+        band_threshold: float = 12.0,      # 12 ATRs over a 20-bar window
+    ) -> tuple:
+        """Decision rules per road-map F-004.
+
+        TREND     : strong directional slope, ADX above threshold,
+                    and the HH/HL structure agrees with slope direction.
+        RANGE     : flat slope, ADX below threshold, and the recent band
+                    is narrow relative to ATR (price oscillating, not
+                    extending).
+        UNDEFINED : conflicting signals — caller should fall back to WAIT.
+        """
+        abs_slope = abs(features.slope)
+        # Absence of swing pivots (hh_hl_count == 0) is treated as "no
+        # evidence" rather than disagreement — tight clean trends often
+        # have few confirmed fractals. Only an actively opposing count
+        # vetoes the trend rule.
+        trend_dir_matches = (
+            features.hh_hl_count == 0
+            or (features.slope > 0 and features.hh_hl_count > 0)
+            or (features.slope < 0 and features.hh_hl_count < 0)
+        )
+
+        if (abs_slope > slope_threshold
+                and features.adx > adx_threshold
+                and trend_dir_matches):
+            slope_score = min(abs_slope / (slope_threshold * 3), 1.0)
+            adx_score = min((features.adx - adx_threshold) / 30.0, 1.0)
+            struct_score = min(abs(features.hh_hl_count) / 4.0, 1.0)
+            confidence = (slope_score + adx_score + struct_score) / 3.0
+            return Regime.TREND, round(max(0.0, min(1.0, confidence)), 4)
+
+        if (abs_slope <= slope_threshold
+                and features.adx <= adx_threshold
+                and features.range_atr_ratio < band_threshold):
+            slope_score = 1.0 - min(abs_slope / slope_threshold, 1.0)
+            adx_score = 1.0 - min(features.adx / adx_threshold, 1.0)
+            band_score = 1.0 - min(features.range_atr_ratio / band_threshold, 1.0)
+            confidence = (slope_score + adx_score + band_score) / 3.0
+            return Regime.RANGE, round(max(0.0, min(1.0, confidence)), 4)
+
+        return Regime.UNDEFINED, 0.0
+
+    async def get_regime(
+        self,
+        symbol: str,
+        days: int = 200,
+        ma_window: int = 50,
+        lookback: int = 20,
+        swing_window: int = 3,
+    ) -> Optional[RegimeResponse]:
+        df = await self._fetch_historical_data(symbol, days)
+        if df is None or len(df) < ma_window + lookback:
+            return None
+        if not {"high", "low", "close"}.issubset(df.columns):
+            return None
+
+        prices = df["close"].astype(float)
+
+        slope = self._calculate_ma_slope(prices, ma_window=ma_window, lookback=lookback)
+        pivots = self._find_swing_pivots(df, window=swing_window)
+        # Cap to the most recent 12 confirmed pivots so older structure
+        # doesn't drown out the current regime.
+        recent_pivots = pivots[-12:] if len(pivots) > 12 else pivots
+        hh_hl = self._count_hh_hl(recent_pivots)
+        adx = self._calculate_adx(df, period=14)
+        atr_series = self._calculate_atr(df, period=14).dropna()
+        latest_atr = float(atr_series.iloc[-1]) if not atr_series.empty else 0.0
+        band_ratio = self._range_atr_ratio(df, atr=latest_atr, lookback=lookback)
+
+        features = RegimeFeatures(
+            slope=round(slope, 6),
+            hh_hl_count=hh_hl,
+            adx=round(adx, 4),
+            range_atr_ratio=round(band_ratio, 4),
+        )
+        regime, confidence = self._classify_regime(features)
+        return RegimeResponse(
+            symbol=symbol.upper(),
+            regime=regime,
+            confidence=confidence,
+            features=features,
             generated_at=datetime.utcnow(),
         )

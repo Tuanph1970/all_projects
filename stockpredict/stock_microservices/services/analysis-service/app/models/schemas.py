@@ -371,6 +371,34 @@ class SRResponse(BaseModel):
     generated_at: datetime
 
 
+# ---------------------------------------------------------------------------
+# F-004 — Regime feature vector (Schwager Ch 3, 4)
+# Consumed by decision-helper-service to branch the signal pipeline between
+# trend-following and range-trading strategies.
+# ---------------------------------------------------------------------------
+
+class Regime(str, Enum):
+    TREND = "TREND"
+    RANGE = "RANGE"
+    UNDEFINED = "UNDEFINED"
+
+
+class RegimeFeatures(BaseModel):
+    """Raw inputs the classifier scored, exposed for auditability."""
+    slope: float                      # long-MA slope, normalised by price (per-bar %)
+    hh_hl_count: int                  # net (HH+HL) - (LH+LL) over recent swing pivots
+    adx: float                        # Wilder ADX(14), 0..100
+    range_atr_ratio: float            # (recent high-low band) / ATR — high == ranging
+
+
+class RegimeResponse(BaseModel):
+    symbol: str
+    regime: Regime
+    confidence: float                 # 0..1 — how decisively the rule fired
+    features: RegimeFeatures
+    generated_at: datetime
+
+
 class TopSignalsResponse(BaseModel):
     buy_signals: List[SignalStock]
     sell_signals: List[SignalStock]

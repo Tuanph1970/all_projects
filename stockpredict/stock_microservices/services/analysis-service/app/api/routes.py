@@ -13,7 +13,7 @@ from app.models.schemas import (
     StockComparisonRequest, StockComparisonResponse, StockComparisonItem,
     IndustryAnalysisResponse, CombinedAnalysisResponse,
     TopSignalsResponse, SignalStock, QuickSummaryResponse, SignalType,
-    AtrResponse, SwingsResponse, SRResponse,
+    AtrResponse, SwingsResponse, SRResponse, RegimeResponse,
 )
 
 router = APIRouter()
@@ -417,6 +417,34 @@ async def get_sr_levels(
     )
     if not result:
         raise HTTPException(status_code=404, detail=f"Could not compute S/R levels for {symbol}")
+    return result
+
+
+@router.get("/regime/{symbol}", response_model=RegimeResponse)
+async def get_regime(
+    symbol: str,
+    days: int = Query(default=200, ge=60, le=1000),
+    ma_window: int = Query(default=50, ge=10, le=200,
+                           description="Long-MA window for the slope feature"),
+    lookback: int = Query(default=20, ge=5, le=120,
+                          description="Bars used for slope, band, structure"),
+    swing_window: int = Query(default=3, ge=1, le=20,
+                              description="Swing-pivot fractal window"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Regime feature vector — TREND / RANGE / UNDEFINED + features (Ch 3, 4).
+
+    Consumed by decision-helper-service to branch the signal pipeline
+    between trend-following and range-trading strategies.
+    """
+    service = AnalysisService(db)
+    result = await service.get_regime(
+        symbol,
+        days=days, ma_window=ma_window,
+        lookback=lookback, swing_window=swing_window,
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail=f"Could not compute regime for {symbol}")
     return result
 
 
