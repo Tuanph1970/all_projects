@@ -1,0 +1,232 @@
+================================================================================
+  WEEKLY PLAN — May 18–23, 2026
+  Project: StockPredict — Trader Decision Helper (Road Map v11)
+  Goal: Complete Phase A + Open Phase B
+================================================================================
+
+CURRENT STATE (as of Sunday May 17)
+--------------------------------------
+  [DONE] F-001  ATR indicator                  (analysis-service)
+  [DONE] F-002  Swing-pivot detector            (analysis-service)
+  [DONE] F-003  S/R typed levels                (analysis-service)
+  [TODO] F-004  Regime feature vector endpoint  (analysis-service)   — Medium
+  [TODO] F-005  Extend pattern catalog          (ai-insights-service) — Large
+  [TODO] F-006  Bull/bear trap detector         (ai-insights-service) — Medium
+  [TODO] F-010  Bootstrap decision-helper-service                     — Small
+
+--------------------------------------------------------------------------------
+MONDAY May 18 — Complete F-004 (Regime Feature Vector Endpoint)
+--------------------------------------------------------------------------------
+  Service : analysis-service
+  Ticket  : F-004
+  Endpoint: GET /analysis/regime/{symbol}
+  Response: {
+              regime     : "TREND" | "RANGE" | "UNDEFINED",
+              confidence : float,
+              features   : {
+                slope        : float,   // long-MA slope
+                hh_hl_count  : int,     // higher-highs / higher-lows from F-002
+                adx          : float,
+                range_atr_ratio : float
+              }
+            }
+
+  Steps:
+    1. Aggregate feature inputs: pull long-MA slope, swing pivot counts (F-002),
+       ADX (already in prediction-service), range/ATR ratio (F-001 ATR).
+    2. Write regime_classifier logic:
+         - TREND    : slope strong + hh_hl pattern holds + ADX > threshold
+         - RANGE    : flat slope + price oscillating within ATR-scaled band
+         - UNDEFINED: insufficient data or conflicting signals
+    3. Expose endpoint with typed Pydantic response model.
+    4. Unit tests: two synthetic series — one clearly trending, one ranging.
+    5. Commit: feat(analysis-service): F-004 — regime feature vector endpoint
+
+  Exit criteria:
+    - Endpoint returns correct regime on both synthetic series.
+    - Phase A dependency unlocked: decision-helper-service can now call every
+      feature endpoint it needs.
+
+--------------------------------------------------------------------------------
+TUESDAY May 19 — F-005 Day 1 (Reversal Patterns)
+--------------------------------------------------------------------------------
+  Service : ai-insights-service
+  Ticket  : F-005 (part 1 of 3)
+
+  Patterns to implement today:
+    - Head & Shoulders (H&S) + Inverse H&S
+    - Double Top + Double Bottom
+
+  Each detector must return:
+    {
+      found           : bool,
+      confidence      : float,
+      key_bars        : list[int],       // bar indices of pattern structure
+      measured_move_target : float       // projected price target
+    }
+
+  Steps:
+    1. Add base class / shared interface for all pattern detectors.
+    2. Implement H&S detector:
+         - Three peaks (left shoulder, head, right shoulder)
+         - Neckline identified; measured move = head height projected down
+    3. Implement Inverse H&S detector (mirror logic).
+    4. Implement Double Top / Bottom detector:
+         - Two peaks (or troughs) within tolerance band
+         - Measured move = height of pattern
+    5. Add unit tests with known OHLCV fixtures.
+
+--------------------------------------------------------------------------------
+WEDNESDAY May 20 — F-005 Day 2 (Continuation + Bar Patterns)
+--------------------------------------------------------------------------------
+  Service : ai-insights-service
+  Ticket  : F-005 (part 2 of 3)
+
+  Patterns to implement today:
+    - Flag + Pennant
+    - Symmetrical / Ascending / Descending Triangle
+    - Gap (common, breakaway, runaway, exhaustion)
+    - Wide-Ranging Day (WRD)
+
+  Steps:
+    1. Flag / Pennant:
+         - Strong directional move (pole) followed by tight consolidation.
+         - Flag: parallel channel consolidation.
+         - Pennant: converging trendlines consolidation.
+    2. Triangles:
+         - Symmetrical: converging highs + lows.
+         - Ascending: flat top + rising lows.
+         - Descending: falling highs + flat bottom.
+    3. Gaps:
+         - Breakaway: gap at start of trend, heavy volume.
+         - Runaway (measuring): gap mid-trend.
+         - Exhaustion: gap near end of trend, filled quickly.
+         - Common: fills within a few bars, no trend context.
+    4. Wide-Ranging Day (WRD):
+         - Bar range > N * ATR(14); note open/close position within range.
+    5. Add unit tests for each new detector.
+
+--------------------------------------------------------------------------------
+THURSDAY May 21 — F-005 Day 3 (Finalize + Tests) + Start F-006
+--------------------------------------------------------------------------------
+  Service : ai-insights-service
+  Ticket  : F-005 (part 3 of 3) + F-006 start
+
+  Morning — Finalize F-005:
+    1. Integration tests: run each detector against known historical examples.
+    2. Verify all detectors return the standard response shape.
+    3. Expose single aggregated endpoint: POST /insights/patterns/{symbol}
+         returns list of all detected patterns with type + result.
+    4. Commit: feat(ai-insights-service): F-005 — extended pattern catalog v2
+
+  Afternoon — Begin F-006 (Bull/Bear Trap):
+    Ticket  : F-006
+    Depends : F-003 (typed S/R levels) + F-005 (pattern catalog)
+
+    Definition:
+      Bull trap: price penetrates resistance -> closes back BELOW resistance
+                 within N bars.
+      Bear trap: price penetrates support -> closes back ABOVE support
+                 within N bars.
+
+    Steps:
+      1. Load typed S/R levels from F-003.
+      2. Scan recent bars for penetration events.
+      3. Check if price reverts inside range within N bars (configurable, default 3).
+      4. Return: { type: "bull_trap"|"bear_trap", severity: float,
+                   bar_index: int, level_breached: float }
+
+--------------------------------------------------------------------------------
+FRIDAY May 22 — Complete F-006 + Phase A Sign-Off
+--------------------------------------------------------------------------------
+  Service : ai-insights-service
+  Ticket  : F-006
+
+  Steps:
+    1. Finish bull/bear trap detector implementation.
+    2. Unit tests: synthetic range with false breakout; check trap fired.
+    3. Edge cases: consecutive traps, trap at both S and R, partial penetration.
+    4. Commit: feat(ai-insights-service): F-006 — bull/bear trap detector
+
+  Phase A Exit Check (all must be green before calling Phase A done):
+    [?] F-001  ATR endpoint returns aligned 14-bar ATR              PASS/FAIL
+    [?] F-002  Swing-pivot endpoint is deterministic across reruns   PASS/FAIL
+    [?] F-003  S/R endpoint returns typed {price,strength,age,touches} PASS/FAIL
+    [?] F-004  Regime endpoint returns correct regime on test series  PASS/FAIL
+    [?] F-005  All 8+ pattern detectors return standard shape         PASS/FAIL
+    [?] F-006  Trap detector fires on synthetic false breakout        PASS/FAIL
+
+  If all green:
+    - Update road_map_version_11.xlsx Phase A status -> "Done"
+    - Commit: docs: Phase A complete — all F-001..F-006 green
+
+--------------------------------------------------------------------------------
+SATURDAY May 23 — F-010: Bootstrap decision-helper-service
+--------------------------------------------------------------------------------
+  Service : decision-helper-service (NEW)
+  Ticket  : F-010
+  Port    : 8010
+
+  Steps:
+    1. Scaffold service directory:
+         stock_microservices/services/decision-helper-service/
+           app/
+             main.py          (FastAPI app, CORS, router includes)
+             api/
+               health.py      (GET /health -> {"status": "ok"})
+             services/        (empty, Phase B fills this)
+             models/          (empty, Phase B fills this)
+           alembic/           (migrations folder — baseline only today)
+           Dockerfile
+           requirements.txt
+           .env.example
+
+    2. Health probe: GET /helper/health -> 200 {"status": "ok"}
+
+    3. Add Traefik route /helper/* in docker-compose / traefik config.
+
+    4. Wire into deploy.sh alongside the other 9 services.
+
+    5. Verify: deploy.sh starts service; curl /helper/health returns 200.
+
+    6. Commit: feat(decision-helper-service): F-010 — service bootstrap
+
+  Exit criteria:
+    - Service starts with deploy.sh.
+    - GET /helper/health returns 200.
+    - Phase B is now unblocked (F-011 DB schema can begin next week).
+
+================================================================================
+WEEK SUMMARY
+================================================================================
+
+  Day        Ticket(s)   Deliverable
+  ---------  ----------  -------------------------------------------------------
+  Monday     F-004       /analysis/regime/{symbol} endpoint + tests
+  Tuesday    F-005 p1    H&S, Inv H&S, Double Top, Double Bottom detectors
+  Wednesday  F-005 p2    Flag, Pennant, Triangles, Gaps, WRD detectors
+  Thursday   F-005 p3    Pattern catalog finalized + F-006 bull/bear trap started
+  Friday     F-006       Trap detector done + Phase A exit check
+  Saturday   F-010       decision-helper-service bootstrap live on port 8010
+
+  Phase A: COMPLETE by Friday May 22
+  Phase B: OPENED  by Saturday May 23
+
+KEY RISK
+  F-005 is the largest item (8+ pattern types across 3 days). If it slips
+  past Wednesday, compress Thursday and push F-010 to Monday May 25 — Phase A
+  completion is the non-negotiable exit for this week.
+
+NEXT WEEK PREVIEW (Phase B continues)
+  F-011  DB schema migrations (decision_runs, position_states, signal_history,
+         user_risk_prefs) — Medium
+  F-012  regime_classifier module in decision-helper-service — Medium
+  F-013  signal_engine.trend.ma_cross — Small
+  F-014  signal_engine.trend.n_day_breakout — Small
+  F-015  signal_engine.range.sr_bounce_breakout — Medium
+  F-016  confirmation_layer — Medium
+
+================================================================================
+  Good luck! Focus on Phase A exit criteria first — once all F-001..F-006
+  are green, the foundation is solid and Phase B flows naturally.
+================================================================================
