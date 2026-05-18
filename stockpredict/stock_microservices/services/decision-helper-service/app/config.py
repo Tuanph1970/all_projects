@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     SERVICE_NAME: str = "decision-helper-service"
-    SERVICE_VERSION: str = "0.1.0"
+    SERVICE_VERSION: str = "0.2.0"
     ENVIRONMENT: str = "development"
     DEBUG: bool = False
     API_PREFIX: str = "stock_helper"

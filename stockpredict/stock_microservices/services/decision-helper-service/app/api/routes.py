@@ -1,11 +1,14 @@
 """API routes for decision-helper-service.
 
 F-010 bootstrap: health + risk-prefs + position-state stubs.
-The recommendation engine (F-012 onwards) mounts on POST /recommend.
+F-012..F-016: POST /signal-analysis — regime + signal + confirmation pipeline.
 """
 from __future__ import annotations
 
-from typing import Optional
+import logging
+import time
+from datetime import date
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,25 +16,160 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_current_user, get_current_user_optional, get_db
 from app.models.schemas import (
     PositionStateResponse,
+    SignalAnalysisRequest,
+    SignalAnalysisResponse,
+    SignalResultSchema,
+    RawSignalSchema,
     UserRiskPrefsRequest,
     UserRiskPrefsResponse,
 )
+from app.services.market.client import get_market_client
+from app.services.regime.classifier import classify_regime
+from app.services.signal.base import OHLCVBar, RawSignal
+from app.services.signal.trend.ma_cross import detect_ma_cross
+from app.services.signal.trend.n_day_breakout import detect_n_day_breakout
+from app.services.signal.range.sr_bounce_breakout import detect_sr_signal
+from app.services.confirmation.layer import confirm
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# F-012..F-016 — Signal analysis pipeline
+# ---------------------------------------------------------------------------
+
+def _to_signal_result(raw: RawSignal, conf_result) -> SignalResultSchema:
+    return SignalResultSchema(
+        signal=RawSignalSchema(
+            kind=raw.kind,
+            direction=raw.direction,
+            confidence=raw.confidence,
+            trigger_price=raw.trigger_price,
+            evidence=raw.evidence,
+        ),
+        confirmed=conf_result.accepted,
+        final_confidence=conf_result.final_confidence,
+        confirmation_steps=conf_result.reason_steps,
+        rejection_reason=conf_result.rejection_reason,
+    )
+
+
+@router.post("/signal-analysis", response_model=SignalAnalysisResponse)
+async def signal_analysis(
+    req: SignalAnalysisRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Phase-B pipeline: regime → signals → confirmation.
+
+    Returns regime classification and all signal results for the given
+    (ticker, bar_date).  Stop / target / size are added in Phase C.
+    """
+    t0 = time.time()
+    client = get_market_client()
+    ticker = req.ticker.upper()
+
+    # 1. Classify regime
+    regime_result = await classify_regime(ticker, client)
+
+    # 2. Fetch OHLCV (300 bars gives enough history for slow MA + N-day breakout)
+    raw_bars = await client.fetch_ohlcv(ticker, days=300, end_date=req.bar_date)
+    if not raw_bars:
+        raise HTTPException(status_code=404, detail=f"No OHLCV data for {ticker}")
+
+    bars = [OHLCVBar.from_dict(b) for b in raw_bars]
+
+    # Validate bar_date exists in the series
+    if not any(b.date == req.bar_date for b in bars):
+        raise HTTPException(
+            status_code=422,
+            detail=f"bar_date {req.bar_date} not found in price series for {ticker}",
+        )
+
+    # 3. Fetch RSI for oscillator rule (best-effort)
+    rsi: Optional[float] = None
+    technical = await client.fetch_technical(ticker)
+    if technical:
+        indicators = technical.get("indicators", [])
+        rsi_item = next((i for i in indicators if i.get("name") == "RSI"), None)
+        if rsi_item:
+            rsi = rsi_item.get("value")
+
+    # 4. Run signal engines based on regime
+    raw_signals: List[RawSignal] = []
+
+    if regime_result.regime in ("TREND_UP", "TREND_DOWN"):
+        sig = detect_ma_cross(bars, req.bar_date, fast_period=req.fast_ma, slow_period=req.slow_ma)
+        if sig:
+            raw_signals.append(sig)
+        bo = detect_n_day_breakout(bars, req.bar_date, n=req.breakout_n)
+        if bo:
+            raw_signals.append(bo)
+
+    elif regime_result.regime == "RANGE":
+        sr_data = await client.fetch_sr_levels(ticker)
+        if sr_data:
+            sr_sig = detect_sr_signal(bars, req.bar_date, sr_data)
+            if sr_sig:
+                raw_signals.append(sr_sig)
+
+    else:
+        # UNDEFINED regime: run all engines; confirmation will apply stricter filters
+        sig = detect_ma_cross(bars, req.bar_date, fast_period=req.fast_ma, slow_period=req.slow_ma)
+        if sig:
+            raw_signals.append(sig)
+        bo = detect_n_day_breakout(bars, req.bar_date, n=req.breakout_n)
+        if bo:
+            raw_signals.append(bo)
+
+    # 5. Run confirmation layer on each raw signal
+    signal_results: List[SignalResultSchema] = []
+    for raw in raw_signals:
+        conf_result = confirm(
+            signal=raw,
+            bars=bars,
+            regime=regime_result.regime,
+            rsi=rsi,
+            k_delay=req.k_delay,
+        )
+        signal_results.append(_to_signal_result(raw, conf_result))
+
+    # Best signal = highest confirmed confidence, else highest raw confidence
+    confirmed = [s for s in signal_results if s.confirmed]
+    best = (
+        max(confirmed, key=lambda s: s.final_confidence)
+        if confirmed
+        else (max(signal_results, key=lambda s: s.signal.confidence) if signal_results else None)
+    )
+
+    latency_ms = int((time.time() - t0) * 1000)
+
+    return SignalAnalysisResponse(
+        ticker=ticker,
+        bar_date=req.bar_date,
+        regime=regime_result.regime,
+        regime_confidence=regime_result.confidence,
+        regime_features=regime_result.features,
+        signals=signal_results,
+        best_signal=best,
+        latency_ms=latency_ms,
+    )
 
 
 @router.get("/capabilities")
 async def get_capabilities():
     return {
         "service": "decision-helper-service",
-        "version": "0.1.0",
-        "phase": "A — bootstrap",
+        "version": "0.2.0",
+        "phase": "B — signal engine",
         "features": [
             "user_risk_prefs",
             "position_state",
+            "signal_analysis",   # F-012..F-016
         ],
         "coming_soon": [
-            "recommend",
+            "recommend",         # Phase C — orchestrator + stop/target/size
             "signal_history",
             "backtest_replay",
         ],

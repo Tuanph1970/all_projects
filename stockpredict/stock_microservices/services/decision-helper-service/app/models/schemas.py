@@ -114,3 +114,55 @@ class PositionStateResponse(BaseModel):
     current_stop: Optional[float] = None
     current_target: Optional[float] = None
     entry_signal_kind: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# F-012..F-016 — Phase B: signal analysis response
+# ---------------------------------------------------------------------------
+
+class RawSignalSchema(BaseModel):
+    kind: str
+    direction: str
+    confidence: float
+    trigger_price: float
+    evidence: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ConfirmationStepSchema(BaseModel):
+    stage: str
+    result: str
+    detail: Dict[str, Any] = Field(default_factory=dict)
+
+
+class SignalResultSchema(BaseModel):
+    signal: RawSignalSchema
+    confirmed: bool
+    final_confidence: float
+    confirmation_steps: List[Any] = Field(default_factory=list)
+    rejection_reason: Optional[str] = None
+
+
+class SignalAnalysisResponse(BaseModel):
+    """Phase-B response from POST /signal-analysis.
+
+    Contains regime classification + all signals that fired + confirmation
+    results.  Stop / target / size (Phase C) are not yet included.
+    """
+    ticker: str
+    bar_date: date
+    regime: str
+    regime_confidence: float
+    regime_features: Dict[str, Any] = Field(default_factory=dict)
+    signals: List[SignalResultSchema] = Field(default_factory=list)
+    best_signal: Optional[SignalResultSchema] = None
+    latency_ms: Optional[int] = None
+    generated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class SignalAnalysisRequest(BaseModel):
+    ticker: str = Field(..., max_length=16)
+    bar_date: date
+    fast_ma: int = Field(default=10, ge=2, le=50)
+    slow_ma: int = Field(default=50, ge=10, le=200)
+    breakout_n: int = Field(default=20, ge=5, le=100)
+    k_delay: int = Field(default=1, ge=1, le=5)
