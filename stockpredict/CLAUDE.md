@@ -42,6 +42,7 @@ All HTTP traffic enters via **Traefik** on port `8004` (full-stack) or repo-inte
 | `/chat` | chatbot-service | 8006 |
 | `/journal` | journal-service | 8008 |
 | `/knowledge-qa` | knowledge-qa-service | 8009 |
+| `/helper` | decision-helper-service | 8010 |
 
 The frontend reaches all of these through `REACT_APP_API_URL` (defaults to `http://localhost:8004`) — see `stock_react_javascript/stock-react-app/src/constants/api.js` for the canonical endpoint table; do not hardcode service URLs in components.
 

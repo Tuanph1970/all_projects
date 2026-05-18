@@ -19,8 +19,9 @@ from app.models.schemas import (
     AvailableIndicatorsResponse,
     IndicatorDataRequest, IndicatorDataResponse,
     ComprehensiveInsightsRequest, ComprehensiveInsightsResponse,
-    # F-005 pattern catalog
+    # F-005 / F-006 pattern catalog
     ReversalPatternsResponse,
+    AllPatternsResponse,
 )
 
 router = APIRouter()
@@ -385,6 +386,32 @@ async def get_reversal_patterns(
     """
     service = InsightsService()
     return await service.get_reversal_patterns(symbol=symbol, lookback_bars=lookback_bars)
+
+
+# ==========================================
+# F-005 Day 3 + F-006 — Aggregated full pattern catalog
+# ==========================================
+
+@router.get("/insights/patterns/{symbol}", response_model=AllPatternsResponse)
+@router.post("/insights/patterns/{symbol}", response_model=AllPatternsResponse)
+async def get_all_patterns(
+    symbol: str,
+    lookback_bars: int = 120,
+    current_user: Optional[dict] = Depends(get_current_user_optional),
+):
+    """Run the complete pattern catalog on the most recent `lookback_bars`
+    daily bars for `symbol`.
+
+    Covers all F-005 detector groups (reversal, continuation, bar patterns)
+    plus the F-006 bull/bear trap detector.  Patterns are sorted newest-first
+    by the rightmost key bar so the decision helper sees the most actionable
+    signal first.
+
+    Empty `patterns` is a valid success response — nothing detected in the
+    window is not an error.
+    """
+    service = InsightsService()
+    return await service.get_all_patterns(symbol=symbol, lookback_bars=lookback_bars)
 
 
 @router.post("/insights/comprehensive")

@@ -361,3 +361,14 @@ class ReversalPatternsResponse(BaseModel):
     lookback_bars: int
     patterns: List[PatternMatch]
     generated_at: datetime
+
+
+class AllPatternsResponse(BaseModel):
+    """Aggregated full-catalog scan (F-005 Day 3 + F-006): all reversal,
+    continuation, bar, and trap patterns found in the lookback window."""
+    symbol: str
+    lookback_bars: int
+    patterns: List[PatternMatch]          # all found patterns, newest-first
+    pattern_count: int                    # len(patterns) for quick inspection
+    categories: Dict[str, int]            # {"reversal": N, "continuation": N, "trap": N}
+    generated_at: datetime

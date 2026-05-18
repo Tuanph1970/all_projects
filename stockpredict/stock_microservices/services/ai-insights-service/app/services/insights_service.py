@@ -25,11 +25,14 @@ from app.models.schemas import (
     AIScoreComponent, SentimentAnalysis, RiskFactor, RiskAssessment,
     PatternResult, PatternRecognition, PredictionModel, PricePrediction,
     ComprehensiveInsights, ComprehensiveInsightsResponse,
-    # F-005 pattern catalog
+    # F-005 / F-006 pattern catalog
     PatternMatch as PatternMatchSchema,
     ReversalPatternsResponse,
+    AllPatternsResponse,
 )
 from app.services.patterns.reversal import run_reversal_detectors
+from app.services.patterns.continuation import run_continuation_detectors
+from app.services.patterns.trap import run_trap_detectors
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -1356,10 +1359,72 @@ Maintain current position and monitor for clearer signals before taking action.
         return result[:limit]
 
     # ==========================================
-    # F-005 — Reversal pattern catalog (Schwager Ch 5)
-    # Day 1 of three. The aggregated /insights/patterns/{symbol} endpoint
-    # ships on Day 3 alongside continuation + bar patterns.
+    # F-005 / F-006 — Full pattern catalog (Schwager Ch 5, 11, 12)
     # ==========================================
+
+    async def get_all_patterns(
+        self, symbol: str, lookback_bars: int = 120
+    ) -> AllPatternsResponse:
+        """Run the complete pattern catalog (reversal + continuation + trap)
+        on the most recent `lookback_bars` daily bars.
+
+        Empty `patterns` is a valid success response — "nothing detected."
+        Pattern list is sorted newest-first by the rightmost key bar so the
+        decision-helper-service sees the most actionable pattern first.
+        """
+        end_date = datetime.now().strftime("%Y-%m-%d")
+        start_date = (datetime.now() - timedelta(days=int(lookback_bars * 1.6))).strftime("%Y-%m-%d")
+
+        df = await self._fetch_historical_prices(symbol, start_date, end_date)
+        if df is None or len(df) == 0:
+            return AllPatternsResponse(
+                symbol=symbol.upper(),
+                lookback_bars=0,
+                patterns=[],
+                pattern_count=0,
+                categories={"reversal": 0, "continuation": 0, "trap": 0},
+                generated_at=datetime.now(),
+            )
+
+        df = df.tail(lookback_bars).reset_index(drop=True)
+
+        reversal_matches = run_reversal_detectors(df)
+        continuation_matches = run_continuation_detectors(df)
+        trap_matches = run_trap_detectors(df)
+
+        def _to_schema(m) -> PatternMatchSchema:
+            return PatternMatchSchema(
+                pattern_name=m.pattern_name,
+                pattern_type=m.pattern_type,
+                found=m.found,
+                confidence=m.confidence,
+                key_bars=m.key_bars,
+                measured_move_target=m.measured_move_target,
+                neckline=m.neckline,
+                details=m.details,
+            )
+
+        all_matches = (
+            [_to_schema(m) for m in reversal_matches]
+            + [_to_schema(m) for m in continuation_matches]
+            + [_to_schema(m) for m in trap_matches]
+        )
+        all_matches.sort(
+            key=lambda m: (m.key_bars[-1] if m.key_bars else 0), reverse=True
+        )
+
+        return AllPatternsResponse(
+            symbol=symbol.upper(),
+            lookback_bars=len(df),
+            patterns=all_matches,
+            pattern_count=len(all_matches),
+            categories={
+                "reversal": len(reversal_matches),
+                "continuation": len(continuation_matches),
+                "trap": len(trap_matches),
+            },
+            generated_at=datetime.now(),
+        )
 
     async def get_reversal_patterns(
         self, symbol: str, lookback_bars: int = 120
