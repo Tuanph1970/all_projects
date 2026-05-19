@@ -349,3 +349,34 @@ class AlertEvent(BaseModel):
 class AlertsListResponse(BaseModel):
     alerts: List[AlertEvent]
     total: int
+
+
+# ---------------------------------------------------------------------------
+# F-120..F-123 — Multi-ticker scanner (Phase M)
+# ---------------------------------------------------------------------------
+
+class ScanRequest(BaseModel):
+    bar_date: Optional[date] = None    # defaults to today on the server
+
+
+class ScanResultItem(BaseModel):
+    ticker: str
+    action: str
+    regime: str
+    confidence: float
+    entry_price: Optional[float] = None
+    stop_price: Optional[float] = None
+    target_price: Optional[float] = None
+    position_size: Optional[int] = None
+    signal_kind: Optional[str] = None
+    signal_confirmed: bool = False
+    is_actionable: bool              # True when action is BUY or SELL_SHORT
+    error: Optional[str] = None      # set if recommendation failed for this ticker
+
+
+class ScanResponse(BaseModel):
+    bar_date: date
+    ticker_count: int
+    actionable_count: int            # BUY + SELL_SHORT results
+    results: List[ScanResultItem]
+    latency_ms: int

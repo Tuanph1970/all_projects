@@ -94,6 +94,13 @@ class HelperService {
     return await httpClient.get(`${API_ENDPOINTS.HELPER_ALERTS}?limit=${limit}`);
   }
 
+  // F-120 — Run decision engine across all watchlist tickers
+  async scan(barDate) {
+    return await httpClient.post(API_ENDPOINTS.HELPER_SCAN, {
+      bar_date: barDate || null,
+    });
+  }
+
   // F-100 — Fetch ai-insights pattern overlay for a symbol
   async getPatterns(symbol, lookbackBars = 100) {
     return await httpClient.get(

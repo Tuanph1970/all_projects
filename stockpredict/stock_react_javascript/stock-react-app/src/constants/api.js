@@ -355,6 +355,8 @@ export const API_ENDPOINTS = {
   HELPER_ALERTS_STREAM: `${API_BASE_URLS.HELPER_API}/alerts/stream`,
   // F-100..F-103 — Pattern overlay (ai-insights-service)
   AI_PATTERNS: (symbol) => `${API_BASE_URLS.AI_API}/insights/patterns/${symbol}`,
+  // F-120..F-123 — Multi-ticker scanner
+  HELPER_SCAN: `${API_BASE_URLS.HELPER_API}/scan`,
 };
 
 // HTTP Status Codes

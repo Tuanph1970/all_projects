@@ -30,6 +30,9 @@ from app.models.schemas import (
     RecommendationResponse,
     RuleAdvisorySchema,
     RawSignalSchema,
+    ScanRequest,
+    ScanResponse,
+    ScanResultItem,
     ScheduledRunsResponse,
     ScheduledRunSummary,
     SignalAnalysisRequest,
@@ -732,12 +735,117 @@ async def stream_alerts(token: str):
     )
 
 
+# ---------------------------------------------------------------------------
+# F-120..F-123 — Multi-ticker scanner (Phase M)
+# ---------------------------------------------------------------------------
+
+_ACTIONABLE_ACTIONS = {"BUY", "SELL_SHORT"}
+_ACTION_RANK = {"BUY": 0, "SELL_SHORT": 1, "COVER": 2, "REVERSE": 3, "HOLD": 4, "WAIT": 5}
+
+
+@router.post("/scan", response_model=ScanResponse)
+async def scan_watchlist(
+    req: ScanRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Run the decision engine across all active watchlist tickers for the user.
+
+    Returns a ranked list (BUY/SELL_SHORT first, then by confidence desc).
+    Each ticker runs independently; failures are captured in the error field
+    rather than aborting the whole scan.
+    """
+    import asyncio
+    from app.api.dependencies import async_session_factory
+    from app.models.domain import HelperWatchlist
+
+    user_id = current_user["user_id"]
+    bar_date = req.bar_date or date.today()
+    t0 = time.time()
+
+    # Load watchlist
+    wl_result = await db.execute(
+        select(HelperWatchlist).where(
+            HelperWatchlist.user_id == user_id,
+            HelperWatchlist.active.is_(True),
+        )
+    )
+    entries = wl_result.scalars().all()
+
+    if not entries:
+        return ScanResponse(
+            bar_date=bar_date,
+            ticker_count=0,
+            actionable_count=0,
+            results=[],
+            latency_ms=int((time.time() - t0) * 1000),
+        )
+
+    client = get_market_client()
+    semaphore = asyncio.Semaphore(5)   # cap concurrent OHLCV fetches
+
+    async def _scan_one(ticker: str) -> ScanResultItem:
+        async with semaphore:
+            try:
+                async with async_session_factory() as session:
+                    rec = await run_recommendation(
+                        user_id=user_id,
+                        ticker=ticker,
+                        bar_date=bar_date,
+                        trigger="ON_DEMAND",
+                        db=session,
+                        client=client,
+                    )
+                return ScanResultItem(
+                    ticker=rec.ticker,
+                    action=rec.action,
+                    regime=rec.regime,
+                    confidence=rec.confidence,
+                    entry_price=rec.entry_price,
+                    stop_price=rec.stop_price,
+                    target_price=rec.target_price,
+                    position_size=rec.position_size,
+                    signal_kind=rec.signal_kind,
+                    signal_confirmed=rec.signal_confirmed,
+                    is_actionable=rec.action in _ACTIONABLE_ACTIONS,
+                )
+            except Exception as exc:
+                logger.warning("Scan failed for %s: %s", ticker, exc)
+                return ScanResultItem(
+                    ticker=ticker,
+                    action="WAIT",
+                    regime="UNDEFINED",
+                    confidence=0.0,
+                    is_actionable=False,
+                    error=str(exc),
+                )
+
+    tickers = [e.ticker for e in entries]
+    items = await asyncio.gather(*[_scan_one(t) for t in tickers])
+
+    # Rank: actionable first, then by action rank, then by confidence desc
+    ranked = sorted(
+        items,
+        key=lambda r: (_ACTION_RANK.get(r.action, 9), -r.confidence),
+    )
+
+    actionable = sum(1 for r in ranked if r.is_actionable)
+
+    return ScanResponse(
+        bar_date=bar_date,
+        ticker_count=len(tickers),
+        actionable_count=actionable,
+        results=ranked,
+        latency_ms=int((time.time() - t0) * 1000),
+    )
+
+
 @router.get("/capabilities")
 async def get_capabilities():
     return {
         "service": "decision-helper-service",
-        "version": "0.9.0",
-        "phase": "I — real-time alerts",
+        "version": "1.0.0",
+        "phase": "M — multi-ticker scanner",
         "features": [
             "user_risk_prefs",
             "position_state",
@@ -756,6 +864,7 @@ async def get_capabilities():
             "alert_broker",             # F-080
             "sse_stream",               # F-081
             "real_time_alerts",         # F-082..F-083
+            "scanner",                  # F-120..F-123
         ],
     }
 

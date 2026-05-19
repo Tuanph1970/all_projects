@@ -1,0 +1,357 @@
+// F-122..F-123 — ScannerPage: multi-ticker decision scanner
+import React, { useState } from 'react';
+import {
+  Scan, RefreshCw, TrendingUp, TrendingDown, Minus,
+  AlertTriangle, BookOpen, Shield, Target, CheckCircle,
+} from 'lucide-react';
+import helperService from '../../../services/helperService';
+import TradePlanModal from '../../common/TradePlanModal';
+
+const today = () => new Date().toISOString().split('T')[0];
+
+const fmt = (v) => v != null
+  ? Number(v).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  : '—';
+
+const ACTION_META = {
+  BUY:        { label: 'BUY',        color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
+  SELL_SHORT: { label: 'SELL SHORT', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
+  SELL:       { label: 'SELL',       color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
+  COVER:      { label: 'COVER',      color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
+  REVERSE:    { label: 'REVERSE',    color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)' },
+  HOLD:       { label: 'HOLD',       color: '#6b7280', bg: 'rgba(107,114,128,0.12)' },
+  WAIT:       { label: 'WAIT',       color: '#4b5563', bg: 'rgba(75,85,99,0.12)' },
+};
+
+const REGIME_META = {
+  TREND_UP:   { label: 'Trend ↑', color: '#10b981', Icon: TrendingUp },
+  TREND_DOWN: { label: 'Trend ↓', color: '#ef4444', Icon: TrendingDown },
+  RANGE:      { label: 'Range',   color: '#f59e0b', Icon: Minus },
+  UNDEFINED:  { label: 'Undef',   color: '#6b7280', Icon: Minus },
+};
+
+const FILTERS = ['All', 'Actionable', 'BUY', 'SELL_SHORT', 'HOLD', 'WAIT'];
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+const ActionBadge = ({ action }) => {
+  const m = ACTION_META[action] || ACTION_META.WAIT;
+  return (
+    <span style={{
+      background: m.bg, color: m.color, fontWeight: 700, fontSize: 11,
+      padding: '3px 9px', borderRadius: 5, letterSpacing: 0.5, whiteSpace: 'nowrap',
+    }}>
+      {m.label}
+    </span>
+  );
+};
+
+const RegimePill = ({ regime }) => {
+  const m = REGIME_META[regime] || REGIME_META.UNDEFINED;
+  const { Icon } = m;
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      color: m.color, fontSize: 11, fontWeight: 600,
+      background: `${m.color}18`, padding: '2px 7px', borderRadius: 10,
+      border: `1px solid ${m.color}33`,
+    }}>
+      <Icon size={10} />
+      {m.label}
+    </span>
+  );
+};
+
+const ConfBar = ({ value }) => {
+  const pct = Math.round((value ?? 0) * 100);
+  const color = pct >= 70 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#6b7280';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 80 }}>
+      <div style={{ flex: 1, height: 5, background: '#374151', borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 3 }} />
+      </div>
+      <span style={{ fontSize: 11, color, fontWeight: 600, width: 28, textAlign: 'right' }}>{pct}%</span>
+    </div>
+  );
+};
+
+// ── SummaryBar ────────────────────────────────────────────────────────────────
+
+const SummaryBar = ({ result }) => {
+  const buys = result.results.filter(r => r.action === 'BUY').length;
+  const shorts = result.results.filter(r => r.action === 'SELL_SHORT').length;
+  return (
+    <div style={styles.summaryBar}>
+      <span style={styles.summaryItem}>
+        Scanned <strong>{result.ticker_count}</strong> tickers
+      </span>
+      <span style={{ color: '#6b7280' }}>·</span>
+      <span style={styles.summaryItem}>
+        <span style={{ color: '#10b981', fontWeight: 700 }}>{buys} BUY</span>
+      </span>
+      <span style={{ color: '#6b7280' }}>·</span>
+      <span style={styles.summaryItem}>
+        <span style={{ color: '#f59e0b', fontWeight: 700 }}>{shorts} SELL SHORT</span>
+      </span>
+      <span style={{ color: '#6b7280' }}>·</span>
+      <span style={{ fontSize: 12, color: '#6b7280' }}>{result.latency_ms}ms</span>
+    </div>
+  );
+};
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+const ScannerPage = () => {
+  const [barDate, setBarDate] = useState(today());
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [result, setResult] = useState(null);
+  const [filter, setFilter] = useState('All');
+  const [planRec, setPlanRec] = useState(null);
+
+  const run = async () => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const data = await helperService.scan(barDate);
+      setResult(data);
+      if (data.actionable_count === 0) setFilter('All');
+      else setFilter('Actionable');
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || 'Scan failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filtered = result?.results?.filter(r => {
+    if (filter === 'All') return true;
+    if (filter === 'Actionable') return r.is_actionable;
+    return r.action === filter;
+  }) ?? [];
+
+  // Build a fake recommendation object TradePlanModal expects
+  const buildRec = (item) => ({
+    ticker: item.ticker,
+    action: item.action,
+    bar_date: result.bar_date,
+    entry_price: item.entry_price,
+    stop_price: item.stop_price,
+    target_price: item.target_price,
+    position_size: item.position_size,
+    signal_kind: item.signal_kind,
+    signal_confirmed: item.signal_confirmed,
+    regime: item.regime,
+    confidence: item.confidence,
+    reason_chain: [],
+    discipline_violations: [],
+  });
+
+  return (
+    <div style={styles.page}>
+      {/* ── Toolbar ── */}
+      <div style={styles.toolbar}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Scan size={18} color="#a78bfa" />
+          <span style={{ fontWeight: 700, fontSize: 16, color: '#f9fafb' }}>Watchlist Scanner</span>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto' }}>
+          <input
+            type="date"
+            value={barDate}
+            onChange={e => setBarDate(e.target.value)}
+            style={styles.dateInput}
+          />
+          <button onClick={run} disabled={loading} style={styles.runBtn}>
+            {loading
+              ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              : <Scan size={14} />}
+            {loading ? 'Scanning…' : 'Scan All'}
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div style={styles.errorBanner}>
+          <AlertTriangle size={14} />
+          {error}
+        </div>
+      )}
+
+      {!result && !loading && !error && (
+        <div style={styles.empty}>
+          <Scan size={40} color="#374151" style={{ marginBottom: 12 }} />
+          <div style={{ fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>No scan run yet</div>
+          <div style={{ fontSize: 13, color: '#4b5563' }}>
+            Press "Scan All" to run the decision engine across your entire watchlist.
+          </div>
+        </div>
+      )}
+
+      {result && (
+        <>
+          <SummaryBar result={result} />
+
+          {/* ── Filter bar ── */}
+          <div style={styles.filterBar}>
+            {FILTERS.map(f => {
+              const count = f === 'All' ? result.results.length
+                : f === 'Actionable' ? result.actionable_count
+                : result.results.filter(r => r.action === f).length;
+              return (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  style={{
+                    ...styles.filterBtn,
+                    background: filter === f ? '#374151' : 'transparent',
+                    color: filter === f ? '#f9fafb' : '#6b7280',
+                    borderColor: filter === f ? '#4b5563' : 'transparent',
+                  }}
+                >
+                  {f} {count > 0 && <span style={styles.filterCount}>{count}</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ── Results table ── */}
+          {filtered.length === 0 ? (
+            <div style={{ ...styles.empty, marginTop: 24 }}>
+              <div style={{ color: '#6b7280', fontSize: 13 }}>No results for this filter.</div>
+            </div>
+          ) : (
+            <div style={styles.tableWrap}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    {['Action', 'Ticker', 'Regime', 'Confidence', 'Entry', 'Stop', 'Target', 'Signal', ''].map(h => (
+                      <th key={h} style={styles.th}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((item, i) => (
+                    <tr key={item.ticker} style={{ ...styles.tr, background: i % 2 === 0 ? '#111827' : 'transparent' }}>
+                      <td style={styles.td}><ActionBadge action={item.action} /></td>
+                      <td style={{ ...styles.td, fontWeight: 700, color: '#f9fafb', fontSize: 14 }}>
+                        {item.ticker}
+                        {item.error && (
+                          <span title={item.error} style={{ marginLeft: 6 }}>
+                            <AlertTriangle size={12} color="#ef4444" />
+                          </span>
+                        )}
+                      </td>
+                      <td style={styles.td}><RegimePill regime={item.regime} /></td>
+                      <td style={styles.td}><ConfBar value={item.confidence} /></td>
+                      <td style={styles.td}>{fmt(item.entry_price)}</td>
+                      <td style={{ ...styles.td, color: '#ef4444' }}>
+                        {item.stop_price ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Shield size={11} /> {fmt(item.stop_price)}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td style={{ ...styles.td, color: '#10b981' }}>
+                        {item.target_price ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Target size={11} /> {fmt(item.target_price)}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td style={styles.td}>
+                        {item.signal_kind ? (
+                          <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                            {item.signal_kind}
+                            {item.signal_confirmed && (
+                              <CheckCircle size={11} color="#10b981" style={{ marginLeft: 4, verticalAlign: 'middle' }} />
+                            )}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td style={styles.td}>
+                        {item.is_actionable && (
+                          <button
+                            onClick={() => setPlanRec(buildRec(item))}
+                            style={styles.planBtn}
+                          >
+                            <BookOpen size={12} /> Plan
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      <TradePlanModal
+        isOpen={planRec !== null}
+        onClose={() => setPlanRec(null)}
+        recommendation={planRec}
+        onSaved={() => setPlanRec(null)}
+      />
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+};
+
+const styles = {
+  page: { padding: 20, maxWidth: 1100, margin: '0 auto', color: '#f9fafb' },
+  toolbar: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 },
+  dateInput: {
+    background: '#1f2937', border: '1px solid #374151', borderRadius: 8,
+    padding: '8px 12px', color: '#f9fafb', fontSize: 13, outline: 'none',
+  },
+  runBtn: {
+    background: '#7c3aed', border: 'none', borderRadius: 8,
+    padding: '9px 18px', color: '#fff', fontWeight: 700, fontSize: 14,
+    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+  },
+  errorBanner: {
+    background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+    borderRadius: 8, padding: '10px 14px', color: '#fca5a5',
+    display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginBottom: 12,
+  },
+  empty: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center',
+    justifyContent: 'center', minHeight: 200, textAlign: 'center',
+  },
+  summaryBar: {
+    display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+    background: '#1f2937', borderRadius: 8, padding: '10px 16px',
+    marginBottom: 12, fontSize: 13, color: '#d1d5db',
+  },
+  summaryItem: { display: 'flex', alignItems: 'center', gap: 4 },
+  filterBar: { display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 12 },
+  filterBtn: {
+    border: '1px solid transparent', borderRadius: 6,
+    padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+    display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
+  },
+  filterCount: {
+    background: '#374151', color: '#9ca3af', fontSize: 10,
+    padding: '1px 5px', borderRadius: 8, fontWeight: 700,
+  },
+  tableWrap: { overflowX: 'auto', borderRadius: 10, border: '1px solid #374151' },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
+  th: {
+    background: '#111827', padding: '10px 12px', textAlign: 'left',
+    color: '#9ca3af', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5,
+    borderBottom: '1px solid #374151', whiteSpace: 'nowrap',
+  },
+  tr: { borderBottom: '1px solid #1f293720' },
+  td: { padding: '10px 12px', verticalAlign: 'middle' },
+  planBtn: {
+    background: '#3b82f6', border: 'none', borderRadius: 5,
+    padding: '5px 10px', color: '#fff', fontWeight: 600, fontSize: 11,
+    cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
+  },
+};
+
+export default ScannerPage;
