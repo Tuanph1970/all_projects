@@ -46,6 +46,7 @@ import DecisionConsole from '../Pages/DecisionConsole';
 import WatchlistDecisionBoard from '../Pages/WatchlistDecisionBoard';
 import BacktestStudio from '../Pages/BacktestStudio';
 import DisciplineDashboard from '../Pages/DisciplineDashboard';
+import ScheduledRunsLog from '../Pages/ScheduledRunsLog';
 
 // Thin wrapper: <Company> takes `symbol` as a prop, so we extract it from
 // the URL via useParams rather than touching the existing component.
@@ -140,6 +141,7 @@ const MainLayout = () => {
             <Route path="/decision-board" element={<WatchlistDecisionBoard />} />
             <Route path="/backtest-studio" element={<BacktestStudio />} />
             <Route path="/discipline" element={<DisciplineDashboard />} />
+            <Route path="/scheduled-runs" element={<ScheduledRunsLog />} />
 
             {/* Tools */}
             <Route path="/screener" element={<StockScreener />} />

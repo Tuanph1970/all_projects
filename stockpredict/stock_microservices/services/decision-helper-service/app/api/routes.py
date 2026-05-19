@@ -28,6 +28,8 @@ from app.models.schemas import (
     RecommendationResponse,
     RuleAdvisorySchema,
     RawSignalSchema,
+    ScheduledRunsResponse,
+    ScheduledRunSummary,
     SignalAnalysisRequest,
     SignalAnalysisResponse,
     SignalResultSchema,
@@ -37,6 +39,8 @@ from app.models.schemas import (
     ValidatePlanRequest,
     ValidatePlanResponse,
     WalkForwardWindowSchema,
+    WatchlistAddRequest,
+    WatchlistEntryResponse,
 )
 from app.services.decision.orchestrator import run_recommendation
 from app.services.discipline.checks import run_all_checks
@@ -474,12 +478,179 @@ async def validate_plan(
     )
 
 
+# ---------------------------------------------------------------------------
+# F-070 — HelperWatchlist CRUD
+# ---------------------------------------------------------------------------
+
+@router.get("/watchlist", response_model=List[WatchlistEntryResponse])
+async def list_watchlist(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return all active watchlist entries for the authenticated user."""
+    from sqlalchemy import select
+    from app.models.domain import HelperWatchlist
+
+    user_id = current_user["user_id"]
+    result = await db.execute(
+        select(HelperWatchlist)
+        .where(HelperWatchlist.user_id == user_id, HelperWatchlist.active.is_(True))
+        .order_by(HelperWatchlist.created_at)
+    )
+    entries = result.scalars().all()
+    return [
+        WatchlistEntryResponse(
+            id=e.id, user_id=e.user_id, ticker=e.ticker,
+            active=e.active, note=e.note, created_at=e.created_at,
+        )
+        for e in entries
+    ]
+
+
+@router.post("/watchlist", response_model=WatchlistEntryResponse, status_code=201)
+async def add_watchlist(
+    req: WatchlistAddRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Add a ticker to the user's watchlist (idempotent — reactivates if soft-deleted)."""
+    from sqlalchemy import select
+    from app.models.domain import HelperWatchlist
+
+    user_id = current_user["user_id"]
+    ticker = req.ticker.upper()
+
+    result = await db.execute(
+        select(HelperWatchlist).where(
+            HelperWatchlist.user_id == user_id, HelperWatchlist.ticker == ticker
+        )
+    )
+    entry = result.scalar_one_or_none()
+
+    if entry is None:
+        entry = HelperWatchlist(user_id=user_id, ticker=ticker, note=req.note)
+        db.add(entry)
+    else:
+        entry.active = True
+        entry.note = req.note
+
+    await db.commit()
+    await db.refresh(entry)
+
+    return WatchlistEntryResponse(
+        id=entry.id, user_id=entry.user_id, ticker=entry.ticker,
+        active=entry.active, note=entry.note, created_at=entry.created_at,
+    )
+
+
+@router.delete("/watchlist/{ticker}", status_code=204)
+async def remove_watchlist(
+    ticker: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Soft-delete a ticker from the user's watchlist."""
+    from sqlalchemy import select
+    from app.models.domain import HelperWatchlist
+
+    user_id = current_user["user_id"]
+    result = await db.execute(
+        select(HelperWatchlist).where(
+            HelperWatchlist.user_id == user_id,
+            HelperWatchlist.ticker == ticker.upper(),
+        )
+    )
+    entry = result.scalar_one_or_none()
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Ticker not in watchlist")
+
+    entry.active = False
+    await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# F-072 / F-073 — Scheduled runs log
+# ---------------------------------------------------------------------------
+
+@router.get("/scheduled-runs", response_model=ScheduledRunsResponse)
+async def list_scheduled_runs(
+    limit: int = 50,
+    alerts_only: bool = False,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return recent SCHEDULED decision runs for the authenticated user.
+
+    Set alerts_only=true to show only BUY/SELL_SHORT results.
+    """
+    from sqlalchemy import and_, desc, func as sqlfunc, select
+    from app.models.domain import DecisionRun
+
+    user_id = current_user["user_id"]
+    alert_actions = ["BUY", "SELL_SHORT"]
+
+    conditions = [
+        DecisionRun.user_id == user_id,
+        DecisionRun.trigger == "SCHEDULED",
+    ]
+    if alerts_only:
+        conditions.append(DecisionRun.action.in_(alert_actions))
+
+    count_result = await db.execute(
+        select(sqlfunc.count()).select_from(DecisionRun).where(and_(*conditions))
+    )
+    total = count_result.scalar_one()
+
+    runs_result = await db.execute(
+        select(DecisionRun)
+        .where(and_(*conditions))
+        .order_by(desc(DecisionRun.created_at))
+        .limit(min(limit, 200))
+    )
+    runs = runs_result.scalars().all()
+
+    return ScheduledRunsResponse(
+        total=total,
+        runs=[
+            ScheduledRunSummary(
+                id=r.id,
+                ticker=r.ticker,
+                bar_date=r.bar_date,
+                action=r.action,
+                regime=r.regime,
+                confidence=float(r.confidence) if r.confidence else None,
+                latency_ms=r.latency_ms,
+                created_at=r.created_at,
+                is_alert=r.action in alert_actions,
+            )
+            for r in runs
+        ],
+    )
+
+
+@router.post("/watchlist/run-all", status_code=202)
+async def trigger_scheduled_run(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually trigger the scheduled daily runner for the authenticated user (F-071).
+
+    Runs recommendations for all active watchlist tickers in the background.
+    """
+    import asyncio
+    from app.services.scheduler import run_for_user
+
+    user_id = current_user["user_id"]
+    asyncio.create_task(run_for_user(user_id))
+    return {"status": "accepted", "message": "Scheduled run queued for your watchlist."}
+
+
 @router.get("/capabilities")
 async def get_capabilities():
     return {
         "service": "decision-helper-service",
-        "version": "0.7.0",
-        "phase": "G — discipline overlay",
+        "version": "0.8.0",
+        "phase": "H — automation",
         "features": [
             "user_risk_prefs",
             "position_state",
@@ -491,6 +662,10 @@ async def get_capabilities():
             "walk_forward",             # F-051
             "discipline_checks",        # F-060..F-063
             "rules_engine",             # F-065
+            "watchlist",                # F-070
+            "scheduler",                # F-071
+            "action_alerts",            # F-072
+            "scheduled_runs_log",       # F-073
         ],
     }
 

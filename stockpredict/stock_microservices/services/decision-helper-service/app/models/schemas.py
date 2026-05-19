@@ -284,6 +284,7 @@ class WalkForwardWindowSchema(BaseModel):
 
 
 class BacktestResultSchema(BaseModel):
+
     ticker: str
     start_date: date
     end_date: date
@@ -294,3 +295,38 @@ class BacktestResultSchema(BaseModel):
     walk_forward_windows: List[WalkForwardWindowSchema] = Field(default_factory=list)
     walk_forward_aggregate: Optional[Dict[str, Any]] = None
     latency_ms: int = 0
+
+
+# ---------------------------------------------------------------------------
+# F-070..F-073 — HelperWatchlist + ScheduledRuns (Phase H)
+# ---------------------------------------------------------------------------
+
+class WatchlistAddRequest(BaseModel):
+    ticker: str = Field(..., max_length=16)
+    note: Optional[str] = Field(None, max_length=255)
+
+
+class WatchlistEntryResponse(BaseModel):
+    id: int
+    user_id: int
+    ticker: str
+    active: bool
+    note: Optional[str]
+    created_at: datetime
+
+
+class ScheduledRunSummary(BaseModel):
+    id: int
+    ticker: str
+    bar_date: date
+    action: str
+    regime: Optional[str]
+    confidence: Optional[float]
+    latency_ms: Optional[int]
+    created_at: datetime
+    is_alert: bool          # True when action is BUY or SELL_SHORT
+
+
+class ScheduledRunsResponse(BaseModel):
+    runs: List[ScheduledRunSummary]
+    total: int

@@ -65,6 +65,30 @@ class HelperService {
     });
   }
 
+  // F-070 — HelperWatchlist CRUD
+  async getWatchlist() {
+    return await httpClient.get(API_ENDPOINTS.HELPER_WATCHLIST);
+  }
+
+  async addWatchlist({ ticker, note }) {
+    return await httpClient.post(API_ENDPOINTS.HELPER_WATCHLIST, { ticker, note });
+  }
+
+  async removeWatchlist(ticker) {
+    return await httpClient.delete(API_ENDPOINTS.HELPER_WATCHLIST_ITEM(ticker));
+  }
+
+  // F-071 — Manual trigger of scheduled run for the current user
+  async triggerScheduledRun() {
+    return await httpClient.post(API_ENDPOINTS.HELPER_WATCHLIST_RUN_ALL);
+  }
+
+  // F-073 — Scheduled runs log
+  async getScheduledRuns({ limit = 50, alertsOnly = false } = {}) {
+    const params = new URLSearchParams({ limit, alerts_only: alertsOnly });
+    return await httpClient.get(`${API_ENDPOINTS.HELPER_SCHEDULED_RUNS}?${params}`);
+  }
+
   // F-050..F-054 — Run backtest / walk-forward harness
   async runBacktest({
     ticker, startDate, endDate,

@@ -15,6 +15,8 @@ from fastapi.responses import JSONResponse
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from starlette.responses import Response
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
 from app.config import get_settings
 from app.api.routes import router
 from app.api.dependencies import engine
@@ -44,7 +46,24 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables created/verified")
+
+    # F-071 — daily recommendation scheduler (fires 15:30 ICT = 08:30 UTC)
+    from app.services.scheduler import run_all_users
+    scheduler = AsyncIOScheduler(timezone="UTC")
+    scheduler.add_job(
+        run_all_users,
+        trigger="cron",
+        hour=8,
+        minute=30,
+        id="daily_recommendations",
+        replace_existing=True,
+    )
+    scheduler.start()
+    logger.info("Scheduler started — daily run at 08:30 UTC")
+
     yield
+
+    scheduler.shutdown(wait=False)
     await engine.dispose()
     logger.info("Shutting down %s", settings.SERVICE_NAME)
 

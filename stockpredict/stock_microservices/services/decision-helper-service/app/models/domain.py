@@ -73,6 +73,20 @@ class SignalHistory(Base):
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
 
+class HelperWatchlist(Base):
+    """Per-user tickers to run daily scheduled recommendations (F-070)."""
+    __tablename__ = "helper_watchlists"
+    __table_args__ = (UniqueConstraint("user_id", "ticker", name="uq_watchlist_user_ticker"),)
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, nullable=False, index=True)
+    ticker = Column(String(16), nullable=False)
+    active = Column(Boolean, nullable=False, default=True)
+    note = Column(String(255), nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
 class DecisionRun(Base):
     """One row per (user, ticker, bar, trigger) — persisted recommendation."""
     __tablename__ = "decision_runs"

@@ -175,6 +175,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
         { key: 'decision-board', label: 'Watchlist Board', route: 'decision-board' },
         { key: 'backtest-studio', label: 'Backtest Studio', route: 'backtest-studio' },
         { key: 'discipline', label: 'Discipline', route: 'discipline' },
+        { key: 'scheduled-runs', label: 'Scheduled Runs', route: 'scheduled-runs' },
       ]
     },
     {

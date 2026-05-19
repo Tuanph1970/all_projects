@@ -345,6 +345,11 @@ export const API_ENDPOINTS = {
   HELPER_BACKTEST: `${API_BASE_URLS.HELPER_API}/backtest`,
   HELPER_DISCIPLINE_SUMMARY: `${API_BASE_URLS.HELPER_API}/discipline/summary`,
   HELPER_VALIDATE_PLAN: `${API_BASE_URLS.HELPER_API}/discipline/validate-plan`,
+  // F-070..F-073
+  HELPER_WATCHLIST: `${API_BASE_URLS.HELPER_API}/watchlist`,
+  HELPER_WATCHLIST_ITEM: (ticker) => `${API_BASE_URLS.HELPER_API}/watchlist/${ticker}`,
+  HELPER_WATCHLIST_RUN_ALL: `${API_BASE_URLS.HELPER_API}/watchlist/run-all`,
+  HELPER_SCHEDULED_RUNS: `${API_BASE_URLS.HELPER_API}/scheduled-runs`,
 };
 
 // HTTP Status Codes
