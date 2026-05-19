@@ -271,7 +271,7 @@ const DecisionConsole = () => {
         isOpen={planOpen}
         onClose={() => setPlanOpen(false)}
         recommendation={rec}
-        onSaved={() => alert('Trade plan saved to journal.')}
+        onSaved={() => {}}
       />
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
