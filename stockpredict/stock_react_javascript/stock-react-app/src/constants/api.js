@@ -353,6 +353,8 @@ export const API_ENDPOINTS = {
   // F-080..F-083
   HELPER_ALERTS: `${API_BASE_URLS.HELPER_API}/alerts`,
   HELPER_ALERTS_STREAM: `${API_BASE_URLS.HELPER_API}/alerts/stream`,
+  // F-100..F-103 — Pattern overlay (ai-insights-service)
+  AI_PATTERNS: (symbol) => `${API_BASE_URLS.AI_API}/insights/patterns/${symbol}`,
 };
 
 // HTTP Status Codes

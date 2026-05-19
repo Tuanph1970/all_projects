@@ -94,6 +94,13 @@ class HelperService {
     return await httpClient.get(`${API_ENDPOINTS.HELPER_ALERTS}?limit=${limit}`);
   }
 
+  // F-100 — Fetch ai-insights pattern overlay for a symbol
+  async getPatterns(symbol, lookbackBars = 100) {
+    return await httpClient.get(
+      `${API_ENDPOINTS.AI_PATTERNS(symbol)}?lookback_bars=${lookbackBars}`
+    );
+  }
+
   // F-050..F-054 — Run backtest / walk-forward harness
   async runBacktest({
     ticker, startDate, endDate,

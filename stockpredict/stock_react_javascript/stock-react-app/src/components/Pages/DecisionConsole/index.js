@@ -1,5 +1,5 @@
-// F-031 — DecisionConsole
-// Per-symbol: regime ribbon · signal card · action recommendation · stop/target/size · reason chain
+// F-031 / F-102 — DecisionConsole
+// Per-symbol: regime ribbon · signal card · action recommendation · stop/target/size · reason chain · pattern overlay
 import React, { useState, useCallback } from 'react';
 import {
   RefreshCw, ChevronDown, ChevronRight, Shield, Target,
@@ -9,6 +9,7 @@ import {
 import helperService from '../../../services/helperService';
 import TradePlanModal from '../../common/TradePlanModal';
 import RiskPrefsPanel from './RiskPrefsPanel';
+import PatternPanel from './PatternPanel';
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -182,19 +183,37 @@ const DecisionConsole = () => {
   const [error, setError] = useState(null);
   const [planOpen, setPlanOpen] = useState(false);
   const [showPrefs, setShowPrefs] = useState(false);
+  const [patterns, setPatterns] = useState(null);
+  const [patternsLoading, setPatternsLoading] = useState(false);
+  const [patternsError, setPatternsError] = useState(null);
 
   const run = useCallback(async () => {
     const ticker = tickerInput.trim().toUpperCase();
     if (!ticker) return;
     setLoading(true);
     setError(null);
+    setPatterns(null);
+    setPatternsError(null);
+    setPatternsLoading(true);
     try {
-      const data = await helperService.recommend({ ticker, barDate });
-      setRec(data);
-    } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Request failed');
+      // F-102: fetch recommendation + patterns in parallel (best-effort)
+      const [recResult, patternResult] = await Promise.allSettled([
+        helperService.recommend({ ticker, barDate }),
+        helperService.getPatterns(ticker),
+      ]);
+      if (recResult.status === 'fulfilled') {
+        setRec(recResult.value);
+      } else {
+        setError(recResult.reason?.response?.data?.detail || recResult.reason?.message || 'Request failed');
+      }
+      if (patternResult.status === 'fulfilled') {
+        setPatterns(patternResult.value?.patterns ?? []);
+      } else {
+        setPatternsError(true);
+      }
     } finally {
       setLoading(false);
+      setPatternsLoading(false);
     }
   }, [tickerInput, barDate]);
 
@@ -252,6 +271,13 @@ const DecisionConsole = () => {
 
           {/* ── action card ── */}
           <ActionCard rec={rec} onPlan={() => setPlanOpen(true)} />
+
+          {/* ── pattern overlay (F-102) ── */}
+          <PatternPanel
+            patterns={patterns}
+            loading={patternsLoading}
+            error={patternsError}
+          />
 
           {/* ── discipline violations ── */}
           <DisciplinePanel violations={rec.discipline_violations} />
