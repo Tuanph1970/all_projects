@@ -380,3 +380,60 @@ class ScanResponse(BaseModel):
     actionable_count: int            # BUY + SELL_SHORT results
     results: List[ScanResultItem]
     latency_ms: int
+
+
+# ---------------------------------------------------------------------------
+# F-130..F-133 — Performance analytics (Phase N)
+# ---------------------------------------------------------------------------
+
+class ActionBreakdownItem(BaseModel):
+    action: str
+    count: int
+    pct: float
+
+
+class RegimeBreakdownItem(BaseModel):
+    regime: str
+    total: int
+    buy_count: int
+    sell_short_count: int
+    hold_wait_count: int
+
+
+class SignalBreakdownItem(BaseModel):
+    signal_kind: str
+    fire_count: int
+    confirmed_count: int
+    confirmation_rate: float   # 0..1
+    avg_confidence: float      # 0..1
+
+
+class DailyActionablePoint(BaseModel):
+    date: str                  # ISO date string
+    count: int
+
+
+class TopTickerItem(BaseModel):
+    ticker: str
+    decision_count: int
+    buy_count: int
+    sell_short_count: int
+
+
+class ConfidenceBucketItem(BaseModel):
+    bucket: str                # e.g. "70-80%"
+    count: int
+
+
+class AnalyticsResponse(BaseModel):
+    user_id: int
+    computed_at: datetime
+    days: int
+    total_decisions: int
+    actionable_count: int
+    action_breakdown: List[ActionBreakdownItem]
+    regime_breakdown: List[RegimeBreakdownItem]
+    signal_breakdown: List[SignalBreakdownItem]
+    daily_actionable: List[DailyActionablePoint]
+    top_tickers: List[TopTickerItem]
+    confidence_histogram: List[ConfidenceBucketItem]

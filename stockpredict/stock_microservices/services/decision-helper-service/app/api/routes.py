@@ -17,17 +17,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, get_current_user_optional, get_current_user_from_token, get_db
 from app.models.schemas import (
+    ActionBreakdownItem,
     AlertEvent,
     AlertsListResponse,
+    AnalyticsResponse,
     BacktestRequest,
     BacktestResultSchema,
     BacktestStatsSchema,
+    ConfidenceBucketItem,
+    DailyActionablePoint,
     DisciplineSummaryResponse,
     DisciplineViolationSchema,
     EquityPointSchema,
     PositionStateResponse,
     RecommendRequest,
     RecommendationResponse,
+    RegimeBreakdownItem,
     RuleAdvisorySchema,
     RawSignalSchema,
     ScanRequest,
@@ -37,7 +42,9 @@ from app.models.schemas import (
     ScheduledRunSummary,
     SignalAnalysisRequest,
     SignalAnalysisResponse,
+    SignalBreakdownItem,
     SignalResultSchema,
+    TopTickerItem,
     TradeRecordSchema,
     UserRiskPrefsRequest,
     UserRiskPrefsResponse,
@@ -736,6 +743,174 @@ async def stream_alerts(token: str):
 
 
 # ---------------------------------------------------------------------------
+# F-130..F-133 — Performance analytics (Phase N)
+# ---------------------------------------------------------------------------
+
+@router.get("/analytics", response_model=AnalyticsResponse)
+async def get_analytics(
+    days: int = 90,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return decision-run performance analytics for the authenticated user.
+
+    Covers the last `days` calendar days (default 90).  All aggregations run
+    directly on decision_runs — no cross-service calls required.
+    """
+    from collections import defaultdict
+    from datetime import datetime as dt, timedelta
+    from sqlalchemy import and_, case, cast, func as sqlfunc, select, Float
+    from app.models.domain import DecisionRun
+
+    user_id = current_user["user_id"]
+    cutoff = date.today() - timedelta(days=days)
+    computed_at = dt.utcnow()
+
+    base_where = and_(
+        DecisionRun.user_id == user_id,
+        DecisionRun.bar_date >= cutoff,
+    )
+
+    # ── 1. Action breakdown ──────────────────────────────────────────────────
+    action_rows = (await db.execute(
+        select(DecisionRun.action, sqlfunc.count().label("cnt"))
+        .where(base_where)
+        .group_by(DecisionRun.action)
+    )).all()
+
+    total_decisions = sum(r.cnt for r in action_rows)
+    actionable_count = sum(r.cnt for r in action_rows if r.action in ("BUY", "SELL_SHORT"))
+
+    action_breakdown = [
+        ActionBreakdownItem(
+            action=r.action,
+            count=r.cnt,
+            pct=round(r.cnt / total_decisions * 100, 1) if total_decisions else 0.0,
+        )
+        for r in sorted(action_rows, key=lambda x: -x.cnt)
+    ]
+
+    # ── 2. Regime breakdown ──────────────────────────────────────────────────
+    regime_rows = (await db.execute(
+        select(
+            DecisionRun.regime,
+            sqlfunc.count().label("total"),
+            sqlfunc.sum(case((DecisionRun.action == "BUY", 1), else_=0)).label("buy_c"),
+            sqlfunc.sum(case((DecisionRun.action == "SELL_SHORT", 1), else_=0)).label("ss_c"),
+            sqlfunc.sum(case((DecisionRun.action.in_(["HOLD", "WAIT"]), 1), else_=0)).label("hw_c"),
+        )
+        .where(base_where)
+        .group_by(DecisionRun.regime)
+    )).all()
+
+    regime_breakdown = [
+        RegimeBreakdownItem(
+            regime=r.regime or "UNDEFINED",
+            total=r.total,
+            buy_count=r.buy_c or 0,
+            sell_short_count=r.ss_c or 0,
+            hold_wait_count=r.hw_c or 0,
+        )
+        for r in sorted(regime_rows, key=lambda x: -x.total)
+    ]
+
+    # ── 3. Signal breakdown ──────────────────────────────────────────────────
+    signal_rows = (await db.execute(
+        select(
+            DecisionRun.signal_kind,
+            sqlfunc.count().label("fire_count"),
+            sqlfunc.sum(case((DecisionRun.signal_confirmed.is_(True), 1), else_=0)).label("conf_c"),
+            sqlfunc.avg(cast(DecisionRun.confidence, Float)).label("avg_conf"),
+        )
+        .where(and_(base_where, DecisionRun.signal_kind.isnot(None)))
+        .group_by(DecisionRun.signal_kind)
+    )).all()
+
+    signal_breakdown = [
+        SignalBreakdownItem(
+            signal_kind=r.signal_kind,
+            fire_count=r.fire_count,
+            confirmed_count=r.conf_c or 0,
+            confirmation_rate=round((r.conf_c or 0) / r.fire_count, 3) if r.fire_count else 0.0,
+            avg_confidence=round(float(r.avg_conf or 0), 3),
+        )
+        for r in sorted(signal_rows, key=lambda x: -x.fire_count)
+    ]
+
+    # ── 4. Daily actionable trend (last `days`) ──────────────────────────────
+    daily_rows = (await db.execute(
+        select(DecisionRun.bar_date, sqlfunc.count().label("cnt"))
+        .where(and_(
+            base_where,
+            DecisionRun.action.in_(["BUY", "SELL_SHORT"]),
+        ))
+        .group_by(DecisionRun.bar_date)
+        .order_by(DecisionRun.bar_date)
+    )).all()
+
+    daily_actionable = [
+        DailyActionablePoint(date=str(r.bar_date), count=r.cnt)
+        for r in daily_rows
+    ]
+
+    # ── 5. Top tickers ───────────────────────────────────────────────────────
+    ticker_rows = (await db.execute(
+        select(
+            DecisionRun.ticker,
+            sqlfunc.count().label("total"),
+            sqlfunc.sum(case((DecisionRun.action == "BUY", 1), else_=0)).label("buy_c"),
+            sqlfunc.sum(case((DecisionRun.action == "SELL_SHORT", 1), else_=0)).label("ss_c"),
+        )
+        .where(base_where)
+        .group_by(DecisionRun.ticker)
+        .order_by(sqlfunc.count().desc())
+        .limit(10)
+    )).all()
+
+    top_tickers = [
+        TopTickerItem(
+            ticker=r.ticker,
+            decision_count=r.total,
+            buy_count=r.buy_c or 0,
+            sell_short_count=r.ss_c or 0,
+        )
+        for r in ticker_rows
+    ]
+
+    # ── 6. Confidence histogram (10% buckets) ────────────────────────────────
+    bucket_map: dict[str, int] = defaultdict(int)
+    conf_rows = (await db.execute(
+        select(DecisionRun.confidence)
+        .where(and_(base_where, DecisionRun.confidence.isnot(None)))
+    )).scalars().all()
+
+    for conf in conf_rows:
+        pct = int(float(conf) * 10) * 10   # floor to nearest 10%
+        pct = min(pct, 90)
+        key = f"{pct}-{pct + 10}%"
+        bucket_map[key] += 1
+
+    confidence_histogram = [
+        ConfidenceBucketItem(bucket=f"{p}-{p + 10}%", count=bucket_map.get(f"{p}-{p + 10}%", 0))
+        for p in range(0, 100, 10)
+    ]
+
+    return AnalyticsResponse(
+        user_id=user_id,
+        computed_at=computed_at,
+        days=days,
+        total_decisions=total_decisions,
+        actionable_count=actionable_count,
+        action_breakdown=action_breakdown,
+        regime_breakdown=regime_breakdown,
+        signal_breakdown=signal_breakdown,
+        daily_actionable=daily_actionable,
+        top_tickers=top_tickers,
+        confidence_histogram=confidence_histogram,
+    )
+
+
+# ---------------------------------------------------------------------------
 # F-120..F-123 — Multi-ticker scanner (Phase M)
 # ---------------------------------------------------------------------------
 
@@ -844,8 +1019,8 @@ async def scan_watchlist(
 async def get_capabilities():
     return {
         "service": "decision-helper-service",
-        "version": "1.0.0",
-        "phase": "M — multi-ticker scanner",
+        "version": "1.1.0",
+        "phase": "N — performance analytics",
         "features": [
             "user_risk_prefs",
             "position_state",
@@ -865,6 +1040,7 @@ async def get_capabilities():
             "sse_stream",               # F-081
             "real_time_alerts",         # F-082..F-083
             "scanner",                  # F-120..F-123
+            "analytics",                # F-130..F-133
         ],
     }
 

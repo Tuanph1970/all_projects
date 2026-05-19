@@ -48,6 +48,7 @@ import BacktestStudio from '../Pages/BacktestStudio';
 import DisciplineDashboard from '../Pages/DisciplineDashboard';
 import ScheduledRunsLog from '../Pages/ScheduledRunsLog';
 import ScannerPage from '../Pages/ScannerPage';
+import AnalyticsPage from '../Pages/AnalyticsPage';
 import AlertCenter from '../common/AlertToast';
 import { useAlertStream } from '../../hooks/useAlertStream';
 
@@ -159,6 +160,7 @@ const MainLayout = () => {
             <Route path="/discipline" element={<DisciplineDashboard />} />
             <Route path="/scheduled-runs" element={<ScheduledRunsLog />} />
             <Route path="/scanner" element={<ScannerPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
 
             {/* Tools */}
             <Route path="/screener" element={<StockScreener />} />

@@ -357,6 +357,8 @@ export const API_ENDPOINTS = {
   AI_PATTERNS: (symbol) => `${API_BASE_URLS.AI_API}/insights/patterns/${symbol}`,
   // F-120..F-123 — Multi-ticker scanner
   HELPER_SCAN: `${API_BASE_URLS.HELPER_API}/scan`,
+  // F-130..F-133 — Performance analytics
+  HELPER_ANALYTICS: `${API_BASE_URLS.HELPER_API}/analytics`,
 };
 
 // HTTP Status Codes
