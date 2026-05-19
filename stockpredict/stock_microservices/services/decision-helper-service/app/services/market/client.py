@@ -105,6 +105,50 @@ class MarketClient:
             return None
 
     # ------------------------------------------------------------------
+    # ATR (needed by stop_module and sizing_module)
+    # ------------------------------------------------------------------
+
+    async def fetch_atr(
+        self,
+        symbol: str,
+        period: int = 14,
+        days: int = 100,
+    ) -> Optional[Dict[str, Any]]:
+        """Return analysis-service /analysis/atr/{symbol} dict or None on error."""
+        try:
+            resp = await self._analysis.get(
+                f"/stock_helper/api/v2/analysis/atr/{symbol}",
+                params={"period": period, "days": days},
+            )
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPError as exc:
+            logger.warning("fetch_atr %s failed: %s", symbol, exc)
+            return None
+
+    # ------------------------------------------------------------------
+    # Swing pivots (needed by stop_module)
+    # ------------------------------------------------------------------
+
+    async def fetch_swings(
+        self,
+        symbol: str,
+        window: int = 3,
+        days: int = 300,
+    ) -> Optional[Dict[str, Any]]:
+        """Return analysis-service /analysis/swings/{symbol} dict or None on error."""
+        try:
+            resp = await self._analysis.get(
+                f"/stock_helper/api/v2/analysis/swings/{symbol}",
+                params={"window": window, "days": days},
+            )
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPError as exc:
+            logger.warning("fetch_swings %s failed: %s", symbol, exc)
+            return None
+
+    # ------------------------------------------------------------------
     # Technical indicators (RSI/MACD for confirmation oscillator rule)
     # ------------------------------------------------------------------
 

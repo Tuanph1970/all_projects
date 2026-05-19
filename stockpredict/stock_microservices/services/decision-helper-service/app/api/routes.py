@@ -2,6 +2,7 @@
 
 F-010 bootstrap: health + risk-prefs + position-state stubs.
 F-012..F-016: POST /signal-analysis — regime + signal + confirmation pipeline.
+F-027:        POST /recommend      — full orchestrator (Phase C).
 """
 from __future__ import annotations
 
@@ -16,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_current_user, get_current_user_optional, get_db
 from app.models.schemas import (
     PositionStateResponse,
+    RecommendRequest,
+    RecommendationResponse,
     SignalAnalysisRequest,
     SignalAnalysisResponse,
     SignalResultSchema,
@@ -23,6 +26,7 @@ from app.models.schemas import (
     UserRiskPrefsRequest,
     UserRiskPrefsResponse,
 )
+from app.services.decision.orchestrator import run_recommendation
 from app.services.market.client import get_market_client
 from app.services.regime.classifier import classify_regime
 from app.services.signal.base import OHLCVBar, RawSignal
@@ -157,21 +161,51 @@ async def signal_analysis(
     )
 
 
+# ---------------------------------------------------------------------------
+# F-027 — Full recommendation (Phase C orchestrator)
+# ---------------------------------------------------------------------------
+
+@router.post("/recommend", response_model=RecommendationResponse)
+async def recommend(
+    req: RecommendRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Run the full decision pipeline for (ticker, bar_date).
+
+    Returns a single recommendation (action + stop + target + size) with an
+    auditable reason chain stored in decision_runs.
+    """
+    user_id: int = current_user["user_id"]
+    ticker = req.ticker.upper()
+    client = get_market_client()
+
+    result = await run_recommendation(
+        user_id=user_id,
+        ticker=ticker,
+        bar_date=req.bar_date,
+        trigger=req.trigger,
+        db=db,
+        client=client,
+    )
+    return result
+
+
 @router.get("/capabilities")
 async def get_capabilities():
     return {
         "service": "decision-helper-service",
-        "version": "0.2.0",
-        "phase": "B — signal engine",
+        "version": "0.3.0",
+        "phase": "C — risk overlay + state machine + orchestrator",
         "features": [
             "user_risk_prefs",
             "position_state",
             "signal_analysis",   # F-012..F-016
+            "recommend",         # F-027 — full orchestrator
         ],
         "coming_soon": [
-            "recommend",         # Phase C — orchestrator + stop/target/size
-            "signal_history",
-            "backtest_replay",
+            "failed_signal_detector",  # Phase E
+            "backtest_replay",         # Phase F
         ],
     }
 
