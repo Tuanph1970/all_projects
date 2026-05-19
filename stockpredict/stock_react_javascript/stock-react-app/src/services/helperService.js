@@ -48,6 +48,23 @@ class HelperService {
     });
   }
 
+  // F-060..F-065 — Discipline overlay
+  async getDisciplineSummary() {
+    return await httpClient.get(API_ENDPOINTS.HELPER_DISCIPLINE_SUMMARY);
+  }
+
+  async validatePlan({ ticker, action, stopPrice, targetPrice, entryPrice, direction, regime }) {
+    return await httpClient.post(API_ENDPOINTS.HELPER_VALIDATE_PLAN, {
+      ticker,
+      action,
+      stop_price: stopPrice,
+      target_price: targetPrice,
+      entry_price: entryPrice,
+      direction,
+      regime,
+    });
+  }
+
   // F-050..F-054 — Run backtest / walk-forward harness
   async runBacktest({
     ticker, startDate, endDate,

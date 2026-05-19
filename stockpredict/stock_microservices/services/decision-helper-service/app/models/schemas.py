@@ -42,6 +42,58 @@ class ReasonStep(BaseModel):
 # Recommendation (the in-flight response object)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# F-060..F-065 — Discipline schemas
+# ---------------------------------------------------------------------------
+
+class DisciplineViolationSchema(BaseModel):
+    rule_id: str
+    severity: str       # "BLOCK" | "WARNING"
+    message: str
+    evidence: Dict[str, Any] = Field(default_factory=dict)
+
+
+class RuleAdvisorySchema(BaseModel):
+    rule_id: str
+    rule_text: str
+    chapter: str
+    triggered: bool
+    severity: str       # "INFO" | "WARNING"
+    detail: str = ""
+
+
+class DisciplineSummaryResponse(BaseModel):
+    user_id: int
+    recent_losses: int
+    loss_streak_threshold: int
+    streak_active: bool
+    current_equity: Optional[float] = None
+    peak_equity: Optional[float] = None
+    drawdown_pct: Optional[float] = None
+    last_10_actions: List[str] = Field(default_factory=list)
+    rule_advisories: List[RuleAdvisorySchema] = Field(default_factory=list)
+
+
+class ValidatePlanRequest(BaseModel):
+    ticker: str = Field(..., max_length=16)
+    action: str
+    stop_price: Optional[float] = None
+    target_price: Optional[float] = None
+    entry_price: Optional[float] = None
+    direction: Optional[str] = None
+    regime: Optional[str] = None
+
+
+class ValidatePlanResponse(BaseModel):
+    is_valid: bool
+    violations: List[DisciplineViolationSchema] = Field(default_factory=list)
+    rule_advisories: List[RuleAdvisorySchema] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Recommendation (the in-flight response object)
+# ---------------------------------------------------------------------------
+
 class RecommendationResponse(BaseModel):
     """Result of one decision run — returned from POST /helper/recommend."""
     user_id: int
@@ -65,6 +117,8 @@ class RecommendationResponse(BaseModel):
 
     confidence: float
     reason_chain: List[ReasonStep] = Field(default_factory=list)
+    discipline_violations: List[DisciplineViolationSchema] = Field(default_factory=list)
+    rule_advisories: List[RuleAdvisorySchema] = Field(default_factory=list)
 
     latency_ms: Optional[int] = None
     generated_at: datetime = Field(default_factory=datetime.utcnow)

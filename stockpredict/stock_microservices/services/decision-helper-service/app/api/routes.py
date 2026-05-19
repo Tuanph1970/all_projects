@@ -3,6 +3,7 @@
 F-010 bootstrap: health + risk-prefs + position-state stubs.
 F-012..F-016: POST /signal-analysis — regime + signal + confirmation pipeline.
 F-027:        POST /recommend      — full orchestrator (Phase C).
+F-060..F-065: GET /discipline/summary, POST /discipline/validate-plan (Phase G).
 """
 from __future__ import annotations
 
@@ -19,20 +20,27 @@ from app.models.schemas import (
     BacktestRequest,
     BacktestResultSchema,
     BacktestStatsSchema,
+    DisciplineSummaryResponse,
+    DisciplineViolationSchema,
     EquityPointSchema,
-    TradeRecordSchema,
-    WalkForwardWindowSchema,
     PositionStateResponse,
     RecommendRequest,
     RecommendationResponse,
+    RuleAdvisorySchema,
+    RawSignalSchema,
     SignalAnalysisRequest,
     SignalAnalysisResponse,
     SignalResultSchema,
-    RawSignalSchema,
+    TradeRecordSchema,
     UserRiskPrefsRequest,
     UserRiskPrefsResponse,
+    ValidatePlanRequest,
+    ValidatePlanResponse,
+    WalkForwardWindowSchema,
 )
 from app.services.decision.orchestrator import run_recommendation
+from app.services.discipline.checks import run_all_checks
+from app.services.discipline.rules_engine import evaluate_rules
 from app.services.market.client import get_market_client
 from app.services.regime.classifier import classify_regime
 from app.services.signal.base import OHLCVBar, RawSignal
@@ -279,12 +287,199 @@ async def run_backtest(
     )
 
 
+# ---------------------------------------------------------------------------
+# F-060..F-065 — Discipline overlay (Phase G)
+# ---------------------------------------------------------------------------
+
+@router.get("/discipline/summary", response_model=DisciplineSummaryResponse)
+async def get_discipline_summary(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the authenticated user's discipline summary.
+
+    Includes: loss streak, recent actions, and advisory rules.
+    """
+    from sqlalchemy import and_, desc, select
+    from app.models.domain import DecisionRun, UserRiskPrefs
+
+    user_id = current_user["user_id"]
+
+    # Load risk prefs
+    prefs_result = await db.execute(
+        select(UserRiskPrefs).where(UserRiskPrefs.user_id == user_id)
+    )
+    prefs = prefs_result.scalar_one_or_none()
+    loss_streak_threshold = prefs.loss_streak_threshold if prefs else 3
+    account_equity = float(prefs.account_equity) if prefs and prefs.account_equity else None
+
+    # Load last 10 exit actions to detect streak
+    runs_result = await db.execute(
+        select(DecisionRun.action)
+        .where(
+            and_(
+                DecisionRun.user_id == user_id,
+                DecisionRun.action.in_(["BUY", "SELL", "SELL_SHORT", "COVER", "REVERSE", "HOLD", "WAIT"]),
+            )
+        )
+        .order_by(desc(DecisionRun.bar_date))
+        .limit(10)
+    )
+    last_10_actions = list(runs_result.scalars().all())
+
+    # Count consecutive exits (SELL/COVER/REVERSE) as losses (simplified)
+    recent_losses = 0
+    for act in last_10_actions:
+        if act in ("SELL", "COVER", "REVERSE"):
+            recent_losses += 1
+        else:
+            break
+
+    streak_active = recent_losses >= loss_streak_threshold
+
+    # Build rule advisories (no active trade context here — use generic state)
+    rule_advisories = evaluate_rules(
+        action="WAIT",
+        stop_price=None,
+        target_price=None,
+        entry_price=None,
+        direction=None,
+        regime=None,
+        recent_losses=recent_losses,
+        loss_streak_threshold=loss_streak_threshold,
+        violations=[],
+    )
+
+    return DisciplineSummaryResponse(
+        user_id=user_id,
+        recent_losses=recent_losses,
+        loss_streak_threshold=loss_streak_threshold,
+        streak_active=streak_active,
+        current_equity=account_equity,
+        last_10_actions=last_10_actions,
+        rule_advisories=[
+            RuleAdvisorySchema(
+                rule_id=a.rule_id,
+                rule_text=a.rule_text,
+                chapter=a.chapter,
+                triggered=a.triggered,
+                severity=a.severity,
+                detail=a.detail,
+            )
+            for a in rule_advisories
+        ],
+    )
+
+
+@router.post("/discipline/validate-plan", response_model=ValidatePlanResponse)
+async def validate_plan(
+    req: ValidatePlanRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Validate a proposed trade plan against discipline rules.
+
+    Call this before saving a TradePlan to surface BLOCK/WARNING violations.
+    Returns is_valid=False if any BLOCK violations exist.
+    """
+    from sqlalchemy import and_, desc, select
+    from app.models.domain import DecisionRun, PositionState, UserRiskPrefs
+
+    user_id = current_user["user_id"]
+
+    prefs_result = await db.execute(
+        select(UserRiskPrefs).where(UserRiskPrefs.user_id == user_id)
+    )
+    prefs = prefs_result.scalar_one_or_none()
+    loss_streak_threshold = prefs.loss_streak_threshold if prefs else 3
+
+    # Load current position for averaging-down check
+    pos_result = await db.execute(
+        select(PositionState).where(
+            and_(
+                PositionState.user_id == user_id,
+                PositionState.ticker == req.ticker.upper(),
+            )
+        )
+    )
+    pos = pos_result.scalar_one_or_none()
+    pos_state = pos.state if pos else "FLAT"
+    existing_entry = float(pos.entry_price) if pos and pos.entry_price else None
+    existing_stop = float(pos.current_stop) if pos and pos.current_stop else None
+
+    # Count recent losses for streak check
+    runs_result = await db.execute(
+        select(DecisionRun.action)
+        .where(
+            and_(
+                DecisionRun.user_id == user_id,
+                DecisionRun.action.in_(["SELL", "COVER", "REVERSE"]),
+            )
+        )
+        .order_by(desc(DecisionRun.bar_date))
+        .limit(10)
+    )
+    recent_losses = len(list(runs_result.scalars().all()))
+
+    violations = run_all_checks(
+        action=req.action,
+        stop_price=req.stop_price,
+        target_price=req.target_price,
+        pos_state=pos_state,
+        entry_price=existing_entry,
+        current_price=req.entry_price,
+        proposed_stop=req.stop_price,
+        prev_stop=existing_stop,
+        direction=req.direction or (pos.state if pos and pos.state != "FLAT" else None),
+        recent_losses=recent_losses,
+        loss_streak_threshold=loss_streak_threshold,
+    )
+
+    rule_advisories = evaluate_rules(
+        action=req.action,
+        stop_price=req.stop_price,
+        target_price=req.target_price,
+        entry_price=req.entry_price,
+        direction=req.direction,
+        regime=req.regime,
+        recent_losses=recent_losses,
+        loss_streak_threshold=loss_streak_threshold,
+        violations=violations,
+    )
+
+    is_valid = not any(v.severity == "BLOCK" for v in violations)
+
+    return ValidatePlanResponse(
+        is_valid=is_valid,
+        violations=[
+            DisciplineViolationSchema(
+                rule_id=v.rule_id,
+                severity=v.severity,
+                message=v.message,
+                evidence=v.evidence,
+            )
+            for v in violations
+        ],
+        rule_advisories=[
+            RuleAdvisorySchema(
+                rule_id=a.rule_id,
+                rule_text=a.rule_text,
+                chapter=a.chapter,
+                triggered=a.triggered,
+                severity=a.severity,
+                detail=a.detail,
+            )
+            for a in rule_advisories
+        ],
+    )
+
+
 @router.get("/capabilities")
 async def get_capabilities():
     return {
         "service": "decision-helper-service",
-        "version": "0.6.0",
-        "phase": "F — backtest / walk-forward harness",
+        "version": "0.7.0",
+        "phase": "G — discipline overlay",
         "features": [
             "user_risk_prefs",
             "position_state",
@@ -294,6 +489,8 @@ async def get_capabilities():
             "midtrend_entries",         # F-042
             "backtest",                 # F-050..F-052
             "walk_forward",             # F-051
+            "discipline_checks",        # F-060..F-063
+            "rules_engine",             # F-065
         ],
     }
 

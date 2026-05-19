@@ -36,6 +36,8 @@ from app.services.risk.sizing_module import compute_size
 from app.services.risk.stop_module import compute_initial_stop, update_trailing_stop
 from app.services.risk.target_module import compute_target
 from app.services.signal.base import OHLCVBar, RawSignal
+from app.services.discipline.checks import DisciplineViolation, run_all_checks
+from app.services.discipline.rules_engine import RuleAdvisory, evaluate_rules
 from app.services.signal.failed_signal import (
     FailedSignalResult,
     OVERRIDE_THRESHOLD,
@@ -335,6 +337,55 @@ async def run_recommendation(
         target_price = current_target
         position_size = pos_row.position_size or None
 
+    # ── 8.5. Discipline checks (F-060..F-063) ──────────────────────────────
+    prefs_for_disc = await _load_prefs(db, user_id)
+    recent_losses_for_disc = await _count_recent_losses(db, user_id, ticker)
+    loss_streak_threshold_disc = (prefs_for_disc.loss_streak_threshold if prefs_for_disc else 3)
+
+    existing_stop = (
+        float(pos_row.current_stop) if pos_row and pos_row.current_stop else None
+    )
+    existing_entry = (
+        float(pos_row.entry_price) if pos_row and pos_row.entry_price else None
+    )
+    pos_state_str = pos_row.state if pos_row else "FLAT"
+
+    discipline_violations: List[DisciplineViolation] = run_all_checks(
+        action=transition.action,
+        stop_price=stop_price,
+        target_price=target_price,
+        pos_state=pos_state_str,
+        entry_price=existing_entry,
+        current_price=current_bar.close,
+        proposed_stop=stop_price,
+        prev_stop=existing_stop,
+        direction=state_before if state_before != "FLAT" else signal_direction,
+        recent_losses=recent_losses_for_disc,
+        loss_streak_threshold=loss_streak_threshold_disc,
+    )
+
+    rule_advisories: List[RuleAdvisory] = evaluate_rules(
+        action=transition.action,
+        stop_price=stop_price,
+        target_price=target_price,
+        entry_price=entry_price,
+        direction=signal_direction,
+        regime=regime_result.regime,
+        recent_losses=recent_losses_for_disc,
+        loss_streak_threshold=loss_streak_threshold_disc,
+        violations=discipline_violations,
+    )
+
+    if discipline_violations:
+        reason_chain.append({
+            "stage": "discipline",
+            "message": (
+                f"{len(discipline_violations)} discipline violation(s): "
+                + "; ".join(v.rule_id for v in discipline_violations)
+            ),
+            "evidence": {"violations": [v.rule_id for v in discipline_violations]},
+        })
+
     # ── 9. Persist ─────────────────────────────────────────────────────────
     overall_confidence = (
         best_confirmed.final_confidence if best_confirmed else 0.0
@@ -364,6 +415,7 @@ async def run_recommendation(
         failed_signal_kind=failed_signal_kind,
     )
 
+    from app.models.schemas import DisciplineViolationSchema, RuleAdvisorySchema
     return RecommendationResponse(
         user_id=user_id,
         ticker=ticker,
@@ -388,6 +440,26 @@ async def run_recommendation(
                 evidence=r.get("evidence", {}),
             )
             for r in reason_chain
+        ],
+        discipline_violations=[
+            DisciplineViolationSchema(
+                rule_id=v.rule_id,
+                severity=v.severity,
+                message=v.message,
+                evidence=v.evidence,
+            )
+            for v in discipline_violations
+        ],
+        rule_advisories=[
+            RuleAdvisorySchema(
+                rule_id=a.rule_id,
+                rule_text=a.rule_text,
+                chapter=a.chapter,
+                triggered=a.triggered,
+                severity=a.severity,
+                detail=a.detail,
+            )
+            for a in rule_advisories
         ],
         latency_ms=latency_ms,
     )

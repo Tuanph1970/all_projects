@@ -111,6 +111,44 @@ const RRBar = ({ entry, stop, target }) => {
   );
 };
 
+const DisciplinePanel = ({ violations }) => {
+  if (!violations || violations.length === 0) return null;
+  const blocks = violations.filter(v => v.severity === 'BLOCK');
+  const warnings = violations.filter(v => v.severity === 'WARNING');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {blocks.map((v, i) => (
+        <div key={i} style={{
+          background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.35)',
+          borderRadius: 8, padding: '9px 13px', display: 'flex', gap: 8, alignItems: 'flex-start',
+        }}>
+          <AlertTriangle size={14} style={{ color: '#ef4444', marginTop: 1, flexShrink: 0 }} />
+          <div>
+            <span style={{ color: '#ef4444', fontWeight: 700, fontSize: 12, marginRight: 6 }}>
+              BLOCK [{v.rule_id}]
+            </span>
+            <span style={{ color: '#fca5a5', fontSize: 12 }}>{v.message}</span>
+          </div>
+        </div>
+      ))}
+      {warnings.map((v, i) => (
+        <div key={i} style={{
+          background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)',
+          borderRadius: 8, padding: '9px 13px', display: 'flex', gap: 8, alignItems: 'flex-start',
+        }}>
+          <AlertTriangle size={14} style={{ color: '#f59e0b', marginTop: 1, flexShrink: 0 }} />
+          <div>
+            <span style={{ color: '#f59e0b', fontWeight: 700, fontSize: 12, marginRight: 6 }}>
+              WARN [{v.rule_id}]
+            </span>
+            <span style={{ color: '#fcd34d', fontSize: 12 }}>{v.message}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const ReasonChain = ({ steps }) => {
   const [open, setOpen] = useState(false);
   if (!steps || steps.length === 0) return null;
@@ -214,6 +252,9 @@ const DecisionConsole = () => {
 
           {/* ── action card ── */}
           <ActionCard rec={rec} onPlan={() => setPlanOpen(true)} />
+
+          {/* ── discipline violations ── */}
+          <DisciplinePanel violations={rec.discipline_violations} />
 
           {/* ── reason chain ── */}
           <ReasonChain steps={rec.reason_chain} />
