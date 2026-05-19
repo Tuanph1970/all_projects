@@ -15,7 +15,8 @@ import {
   SearchCode,
   Wallet,
   Wrench,
-  BookOpen
+  BookOpen,
+  Crosshair,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -162,6 +163,16 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
         { key: 'trade-diary', label: 'Nhật ký', route: 'trade-diary' },
         { key: 'daily-planning', label: 'Kế hoạch hàng ngày', route: 'daily-planning' },
         { key: 'weekly-review', label: 'Tổng kết tuần', route: 'weekly-review' }
+      ]
+    },
+    {
+      key: 'decision-helper',
+      label: 'Decision Helper',
+      icon: Crosshair,
+      iconColor: '#a78bfa', // Violet - decision/strategy
+      submenu: [
+        { key: 'decision-console', label: 'Decision Console', route: 'decision-console' },
+        { key: 'decision-board', label: 'Watchlist Board', route: 'decision-board' },
       ]
     },
     {

@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { StyleSheetManager } from 'styled-components';
 import { AuthProvider } from './context/AuthContext';
 import { StockProvider } from './context/StockContext';
+import { DecisionProvider } from './context/DecisionContext';
 import { useAuth } from './context/AuthContext';
 import LoginForm from './components/Auth/LoginForm';
 import ResetPasswordConfirm from './components/Auth/ResetPasswordConfirm';
@@ -61,7 +62,9 @@ const App = () => {
               path="/*"
               element={
                 <StockProvider>
-                  <AppShell />
+                  <DecisionProvider>
+                    <AppShell />
+                  </DecisionProvider>
                 </StockProvider>
               }
             />

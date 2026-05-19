@@ -49,6 +49,7 @@ export const API_BASE_URLS = {
   CHATBOT_API: `${API_GATEWAY_URL}/stock_helper/api/v2/chat`,
   JOURNAL_API: `${API_GATEWAY_URL}/stock_helper/api/v2/journal`,
   KNOWLEDGE_QA_API: `${API_GATEWAY_URL}/stock_helper/api/v2/knowledge-qa`,
+  HELPER_API: `${API_GATEWAY_URL}/stock_helper/api/v2/helper`,
 
   // Legacy API (fallback - Django monolith)
   LEGACY_API: `${API_GATEWAY_URL}/api/v1`
@@ -330,7 +331,17 @@ export const API_ENDPOINTS = {
   MODEL_LIST: `${API_BASE_URLS.MODELS_API}`,
 
   // Old solution endpoints (mapped to new)
-  SOLUTION_LIST: `${API_BASE_URLS.SOLUTIONS_API}`
+  SOLUTION_LIST: `${API_BASE_URLS.SOLUTIONS_API}`,
+
+  // ==========================================
+  // DECISION HELPER SERVICE ENDPOINTS (/api/v2/helper)
+  // F-030 — Phase D
+  // ==========================================
+  HELPER_RECOMMEND: `${API_BASE_URLS.HELPER_API}/recommend`,
+  HELPER_SIGNAL_ANALYSIS: `${API_BASE_URLS.HELPER_API}/signal-analysis`,
+  HELPER_POSITION: (ticker) => `${API_BASE_URLS.HELPER_API}/positions/${ticker}`,
+  HELPER_RISK_PREFS: `${API_BASE_URLS.HELPER_API}/risk-prefs`,
+  HELPER_CAPABILITIES: `${API_BASE_URLS.HELPER_API}/capabilities`
 };
 
 // HTTP Status Codes
