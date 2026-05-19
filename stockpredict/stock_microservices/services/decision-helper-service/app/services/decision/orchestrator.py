@@ -36,8 +36,15 @@ from app.services.risk.sizing_module import compute_size
 from app.services.risk.stop_module import compute_initial_stop, update_trailing_stop
 from app.services.risk.target_module import compute_target
 from app.services.signal.base import OHLCVBar, RawSignal
+from app.services.signal.failed_signal import (
+    FailedSignalResult,
+    OVERRIDE_THRESHOLD,
+    detect_failed_signals,
+    highest_severity,
+)
 from app.services.signal.range.sr_bounce_breakout import detect_sr_signal
 from app.services.signal.trend.ma_cross import detect_ma_cross
+from app.services.signal.trend.midtrend import detect_midtrend_entry
 from app.services.signal.trend.n_day_breakout import detect_n_day_breakout
 
 logger = logging.getLogger(__name__)
@@ -106,6 +113,9 @@ async def run_recommendation(
 
     sr_data: Optional[Dict[str, Any]] = await client.fetch_sr_levels(ticker)
 
+    # Best-effort: patterns feed the failed-signal pattern detectors (F-040)
+    patterns_data: Optional[Dict[str, Any]] = await client.fetch_patterns(ticker)
+
     rsi: Optional[float] = None
     technical = await client.fetch_technical(ticker)
     if technical:
@@ -158,6 +168,41 @@ async def run_recommendation(
         ),
         "evidence": {},
     })
+
+    # ── 4.5. Failed-signal detectors (F-040 / F-041) ──────────────────────
+    failed_results = detect_failed_signals(
+        bars=bars,
+        bar_date=bar_date,
+        sr_data=sr_data,
+        patterns=patterns_data,
+    )
+    top_failed: Optional[FailedSignalResult] = highest_severity(failed_results)
+    failed_signal_kind: Optional[str] = None
+
+    if top_failed and top_failed.severity >= OVERRIDE_THRESHOLD:
+        failed_signal_kind = top_failed.kind
+        reason_chain.append({
+            "stage": "failed_signal",
+            "message": (
+                f"Failed signal detected: {top_failed.kind} "
+                f"(severity={top_failed.severity:.2f}, implies {top_failed.direction})"
+            ),
+            "evidence": top_failed.evidence,
+        })
+        # Override the confirmed signal direction when a position is open
+        # (state is unknown yet; we'll re-check after loading state in step 5,
+        #  but prime signal_direction here for the state machine)
+        if signal_direction is not None:
+            signal_direction = top_failed.direction
+    else:
+        reason_chain.append({
+            "stage": "failed_signal",
+            "message": (
+                f"No failed signal above threshold "
+                f"(highest severity={top_failed.severity:.2f if top_failed else 0:.2f})"
+            ),
+            "evidence": {},
+        })
 
     # ── 5. Position state from DB ──────────────────────────────────────────
     pos_row = await _load_position(db, user_id, ticker)
@@ -316,6 +361,7 @@ async def run_recommendation(
         latency_ms=latency_ms,
         pos_row=pos_row,
         bar_date_val=bar_date,
+        failed_signal_kind=failed_signal_kind,
     )
 
     return RecommendationResponse(
@@ -333,6 +379,7 @@ async def run_recommendation(
         position_size=position_size,
         signal_kind=best_signal.kind if best_signal else None,
         signal_confirmed=best_confirmed is not None,
+        failed_signal_kind=failed_signal_kind,
         confidence=overall_confidence,
         reason_chain=[
             ReasonStep(
@@ -368,6 +415,10 @@ def _run_signal_engines(
         bo = detect_n_day_breakout(bars, bar_date, n=breakout_n)
         if bo:
             signals.append(bo)
+        # F-042: midtrend entry signals (4 additional methods)
+        mt = detect_midtrend_entry(bars, bar_date, regime=regime, slow_ma_period=slow_ma)
+        if mt:
+            signals.append(mt)
 
     elif regime == "RANGE":
         if sr_data:
@@ -450,6 +501,7 @@ async def _persist(
     latency_ms: int,
     pos_row: Optional[PositionState],
     bar_date_val: date,
+    failed_signal_kind: Optional[str] = None,
 ) -> None:
     try:
         run = DecisionRun(
@@ -460,6 +512,7 @@ async def _persist(
             regime=regime,
             signal_kind=best_signal.kind if best_signal else None,
             signal_confirmed=best_confirmed is not None,
+            failed_signal_kind=failed_signal_kind,
             action=transition.action,
             state_before=transition.state_before,
             state_after=transition.state_after,

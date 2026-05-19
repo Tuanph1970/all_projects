@@ -149,6 +149,25 @@ class MarketClient:
             return None
 
     # ------------------------------------------------------------------
+    # AI-insights patterns (needed by failed_signal detectors)
+    # ------------------------------------------------------------------
+
+    async def fetch_patterns(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """Return ai-insights /ai/insight/{symbol} dict or None on error.
+
+        Best-effort: failed_signal detectors degrade gracefully if absent.
+        """
+        try:
+            resp = await self._insights.get(
+                f"/stock_helper/api/v2/ai/insight/{symbol}"
+            )
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPError as exc:
+            logger.debug("fetch_patterns %s failed: %s", symbol, exc)
+            return None
+
+    # ------------------------------------------------------------------
     # Technical indicators (RSI/MACD for confirmation oscillator rule)
     # ------------------------------------------------------------------
 
