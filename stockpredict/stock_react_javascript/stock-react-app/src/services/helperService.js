@@ -89,6 +89,11 @@ class HelperService {
     return await httpClient.get(`${API_ENDPOINTS.HELPER_SCHEDULED_RUNS}?${params}`);
   }
 
+  // F-083 — Seed alert history from REST (called on mount before SSE connects)
+  async getAlerts(limit = 20) {
+    return await httpClient.get(`${API_ENDPOINTS.HELPER_ALERTS}?limit=${limit}`);
+  }
+
   // F-050..F-054 — Run backtest / walk-forward harness
   async runBacktest({
     ticker, startDate, endDate,

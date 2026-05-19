@@ -4,7 +4,7 @@ import { LogOut, Menu, User, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import NotificationBell from './NotificationBell';
 
-const Header = ({ onToggleSidebar, isSidebarCollapsed }) => {
+const Header = ({ onToggleSidebar, isSidebarCollapsed, alertSlot }) => {
   const { user, logout } = useAuth();
 
   return (
@@ -32,6 +32,7 @@ const Header = ({ onToggleSidebar, isSidebarCollapsed }) => {
 
         <div className="header-right">
           <NotificationBell />
+          {alertSlot}
 
           <div className="user-section">
             <div className="user-avatar">

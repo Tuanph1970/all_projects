@@ -330,3 +330,22 @@ class ScheduledRunSummary(BaseModel):
 class ScheduledRunsResponse(BaseModel):
     runs: List[ScheduledRunSummary]
     total: int
+
+
+# ---------------------------------------------------------------------------
+# F-080..F-083 — Real-time alert schemas (Phase I)
+# ---------------------------------------------------------------------------
+
+class AlertEvent(BaseModel):
+    ticker: str
+    action: str               # BUY | SELL_SHORT
+    bar_date: str
+    regime: Optional[str] = None
+    confidence: Optional[float] = None
+    stop_price: Optional[float] = None
+    target_price: Optional[float] = None
+
+
+class AlertsListResponse(BaseModel):
+    alerts: List[AlertEvent]
+    total: int

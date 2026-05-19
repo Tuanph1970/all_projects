@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import async_session_factory
 from app.models.domain import HelperWatchlist
+from app.services.alert_broker import alert_broker
 from app.services.decision.orchestrator import run_recommendation
 from app.services.market.client import get_market_client
 
@@ -52,6 +53,15 @@ async def run_for_user(user_id: int, bar_date: date | None = None) -> None:
                     "ALERT [user=%d ticker=%s date=%s action=%s]",
                     user_id, entry.ticker, today, rec.action,
                 )
+                await alert_broker.publish(user_id, {
+                    "ticker": entry.ticker,
+                    "action": rec.action,
+                    "bar_date": str(today),
+                    "regime": rec.regime,
+                    "confidence": rec.confidence,
+                    "stop_price": rec.stop_price,
+                    "target_price": rec.target_price,
+                })
         except Exception as exc:
             logger.warning(
                 "Scheduled run skipped [user=%d ticker=%s]: %s",

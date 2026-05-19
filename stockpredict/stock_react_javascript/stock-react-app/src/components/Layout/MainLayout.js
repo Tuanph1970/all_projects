@@ -47,6 +47,8 @@ import WatchlistDecisionBoard from '../Pages/WatchlistDecisionBoard';
 import BacktestStudio from '../Pages/BacktestStudio';
 import DisciplineDashboard from '../Pages/DisciplineDashboard';
 import ScheduledRunsLog from '../Pages/ScheduledRunsLog';
+import AlertCenter from '../common/AlertToast';
+import { useAlertStream } from '../../hooks/useAlertStream';
 
 // Thin wrapper: <Company> takes `symbol` as a prop, so we extract it from
 // the URL via useParams rather than touching the existing component.
@@ -59,6 +61,7 @@ const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Start collapsed by default to maximize chart/content area
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const { alerts, connected, unread, markAllRead, clearAlerts } = useAlertStream();
 
   const handleToggleCollapse = useCallback(() => {
     setSidebarCollapsed((prev) => !prev);
@@ -80,7 +83,19 @@ const MainLayout = () => {
       />
 
       <div className="main-content">
-        <Header onToggleSidebar={handleToggleCollapse} isSidebarCollapsed={sidebarCollapsed} />
+        <Header
+          onToggleSidebar={handleToggleCollapse}
+          isSidebarCollapsed={sidebarCollapsed}
+          alertSlot={
+            <AlertCenter
+              alerts={alerts}
+              connected={connected}
+              unread={unread}
+              onMarkAllRead={markAllRead}
+              onClear={clearAlerts}
+            />
+          }
+        />
 
         <main className="page-content">
           <Routes>

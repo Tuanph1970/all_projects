@@ -15,8 +15,10 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_user, get_current_user_optional, get_db
+from app.api.dependencies import get_current_user, get_current_user_optional, get_current_user_from_token, get_db
 from app.models.schemas import (
+    AlertEvent,
+    AlertsListResponse,
     BacktestRequest,
     BacktestResultSchema,
     BacktestStatsSchema,
@@ -645,12 +647,97 @@ async def trigger_scheduled_run(
     return {"status": "accepted", "message": "Scheduled run queued for your watchlist."}
 
 
+# ---------------------------------------------------------------------------
+# F-080..F-083 — Real-time alerts (Phase I)
+# ---------------------------------------------------------------------------
+
+@router.get("/alerts")
+async def list_recent_alerts(
+    limit: int = 20,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AlertsListResponse:
+    """Return the last N BUY/SELL_SHORT scheduled runs as alerts (seed for AlertHistory)."""
+    from sqlalchemy import and_, desc, select
+    from app.models.domain import DecisionRun
+
+    user_id = current_user["user_id"]
+    result = await db.execute(
+        select(DecisionRun)
+        .where(
+            and_(
+                DecisionRun.user_id == user_id,
+                DecisionRun.trigger == "SCHEDULED",
+                DecisionRun.action.in_(["BUY", "SELL_SHORT"]),
+            )
+        )
+        .order_by(desc(DecisionRun.created_at))
+        .limit(min(limit, 100))
+    )
+    runs = result.scalars().all()
+    alerts = [
+        AlertEvent(
+            ticker=r.ticker,
+            action=r.action,
+            bar_date=str(r.bar_date),
+            regime=r.regime,
+            confidence=float(r.confidence) if r.confidence else None,
+            stop_price=float(r.stop_price) if r.stop_price else None,
+            target_price=float(r.target_price) if r.target_price else None,
+        )
+        for r in runs
+    ]
+    return AlertsListResponse(alerts=alerts, total=len(alerts))
+
+
+@router.get("/alerts/stream")
+async def stream_alerts(token: str):
+    """SSE endpoint — pushes real-time alert events to connected browsers.
+
+    Browser EventSource cannot send custom headers, so the JWT is passed
+    as ?token=<jwt> and validated here.  Emits keepalive comments every
+    25 seconds to prevent proxy timeouts.
+    """
+    import asyncio
+    import json
+    from fastapi.responses import StreamingResponse
+    from app.services.alert_broker import alert_broker
+
+    current_user = await get_current_user_from_token(token)
+    user_id = current_user["user_id"]
+
+    async def event_generator():
+        queue = alert_broker.subscribe(user_id)
+        try:
+            while True:
+                try:
+                    payload = await asyncio.wait_for(queue.get(), timeout=25.0)
+                    data = json.dumps(payload)
+                    yield f"data: {data}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            alert_broker.unsubscribe(user_id, queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
 @router.get("/capabilities")
 async def get_capabilities():
     return {
         "service": "decision-helper-service",
-        "version": "0.8.0",
-        "phase": "H — automation",
+        "version": "0.9.0",
+        "phase": "I — real-time alerts",
         "features": [
             "user_risk_prefs",
             "position_state",
@@ -666,6 +753,9 @@ async def get_capabilities():
             "scheduler",                # F-071
             "action_alerts",            # F-072
             "scheduled_runs_log",       # F-073
+            "alert_broker",             # F-080
+            "sse_stream",               # F-081
+            "real_time_alerts",         # F-082..F-083
         ],
     }
 

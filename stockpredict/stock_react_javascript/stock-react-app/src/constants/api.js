@@ -350,6 +350,9 @@ export const API_ENDPOINTS = {
   HELPER_WATCHLIST_ITEM: (ticker) => `${API_BASE_URLS.HELPER_API}/watchlist/${ticker}`,
   HELPER_WATCHLIST_RUN_ALL: `${API_BASE_URLS.HELPER_API}/watchlist/run-all`,
   HELPER_SCHEDULED_RUNS: `${API_BASE_URLS.HELPER_API}/scheduled-runs`,
+  // F-080..F-083
+  HELPER_ALERTS: `${API_BASE_URLS.HELPER_API}/alerts`,
+  HELPER_ALERTS_STREAM: `${API_BASE_URLS.HELPER_API}/alerts/stream`,
 };
 
 // HTTP Status Codes

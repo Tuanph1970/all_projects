@@ -51,6 +51,21 @@ async def get_current_user_optional(
         return None
 
 
+async def get_current_user_from_token(token: str) -> dict:
+    """Validate a JWT passed as a query parameter (used by SSE endpoints).
+
+    Browser EventSource cannot set custom headers, so the token is sent as
+    ?token=<jwt> and validated here instead of via HTTPBearer.
+    """
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        if not payload.get("sub"):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        return {"user_id": int(payload.get("sub")), "email": payload.get("email")}
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer()),
 ) -> dict:
