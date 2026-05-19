@@ -166,3 +166,77 @@ class SignalAnalysisRequest(BaseModel):
     slow_ma: int = Field(default=50, ge=10, le=200)
     breakout_n: int = Field(default=20, ge=5, le=100)
     k_delay: int = Field(default=1, ge=1, le=5)
+
+
+# ---------------------------------------------------------------------------
+# F-050..F-054 — Phase F: Backtest / Walk-Forward schemas
+# ---------------------------------------------------------------------------
+
+class BacktestRequest(BaseModel):
+    ticker: str = Field(..., max_length=16)
+    start_date: date
+    end_date: date
+    initial_equity: float = Field(default=100_000.0, gt=0)
+    risk_per_trade_pct: float = Field(default=1.0, ge=0.1, le=10.0)
+    fast_ma: int = Field(default=10, ge=2, le=50)
+    slow_ma: int = Field(default=50, ge=10, le=200)
+    breakout_n: int = Field(default=20, ge=5, le=100)
+    k_delay: int = Field(default=1, ge=1, le=5)
+    slippage_bps: float = Field(default=5.0, ge=0.0, le=100.0)
+    commission: float = Field(default=10.0, ge=0.0)
+    walk_forward: bool = False
+    wf_window_days: int = Field(default=90, ge=10, le=365)
+
+
+class TradeRecordSchema(BaseModel):
+    ticker: str
+    direction: str
+    entry_date: date
+    entry_price: float
+    exit_date: Optional[date] = None
+    exit_price: Optional[float] = None
+    shares: int
+    gross_pnl: Optional[float] = None
+    commission: float
+    net_pnl: Optional[float] = None
+    exit_reason: str
+
+
+class EquityPointSchema(BaseModel):
+    date: date
+    equity: float
+    drawdown_pct: float
+
+
+class BacktestStatsSchema(BaseModel):
+    num_trades: int
+    num_wins: int
+    win_rate: float
+    total_gross_pnl: float
+    total_commission: float
+    total_net_pnl: float
+    max_drawdown_pct: float
+    expectancy: float
+    sharpe_ratio: Optional[float] = None
+    profit_factor: Optional[float] = None
+
+
+class WalkForwardWindowSchema(BaseModel):
+    window_index: int
+    start_date: date
+    end_date: date
+    stats: BacktestStatsSchema
+    num_trades: int
+
+
+class BacktestResultSchema(BaseModel):
+    ticker: str
+    start_date: date
+    end_date: date
+    config: Dict[str, Any]
+    trade_ledger: List[TradeRecordSchema] = Field(default_factory=list)
+    equity_curve: List[EquityPointSchema] = Field(default_factory=list)
+    stats: BacktestStatsSchema
+    walk_forward_windows: List[WalkForwardWindowSchema] = Field(default_factory=list)
+    walk_forward_aggregate: Optional[Dict[str, Any]] = None
+    latency_ms: int = 0

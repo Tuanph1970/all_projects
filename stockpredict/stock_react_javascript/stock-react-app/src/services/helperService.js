@@ -47,6 +47,31 @@ class HelperService {
       loss_streak_threshold: lossStreakThreshold,
     });
   }
+
+  // F-050..F-054 — Run backtest / walk-forward harness
+  async runBacktest({
+    ticker, startDate, endDate,
+    initialEquity = 100000, riskPerTradePct = 1.0,
+    fastMa = 10, slowMa = 50, breakoutN = 20, kDelay = 1,
+    slippageBps = 5.0, commission = 10.0,
+    walkForward = false, wfWindowDays = 90,
+  }) {
+    return await httpClient.post(API_ENDPOINTS.HELPER_BACKTEST, {
+      ticker,
+      start_date: startDate,
+      end_date: endDate,
+      initial_equity: initialEquity,
+      risk_per_trade_pct: riskPerTradePct,
+      fast_ma: fastMa,
+      slow_ma: slowMa,
+      breakout_n: breakoutN,
+      k_delay: kDelay,
+      slippage_bps: slippageBps,
+      commission,
+      walk_forward: walkForward,
+      wf_window_days: wfWindowDays,
+    });
+  }
 }
 
 const helperService = new HelperService();

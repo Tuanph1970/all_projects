@@ -44,6 +44,7 @@ import PositionCalculator from '../Pages/PositionCalculator';
 import Backtest from '../Pages/Backtest';
 import DecisionConsole from '../Pages/DecisionConsole';
 import WatchlistDecisionBoard from '../Pages/WatchlistDecisionBoard';
+import BacktestStudio from '../Pages/BacktestStudio';
 
 // Thin wrapper: <Company> takes `symbol` as a prop, so we extract it from
 // the URL via useParams rather than touching the existing component.
@@ -133,9 +134,10 @@ const MainLayout = () => {
             <Route path="/daily-planning" element={<DailyPlanning />} />
             <Route path="/weekly-review" element={<WeeklyReview />} />
 
-            {/* Decision Helper — Phase D */}
+            {/* Decision Helper — Phase D / F */}
             <Route path="/decision-console" element={<DecisionConsole />} />
             <Route path="/decision-board" element={<WatchlistDecisionBoard />} />
+            <Route path="/backtest-studio" element={<BacktestStudio />} />
 
             {/* Tools */}
             <Route path="/screener" element={<StockScreener />} />

@@ -341,7 +341,8 @@ export const API_ENDPOINTS = {
   HELPER_SIGNAL_ANALYSIS: `${API_BASE_URLS.HELPER_API}/signal-analysis`,
   HELPER_POSITION: (ticker) => `${API_BASE_URLS.HELPER_API}/positions/${ticker}`,
   HELPER_RISK_PREFS: `${API_BASE_URLS.HELPER_API}/risk-prefs`,
-  HELPER_CAPABILITIES: `${API_BASE_URLS.HELPER_API}/capabilities`
+  HELPER_CAPABILITIES: `${API_BASE_URLS.HELPER_API}/capabilities`,
+  HELPER_BACKTEST: `${API_BASE_URLS.HELPER_API}/backtest`
 };
 
 // HTTP Status Codes

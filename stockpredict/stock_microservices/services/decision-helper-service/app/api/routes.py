@@ -16,6 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, get_current_user_optional, get_db
 from app.models.schemas import (
+    BacktestRequest,
+    BacktestResultSchema,
+    BacktestStatsSchema,
+    EquityPointSchema,
+    TradeRecordSchema,
+    WalkForwardWindowSchema,
     PositionStateResponse,
     RecommendRequest,
     RecommendationResponse,
@@ -191,21 +197,103 @@ async def recommend(
     return result
 
 
+@router.post("/backtest", response_model=BacktestResultSchema)
+async def run_backtest(
+    req: BacktestRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """F-050 / F-051 — Replay the decision pipeline over historical bars.
+
+    Fetches OHLCV data from stock-data-service once, then runs bar-by-bar
+    simulation with inline regime / ATR / S/R computations (no per-bar HTTP).
+    Returns trade ledger, equity curve, and summary stats.
+    Set walk_forward=true to also run OOS windows and get aggregated variance.
+    """
+    import time as _time
+    from app.services.backtest.harness import BacktestConfig, run_backtest_on_bars
+    from app.services.backtest.walk_forward import WalkForwardConfig, run_walk_forward
+    from app.services.signal.base import OHLCVBar
+
+    t0 = _time.time()
+    ticker = req.ticker.upper()
+    client = get_market_client()
+
+    # Fetch bars — include 300 extra warmup days before start_date
+    from datetime import timedelta
+    warmup_start = req.start_date - timedelta(days=400)
+    raw_bars = await client.fetch_ohlcv(
+        ticker, days=(req.end_date - warmup_start).days + 10, end_date=req.end_date
+    )
+    if not raw_bars:
+        raise HTTPException(status_code=404, detail=f"No OHLCV data for {ticker}")
+
+    bars = [OHLCVBar.from_dict(b) for b in raw_bars]
+
+    config = BacktestConfig(
+        ticker=ticker,
+        start_date=req.start_date,
+        end_date=req.end_date,
+        initial_equity=req.initial_equity,
+        risk_per_trade_pct=req.risk_per_trade_pct,
+        fast_ma=req.fast_ma,
+        slow_ma=req.slow_ma,
+        breakout_n=req.breakout_n,
+        k_delay=req.k_delay,
+        slippage_bps=req.slippage_bps,
+        commission=req.commission,
+    )
+
+    result = run_backtest_on_bars(config, bars)
+
+    # Optionally run walk-forward
+    wf_windows: List[WalkForwardWindowSchema] = []
+    wf_aggregate: Optional[Dict[str, Any]] = None
+    if req.walk_forward:
+        wf_config = WalkForwardConfig(wf_window_days=req.wf_window_days)
+        wf_result = run_walk_forward(config, bars, wf_config)
+        wf_windows = [
+            WalkForwardWindowSchema(
+                window_index=w.window_index,
+                start_date=w.start_date,
+                end_date=w.end_date,
+                stats=BacktestStatsSchema(**vars(w.stats)),
+                num_trades=w.num_trades,
+            )
+            for w in wf_result.windows
+        ]
+        wf_aggregate = wf_result.aggregate_stats
+
+    latency_ms = int((_time.time() - t0) * 1000)
+
+    return BacktestResultSchema(
+        ticker=result.ticker,
+        start_date=result.start_date,
+        end_date=result.end_date,
+        config=result.config,
+        trade_ledger=[TradeRecordSchema(**vars(t)) for t in result.trade_ledger],
+        equity_curve=[EquityPointSchema(**vars(p)) for p in result.equity_curve],
+        stats=BacktestStatsSchema(**vars(result.stats)),
+        walk_forward_windows=wf_windows,
+        walk_forward_aggregate=wf_aggregate,
+        latency_ms=latency_ms,
+    )
+
+
 @router.get("/capabilities")
 async def get_capabilities():
     return {
         "service": "decision-helper-service",
-        "version": "0.3.0",
-        "phase": "C — risk overlay + state machine + orchestrator",
+        "version": "0.6.0",
+        "phase": "F — backtest / walk-forward harness",
         "features": [
             "user_risk_prefs",
             "position_state",
-            "signal_analysis",   # F-012..F-016
-            "recommend",         # F-027 — full orchestrator
-        ],
-        "coming_soon": [
-            "failed_signal_detector",  # Phase E
-            "backtest_replay",         # Phase F
+            "signal_analysis",          # F-012..F-016
+            "recommend",                # F-027
+            "failed_signal_detector",   # F-040..F-041
+            "midtrend_entries",         # F-042
+            "backtest",                 # F-050..F-052
+            "walk_forward",             # F-051
         ],
     }
 
