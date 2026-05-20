@@ -123,6 +123,11 @@ class HelperService {
     return await httpClient.get(API_ENDPOINTS.HELPER_RISK_OVERVIEW);
   }
 
+  // F-190 — Generate (or fetch cached) AI post-mortem for a trade outcome
+  async generateReview(runId) {
+    return await httpClient.post(API_ENDPOINTS.HELPER_OUTCOME_REVIEW(runId));
+  }
+
   // F-120 — Run decision engine across all watchlist tickers
   async scan(barDate) {
     return await httpClient.post(API_ENDPOINTS.HELPER_SCAN, {

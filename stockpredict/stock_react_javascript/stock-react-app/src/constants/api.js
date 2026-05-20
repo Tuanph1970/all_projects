@@ -366,6 +366,8 @@ export const API_ENDPOINTS = {
   HELPER_OUTCOMES: `${API_BASE_URLS.HELPER_API}/outcomes`,
   // F-180..F-183 — Risk dashboard
   HELPER_RISK_OVERVIEW: `${API_BASE_URLS.HELPER_API}/risk-overview`,
+  // F-190..F-193 — AI trade review
+  HELPER_OUTCOME_REVIEW: (runId) => `${API_BASE_URLS.HELPER_API}/outcomes/${runId}/review`,
 };
 
 // HTTP Status Codes

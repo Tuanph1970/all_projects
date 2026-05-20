@@ -55,6 +55,8 @@ async def lifespan(app: FastAPI):
             # F-170..F-173 — Journal sync columns (idempotent)
             "ALTER TABLE position_states ADD COLUMN journal_trade_id BIGINT NULL",
             "ALTER TABLE user_risk_prefs ADD COLUMN journal_account_id BIGINT NULL",
+            # F-190..F-193 — AI trade review column (idempotent)
+            "ALTER TABLE decision_runs ADD COLUMN ai_review VARCHAR(2000) NULL",
         ]:
             try:
                 await conn.execute(_text(_sql))

@@ -1,4 +1,4 @@
-// F-161..F-163 — OutcomesPage: trade outcome log with R-multiple stats
+// F-161..F-163, F-190..F-193 — OutcomesPage: trade outcome log + AI post-mortem
 import React, { useState, useEffect, useCallback } from 'react';
 import helperService from '../../../services/helperService';
 
@@ -72,12 +72,67 @@ const SummaryCard = ({ label, value, sub, color }) => (
 
 // ── Main page ────────────────────────────────────────────────────────────────
 
+// ── AI review panel ──────────────────────────────────────────────────────────
+
+const ReviewPanel = ({ runId, cachedReview }) => {
+  const [review, setReview] = useState(cachedReview || null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const generate = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await helperService.generateReview(runId);
+      const d = res.data || res;
+      setReview(d.ai_review || null);
+      if (!d.ai_review) setError('AI review unavailable — check ai-insights-service.');
+    } catch (err) {
+      setError(err?.response?.data?.detail || err.message || 'Failed to generate review');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (cachedReview) setReview(cachedReview);
+  }, [cachedReview]);
+
+  if (review) {
+    return (
+      <div style={{ padding: '10px 14px', background: '#f0f9ff', borderRadius: 6, fontSize: 12, color: '#1e40af', lineHeight: 1.6 }}>
+        <span style={{ fontWeight: 700, color: '#1d4ed8', marginRight: 6 }}>AI Review:</span>
+        {review}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <button
+        onClick={generate}
+        disabled={loading}
+        style={{
+          padding: '4px 12px', fontSize: 11, fontWeight: 600,
+          background: loading ? '#e5e7eb' : '#dbeafe',
+          color: loading ? '#9ca3af' : '#1d4ed8',
+          border: '1px solid #bfdbfe', borderRadius: 5, cursor: loading ? 'not-allowed' : 'pointer',
+        }}
+      >{loading ? 'Generating…' : '✦ Generate AI Review'}</button>
+      {error && <span style={{ fontSize: 11, color: '#ef4444' }}>{error}</span>}
+    </div>
+  );
+};
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
 const OutcomesPage = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [days, setDays] = useState(90);
   const [filter, setFilter] = useState('ALL');  // ALL | WIN | LOSS | BREAKEVEN
+  const [expandedId, setExpandedId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -212,37 +267,64 @@ const OutcomesPage = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                {['Ticker', 'Entry date', 'Action', 'Outcome', 'R-multiple', 'Entry', 'Stop', 'Exit', 'Signal', 'Regime'].map(h => (
+                {['Ticker', 'Entry date', 'Action', 'Outcome', 'R-multiple', 'Entry', 'Stop', 'Exit', 'Signal', 'Regime', 'AI'].map(h => (
                   <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filtered.map(rec => (
-                <tr key={rec.run_id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                  <td style={{ padding: '8px 12px', fontWeight: 700 }}>
-                    <button
-                      onClick={() => window.location.href = `/decision-console?ticker=${rec.ticker}`}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4f46e5', fontWeight: 700, fontSize: 13 }}
-                    >{rec.ticker}</button>
-                  </td>
-                  <td style={{ padding: '8px 12px', color: '#6b7280' }}>{rec.bar_date}</td>
-                  <td style={{ padding: '8px 12px' }}>
-                    <span style={{
-                      background: rec.action === 'BUY' ? '#d1fae5' : '#fee2e2',
-                      color: rec.action === 'BUY' ? '#065f46' : '#991b1b',
-                      borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 700,
-                    }}>{rec.action}</span>
-                  </td>
-                  <td style={{ padding: '8px 12px' }}><OutcomeBadge outcome={rec.outcome} /></td>
-                  <td style={{ padding: '8px 12px' }}><RBar r={rec.r_multiple} /></td>
-                  <td style={{ padding: '8px 12px', color: '#374151' }}>{rec.entry_price?.toFixed(2) ?? '—'}</td>
-                  <td style={{ padding: '8px 12px', color: '#374151' }}>{rec.stop_price?.toFixed(2) ?? '—'}</td>
-                  <td style={{ padding: '8px 12px', fontWeight: 600 }}>{rec.exit_price?.toFixed(2) ?? '—'}</td>
-                  <td style={{ padding: '8px 12px', color: '#6b7280', fontSize: 11 }}>{rec.signal_kind ?? '—'}</td>
-                  <td style={{ padding: '8px 12px', color: '#6b7280', fontSize: 11 }}>{rec.regime ?? '—'}</td>
-                </tr>
-              ))}
+              {filtered.map(rec => {
+                const isExpanded = expandedId === rec.run_id;
+                return (
+                  <React.Fragment key={rec.run_id}>
+                    <tr style={{ borderBottom: isExpanded ? 'none' : '1px solid #f3f4f6', background: isExpanded ? '#fafafa' : undefined }}>
+                      <td style={{ padding: '8px 12px', fontWeight: 700 }}>
+                        <button
+                          onClick={() => window.location.href = `/decision-console?ticker=${rec.ticker}`}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4f46e5', fontWeight: 700, fontSize: 13 }}
+                        >{rec.ticker}</button>
+                      </td>
+                      <td style={{ padding: '8px 12px', color: '#6b7280' }}>{rec.bar_date}</td>
+                      <td style={{ padding: '8px 12px' }}>
+                        <span style={{
+                          background: rec.action === 'BUY' ? '#d1fae5' : '#fee2e2',
+                          color: rec.action === 'BUY' ? '#065f46' : '#991b1b',
+                          borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 700,
+                        }}>{rec.action}</span>
+                      </td>
+                      <td style={{ padding: '8px 12px' }}><OutcomeBadge outcome={rec.outcome} /></td>
+                      <td style={{ padding: '8px 12px' }}><RBar r={rec.r_multiple} /></td>
+                      <td style={{ padding: '8px 12px', color: '#374151' }}>{rec.entry_price?.toFixed(2) ?? '—'}</td>
+                      <td style={{ padding: '8px 12px', color: '#374151' }}>{rec.stop_price?.toFixed(2) ?? '—'}</td>
+                      <td style={{ padding: '8px 12px', fontWeight: 600 }}>{rec.exit_price?.toFixed(2) ?? '—'}</td>
+                      <td style={{ padding: '8px 12px', color: '#6b7280', fontSize: 11 }}>{rec.signal_kind ?? '—'}</td>
+                      <td style={{ padding: '8px 12px', color: '#6b7280', fontSize: 11 }}>{rec.regime ?? '—'}</td>
+                      <td style={{ padding: '8px 12px' }}>
+                        {rec.outcome && (
+                          <button
+                            onClick={() => setExpandedId(isExpanded ? null : rec.run_id)}
+                            style={{
+                              padding: '2px 8px', fontSize: 11, fontWeight: 600,
+                              background: isExpanded ? '#dbeafe' : (rec.ai_review ? '#f0f9ff' : '#f9fafb'),
+                              color: isExpanded ? '#1d4ed8' : '#6b7280',
+                              border: '1px solid',
+                              borderColor: isExpanded ? '#bfdbfe' : '#e5e7eb',
+                              borderRadius: 5, cursor: 'pointer',
+                            }}
+                          >{isExpanded ? '▲ Close' : (rec.ai_review ? '✦ View' : '✦ AI')}</button>
+                        )}
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr style={{ borderBottom: '1px solid #f3f4f6', background: '#fafafa' }}>
+                        <td colSpan={11} style={{ padding: '0 12px 12px 12px' }}>
+                          <ReviewPanel runId={rec.run_id} cachedReview={rec.ai_review} />
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>

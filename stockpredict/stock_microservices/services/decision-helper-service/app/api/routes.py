@@ -31,10 +31,11 @@ from app.models.schemas import (
     EquityPointSchema,
     JournalSyncStatus,
     OutcomeRecord,
-    PositionRiskItem,
-    RiskOverviewResponse,
     OutcomeSummary,
     OutcomesResponse,
+    PositionRiskItem,
+    RiskOverviewResponse,
+    TradeReviewResponse,
     PositionStateResponse,
     PositionsListResponse,
     RecommendRequest,
@@ -299,6 +300,51 @@ async def recommend(
                     result.journal_sync = JournalSyncStatus(
                         synced=False, journal_trade_id=journal_trade_id, action="close"
                     )
+
+    # F-190..F-193 — Auto-trigger AI review when position closes (fire-and-forget)
+    if jwt_token and result.action in ("SELL", "COVER", "REVERSE"):
+        from app.services.ai_review import generate_trade_review
+        from app.models.domain import DecisionRun as _DecisionRun
+        from sqlalchemy import select as _sel2, desc as _desc2
+
+        async def _auto_review():
+            try:
+                async with async_session_factory() as sess:
+                    entry_run = (await sess.execute(
+                        _sel2(_DecisionRun)
+                        .where(
+                            _DecisionRun.user_id == user_id,
+                            _DecisionRun.ticker == ticker,
+                            _DecisionRun.action.in_(["BUY", "SELL_SHORT"]),
+                            _DecisionRun.outcome.isnot(None),
+                            _DecisionRun.ai_review.is_(None),
+                        )
+                        .order_by(_desc2(_DecisionRun.bar_date))
+                        .limit(1)
+                    )).scalar_one_or_none()
+                    if entry_run:
+                        direction = "LONG" if entry_run.action == "BUY" else "SHORT"
+                        review = await generate_trade_review(
+                            ticker=entry_run.ticker,
+                            direction=direction,
+                            signal_kind=entry_run.signal_kind,
+                            regime=entry_run.regime,
+                            entry_price=float(entry_run.entry_price) if entry_run.entry_price else None,
+                            stop_price=float(entry_run.stop_price) if entry_run.stop_price else None,
+                            exit_price=float(entry_run.exit_price) if entry_run.exit_price else None,
+                            outcome=entry_run.outcome,
+                            r_multiple=float(entry_run.r_multiple) if entry_run.r_multiple else None,
+                            bar_date=str(entry_run.bar_date),
+                            jwt_token=jwt_token,
+                        )
+                        if review:
+                            entry_run.ai_review = review
+                            await sess.commit()
+            except Exception as exc:
+                logger.debug("auto_review: failed for %s: %s", ticker, exc)
+
+        import asyncio as _aio2
+        _aio2.create_task(_auto_review())
 
     return result
 
@@ -1149,6 +1195,7 @@ async def get_outcomes(
             exit_run_id=r.exit_run_id,
             signal_kind=r.signal_kind,
             regime=r.regime,
+            ai_review=r.ai_review,
             created_at=r.created_at,
         )
         for r in runs
@@ -1181,6 +1228,74 @@ async def get_outcomes(
         computed_at=computed_at,
         summary=summary,
         records=records,
+    )
+
+
+# ---------------------------------------------------------------------------
+# F-190..F-193 — AI trade review (Phase T)
+# ---------------------------------------------------------------------------
+
+@router.post("/outcomes/{run_id}/review", response_model=TradeReviewResponse)
+async def generate_outcome_review(
+    run_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate (or regenerate) an AI post-mortem for a tagged trade outcome.
+
+    Calls ai-insights-service /ask with a structured trade summary prompt.
+    The review is persisted on the DecisionRun row so subsequent calls return
+    the cached text without re-calling the LLM (unless the row is updated).
+    """
+    from sqlalchemy import select
+    from app.models.domain import DecisionRun
+    from app.services.ai_review import generate_trade_review
+
+    user_id = current_user["user_id"]
+    jwt_token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+
+    result = await db.execute(
+        select(DecisionRun).where(
+            DecisionRun.id == run_id,
+            DecisionRun.user_id == user_id,
+        )
+    )
+    run = result.scalar_one_or_none()
+    if run is None:
+        raise HTTPException(status_code=404, detail="Decision run not found")
+    if run.outcome is None:
+        raise HTTPException(status_code=422, detail="Run has no tagged outcome yet")
+
+    # Return cached review if present
+    if run.ai_review:
+        return TradeReviewResponse(
+            run_id=run.id, ticker=run.ticker,
+            outcome=run.outcome, ai_review=run.ai_review, generated=False,
+        )
+
+    direction = "LONG" if run.action == "BUY" else "SHORT"
+    review = await generate_trade_review(
+        ticker=run.ticker,
+        direction=direction,
+        signal_kind=run.signal_kind,
+        regime=run.regime,
+        entry_price=float(run.entry_price) if run.entry_price else None,
+        stop_price=float(run.stop_price) if run.stop_price else None,
+        exit_price=float(run.exit_price) if run.exit_price else None,
+        outcome=run.outcome,
+        r_multiple=float(run.r_multiple) if run.r_multiple else None,
+        bar_date=str(run.bar_date),
+        jwt_token=jwt_token,
+    )
+
+    if review:
+        run.ai_review = review
+        await db.commit()
+
+    return TradeReviewResponse(
+        run_id=run.id, ticker=run.ticker,
+        outcome=run.outcome, ai_review=review, generated=bool(review),
     )
 
 
@@ -1277,8 +1392,8 @@ async def get_risk_overview(
 async def get_capabilities():
     return {
         "service": "decision-helper-service",
-        "version": "1.5.0",
-        "phase": "S — risk dashboard",
+        "version": "1.6.0",
+        "phase": "T — AI trade review",
         "features": [
             "user_risk_prefs",
             "position_state",
@@ -1304,6 +1419,7 @@ async def get_capabilities():
             "outcome_tagging",          # F-160..F-163
             "journal_sync",             # F-170..F-173
             "risk_overview",            # F-180..F-183
+            "ai_trade_review",          # F-190..F-193
         ],
     }
 

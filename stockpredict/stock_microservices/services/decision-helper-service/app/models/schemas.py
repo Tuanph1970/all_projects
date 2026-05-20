@@ -521,7 +521,16 @@ class OutcomeRecord(BaseModel):
     exit_run_id: Optional[int] = None
     signal_kind: Optional[str] = None
     regime: Optional[str] = None
+    ai_review: Optional[str] = None  # F-190: LLM post-mortem
     created_at: datetime
+
+
+class TradeReviewResponse(BaseModel):
+    run_id: int
+    ticker: str
+    outcome: Optional[str] = None
+    ai_review: Optional[str] = None
+    generated: bool                  # True when a new review was created
 
 
 class OutcomeSummary(BaseModel):

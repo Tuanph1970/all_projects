@@ -140,3 +140,5 @@ class DecisionRun(Base):
     r_multiple = Column(DECIMAL(8, 3), nullable=True)     # signed R on entry runs
     exit_run_id = Column(BigInteger, nullable=True)       # closing run id (on entry run)
     exit_price = Column(DECIMAL(18, 4), nullable=True)    # actual exit price (on entry run)
+    # F-190..F-193 — AI trade review (Phase T)
+    ai_review = Column(String(2000), nullable=True)       # LLM post-mortem text
