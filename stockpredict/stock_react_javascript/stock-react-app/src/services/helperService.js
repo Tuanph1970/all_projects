@@ -94,6 +94,18 @@ class HelperService {
     return await httpClient.get(`${API_ENDPOINTS.HELPER_ALERTS}?limit=${limit}`);
   }
 
+  // F-150 — Open positions list
+  async getPositions() {
+    return await httpClient.get(API_ENDPOINTS.HELPER_POSITIONS_LIST);
+  }
+
+  // F-151 — Update trailing stop on an open position
+  async updateStop(ticker, currentStop) {
+    return await httpClient.put(API_ENDPOINTS.HELPER_POSITION_STOP(ticker), {
+      current_stop: currentStop,
+    });
+  }
+
   // F-130 — Decision-run performance analytics
   async getAnalytics(days = 90) {
     return await httpClient.get(`${API_ENDPOINTS.HELPER_ANALYTICS}?days=${days}`);

@@ -30,6 +30,7 @@ from app.models.schemas import (
     DisciplineViolationSchema,
     EquityPointSchema,
     PositionStateResponse,
+    PositionsListResponse,
     RecommendRequest,
     RecommendationResponse,
     RegimeBreakdownItem,
@@ -48,6 +49,7 @@ from app.models.schemas import (
     TradeRecordSchema,
     UserRiskPrefsRequest,
     UserRiskPrefsResponse,
+    UpdateStopRequest,
     ValidatePlanRequest,
     ValidatePlanResponse,
     WalkForwardWindowSchema,
@@ -1019,8 +1021,8 @@ async def scan_watchlist(
 async def get_capabilities():
     return {
         "service": "decision-helper-service",
-        "version": "1.1.0",
-        "phase": "N — performance analytics",
+        "version": "1.2.0",
+        "phase": "P — open positions dashboard",
         "features": [
             "user_risk_prefs",
             "position_state",
@@ -1041,6 +1043,8 @@ async def get_capabilities():
             "real_time_alerts",         # F-082..F-083
             "scanner",                  # F-120..F-123
             "analytics",                # F-130..F-133
+            "positions_list",           # F-150
+            "position_stop_update",     # F-151
         ],
     }
 
@@ -1122,6 +1126,92 @@ async def upsert_risk_prefs(
 # ---------------------------------------------------------------------------
 # Position state (read-only view; writes come from the decision engine)
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# F-150..F-153 — Open positions dashboard (Phase P)
+# ---------------------------------------------------------------------------
+
+@router.get("/positions", response_model=PositionsListResponse)
+async def list_open_positions(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return all non-FLAT positions for the authenticated user."""
+    from sqlalchemy import select
+    from app.models.domain import PositionState
+
+    user_id = current_user["user_id"]
+    result = await db.execute(
+        select(PositionState).where(
+            PositionState.user_id == user_id,
+            PositionState.state.in_(["LONG", "SHORT"]),
+        ).order_by(PositionState.entry_bar_date)
+    )
+    rows = result.scalars().all()
+
+    positions = [
+        PositionStateResponse(
+            user_id=p.user_id,
+            ticker=p.ticker,
+            state=p.state,
+            entry_bar_date=p.entry_bar_date,
+            entry_price=float(p.entry_price) if p.entry_price else None,
+            position_size=p.position_size,
+            current_stop=float(p.current_stop) if p.current_stop else None,
+            current_target=float(p.current_target) if p.current_target else None,
+            entry_signal_kind=p.entry_signal_kind,
+        )
+        for p in rows
+    ]
+    return PositionsListResponse(positions=positions, total=len(positions))
+
+
+@router.put("/positions/{ticker}/stop", response_model=PositionStateResponse)
+async def update_position_stop(
+    ticker: str,
+    req: UpdateStopRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update the current_stop on an open position (trailing-stop management).
+
+    Only allowed on LONG or SHORT positions — raises 404 if the position
+    is FLAT or does not exist.
+    """
+    from sqlalchemy import select
+    from app.models.domain import PositionState
+
+    user_id = current_user["user_id"]
+    result = await db.execute(
+        select(PositionState).where(
+            PositionState.user_id == user_id,
+            PositionState.ticker == ticker.upper(),
+            PositionState.state.in_(["LONG", "SHORT"]),
+        )
+    )
+    pos = result.scalar_one_or_none()
+    if pos is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No open position for {ticker.upper()}",
+        )
+
+    pos.current_stop = req.current_stop
+    await db.commit()
+    await db.refresh(pos)
+
+    return PositionStateResponse(
+        user_id=pos.user_id,
+        ticker=pos.ticker,
+        state=pos.state,
+        entry_bar_date=pos.entry_bar_date,
+        entry_price=float(pos.entry_price) if pos.entry_price else None,
+        position_size=pos.position_size,
+        current_stop=float(pos.current_stop) if pos.current_stop else None,
+        current_target=float(pos.current_target) if pos.current_target else None,
+        entry_signal_kind=pos.entry_signal_kind,
+    )
+
 
 @router.get("/positions/{ticker}", response_model=PositionStateResponse)
 async def get_position(

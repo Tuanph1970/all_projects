@@ -178,6 +178,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
         { key: 'scheduled-runs', label: 'Scheduled Runs', route: 'scheduled-runs' },
         { key: 'scanner', label: 'Scanner', route: 'scanner' },
         { key: 'analytics', label: 'Analytics', route: 'analytics' },
+        { key: 'positions-open', label: 'Open Positions', route: 'positions-open' },
       ]
     },
     {

@@ -437,3 +437,16 @@ class AnalyticsResponse(BaseModel):
     daily_actionable: List[DailyActionablePoint]
     top_tickers: List[TopTickerItem]
     confidence_histogram: List[ConfidenceBucketItem]
+
+
+# ---------------------------------------------------------------------------
+# F-150..F-153 — Open positions dashboard (Phase P)
+# ---------------------------------------------------------------------------
+
+class PositionsListResponse(BaseModel):
+    positions: List[PositionStateResponse]
+    total: int
+
+
+class UpdateStopRequest(BaseModel):
+    current_stop: float = Field(..., gt=0)
