@@ -52,6 +52,7 @@ import AnalyticsPage from '../Pages/AnalyticsPage';
 import PositionsPage from '../Pages/PositionsPage';
 import OutcomesPage from '../Pages/OutcomesPage';
 import RiskDashboard from '../Pages/RiskDashboard';
+import WatchlistHeatMap from '../Pages/WatchlistHeatMap';
 import AlertCenter from '../common/AlertToast';
 import { useAlertStream } from '../../hooks/useAlertStream';
 
@@ -167,6 +168,7 @@ const MainLayout = () => {
             <Route path="/positions-open" element={<PositionsPage />} />
             <Route path="/outcomes" element={<OutcomesPage />} />
             <Route path="/risk-dashboard" element={<RiskDashboard />} />
+            <Route path="/watchlist-heatmap" element={<WatchlistHeatMap />} />
 
             {/* Tools */}
             <Route path="/screener" element={<StockScreener />} />
