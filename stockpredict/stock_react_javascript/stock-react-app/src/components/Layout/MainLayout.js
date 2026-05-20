@@ -51,6 +51,7 @@ import ScannerPage from '../Pages/ScannerPage';
 import AnalyticsPage from '../Pages/AnalyticsPage';
 import PositionsPage from '../Pages/PositionsPage';
 import OutcomesPage from '../Pages/OutcomesPage';
+import RiskDashboard from '../Pages/RiskDashboard';
 import AlertCenter from '../common/AlertToast';
 import { useAlertStream } from '../../hooks/useAlertStream';
 
@@ -165,6 +166,7 @@ const MainLayout = () => {
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/positions-open" element={<PositionsPage />} />
             <Route path="/outcomes" element={<OutcomesPage />} />
+            <Route path="/risk-dashboard" element={<RiskDashboard />} />
 
             {/* Tools */}
             <Route path="/screener" element={<StockScreener />} />

@@ -470,6 +470,44 @@ class UpdateStopRequest(BaseModel):
 # F-160..F-163 — Trade outcome tagging (Phase Q)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# F-180..F-183 — Risk dashboard (Phase S)
+# ---------------------------------------------------------------------------
+
+class PositionRiskItem(BaseModel):
+    ticker: str
+    direction: str                        # LONG | SHORT
+    entry_price: float
+    current_stop: Optional[float] = None
+    position_size: int
+    risk_per_share: Optional[float] = None  # abs(entry - stop)
+    risk_amount: Optional[float] = None     # risk_per_share × shares
+    risk_pct_equity: Optional[float] = None # risk_amount / account_equity × 100
+    days_held: Optional[int] = None
+    entry_bar_date: Optional[date] = None
+
+
+class RiskOverviewResponse(BaseModel):
+    user_id: int
+    computed_at: datetime
+    account_equity: Optional[float] = None
+
+    total_positions: int
+    long_count: int
+    short_count: int
+
+    total_risk_amount: float     # sum of all position risk_amounts
+    total_risk_pct: float        # as % of account equity (0 if no equity set)
+    long_risk_pct: float         # long-side risk as % of equity
+    short_risk_pct: float        # short-side risk as % of equity
+    net_exposure_pct: float      # long_risk_pct − short_risk_pct
+
+    max_drawdown_scenario: float # loss if every stop is hit simultaneously
+    max_drawdown_pct: float      # same as total_risk_pct
+
+    positions: List[PositionRiskItem]
+
+
 class OutcomeRecord(BaseModel):
     run_id: int
     ticker: str

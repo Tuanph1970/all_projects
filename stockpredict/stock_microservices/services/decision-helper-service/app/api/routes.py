@@ -31,6 +31,8 @@ from app.models.schemas import (
     EquityPointSchema,
     JournalSyncStatus,
     OutcomeRecord,
+    PositionRiskItem,
+    RiskOverviewResponse,
     OutcomeSummary,
     OutcomesResponse,
     PositionStateResponse,
@@ -1182,12 +1184,101 @@ async def get_outcomes(
     )
 
 
+# ---------------------------------------------------------------------------
+# F-180..F-183 — Risk dashboard (Phase S)
+# ---------------------------------------------------------------------------
+
+@router.get("/risk-overview", response_model=RiskOverviewResponse)
+async def get_risk_overview(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return a portfolio-level risk overview for all open positions.
+
+    Computes risk_amount = abs(entry − stop) × shares for each position,
+    aggregates long/short exposure, and calculates a worst-case drawdown
+    scenario assuming every stop is hit simultaneously.  No external service
+    calls required — all data comes from position_states + user_risk_prefs.
+    """
+    from datetime import datetime as dt, date as date_type
+    from sqlalchemy import select
+    from app.models.domain import PositionState, UserRiskPrefs
+
+    user_id = current_user["user_id"]
+    today = date_type.today()
+    computed_at = dt.utcnow()
+
+    prefs = (await db.execute(
+        select(UserRiskPrefs).where(UserRiskPrefs.user_id == user_id)
+    )).scalar_one_or_none()
+    account_equity = float(prefs.account_equity) if prefs and prefs.account_equity else None
+
+    rows = (await db.execute(
+        select(PositionState).where(
+            PositionState.user_id == user_id,
+            PositionState.state.in_(["LONG", "SHORT"]),
+        ).order_by(PositionState.entry_bar_date)
+    )).scalars().all()
+
+    items: list[PositionRiskItem] = []
+    for p in rows:
+        entry = float(p.entry_price) if p.entry_price else None
+        stop = float(p.current_stop) if p.current_stop else None
+        shares = p.position_size or 0
+
+        risk_per_share = abs(entry - stop) if entry and stop else None
+        risk_amount = risk_per_share * shares if risk_per_share is not None else None
+        risk_pct = (risk_amount / account_equity * 100) if risk_amount and account_equity else None
+
+        days_held = (today - p.entry_bar_date).days if p.entry_bar_date else None
+
+        items.append(PositionRiskItem(
+            ticker=p.ticker,
+            direction=p.state,
+            entry_price=entry or 0.0,
+            current_stop=stop,
+            position_size=shares,
+            risk_per_share=round(risk_per_share, 4) if risk_per_share else None,
+            risk_amount=round(risk_amount, 2) if risk_amount else None,
+            risk_pct_equity=round(risk_pct, 3) if risk_pct else None,
+            days_held=days_held,
+            entry_bar_date=p.entry_bar_date,
+        ))
+
+    long_items = [it for it in items if it.direction == "LONG"]
+    short_items = [it for it in items if it.direction == "SHORT"]
+
+    total_risk = sum(it.risk_amount or 0 for it in items)
+    long_risk = sum(it.risk_amount or 0 for it in long_items)
+    short_risk = sum(it.risk_amount or 0 for it in short_items)
+
+    def _pct(amount: float) -> float:
+        return round(amount / account_equity * 100, 3) if account_equity else 0.0
+
+    return RiskOverviewResponse(
+        user_id=user_id,
+        computed_at=computed_at,
+        account_equity=account_equity,
+        total_positions=len(items),
+        long_count=len(long_items),
+        short_count=len(short_items),
+        total_risk_amount=round(total_risk, 2),
+        total_risk_pct=_pct(total_risk),
+        long_risk_pct=_pct(long_risk),
+        short_risk_pct=_pct(short_risk),
+        net_exposure_pct=round(_pct(long_risk) - _pct(short_risk), 3),
+        max_drawdown_scenario=round(total_risk, 2),
+        max_drawdown_pct=_pct(total_risk),
+        positions=items,
+    )
+
+
 @router.get("/capabilities")
 async def get_capabilities():
     return {
         "service": "decision-helper-service",
-        "version": "1.4.0",
-        "phase": "R — journal sync",
+        "version": "1.5.0",
+        "phase": "S — risk dashboard",
         "features": [
             "user_risk_prefs",
             "position_state",
@@ -1212,6 +1303,7 @@ async def get_capabilities():
             "position_stop_update",     # F-151
             "outcome_tagging",          # F-160..F-163
             "journal_sync",             # F-170..F-173
+            "risk_overview",            # F-180..F-183
         ],
     }
 

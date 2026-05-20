@@ -118,6 +118,11 @@ class HelperService {
     return await httpClient.get(`${API_ENDPOINTS.HELPER_OUTCOMES}?days=${days}`);
   }
 
+  // F-180 — Portfolio risk overview
+  async getRiskOverview() {
+    return await httpClient.get(API_ENDPOINTS.HELPER_RISK_OVERVIEW);
+  }
+
   // F-120 — Run decision engine across all watchlist tickers
   async scan(barDate) {
     return await httpClient.post(API_ENDPOINTS.HELPER_SCAN, {

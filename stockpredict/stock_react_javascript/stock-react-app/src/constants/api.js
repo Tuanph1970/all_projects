@@ -364,6 +364,8 @@ export const API_ENDPOINTS = {
   HELPER_POSITION_STOP: (ticker) => `${API_BASE_URLS.HELPER_API}/positions/${ticker}/stop`,
   // F-160..F-163 — Trade outcome tagging
   HELPER_OUTCOMES: `${API_BASE_URLS.HELPER_API}/outcomes`,
+  // F-180..F-183 — Risk dashboard
+  HELPER_RISK_OVERVIEW: `${API_BASE_URLS.HELPER_API}/risk-overview`,
 };
 
 // HTTP Status Codes

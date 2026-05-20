@@ -180,6 +180,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
         { key: 'analytics', label: 'Analytics', route: 'analytics' },
         { key: 'positions-open', label: 'Open Positions', route: 'positions-open' },
         { key: 'outcomes', label: 'Trade Outcomes', route: 'outcomes' },
+        { key: 'risk-dashboard', label: 'Risk Dashboard', route: 'risk-dashboard' },
       ]
     },
     {
