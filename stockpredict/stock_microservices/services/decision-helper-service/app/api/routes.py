@@ -1103,6 +1103,7 @@ async def scan_watchlist(
     rather than aborting the whole scan.
     """
     import asyncio
+    from sqlalchemy import select
     from app.api.dependencies import async_session_factory
     from app.models.domain import HelperWatchlist
 
