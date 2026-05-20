@@ -370,6 +370,8 @@ export const API_ENDPOINTS = {
   HELPER_OUTCOME_REVIEW: (runId) => `${API_BASE_URLS.HELPER_API}/outcomes/${runId}/review`,
   // F-200..F-203 — Correlation engine
   HELPER_CORRELATION: `${API_BASE_URLS.HELPER_API}/correlation`,
+  // F-210..F-213 — Performance attribution
+  HELPER_ATTRIBUTION: `${API_BASE_URLS.HELPER_API}/attribution`,
 };
 
 // HTTP Status Codes

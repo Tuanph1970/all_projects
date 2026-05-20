@@ -555,6 +555,32 @@ class OutcomesResponse(BaseModel):
 # F-200..F-203 — Correlation engine (Phase U)
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# F-210..F-213 — Performance attribution (Phase V)
+# ---------------------------------------------------------------------------
+
+class AttributionRow(BaseModel):
+    label: str                         # e.g. "MA_CROSS", "TREND_UP", "Monday"
+    count: int
+    wins: int
+    losses: int
+    breakevens: int
+    win_rate: float                    # 0..1
+    avg_r: Optional[float] = None
+    expectancy: Optional[float] = None
+
+
+class AttributionResponse(BaseModel):
+    user_id: int
+    computed_at: datetime
+    days: int
+    total_tagged: int
+    by_signal: List[AttributionRow]
+    by_regime: List[AttributionRow]
+    by_weekday: List[AttributionRow]
+    by_hold_duration: List[AttributionRow]
+
+
 class CorrelationPairItem(BaseModel):
     ticker_a: str
     ticker_b: str

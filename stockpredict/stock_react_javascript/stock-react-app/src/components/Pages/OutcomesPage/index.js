@@ -1,4 +1,4 @@
-// F-161..F-163, F-190..F-193 — OutcomesPage: trade outcome log + AI post-mortem
+// F-161..F-163, F-190..F-193, F-210..F-213 — OutcomesPage: trade outcome log + AI review + attribution
 import React, { useState, useEffect, useCallback } from 'react';
 import helperService from '../../../services/helperService';
 
@@ -124,6 +124,96 @@ const ReviewPanel = ({ runId, cachedReview }) => {
   );
 };
 
+// ── Attribution view (F-210..F-213) ──────────────────────────────────────────
+
+const winRateColor = (wr) => {
+  if (wr == null) return '#6b7280';
+  if (wr >= 0.6) return '#10b981';
+  if (wr >= 0.45) return '#f59e0b';
+  return '#ef4444';
+};
+
+const AttributionTable = ({ title, rows }) => {
+  if (!rows || rows.length === 0) return null;
+  const maxCount = Math.max(...rows.map(r => r.count), 1);
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 18px', marginBottom: 16 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 10 }}>{title}</div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
+            {['Category', 'Trades', 'Win%', 'Avg R', 'Expectancy', ''].map(h => (
+              <th key={h} style={{ padding: '4px 10px', textAlign: h === '' ? 'left' : 'right', color: '#6b7280', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(row => {
+            const barW = Math.round(row.count / maxCount * 100);
+            const wr = row.win_rate;
+            return (
+              <tr key={row.label} style={{ borderBottom: '1px solid #f9fafb' }}>
+                <td style={{ padding: '5px 10px', fontWeight: 600 }}>{row.label}</td>
+                <td style={{ padding: '5px 10px', textAlign: 'right', color: '#374151' }}>{row.count}</td>
+                <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 700, color: winRateColor(wr) }}>
+                  {row.count > 0 ? `${(wr * 100).toFixed(1)}%` : '—'}
+                </td>
+                <td style={{ padding: '5px 10px', textAlign: 'right', color: row.avg_r > 0 ? '#10b981' : row.avg_r < 0 ? '#ef4444' : '#6b7280' }}>
+                  {row.avg_r != null ? `${row.avg_r > 0 ? '+' : ''}${row.avg_r.toFixed(2)}R` : '—'}
+                </td>
+                <td style={{ padding: '5px 10px', textAlign: 'right', color: row.expectancy > 0 ? '#10b981' : row.expectancy < 0 ? '#ef4444' : '#6b7280' }}>
+                  {row.expectancy != null ? `${row.expectancy > 0 ? '+' : ''}${row.expectancy.toFixed(2)}R` : '—'}
+                </td>
+                <td style={{ padding: '5px 10px', minWidth: 80 }}>
+                  <div style={{ height: 6, background: '#f3f4f6', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ width: `${barW}%`, height: '100%', background: winRateColor(wr), borderRadius: 3 }} />
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const AttributionView = ({ days }) => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    helperService.getAttribution(days)
+      .then(res => setData(res.data || res))
+      .catch(err => setError(err?.response?.data?.detail || err.message || 'Failed to load attribution'))
+      .finally(() => setLoading(false));
+  }, [days]);
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>Loading attribution…</div>;
+  if (error) return <div style={{ padding: 16, background: '#fee2e2', borderRadius: 8, color: '#991b1b' }}>{error}</div>;
+  if (!data || data.total_tagged === 0) return (
+    <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>
+      No tagged outcomes yet — attribution will appear once trades are recorded.
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 14 }}>
+        {data.total_tagged} tagged trade{data.total_tagged !== 1 ? 's' : ''} · last {days} days
+      </div>
+      <AttributionTable title="By signal type" rows={data.by_signal} />
+      <AttributionTable title="By market regime" rows={data.by_regime} />
+      <AttributionTable title="By entry weekday" rows={data.by_weekday} />
+      <AttributionTable title="By hold duration" rows={data.by_hold_duration} />
+    </div>
+  );
+};
+
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const OutcomesPage = () => {
@@ -133,6 +223,7 @@ const OutcomesPage = () => {
   const [days, setDays] = useState(90);
   const [filter, setFilter] = useState('ALL');  // ALL | WIN | LOSS | BREAKEVEN
   const [expandedId, setExpandedId] = useState(null);
+  const [view, setView] = useState('log');      // 'log' | 'attribution'
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -169,6 +260,23 @@ const OutcomesPage = () => {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {/* View toggle */}
+          {['log', 'attribution'].map(v => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              style={{
+                padding: '4px 11px', border: '1px solid',
+                borderColor: view === v ? '#6366f1' : '#e5e7eb',
+                borderRadius: 6,
+                background: view === v ? '#eef2ff' : '#fff',
+                color: view === v ? '#4338ca' : '#374151',
+                fontWeight: view === v ? 700 : 400,
+                cursor: 'pointer', fontSize: 12,
+              }}
+            >{v === 'log' ? '📋 Log' : '📊 Attribution'}</button>
+          ))}
+          <div style={{ width: 1, height: 20, background: '#e5e7eb', margin: '0 4px' }} />
           {DAY_OPTS.map(d => (
             <button
               key={d}
@@ -226,6 +334,12 @@ const OutcomesPage = () => {
           color={summary.expectancy > 0 ? '#10b981' : summary.expectancy < 0 ? '#ef4444' : '#111827'}
         />
       </div>
+
+      {/* Attribution view */}
+      {view === 'attribution' && <AttributionView days={days} />}
+
+      {/* Log view */}
+      {view === 'log' && <>
 
       {/* Filter tabs */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
@@ -333,6 +447,8 @@ const OutcomesPage = () => {
       {loading && (
         <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>Loading…</div>
       )}
+
+      </>}
     </div>
   );
 };

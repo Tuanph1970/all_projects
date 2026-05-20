@@ -133,6 +133,11 @@ class HelperService {
     return await httpClient.get(API_ENDPOINTS.HELPER_CORRELATION);
   }
 
+  // F-210 — Performance attribution breakdown
+  async getAttribution(days = 90) {
+    return await httpClient.get(`${API_ENDPOINTS.HELPER_ATTRIBUTION}?days=${days}`);
+  }
+
   // F-120 — Run decision engine across all watchlist tickers
   async scan(barDate) {
     return await httpClient.post(API_ENDPOINTS.HELPER_SCAN, {

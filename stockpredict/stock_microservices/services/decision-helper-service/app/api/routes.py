@@ -21,6 +21,8 @@ from app.models.schemas import (
     AlertEvent,
     AlertsListResponse,
     AnalyticsResponse,
+    AttributionResponse,
+    AttributionRow,
     BacktestRequest,
     BacktestResultSchema,
     BacktestStatsSchema,
@@ -1274,6 +1276,84 @@ async def get_outcomes(
 
 
 # ---------------------------------------------------------------------------
+# F-210..F-213 — Performance attribution (Phase V)
+# ---------------------------------------------------------------------------
+
+@router.get("/attribution", response_model=AttributionResponse)
+async def get_attribution(
+    days: int = 90,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Break down tagged trade outcomes across four dimensions.
+
+    Dimensions: signal_kind · regime · entry-weekday · hold-duration.
+    Each row carries count, wins, losses, breakevens, win_rate, avg_r,
+    and expectancy so the trader can identify where their edge concentrates
+    and where it doesn't.
+
+    `days` is the lookback window applied to the entry bar_date.
+    """
+    from datetime import datetime as dt, timedelta, date as date_type
+    from sqlalchemy import select
+    from app.models.domain import DecisionRun
+
+    user_id = current_user["user_id"]
+    since = date_type.today() - timedelta(days=days)
+    computed_at = dt.utcnow()
+
+    # Fetch all tagged entry runs in the window.
+    entry_runs = (await db.execute(
+        select(DecisionRun).where(
+            DecisionRun.user_id == user_id,
+            DecisionRun.action.in_(["BUY", "SELL_SHORT"]),
+            DecisionRun.outcome.isnot(None),
+            DecisionRun.bar_date >= since,
+        ).order_by(DecisionRun.bar_date)
+    )).scalars().all()
+
+    # Collect exit bar_dates in a single query.
+    exit_ids = [r.exit_run_id for r in entry_runs if r.exit_run_id is not None]
+    exit_date_map: Dict[int, date_type] = {}
+    if exit_ids:
+        exits = (await db.execute(
+            select(DecisionRun.id, DecisionRun.bar_date).where(
+                DecisionRun.id.in_(exit_ids)
+            )
+        )).all()
+        exit_date_map = {row[0]: row[1] for row in exits}
+
+    records = []
+    for run in entry_runs:
+        records.append({
+            "outcome": run.outcome,
+            "r_multiple": float(run.r_multiple) if run.r_multiple is not None else None,
+            "signal_kind": run.signal_kind,
+            "regime": run.regime,
+            "bar_date": run.bar_date,
+            "exit_bar_date": exit_date_map.get(run.exit_run_id) if run.exit_run_id else None,
+        })
+
+    from app.services.attribution import compute_attribution
+    breakdown = compute_attribution(records)
+
+    def _rows(lst) -> list:
+        from app.models.schemas import AttributionRow
+        return [AttributionRow(**item) for item in lst]
+
+    return AttributionResponse(
+        user_id=user_id,
+        computed_at=computed_at,
+        days=days,
+        total_tagged=len(records),
+        by_signal=_rows(breakdown["by_signal"]),
+        by_regime=_rows(breakdown["by_regime"]),
+        by_weekday=_rows(breakdown["by_weekday"]),
+        by_hold_duration=_rows(breakdown["by_hold_duration"]),
+    )
+
+
+# ---------------------------------------------------------------------------
 # F-190..F-193 — AI trade review (Phase T)
 # ---------------------------------------------------------------------------
 
@@ -1501,8 +1581,8 @@ async def get_correlation_matrix(
 async def get_capabilities():
     return {
         "service": "decision-helper-service",
-        "version": "1.7.0",
-        "phase": "U — Correlation engine",
+        "version": "1.8.0",
+        "phase": "V — Performance attribution",
         "features": [
             "user_risk_prefs",
             "position_state",
@@ -1530,8 +1610,10 @@ async def get_capabilities():
             "risk_overview",            # F-180..F-183
             "ai_trade_review",          # F-190..F-193
             "correlation_engine",       # F-200..F-203
+            "performance_attribution",  # F-210..F-213
         ],
     }
+
 
 
 # ---------------------------------------------------------------------------
