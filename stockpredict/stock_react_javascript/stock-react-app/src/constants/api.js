@@ -362,6 +362,8 @@ export const API_ENDPOINTS = {
   // F-150..F-153 — Open positions dashboard
   HELPER_POSITIONS_LIST: `${API_BASE_URLS.HELPER_API}/positions`,
   HELPER_POSITION_STOP: (ticker) => `${API_BASE_URLS.HELPER_API}/positions/${ticker}/stop`,
+  // F-160..F-163 — Trade outcome tagging
+  HELPER_OUTCOMES: `${API_BASE_URLS.HELPER_API}/outcomes`,
 };
 
 // HTTP Status Codes

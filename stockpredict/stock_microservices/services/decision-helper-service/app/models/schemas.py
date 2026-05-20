@@ -450,3 +450,41 @@ class PositionsListResponse(BaseModel):
 
 class UpdateStopRequest(BaseModel):
     current_stop: float = Field(..., gt=0)
+
+
+# ---------------------------------------------------------------------------
+# F-160..F-163 — Trade outcome tagging (Phase Q)
+# ---------------------------------------------------------------------------
+
+class OutcomeRecord(BaseModel):
+    run_id: int
+    ticker: str
+    bar_date: date
+    action: str                      # BUY | SELL_SHORT (entry action)
+    entry_price: Optional[float] = None
+    stop_price: Optional[float] = None
+    exit_price: Optional[float] = None
+    outcome: Optional[str] = None    # WIN | LOSS | BREAKEVEN
+    r_multiple: Optional[float] = None
+    exit_run_id: Optional[int] = None
+    signal_kind: Optional[str] = None
+    regime: Optional[str] = None
+    created_at: datetime
+
+
+class OutcomeSummary(BaseModel):
+    total_tagged: int
+    wins: int
+    losses: int
+    breakevens: int
+    win_rate: float                  # 0..1
+    avg_r: Optional[float] = None
+    expectancy: Optional[float] = None
+
+
+class OutcomesResponse(BaseModel):
+    user_id: int
+    days: int
+    computed_at: datetime
+    summary: OutcomeSummary
+    records: List[OutcomeRecord]

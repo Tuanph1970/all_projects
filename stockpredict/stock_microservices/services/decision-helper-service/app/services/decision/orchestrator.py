@@ -330,8 +330,12 @@ async def run_recommendation(
 
     elif transition.action in ("SELL", "COVER", "REVERSE") and pos_row:
         entry_price = float(pos_row.entry_price) if pos_row.entry_price else None
+        exit_price_actual = current_bar.close  # store for outcome tagging
 
-    elif transition.action == "HOLD" and pos_row:
+    else:
+        exit_price_actual = None
+
+    if transition.action == "HOLD" and pos_row:
         entry_price = float(pos_row.entry_price) if pos_row.entry_price else None
         stop_price = current_stop
         target_price = current_target
@@ -413,6 +417,7 @@ async def run_recommendation(
         pos_row=pos_row,
         bar_date_val=bar_date,
         failed_signal_kind=failed_signal_kind,
+        exit_price_actual=exit_price_actual,
     )
 
     from app.models.schemas import DisciplineViolationSchema, RuleAdvisorySchema
@@ -574,6 +579,7 @@ async def _persist(
     pos_row: Optional[PositionState],
     bar_date_val: date,
     failed_signal_kind: Optional[str] = None,
+    exit_price_actual: Optional[float] = None,
 ) -> None:
     try:
         run = DecisionRun(
@@ -626,6 +632,13 @@ async def _persist(
             elif transition.action == "HOLD":
                 pos_row.current_stop = current_stop  # may have been improved by trailing
 
+        # ── F-160..F-163: outcome tagging ──────────────────────────────────
+        # When this decision closes a position, back-fill the originating
+        # BUY/SELL_SHORT run with exit price, R-multiple, and outcome label.
+        if transition.action in ("SELL", "COVER", "REVERSE") and exit_price_actual is not None:
+            await db.flush()  # ensure `run` has an id
+            await _tag_origin_run(db, user_id, ticker, run.id, exit_price_actual)
+
         await db.commit()
 
     except Exception as exc:
@@ -633,6 +646,56 @@ async def _persist(
         logger.error(
             "Failed to persist decision run for %s/%s: %s", ticker, bar_date, exc
         )
+
+
+async def _tag_origin_run(
+    db: AsyncSession,
+    user_id: int,
+    ticker: str,
+    exit_run_id: int,
+    exit_price: float,
+) -> None:
+    """Back-fill outcome fields on the most-recent entry (BUY/SELL_SHORT) run."""
+    from sqlalchemy import and_, desc
+
+    result = await db.execute(
+        select(DecisionRun)
+        .where(
+            and_(
+                DecisionRun.user_id == user_id,
+                DecisionRun.ticker == ticker,
+                DecisionRun.action.in_(["BUY", "SELL_SHORT"]),
+                DecisionRun.state_after.in_(["LONG", "SHORT"]),
+                DecisionRun.outcome.is_(None),  # not yet tagged
+            )
+        )
+        .order_by(desc(DecisionRun.bar_date))
+        .limit(1)
+    )
+    origin = result.scalar_one_or_none()
+    if origin is None:
+        return
+
+    entry = float(origin.entry_price) if origin.entry_price else None
+    stop = float(origin.stop_price) if origin.stop_price else None
+    if entry is None or stop is None:
+        return
+
+    risk = abs(entry - stop)
+    if risk < 1e-9:
+        return
+
+    if origin.action == "BUY":
+        r = (exit_price - entry) / risk
+    else:  # SELL_SHORT
+        r = (entry - exit_price) / risk
+
+    outcome = "WIN" if r > 0.1 else ("LOSS" if r < -0.1 else "BREAKEVEN")
+
+    origin.exit_price = exit_price
+    origin.exit_run_id = exit_run_id
+    origin.r_multiple = round(r, 3)
+    origin.outcome = outcome
 
 
 def _abort_response(

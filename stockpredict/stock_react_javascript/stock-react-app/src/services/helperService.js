@@ -111,6 +111,11 @@ class HelperService {
     return await httpClient.get(`${API_ENDPOINTS.HELPER_ANALYTICS}?days=${days}`);
   }
 
+  // F-160 — Trade outcome log (tagged closed positions)
+  async getOutcomes(days = 90) {
+    return await httpClient.get(`${API_ENDPOINTS.HELPER_OUTCOMES}?days=${days}`);
+  }
+
   // F-120 — Run decision engine across all watchlist tickers
   async scan(barDate) {
     return await httpClient.post(API_ENDPOINTS.HELPER_SCAN, {

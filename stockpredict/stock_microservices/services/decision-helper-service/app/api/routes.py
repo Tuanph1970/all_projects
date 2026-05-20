@@ -29,6 +29,9 @@ from app.models.schemas import (
     DisciplineSummaryResponse,
     DisciplineViolationSchema,
     EquityPointSchema,
+    OutcomeRecord,
+    OutcomeSummary,
+    OutcomesResponse,
     PositionStateResponse,
     PositionsListResponse,
     RecommendRequest,
@@ -1017,12 +1020,99 @@ async def scan_watchlist(
     )
 
 
+# ---------------------------------------------------------------------------
+# F-160..F-163 — Trade outcome tagging (Phase Q)
+# ---------------------------------------------------------------------------
+
+@router.get("/outcomes", response_model=OutcomesResponse)
+async def get_outcomes(
+    days: int = 90,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return tagged trade outcomes for the authenticated user.
+
+    Only BUY/SELL_SHORT runs that have been closed (outcome IS NOT NULL) are
+    included.  The summary computes win-rate, average R, and expectancy.
+    Covers the last `days` calendar days (default 90).
+    """
+    from datetime import datetime as dt, timedelta
+    from sqlalchemy import and_, select
+    from app.models.domain import DecisionRun
+
+    user_id = current_user["user_id"]
+    cutoff = date.today() - timedelta(days=days)
+    computed_at = dt.utcnow()
+
+    result = await db.execute(
+        select(DecisionRun)
+        .where(
+            and_(
+                DecisionRun.user_id == user_id,
+                DecisionRun.action.in_(["BUY", "SELL_SHORT"]),
+                DecisionRun.outcome.isnot(None),
+                DecisionRun.bar_date >= cutoff,
+            )
+        )
+        .order_by(DecisionRun.bar_date.desc())
+    )
+    runs = result.scalars().all()
+
+    records = [
+        OutcomeRecord(
+            run_id=r.id,
+            ticker=r.ticker,
+            bar_date=r.bar_date,
+            action=r.action,
+            entry_price=float(r.entry_price) if r.entry_price else None,
+            stop_price=float(r.stop_price) if r.stop_price else None,
+            exit_price=float(r.exit_price) if r.exit_price else None,
+            outcome=r.outcome,
+            r_multiple=float(r.r_multiple) if r.r_multiple else None,
+            exit_run_id=r.exit_run_id,
+            signal_kind=r.signal_kind,
+            regime=r.regime,
+            created_at=r.created_at,
+        )
+        for r in runs
+    ]
+
+    tagged = [rec for rec in records if rec.outcome is not None]
+    wins = sum(1 for r in tagged if r.outcome == "WIN")
+    losses = sum(1 for r in tagged if r.outcome == "LOSS")
+    breakevens = sum(1 for r in tagged if r.outcome == "BREAKEVEN")
+    total_tagged = len(tagged)
+    win_rate = wins / total_tagged if total_tagged else 0.0
+
+    r_values = [r.r_multiple for r in tagged if r.r_multiple is not None]
+    avg_r = round(sum(r_values) / len(r_values), 3) if r_values else None
+    expectancy = round(avg_r * win_rate - abs(avg_r) * (1 - win_rate), 3) if avg_r is not None else None
+
+    summary = OutcomeSummary(
+        total_tagged=total_tagged,
+        wins=wins,
+        losses=losses,
+        breakevens=breakevens,
+        win_rate=round(win_rate, 3),
+        avg_r=avg_r,
+        expectancy=expectancy,
+    )
+
+    return OutcomesResponse(
+        user_id=user_id,
+        days=days,
+        computed_at=computed_at,
+        summary=summary,
+        records=records,
+    )
+
+
 @router.get("/capabilities")
 async def get_capabilities():
     return {
         "service": "decision-helper-service",
-        "version": "1.2.0",
-        "phase": "P — open positions dashboard",
+        "version": "1.3.0",
+        "phase": "Q — trade outcome tagging",
         "features": [
             "user_risk_prefs",
             "position_state",
@@ -1045,6 +1135,7 @@ async def get_capabilities():
             "analytics",                # F-130..F-133
             "positions_list",           # F-150
             "position_stop_update",     # F-151
+            "outcome_tagging",          # F-160..F-163
         ],
     }
 

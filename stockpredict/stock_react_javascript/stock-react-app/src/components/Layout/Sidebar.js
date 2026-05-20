@@ -179,6 +179,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
         { key: 'scanner', label: 'Scanner', route: 'scanner' },
         { key: 'analytics', label: 'Analytics', route: 'analytics' },
         { key: 'positions-open', label: 'Open Positions', route: 'positions-open' },
+        { key: 'outcomes', label: 'Trade Outcomes', route: 'outcomes' },
       ]
     },
     {
