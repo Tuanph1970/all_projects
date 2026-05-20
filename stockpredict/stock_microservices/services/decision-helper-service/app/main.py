@@ -45,6 +45,21 @@ async def lifespan(app: FastAPI):
     logger.info("Starting %s v%s", settings.SERVICE_NAME, settings.SERVICE_VERSION)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # F-160..F-163 — outcome tagging columns (idempotent ALTER TABLE)
+        from sqlalchemy import text as _text
+        for _sql in [
+            "ALTER TABLE decision_runs ADD COLUMN outcome VARCHAR(12) NULL",
+            "ALTER TABLE decision_runs ADD COLUMN r_multiple DECIMAL(8,3) NULL",
+            "ALTER TABLE decision_runs ADD COLUMN exit_run_id BIGINT NULL",
+            "ALTER TABLE decision_runs ADD COLUMN exit_price DECIMAL(18,4) NULL",
+            # F-170..F-173 — Journal sync columns (idempotent)
+            "ALTER TABLE position_states ADD COLUMN journal_trade_id BIGINT NULL",
+            "ALTER TABLE user_risk_prefs ADD COLUMN journal_account_id BIGINT NULL",
+        ]:
+            try:
+                await conn.execute(_text(_sql))
+            except Exception:
+                pass  # column already exists
     logger.info("Database tables created/verified")
 
     # F-071 — daily recommendation scheduler (fires 15:30 ICT = 08:30 UTC)

@@ -43,10 +43,12 @@ class Settings(BaseSettings):
     STOCK_DATA_SERVICE_URL: str = "http://stock-data-service:8001"
     ANALYSIS_SERVICE_URL: str = "http://analysis-service:8004"
     AI_INSIGHTS_SERVICE_URL: str = "http://ai-insights-service:8005"
+    JOURNAL_SERVICE_URL: str = "http://journal-service:8008"
 
     MARKET_GATEWAY_TIMEOUT_MS: int = 800
     INDICATOR_GATEWAY_TIMEOUT_MS: int = 500
     PATTERN_GATEWAY_TIMEOUT_MS: int = 500
+    JOURNAL_SYNC_TIMEOUT_S: float = 3.0
 
     # Tracing
     TRACING_ENABLED: bool = True

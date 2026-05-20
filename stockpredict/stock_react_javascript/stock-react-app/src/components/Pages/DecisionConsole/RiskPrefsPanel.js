@@ -11,6 +11,7 @@ const RiskPrefsPanel = ({ onClose }) => {
     maxCorrelation: 0.7,
     lossStreakSizeCut: 0.5,
     lossStreakThreshold: 3,
+    journalAccountId: '',
   });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
@@ -24,17 +25,22 @@ const RiskPrefsPanel = ({ onClose }) => {
         maxCorrelation: d.max_correlation,
         lossStreakSizeCut: d.loss_streak_size_cut,
         lossStreakThreshold: d.loss_streak_threshold,
+        journalAccountId: d.journal_account_id ?? '',
       }))
       .catch(() => {});
   }, []);
 
   const set = (k) => (e) => setForm(p => ({ ...p, [k]: Number(e.target.value) }));
+  const setStr = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
 
   const save = async () => {
     setSaving(true);
     setMsg('');
     try {
-      await helperService.saveRiskPrefs(form);
+      await helperService.saveRiskPrefs({
+        ...form,
+        journalAccountId: form.journalAccountId ? Number(form.journalAccountId) : null,
+      });
       setMsg('Saved.');
       setTimeout(() => setMsg(''), 2000);
     } catch {
@@ -57,6 +63,16 @@ const RiskPrefsPanel = ({ onClose }) => {
         <Field label="Max Correlation" value={form.maxCorrelation} onChange={set('maxCorrelation')} step={0.05} min={0} max={1} />
         <Field label="Streak Cut Factor" value={form.lossStreakSizeCut} onChange={set('lossStreakSizeCut')} step={0.1} min={0} max={1} />
         <Field label="Streak Threshold" value={form.lossStreakThreshold} onChange={set('lossStreakThreshold')} step={1} min={1} max={10} />
+      </div>
+      <div style={{ marginTop: 10 }}>
+        <label style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          Journal Account ID (optional — auto-sync trades)
+        </label>
+        <input
+          type="number" value={form.journalAccountId} onChange={setStr('journalAccountId')}
+          placeholder="Leave blank to disable"
+          style={{ display: 'block', width: '100%', marginTop: 4, background: '#111827', border: '1px solid #374151', borderRadius: 5, padding: '5px 8px', color: '#f9fafb', fontSize: 13, outline: 'none' }}
+        />
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
         <button onClick={save} disabled={saving} style={styles.saveBtn}>

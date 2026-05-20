@@ -12,7 +12,7 @@ import time
 from datetime import date
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user, get_current_user_optional, get_current_user_from_token, get_db
@@ -29,6 +29,7 @@ from app.models.schemas import (
     DisciplineSummaryResponse,
     DisciplineViolationSchema,
     EquityPointSchema,
+    JournalSyncStatus,
     OutcomeRecord,
     OutcomeSummary,
     OutcomesResponse,
@@ -203,13 +204,15 @@ async def signal_analysis(
 @router.post("/recommend", response_model=RecommendationResponse)
 async def recommend(
     req: RecommendRequest,
+    request: Request,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Run the full decision pipeline for (ticker, bar_date).
 
     Returns a single recommendation (action + stop + target + size) with an
-    auditable reason chain stored in decision_runs.
+    auditable reason chain stored in decision_runs.  If the user has linked a
+    journal account (F-170), the trade is auto-synced as a background task.
     """
     user_id: int = current_user["user_id"]
     ticker = req.ticker.upper()
@@ -223,6 +226,78 @@ async def recommend(
         db=db,
         client=client,
     )
+
+    # F-170..F-173 — Journal sync (fire-and-forget; never blocks the response)
+    jwt_token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    if jwt_token:
+        import asyncio
+        from app.models.domain import UserRiskPrefs, PositionState
+        from app.services.journal_sync import (
+            open_journal_trade, close_journal_trade,
+        )
+        from sqlalchemy import select as _select
+
+        prefs_row = (await db.execute(
+            _select(UserRiskPrefs).where(UserRiskPrefs.user_id == user_id)
+        )).scalar_one_or_none()
+        journal_account_id = prefs_row.journal_account_id if prefs_row else None
+
+        if journal_account_id:
+            pos_row = (await db.execute(
+                _select(PositionState).where(
+                    PositionState.user_id == user_id,
+                    PositionState.ticker == ticker,
+                )
+            )).scalar_one_or_none()
+
+            if result.action in ("BUY", "SELL_SHORT") and result.entry_price and result.stop_price:
+                direction = "LONG" if result.action == "BUY" else "SHORT"
+
+                async def _open():
+                    tid = await open_journal_trade(
+                        account_id=journal_account_id,
+                        jwt_token=jwt_token,
+                        ticker=ticker,
+                        direction=direction,
+                        entry_date=req.bar_date,
+                        entry_price=result.entry_price,
+                        initial_stop=result.stop_price,
+                        position_size=result.position_size or 1,
+                        signal_kind=result.signal_kind,
+                    )
+                    if tid and pos_row:
+                        from app.api.dependencies import async_session_factory
+                        async with async_session_factory() as sess:
+                            from sqlalchemy import update as _update
+                            await sess.execute(
+                                _update(PositionState)
+                                .where(PositionState.user_id == user_id, PositionState.ticker == ticker)
+                                .values(journal_trade_id=tid)
+                            )
+                            await sess.commit()
+
+                asyncio.create_task(_open())
+                result.journal_sync = JournalSyncStatus(synced=False, action="open")
+
+            elif result.action in ("SELL", "COVER", "REVERSE"):
+                journal_trade_id = pos_row.journal_trade_id if pos_row else None
+                if journal_trade_id and result.entry_price:
+                    exit_price = result.entry_price  # entry_price holds exit close for exits
+
+                    async def _close():
+                        await close_journal_trade(
+                            account_id=journal_account_id,
+                            journal_trade_id=journal_trade_id,
+                            jwt_token=jwt_token,
+                            exit_price=exit_price,
+                            exit_date=req.bar_date,
+                        )
+
+                    asyncio.create_task(_close())
+                    result.journal_sync = JournalSyncStatus(
+                        synced=False, journal_trade_id=journal_trade_id, action="close"
+                    )
+
     return result
 
 
@@ -1111,8 +1186,8 @@ async def get_outcomes(
 async def get_capabilities():
     return {
         "service": "decision-helper-service",
-        "version": "1.3.0",
-        "phase": "Q — trade outcome tagging",
+        "version": "1.4.0",
+        "phase": "R — journal sync",
         "features": [
             "user_risk_prefs",
             "position_state",
@@ -1136,6 +1211,7 @@ async def get_capabilities():
             "positions_list",           # F-150
             "position_stop_update",     # F-151
             "outcome_tagging",          # F-160..F-163
+            "journal_sync",             # F-170..F-173
         ],
     }
 
@@ -1168,6 +1244,7 @@ async def get_risk_prefs(
         max_correlation=float(prefs.max_correlation),
         loss_streak_size_cut=float(prefs.loss_streak_size_cut),
         loss_streak_threshold=prefs.loss_streak_threshold,
+        journal_account_id=prefs.journal_account_id,
         updated_at=prefs.updated_at,
     )
 
@@ -1198,6 +1275,8 @@ async def upsert_risk_prefs(
     prefs.max_correlation = data.max_correlation
     prefs.loss_streak_size_cut = data.loss_streak_size_cut
     prefs.loss_streak_threshold = data.loss_streak_threshold
+    if data.journal_account_id is not None:
+        prefs.journal_account_id = data.journal_account_id
 
     await db.commit()
     await db.refresh(prefs)
@@ -1210,6 +1289,7 @@ async def upsert_risk_prefs(
         max_correlation=float(prefs.max_correlation),
         loss_streak_size_cut=float(prefs.loss_streak_size_cut),
         loss_streak_threshold=prefs.loss_streak_threshold,
+        journal_account_id=prefs.journal_account_id,
         updated_at=prefs.updated_at,
     )
 

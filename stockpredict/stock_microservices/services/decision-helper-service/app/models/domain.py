@@ -25,6 +25,7 @@ class UserRiskPrefs(Base):
     max_correlation = Column(DECIMAL(4, 3), nullable=False, default=0.7)
     loss_streak_size_cut = Column(DECIMAL(4, 3), nullable=False, default=0.5)
     loss_streak_threshold = Column(Integer, nullable=False, default=3)
+    journal_account_id = Column(BigInteger, nullable=True)  # F-170: linked journal account
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -49,6 +50,7 @@ class PositionState(Base):
     current_target = Column(DECIMAL(18, 4), nullable=True)
     entry_signal_kind = Column(String(64), nullable=True)
     last_decision_run_id = Column(BigInteger, nullable=True)
+    journal_trade_id = Column(BigInteger, nullable=True)  # F-170: journal-service trade id
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -133,3 +135,8 @@ class DecisionRun(Base):
     confidence = Column(DECIMAL(4, 3), nullable=True)
     latency_ms = Column(Integer, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    # F-160..F-163 — outcome tagging (Phase Q)
+    outcome = Column(String(12), nullable=True)           # WIN | LOSS | BREAKEVEN
+    r_multiple = Column(DECIMAL(8, 3), nullable=True)     # signed R on entry runs
+    exit_run_id = Column(BigInteger, nullable=True)       # closing run id (on entry run)
+    exit_price = Column(DECIMAL(18, 4), nullable=True)    # actual exit price (on entry run)

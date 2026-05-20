@@ -122,6 +122,7 @@ class RecommendationResponse(BaseModel):
 
     latency_ms: Optional[int] = None
     generated_at: datetime = Field(default_factory=datetime.utcnow)
+    journal_sync: Optional["JournalSyncStatus"] = None  # F-170: populated after sync
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +142,7 @@ class UserRiskPrefsRequest(BaseModel):
     max_correlation: float = Field(default=0.7, ge=0.0, le=1.0)
     loss_streak_size_cut: float = Field(default=0.5, ge=0.0, le=1.0)
     loss_streak_threshold: int = Field(default=3, ge=1, le=10)
+    journal_account_id: Optional[int] = None   # F-170: link a journal account
 
 
 class UserRiskPrefsResponse(BaseModel):
@@ -151,7 +153,19 @@ class UserRiskPrefsResponse(BaseModel):
     max_correlation: float
     loss_streak_size_cut: float
     loss_streak_threshold: int
+    journal_account_id: Optional[int] = None   # F-170
     updated_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# F-170..F-173 — Journal sync status (embedded in RecommendationResponse)
+# ---------------------------------------------------------------------------
+
+class JournalSyncStatus(BaseModel):
+    synced: bool
+    journal_trade_id: Optional[int] = None
+    action: str           # "open" | "close" | "none"
+    error: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

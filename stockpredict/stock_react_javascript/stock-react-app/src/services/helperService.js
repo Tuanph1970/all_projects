@@ -37,7 +37,8 @@ class HelperService {
 
   // Save / update user risk preferences
   async saveRiskPrefs({ accountEquity, riskPerTradePct, maxConcurrentPositions,
-                        maxCorrelation, lossStreakSizeCut, lossStreakThreshold }) {
+                        maxCorrelation, lossStreakSizeCut, lossStreakThreshold,
+                        journalAccountId }) {
     return await httpClient.put(API_ENDPOINTS.HELPER_RISK_PREFS, {
       account_equity: accountEquity,
       risk_per_trade_pct: riskPerTradePct,
@@ -45,6 +46,7 @@ class HelperService {
       max_correlation: maxCorrelation,
       loss_streak_size_cut: lossStreakSizeCut,
       loss_streak_threshold: lossStreakThreshold,
+      journal_account_id: journalAccountId || null,
     });
   }
 
