@@ -45,12 +45,13 @@ jobs:
         # below). CI fails if coverage drops below the floor. Bumping
         # the floor upward when coverage rises is intentional — it
         # locks in gains and prevents quiet regression. Never lower
-        # these. Last measured 2026-05-20 (after #73 decision-helper climb):
+        # these. Last measured 2026-05-20 (after #74 orchestrator climb):
         #   auth=87.0%  stock-data=83.5%  portfolio=83.6%
         #   prediction=89.0%  analysis=91.1%  ai-insights=91.9%
         #   chatbot=96.3%  journal=80.1%   knowledge-qa=91.1%
-        #   decision-helper=87.0% (unit-only)
-        # 10 of 10 past 80% — decision-helper-service joins the sweep.
+        #   decision-helper=91.0% (unit-only)
+        # 10 of 10 past 80% — decision-helper joined the sweep in #73
+        # and its orchestrator core climbed 44%->96% in #74.
         include:
           - service: auth-service
             cov_min: 83
@@ -71,7 +72,7 @@ jobs:
           - service: knowledge-qa-service
             cov_min: 87
           - service: decision-helper-service
-            cov_min: 82
+            cov_min: 86
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

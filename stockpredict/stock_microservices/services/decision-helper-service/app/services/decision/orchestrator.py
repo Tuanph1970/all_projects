@@ -166,7 +166,7 @@ async def run_recommendation(
         "message": (
             f"Best confirmed: {best_signal.kind if best_signal else 'none'} "
             f"direction={signal_direction or 'n/a'} "
-            f"confidence={best_confirmed.final_confidence:.3f if best_confirmed else 0:.3f}"
+            f"confidence={(best_confirmed.final_confidence if best_confirmed else 0.0):.3f}"
         ),
         "evidence": {},
     })
@@ -201,7 +201,7 @@ async def run_recommendation(
             "stage": "failed_signal",
             "message": (
                 f"No failed signal above threshold "
-                f"(highest severity={top_failed.severity:.2f if top_failed else 0:.2f})"
+                f"(highest severity={(top_failed.severity if top_failed else 0.0):.2f})"
             ),
             "evidence": {},
         })
@@ -256,6 +256,7 @@ async def run_recommendation(
     stop_price: Optional[float] = None
     target_price: Optional[float] = None
     position_size: Optional[int] = None
+    exit_price_actual: Optional[float] = None
 
     if transition.action in ("BUY", "SELL_SHORT") and best_signal:
         entry_price = current_bar.close
