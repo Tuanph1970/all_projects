@@ -1,4 +1,4 @@
-// F-181..F-183 — RiskDashboard: portfolio-level risk overview
+// F-181..F-183, F-200..F-203 — RiskDashboard: portfolio-level risk overview + correlation matrix
 import React, { useState, useEffect, useCallback } from 'react';
 import helperService from '../../../services/helperService';
 
@@ -153,8 +153,91 @@ const PositionTable = ({ positions }) => {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
+// ── Correlation matrix panel (F-200..F-203) ──────────────────────────────────
+
+const corrColor = (r) => {
+  if (r == null) return '#f3f4f6';
+  const abs = Math.abs(r);
+  if (abs >= 0.8) return r > 0 ? '#fca5a5' : '#a5b4fc';
+  if (abs >= 0.6) return r > 0 ? '#fcd34d' : '#c4b5fd';
+  if (abs >= 0.4) return r > 0 ? '#fef9c3' : '#e0e7ff';
+  return '#f9fafb';
+};
+
+const CorrelationMatrix = ({ tickers, pairs, maxCorrelation, anyBreach }) => {
+  if (!tickers || tickers.length < 2) return null;
+
+  const lookup = {};
+  pairs.forEach(p => {
+    lookup[`${p.ticker_a}|${p.ticker_b}`] = p;
+    lookup[`${p.ticker_b}|${p.ticker_a}`] = p;
+  });
+
+  return (
+    <div style={{ background: '#fff', border: `1px solid ${anyBreach ? '#fca5a5' : '#e5e7eb'}`, borderRadius: 10, padding: '16px 20px', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>
+          Position correlation matrix
+          {anyBreach && (
+            <span style={{ marginLeft: 10, fontSize: 11, background: '#fee2e2', color: '#991b1b', padding: '2px 7px', borderRadius: 4, fontWeight: 700 }}>
+              ⚠ Limit breach
+            </span>
+          )}
+        </div>
+        <span style={{ fontSize: 11, color: '#9ca3af' }}>limit: {(maxCorrelation * 100).toFixed(0)}%</span>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr>
+              <th style={{ padding: '4px 10px', textAlign: 'left', color: '#6b7280' }}></th>
+              {tickers.map(t => (
+                <th key={t} style={{ padding: '4px 10px', fontWeight: 700, color: '#374151', textAlign: 'center' }}>{t}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {tickers.map(rowT => (
+              <tr key={rowT}>
+                <td style={{ padding: '4px 10px', fontWeight: 700, color: '#374151', whiteSpace: 'nowrap' }}>{rowT}</td>
+                {tickers.map(colT => {
+                  if (rowT === colT) {
+                    return (
+                      <td key={colT} style={{ padding: '4px 10px', textAlign: 'center', background: '#f3f4f6', color: '#6b7280', borderRadius: 4 }}>1.00</td>
+                    );
+                  }
+                  const pair = lookup[`${rowT}|${colT}`];
+                  const r = pair?.correlation;
+                  const breach = pair?.breaches_limit;
+                  return (
+                    <td key={colT} style={{
+                      padding: '4px 10px', textAlign: 'center',
+                      background: corrColor(r),
+                      borderRadius: 4,
+                      fontWeight: breach ? 700 : 400,
+                      color: breach ? '#991b1b' : '#374151',
+                      outline: breach ? '1px solid #ef4444' : 'none',
+                    }}>
+                      {r != null ? r.toFixed(2) : '—'}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ marginTop: 8, fontSize: 11, color: '#9ca3af' }}>
+        Color scale: red = high positive · purple = high negative · cells outlined in red breach the limit
+      </div>
+    </div>
+  );
+};
+
+
 const RiskDashboard = () => {
   const [data, setData] = useState(null);
+  const [corrData, setCorrData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -162,8 +245,12 @@ const RiskDashboard = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await helperService.getRiskOverview();
-      setData(res.data || res);
+      const [riskRes, corrRes] = await Promise.allSettled([
+        helperService.getRiskOverview(),
+        helperService.getCorrelation(),
+      ]);
+      if (riskRes.status === 'fulfilled') setData(riskRes.value.data || riskRes.value);
+      if (corrRes.status === 'fulfilled') setCorrData(corrRes.value.data || corrRes.value);
     } catch (err) {
       setError(err?.response?.data?.detail || err.message || 'Failed to load risk overview');
     } finally {
@@ -272,6 +359,16 @@ const RiskDashboard = () => {
             <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>
               No open positions. Risk metrics will appear here once trades are active.
             </div>
+          )}
+
+          {/* Correlation matrix (F-200) */}
+          {corrData && corrData.tickers && corrData.tickers.length >= 2 && (
+            <CorrelationMatrix
+              tickers={corrData.tickers}
+              pairs={corrData.pairs || []}
+              maxCorrelation={corrData.max_correlation ?? 0.7}
+              anyBreach={corrData.any_breach}
+            />
           )}
 
           {/* Detail table */}

@@ -549,3 +549,24 @@ class OutcomesResponse(BaseModel):
     computed_at: datetime
     summary: OutcomeSummary
     records: List[OutcomeRecord]
+
+
+# ---------------------------------------------------------------------------
+# F-200..F-203 — Correlation engine (Phase U)
+# ---------------------------------------------------------------------------
+
+class CorrelationPairItem(BaseModel):
+    ticker_a: str
+    ticker_b: str
+    correlation: Optional[float] = None   # None = insufficient data
+    breaches_limit: bool = False           # True if corr > max_correlation
+
+
+class CorrelationMatrixResponse(BaseModel):
+    user_id: int
+    computed_at: datetime
+    tickers: List[str]                     # all open-position tickers
+    pairs: List[CorrelationPairItem]       # upper-triangle pairs only
+    max_correlation: float                 # from UserRiskPrefs
+    any_breach: bool                       # True if any pair exceeds limit
+    lookback_days: int = 60               # effective trading-day window

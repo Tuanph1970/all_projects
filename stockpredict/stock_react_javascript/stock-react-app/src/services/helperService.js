@@ -128,6 +128,11 @@ class HelperService {
     return await httpClient.post(API_ENDPOINTS.HELPER_OUTCOME_REVIEW(runId));
   }
 
+  // F-200 — Portfolio correlation matrix (open positions)
+  async getCorrelation() {
+    return await httpClient.get(API_ENDPOINTS.HELPER_CORRELATION);
+  }
+
   // F-120 — Run decision engine across all watchlist tickers
   async scan(barDate) {
     return await httpClient.post(API_ENDPOINTS.HELPER_SCAN, {

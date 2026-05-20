@@ -368,6 +368,8 @@ export const API_ENDPOINTS = {
   HELPER_RISK_OVERVIEW: `${API_BASE_URLS.HELPER_API}/risk-overview`,
   // F-190..F-193 — AI trade review
   HELPER_OUTCOME_REVIEW: (runId) => `${API_BASE_URLS.HELPER_API}/outcomes/${runId}/review`,
+  // F-200..F-203 — Correlation engine
+  HELPER_CORRELATION: `${API_BASE_URLS.HELPER_API}/correlation`,
 };
 
 // HTTP Status Codes

@@ -25,6 +25,8 @@ from app.models.schemas import (
     BacktestResultSchema,
     BacktestStatsSchema,
     ConfidenceBucketItem,
+    CorrelationMatrixResponse,
+    CorrelationPairItem,
     DailyActionablePoint,
     DisciplineSummaryResponse,
     DisciplineViolationSchema,
@@ -230,8 +232,48 @@ async def recommend(
         client=client,
     )
 
-    # F-170..F-173 — Journal sync (fire-and-forget; never blocks the response)
+    # F-200..F-203 — Correlation block: downgrade BUY/SELL_SHORT to WAIT when
+    # adding this ticker would push any pair above max_correlation.
     jwt_token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    if result.action in ("BUY", "SELL_SHORT") and jwt_token:
+        from sqlalchemy import select as _sel_corr
+        from app.models.domain import PositionState as _PS, UserRiskPrefs as _URP
+        from app.services.correlation import compute_correlation_matrix, would_breach_max_correlation
+
+        _prefs_corr = (await db.execute(
+            _sel_corr(_URP).where(_URP.user_id == user_id)
+        )).scalar_one_or_none()
+        _max_corr = float(_prefs_corr.max_correlation) if _prefs_corr else 0.7
+
+        _open_pos = (await db.execute(
+            _sel_corr(_PS).where(_PS.user_id == user_id, _PS.state.in_(["LONG", "SHORT"]))
+        )).scalars().all()
+        _open_tickers = [p.ticker for p in _open_pos if p.ticker != ticker]
+
+        if _open_tickers:
+            _all_tickers = _open_tickers + [ticker]
+            try:
+                _matrix = await compute_correlation_matrix(_all_tickers, jwt_token)
+                _breach = would_breach_max_correlation(_matrix, ticker, _max_corr)
+                if _breach:
+                    _other, _corr = _breach
+                    result.action = "WAIT"
+                    result.discipline_violations = list(result.discipline_violations) + [
+                        DisciplineViolationSchema(
+                            rule_id="RULE_CORR_001",
+                            severity="BLOCK",
+                            message=(
+                                f"Correlation block: {ticker} vs {_other} = "
+                                f"{_corr:.2f} (limit {_max_corr:.2f})"
+                            ),
+                            evidence={"correlated_ticker": _other, "correlation": _corr,
+                                      "max_correlation": _max_corr},
+                        )
+                    ]
+            except Exception as _ce:
+                logger.debug("correlation check failed (non-blocking): %s", _ce)
+
+    # F-170..F-173 — Journal sync (fire-and-forget; never blocks the response)
     if jwt_token:
         import asyncio
         from app.models.domain import UserRiskPrefs, PositionState
@@ -1388,12 +1430,79 @@ async def get_risk_overview(
     )
 
 
+# ---------------------------------------------------------------------------
+# F-200..F-203 — Correlation engine (Phase U)
+# ---------------------------------------------------------------------------
+
+@router.get("/correlation", response_model=CorrelationMatrixResponse)
+async def get_correlation_matrix(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Compute rolling 60-day return correlation between all open positions.
+
+    Uses 90 calendar days of price history from stock-data-service to yield
+    ~60 trading-day observations per pair.  Pairs with fewer than 20 valid
+    shared observations are returned with correlation=None.  Diagonal is 1.0
+    and is excluded from the `pairs` list.  `any_breach` is True if any pair
+    exceeds the user's `max_correlation` preference.
+    """
+    from datetime import datetime as dt
+    from sqlalchemy import select
+    from app.models.domain import PositionState, UserRiskPrefs
+    from app.services.correlation import compute_correlation_matrix
+
+    user_id = current_user["user_id"]
+    jwt_token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+
+    prefs = (await db.execute(
+        select(UserRiskPrefs).where(UserRiskPrefs.user_id == user_id)
+    )).scalar_one_or_none()
+    max_correlation = float(prefs.max_correlation) if prefs else 0.7
+
+    rows = (await db.execute(
+        select(PositionState).where(
+            PositionState.user_id == user_id,
+            PositionState.state.in_(["LONG", "SHORT"]),
+        )
+    )).scalars().all()
+
+    tickers = sorted({p.ticker for p in rows})
+    pairs: list[CorrelationPairItem] = []
+    any_breach = False
+
+    if len(tickers) >= 2:
+        matrix = await compute_correlation_matrix(tickers, jwt_token)
+        for i, ta in enumerate(tickers):
+            for tb in tickers[i + 1:]:
+                corr = matrix.get(ta, {}).get(tb)
+                breach = corr is not None and corr > max_correlation
+                if breach:
+                    any_breach = True
+                pairs.append(CorrelationPairItem(
+                    ticker_a=ta,
+                    ticker_b=tb,
+                    correlation=corr,
+                    breaches_limit=breach,
+                ))
+
+    return CorrelationMatrixResponse(
+        user_id=user_id,
+        computed_at=dt.utcnow(),
+        tickers=tickers,
+        pairs=pairs,
+        max_correlation=max_correlation,
+        any_breach=any_breach,
+    )
+
+
 @router.get("/capabilities")
 async def get_capabilities():
     return {
         "service": "decision-helper-service",
-        "version": "1.6.0",
-        "phase": "T — AI trade review",
+        "version": "1.7.0",
+        "phase": "U — Correlation engine",
         "features": [
             "user_risk_prefs",
             "position_state",
@@ -1420,6 +1529,7 @@ async def get_capabilities():
             "journal_sync",             # F-170..F-173
             "risk_overview",            # F-180..F-183
             "ai_trade_review",          # F-190..F-193
+            "correlation_engine",       # F-200..F-203
         ],
     }
 
