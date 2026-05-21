@@ -1,6 +1,7 @@
 import React from "react";
 import { useState, useEffect } from "react";
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
+import { useTranslation, Trans } from "react-i18next";
 import { StockGeneral } from "./stocks/StockGeneral";
 import { StockPerformance } from "./stocks/StockPerformance";
 import { StockAnalysis } from "./stocks/StockAnalysis";
@@ -14,7 +15,7 @@ import { API_ENDPOINTS } from "../../constants/api";
 
 
 export const Stocks = () => {
-  
+    const { t } = useTranslation();
     const [data, setTableRowsData] = useState([])
     const [isLoading, setIsLoading] = useState([]);
   
@@ -35,21 +36,21 @@ export const Stocks = () => {
       })();
     }, []); 
     if (isLoading) {
-      return <p>Đang tải dữ liệu...</p>;
+      return <p>{t('stocks.loading_companies')}</p>;
     }
     else {
 
-  
-  
-  return (    
+
+
+  return (
     <div className="services">
           <Tabs>
             <TabList>
-              <Tab >Tổng quan</Tab>
-              <Tab >Hiệu suất</Tab>
-              <Tab >Nhà phân tích</Tab>
-              <Tab>Cổ tức</Tab>
-              <Tab>Tài chính</Tab>
+              <Tab>{t('stocks.tabs.general')}</Tab>
+              <Tab>{t('stocks.tabs.performance')}</Tab>
+              <Tab>{t('stocks.tabs.analyst')}</Tab>
+              <Tab>{t('stocks.tabs.dividend')}</Tab>
+              <Tab>{t('stocks.tabs.financial')}</Tab>
             </TabList>
             <TabPanel>
                 <StockGeneral data={data} />
@@ -73,6 +74,7 @@ export const Stocks = () => {
 }
 
 export const StockScreener = () => {
+  const { t } = useTranslation();
   const [screenedStocks, setScreenedStocks] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -253,12 +255,12 @@ export const StockScreener = () => {
   };
 
   if (isLoading) {
-    return <div className="loading">Đang tải cổ phiếu được lọc...</div>;
+    return <div className="loading">{t('stocks.loading_screened')}</div>;
   }
 
   return (
     <div className="stock-screener">
-      <h2>Lọc cổ phiếu</h2>
+      <h2>{t('stocks.screener.title')}</h2>
 
       {/* Error Display */}
       {error && (
@@ -278,12 +280,12 @@ export const StockScreener = () => {
       <div className="screening-form screener-form-professional">
         <div className="criteria-row criteria-single-row">
           <div className="criteria-item">
-            <label>Sàn giao dịch</label>
+            <label>{t('stocks.screener.exchange')}</label>
             <select
               value={criteria.exchange}
               onChange={(e) => handleCriteriaChange('exchange', e.target.value)}
             >
-              <option value="ALL">Tất cả</option>
+              <option value="ALL">{t('stocks.screener.exchange_all')}</option>
               <option value="HOSE">HOSE</option>
               <option value="HNX">HNX</option>
               <option value="UPCOM">UPCOM</option>
@@ -291,7 +293,7 @@ export const StockScreener = () => {
           </div>
 
           <div className="criteria-item">
-            <label>Giá tối thiểu</label>
+            <label>{t('stocks.screener.min_price')}</label>
             <input
               type="number"
               value={criteria.min_price}
@@ -301,7 +303,7 @@ export const StockScreener = () => {
           </div>
 
           <div className="criteria-item">
-            <label>Giá tối đa</label>
+            <label>{t('stocks.screener.max_price')}</label>
             <input
               type="number"
               value={criteria.max_price}
@@ -311,7 +313,7 @@ export const StockScreener = () => {
           </div>
 
           <div className="criteria-item">
-            <label>KL tối thiểu</label>
+            <label>{t('stocks.screener.min_volume')}</label>
             <input
               type="number"
               value={criteria.min_volume}
@@ -321,7 +323,7 @@ export const StockScreener = () => {
           </div>
 
           <div className="criteria-item">
-            <label>Giới hạn</label>
+            <label>{t('stocks.screener.limit')}</label>
             <input
               type="number"
               value={criteria.limit}
@@ -332,7 +334,7 @@ export const StockScreener = () => {
 
           <div className="criteria-item criteria-button-item">
             <button onClick={handleScreenStocks} className="screen-button">
-              🔍 Lọc
+              🔍 {t('stocks.screener.submit')}
             </button>
           </div>
         </div>
@@ -342,18 +344,18 @@ export const StockScreener = () => {
       {screenedStocks.length > 0 ? (
         <div className="screened-results">
           <div className="results-header">
-            <h3>📊 Kết quả lọc</h3>
-            <span className="results-count">{screenedStocks.length} cổ phiếu được tìm thấy</span>
+            <h3>📊 {t('stocks.screener.results_title')}</h3>
+            <span className="results-count">{t('stocks.screener.results_count', { count: screenedStocks.length })}</span>
           </div>
           <table className="stocks-table screener-table">
             <thead>
               <tr>
-                <th className="th-symbol">Mã CP</th>
-                <th className="th-name">Tên</th>
-                <th className="th-exchange">Sàn</th>
-                <th className="th-price">Giá</th>
-                <th className="th-volume">Khối lượng</th>
-                <th className="th-change">Thay đổi %</th>
+                <th className="th-symbol">{t('stocks.screener.col_symbol')}</th>
+                <th className="th-name">{t('stocks.screener.col_name')}</th>
+                <th className="th-exchange">{t('stocks.screener.col_exchange')}</th>
+                <th className="th-price">{t('stocks.screener.col_price')}</th>
+                <th className="th-volume">{t('stocks.screener.col_volume')}</th>
+                <th className="th-change">{t('stocks.screener.col_change_pct')}</th>
               </tr>
             </thead>
             <tbody>
@@ -380,7 +382,7 @@ export const StockScreener = () => {
         </div>
       ) : (
         <div className="no-results">
-          <p>Không tìm thấy cổ phiếu phù hợp với tiêu chí.</p>
+          <p>{t('stocks.screener.no_results')}</p>
         </div>
       )}
     </div>
@@ -388,6 +390,7 @@ export const StockScreener = () => {
 };
 
 export const StocksByIndustry = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [industries, setIndustries] = useState([]);
   const [selectedIndustry, setSelectedIndustry] = useState('');
@@ -484,23 +487,23 @@ export const StocksByIndustry = () => {
   };
 
   if (isLoading) {
-    return <div className="loading">Đang tải cổ phiếu theo ngành...</div>;
+    return <div className="loading">{t('stocks.loading_industry')}</div>;
   }
 
   return (
     <div className="stocks-by-industry stocks-by-industry-professional">
-      <h2>🏭 Cổ phiếu theo ngành</h2>
+      <h2>🏭 {t('stocks.industry.title')}</h2>
 
       {/* Industry Selection */}
       <div className="industry-selection industry-selection-professional">
         <div className="industry-selector-wrapper">
-          <label>Chọn ngành</label>
+          <label>{t('stocks.industry.select_label')}</label>
           <select
             value={selectedIndustry}
             onChange={(e) => handleIndustryChange(e.target.value)}
             className="industry-select"
           >
-            <option value="">Chọn một ngành...</option>
+            <option value="">{t('stocks.industry.select_placeholder')}</option>
             {industries.map((industry, index) => (
               <option key={index} value={industry.code || industry.icb_code || index}>
                 {industry.name_en || industry.en_icb_name || industry.name || industry.icb_name || `Industry ${index + 1}`}
@@ -511,7 +514,7 @@ export const StocksByIndustry = () => {
         {selectedIndustry && (
           <div className="industry-stats">
             <span className="stat-badge stat-badge-primary">
-              📊 {stocksByIndustry.length} cổ phiếu
+              📊 {t('stocks.industry.stock_count', { count: stocksByIndustry.length })}
             </span>
           </div>
         )}
@@ -521,18 +524,18 @@ export const StocksByIndustry = () => {
       {selectedIndustry && stocksByIndustry.length > 0 ? (
         <div className="stocks-list">
           <div className="results-header">
-            <h3>📋 Cổ phiếu ngành</h3>
-            <span className="results-count">{stocksByIndustry.length} công ty</span>
+            <h3>📋 {t('stocks.industry.results_title')}</h3>
+            <span className="results-count">{t('stocks.industry.company_count', { count: stocksByIndustry.length })}</span>
           </div>
           <table className="stocks-table industry-table">
             <thead>
               <tr>
-                <th className="th-industry-symbol">Mã CP</th>
-                <th className="th-industry-name">Tên công ty</th>
-                <th className="th-industry-l2">Cấp 2</th>
-                <th className="th-industry-l3">Cấp 3</th>
-                <th className="th-industry-l4">Cấp 4</th>
-                <th className="th-industry-type">Loại</th>
+                <th className="th-industry-symbol">{t('stocks.industry.col_symbol')}</th>
+                <th className="th-industry-name">{t('stocks.industry.col_company')}</th>
+                <th className="th-industry-l2">{t('stocks.industry.col_level_2')}</th>
+                <th className="th-industry-l3">{t('stocks.industry.col_level_3')}</th>
+                <th className="th-industry-l4">{t('stocks.industry.col_level_4')}</th>
+                <th className="th-industry-type">{t('stocks.industry.col_type')}</th>
               </tr>
             </thead>
             <tbody>
@@ -574,11 +577,11 @@ export const StocksByIndustry = () => {
                 disabled={currentPage === 1}
                 className="page-button"
               >
-                ← Trước
+                {t('stocks.list.prev_page')}
               </button>
 
               <span className="page-info">
-                Trang <strong>{currentPage}</strong> / <strong>{totalPages}</strong>
+                {t('stocks.list.page_indicator', { current: currentPage, total: totalPages })}
               </span>
 
               <button
@@ -586,7 +589,7 @@ export const StocksByIndustry = () => {
                 disabled={currentPage === totalPages}
                 className="page-button"
               >
-                Tiếp →
+                {t('stocks.list.next_page')}
               </button>
             </div>
           )}
@@ -594,12 +597,12 @@ export const StocksByIndustry = () => {
       ) : selectedIndustry ? (
         <div className="no-results no-results-styled">
           <span className="no-results-icon">🔍</span>
-          <p>Không tìm thấy cổ phiếu trong ngành được chọn.</p>
+          <p>{t('stocks.industry.no_results')}</p>
         </div>
       ) : (
         <div className="select-industry select-industry-styled">
           <span className="select-icon">🏢</span>
-          <p>Vui lòng chọn một ngành để xem cổ phiếu.</p>
+          <p>{t('stocks.industry.pick_industry')}</p>
         </div>
       )}
     </div>
@@ -607,6 +610,7 @@ export const StocksByIndustry = () => {
 };
 
 export const StockList = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [stocks, setStocks] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -730,23 +734,23 @@ export const StockList = () => {
   };
 
   if (isLoading) {
-    return <div className="loading">Đang tải danh sách cổ phiếu...</div>;
+    return <div className="loading">{t('stocks.loading_list')}</div>;
   }
 
   return (
     <div className="stock-list stock-list-professional">
-      <h2>📋 Danh sách cổ phiếu</h2>
+      <h2>📋 {t('stocks.list.title')}</h2>
 
       {/* Filters and Search */}
       <div className="filters-section filters-section-professional">
         <div className="filter-row filter-row-single">
           <div className="filter-item">
-            <label>Sàn giao dịch</label>
+            <label>{t('stocks.list.exchange')}</label>
             <select
               value={filters.exchange}
               onChange={(e) => handleFilterChange('exchange', e.target.value)}
             >
-              <option value="">Tất cả</option>
+              <option value="">{t('stocks.list.exchange_all')}</option>
               <option value="HOSE">HOSE</option>
               <option value="HNX">HNX</option>
               <option value="UPCOM">UPCOM</option>
@@ -754,19 +758,19 @@ export const StockList = () => {
           </div>
 
           <div className="filter-item filter-item-search">
-            <label>Tìm kiếm</label>
+            <label>{t('stocks.list.search')}</label>
             <input
               type="text"
               value={filters.search}
               onChange={(e) => handleFilterChange('search', e.target.value)}
-              placeholder="🔍 Tìm theo mã hoặc tên..."
+              placeholder={`🔍 ${t('stocks.list.search_placeholder')}`}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
             />
           </div>
 
           <div className="filter-item filter-button-item">
             <button onClick={handleSearch} className="search-button">
-              🔍 Tìm kiếm
+              🔍 {t('stocks.list.search_button')}
             </button>
           </div>
         </div>
@@ -776,10 +780,16 @@ export const StockList = () => {
       <div className="results-summary results-summary-professional">
         <div className="summary-left">
           <span className="summary-icon">📊</span>
-          <span className="summary-text">Tìm thấy <strong>{totalStocks}</strong> cổ phiếu</span>
+          <span className="summary-text">
+            <Trans
+              i18nKey="stocks.list.found_count"
+              values={{ count: totalStocks }}
+              components={{ strong: <strong /> }}
+            />
+          </span>
         </div>
         <div className="summary-right">
-          <span className="page-indicator">Trang {currentPage} / {totalPages}</span>
+          <span className="page-indicator">{t('stocks.list.page_indicator', { current: currentPage, total: totalPages })}</span>
         </div>
       </div>
 
@@ -788,7 +798,7 @@ export const StockList = () => {
         <div className="stock-details-modal">
           <div className="modal-content">
             <div className="modal-header">
-              <h3>{selectedStock.symbol} - Chi tiết cổ phiếu</h3>
+              <h3>{selectedStock.symbol} - {t('stocks.list.detail_title')}</h3>
               <button
                 onClick={() => setShowDetails(false)}
                 className="close-button"
@@ -799,27 +809,27 @@ export const StockList = () => {
             <div className="modal-body">
               {selectedStock.overview && (
                 <div className="details-section">
-                  <h4>Tổng quan công ty</h4>
-                  <p><strong>Tên:</strong> {selectedStock.overview.companyName || 'N/A'}</p>
-                  <p><strong>Ngành:</strong> {selectedStock.overview.industry || 'N/A'}</p>
-                  <p><strong>Sàn:</strong> {selectedStock.overview.exchange || 'N/A'}</p>
+                  <h4>{t('stocks.list.detail_overview')}</h4>
+                  <p><strong>{t('stocks.list.detail_name')}:</strong> {selectedStock.overview.companyName || 'N/A'}</p>
+                  <p><strong>{t('stocks.list.detail_industry')}:</strong> {selectedStock.overview.industry || 'N/A'}</p>
+                  <p><strong>{t('stocks.list.detail_exchange')}:</strong> {selectedStock.overview.exchange || 'N/A'}</p>
                 </div>
               )}
 
               {selectedStock.latest_price && (
                 <div className="details-section">
-                  <h4>Giá mới nhất</h4>
-                  <p><strong>Giá hiện tại:</strong> {selectedStock.latest_price.current_price || 'N/A'}</p>
-                  <p><strong>Mở cửa:</strong> {selectedStock.latest_price.open_price || 'N/A'}</p>
-                  <p><strong>Cao nhất:</strong> {selectedStock.latest_price.high_price || 'N/A'}</p>
-                  <p><strong>Thấp nhất:</strong> {selectedStock.latest_price.low_price || 'N/A'}</p>
-                  <p><strong>Khối lượng:</strong> {selectedStock.latest_price.volume?.toLocaleString() || 'N/A'}</p>
+                  <h4>{t('stocks.list.detail_latest_price')}</h4>
+                  <p><strong>{t('stocks.list.detail_current_price')}:</strong> {selectedStock.latest_price.current_price || 'N/A'}</p>
+                  <p><strong>{t('stocks.list.detail_open')}:</strong> {selectedStock.latest_price.open_price || 'N/A'}</p>
+                  <p><strong>{t('stocks.list.detail_high')}:</strong> {selectedStock.latest_price.high_price || 'N/A'}</p>
+                  <p><strong>{t('stocks.list.detail_low')}:</strong> {selectedStock.latest_price.low_price || 'N/A'}</p>
+                  <p><strong>{t('stocks.list.detail_volume')}:</strong> {selectedStock.latest_price.volume?.toLocaleString() || 'N/A'}</p>
                 </div>
               )}
 
               {selectedStock.technical_indicators && (
                 <div className="details-section">
-                  <h4>Chỉ báo kỹ thuật</h4>
+                  <h4>{t('stocks.list.detail_technical')}</h4>
                   <p><strong>RSI:</strong> {selectedStock.technical_indicators.rsi?.toFixed(2) || 'N/A'}</p>
                   <p><strong>SMA 20:</strong> {selectedStock.technical_indicators.sma_20?.toFixed(2) || 'N/A'}</p>
                   <p><strong>SMA 50:</strong> {selectedStock.technical_indicators.sma_50?.toFixed(2) || 'N/A'}</p>
@@ -837,19 +847,19 @@ export const StockList = () => {
             <thead>
               <tr>
                 <th className="th-list-symbol sortable" onClick={() => handleSort('symbol')}>
-                  Mã CP {getSortIcon('symbol')}
+                  {t('stocks.list.col_symbol')} {getSortIcon('symbol')}
                 </th>
                 <th className="th-list-name sortable" onClick={() => handleSort('name')}>
-                  Tên {getSortIcon('name')}
+                  {t('stocks.list.col_name')} {getSortIcon('name')}
                 </th>
                 <th className="th-list-exchange sortable" onClick={() => handleSort('exchange')}>
-                  Sàn {getSortIcon('exchange')}
+                  {t('stocks.list.col_exchange')} {getSortIcon('exchange')}
                 </th>
                 <th className="th-list-price sortable" onClick={() => handleSort('close')}>
-                  Giá {getSortIcon('close')}
+                  {t('stocks.list.col_price')} {getSortIcon('close')}
                 </th>
                 <th className="th-list-volume sortable" onClick={() => handleSort('volume')}>
-                  Khối lượng {getSortIcon('volume')}
+                  {t('stocks.list.col_volume')} {getSortIcon('volume')}
                 </th>
               </tr>
             </thead>
@@ -885,11 +895,11 @@ export const StockList = () => {
                 disabled={currentPage === 1}
                 className="page-button"
               >
-                ← Trước
+                {t('stocks.list.prev_page')}
               </button>
 
               <span className="page-info">
-                Trang <strong>{currentPage}</strong> / <strong>{totalPages}</strong>
+                {t('stocks.list.page_indicator', { current: currentPage, total: totalPages })}
               </span>
 
               <button
@@ -897,7 +907,7 @@ export const StockList = () => {
                 disabled={currentPage === totalPages}
                 className="page-button"
               >
-                Tiếp →
+                {t('stocks.list.next_page')}
               </button>
             </div>
           )}
@@ -905,7 +915,7 @@ export const StockList = () => {
       ) : (
         <div className="no-results no-results-styled">
           <span className="no-results-icon">🔍</span>
-          <p>Không tìm thấy cổ phiếu với bộ lọc hiện tại.</p>
+          <p>{t('stocks.list.no_results')}</p>
         </div>
       )}
     </div>

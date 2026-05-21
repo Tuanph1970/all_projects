@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useTable } from "react-table";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import httpClient from "../../services/httpClient";
 import { API_ENDPOINTS } from "../../constants/api";
 
@@ -155,14 +156,12 @@ function getFontColorFromProps(colorValue, cellProps, displayValue = null) {
    );
  }
  const PriceBoard = () => {
+    const { t } = useTranslation();
     const [refreshing, setRefreshing] = useState(false);
     const columns = React.useMemo(
         () => [
           {
-
-
-            
-            Header: "Mã CK",
+            Header: t('priceboard.col_symbol'),
             accessor: "symbol",
             Cell: (props) => {
               return (
@@ -173,7 +172,7 @@ function getFontColorFromProps(colorValue, cellProps, displayValue = null) {
             }
             },
             {
-            Header: "Trần",
+            Header: t('priceboard.col_ceiling'),
             accessor: "ceiling",
             key: "ceiling",
             Cell: (props) => {
@@ -185,7 +184,7 @@ function getFontColorFromProps(colorValue, cellProps, displayValue = null) {
             }
             },
             {
-            Header: "Sàn",
+            Header: t('priceboard.col_floor'),
             accessor: "floor",
             key: "floor",
             Cell: (props) => {
@@ -197,7 +196,7 @@ function getFontColorFromProps(colorValue, cellProps, displayValue = null) {
             }
             },
             {
-                Header: "TC",
+                Header: t('priceboard.col_reference'),
                 accessor: "refPrice",
                 key:"refPrice",
                 Cell: (props) => {
@@ -207,38 +206,38 @@ function getFontColorFromProps(colorValue, cellProps, displayValue = null) {
                     </span>
                   );
                 }
-            }, 
+            },
             {
-            Header: "Dư mua",
+            Header: t('priceboard.col_buy_group'),
             // First group columns
             columns: [
             {
-              Header: "Giá 3",
+              Header: t('priceboard.col_price_3'),
               accessor: "buyPrice3",
               Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) }
             },
             {
-              Header: "KL3",
+              Header: t('priceboard.col_qty_3'),
               accessor: "buyQty3",
               Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.buyPrice3, cellProps, cellProps.value) }
             },
             {
-              Header: "Giá 2",
+              Header: t('priceboard.col_price_2'),
               accessor: "buyPrice2",
               Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) }
             },
             {
-            Header: "KL2",
+            Header: t('priceboard.col_qty_2'),
             accessor: "buyQty2",
             Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.buyPrice2, cellProps, cellProps.value) }
             },
             {
-              Header: "Giá 1",
+              Header: t('priceboard.col_price_1'),
               accessor: "buyPrice1",
               Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) }
             },
             {
-              Header: "KL1",
+              Header: t('priceboard.col_qty_1'),
               accessor: "buyQty1",
               Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.buyPrice1, cellProps, cellProps.value) }
 
@@ -246,90 +245,90 @@ function getFontColorFromProps(colorValue, cellProps, displayValue = null) {
             ],
             },
             {
-            Header: "Khớp lệnh",
+            Header: t('priceboard.col_match_group'),
             // First group columns
             columns: [
             {
-            Header: "Giá khớp",
+            Header: t('priceboard.col_match_price'),
             accessor: "matchPrice",
             Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) }
 
             },
             {
-            Header: "KL Khớp",
+            Header: t('priceboard.col_match_qty'),
             accessor: "matchQty",
             Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.matchPrice, cellProps, cellProps.value) }
 
             },
             {
-            Header: "+/-",
+            Header: t('priceboard.col_change_abs'),
             accessor: "change",
             },
             {
-            Header: "+/-(%)",
+            Header: t('priceboard.col_change_pct'),
             accessor: "changePercent",
             },
             ],
             },
             {
             // Second group - Details
-            Header: "Dư bán",
+            Header: t('priceboard.col_sell_group'),
             // Second group columns
             columns: [
             {
-                Header: "Giá 1",
+                Header: t('priceboard.col_price_1'),
                 accessor: "sellPrice1",
                 Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps)},
 
             },
             {
-            Header: "KL 1",
+            Header: t('priceboard.col_qty_1'),
             accessor: "sellQty1",
             Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.sellPrice1, cellProps, cellProps.value) }
             },
             {
-            Header: "Giá 2",
+            Header: t('priceboard.col_price_2'),
             accessor: "sellPrice2",
             Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) },
             },
             {
-            Header: "KL 2",
+            Header: t('priceboard.col_qty_2'),
             accessor: "sellQty2",
             Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.sellPrice2, cellProps, cellProps.value) }
             },
             {
-            Header: "Giá 3",
+            Header: t('priceboard.col_price_3'),
             accessor: "sellPrice3",
             Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) },
             },
             {
-            Header: "KL 3",
+            Header: t('priceboard.col_qty_3'),
             accessor: "sellQty3",
             Cell: (cellProps)  => {return getFontColorFromProps(cellProps.row.original.sellPrice3, cellProps, cellProps.value) }
             },
             ],
             },
             {
-            Header: "Tổng KL",
+            Header: t('priceboard.col_total_qty'),
             accessor: "totalQty",
             },
             {
-            Header: "Mở cửa",
+            Header: t('priceboard.col_open'),
             accessor: "openPrice",
             Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) },
             },
             {
-            Header: "Cao nhất",
+            Header: t('priceboard.col_high'),
             accessor: "highest",
             Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) },
             },
             {
-            Header: "Thấp nhất",
+            Header: t('priceboard.col_low'),
             accessor: "lowest",
             Cell: (cellProps)  => {return getFontColorFromProps(cellProps.value,cellProps) },
             },
             ],
-            []
+            [t]
       );
     const [data, setData] = useState([])
 
@@ -378,7 +377,7 @@ function getFontColorFromProps(colorValue, cellProps, displayValue = null) {
                 fontSize: '13px',
               }}
             >
-              {refreshing ? 'Đang làm mới...' : 'Làm mới'}
+              {refreshing ? t('priceboard.refreshing') : t('priceboard.refresh')}
             </button>
           </div>
           <Table
