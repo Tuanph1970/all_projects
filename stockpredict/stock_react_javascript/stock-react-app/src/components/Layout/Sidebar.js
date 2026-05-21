@@ -19,6 +19,7 @@ import {
   Crosshair,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 
 const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
@@ -26,6 +27,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { t } = useTranslation();
   // The menu items below use `route: 'foo'` as a string id (matching the
   // legacy RouterContext convention). Derive the equivalent string from
   // the URL pathname so the existing isRouteActive logic keeps working
@@ -64,124 +66,109 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
   }, [navigate, isCollapsed, onToggleCollapse, onClose]);
 
   const menuItems = [
-    {
-      key: 'dashboard',
-      label: 'Bảng điều khiển',
-      icon: LayoutDashboard,
-      route: 'dashboard'
-    },
-    {
-      key: 'priceboard',
-      label: 'Bảng giá',
-      icon: Table2,
-      route: 'priceboard'
-    },
+    { key: 'dashboard',   labelKey: 'sidebar.dashboard',  icon: LayoutDashboard, route: 'dashboard' },
+    { key: 'priceboard',  labelKey: 'sidebar.priceboard', icon: Table2,          route: 'priceboard' },
     {
       key: 'stocks',
-      label: 'Cổ phiếu',
+      labelKey: 'sidebar.stocks',
       icon: TrendingUp,
       route: 'stocks',
-      submenu:[
-         { key: 'stockscreener', label: 'Lọc cổ phiếu', route: 'stockscreener' },
-         { key: 'byindustry', label: 'Theo ngành', route: 'byindustry' },
-         { key: 'stocklist', label: 'Danh sách CP', route: 'stocklist' }
+      submenu: [
+        { key: 'stockscreener', labelKey: 'sidebar.stockscreener', route: 'stockscreener' },
+        { key: 'byindustry',    labelKey: 'sidebar.byindustry',    route: 'byindustry' },
+        { key: 'stocklist',     labelKey: 'sidebar.stocklist',     route: 'stocklist' }
       ]
     },
     {
       key: 'maketmover',
-      label: 'Biến động thị trường',
+      labelKey: 'sidebar.marketmover',
       icon: Activity,
       submenu: [
-        { key: 'topgainer', label: 'Tăng mạnh nhất', route: 'topgainer' },
-        { key: 'toploser', label: 'Giảm mạnh nhất', route: 'toploser' },
-        { key: 'topactive', label: 'Giao dịch nhiều nhất', route: 'topactive' }
+        { key: 'topgainer', labelKey: 'sidebar.topgainer', route: 'topgainer' },
+        { key: 'toploser',  labelKey: 'sidebar.toploser',  route: 'toploser' },
+        { key: 'topactive', labelKey: 'sidebar.topactive', route: 'topactive' }
       ]
     },
     {
       key: 'prediction',
-      label: 'Dự đoán',
+      labelKey: 'sidebar.prediction',
       icon: BrainCircuit,
       submenu: [
-        { key: 'timeseries', label: 'Chuỗi thời gian', route: 'timeseries' },
-        { key: 'models', label: 'Mô hình', route: 'models' },
-        { key: 'solutions', label: 'Giải pháp', route: 'solutions' },
-        { key: 'indicators', label: 'Chỉ báo', route: 'indicators' },
-        { key: 'backtest', label: 'Backtest', route: 'backtest' }
+        { key: 'timeseries', labelKey: 'sidebar.timeseries', route: 'timeseries' },
+        { key: 'models',     labelKey: 'sidebar.models',     route: 'models' },
+        { key: 'solutions',  labelKey: 'sidebar.solutions',  route: 'solutions' },
+        { key: 'indicators', labelKey: 'sidebar.indicators', route: 'indicators' },
+        { key: 'backtest',   labelKey: 'sidebar.backtest',   route: 'backtest' }
       ]
     },
-    {
-      key: 'simulation',
-      label: 'Mô phỏng giao dịch với AI',
-      icon: PlayCircle,
-      route: "simulation"
-    },
+    { key: 'simulation', labelKey: 'sidebar.simulation', icon: PlayCircle, route: 'simulation' },
     {
       key: 'chatbot',
-      label: 'Trợ lý AI',
+      labelKey: 'sidebar.chatbot',
       icon: MessageCircle,
       submenu: [
-        { key: 'chatbot-agent', label: 'Trò chuyện AI', route: 'chatbot' },
-        { key: 'knowledge-qa', label: 'Knowledge QA', route: 'knowledge-qa' }
+        { key: 'chatbot-agent', labelKey: 'sidebar.chatbot_agent', route: 'chatbot' },
+        { key: 'knowledge-qa',  labelKey: 'sidebar.knowledge_qa',  route: 'knowledge-qa' }
       ]
     },
     {
       key: 'analysis',
-      label: 'Phân tích',
+      labelKey: 'sidebar.analysis',
       icon: SearchCode,
       submenu: [
-        { key: 'technical', label: 'Phân tích kỹ thuật', route: 'technical' },
-        { key: 'fundamental', label: 'Phân tích cơ bản', route: 'fundamental' },
-        { key: 'ai-insights', label: 'Phân tích AI', route: 'ai-insights' }
+        { key: 'technical',   labelKey: 'sidebar.technical',   route: 'technical' },
+        { key: 'fundamental', labelKey: 'sidebar.fundamental', route: 'fundamental' },
+        { key: 'ai-insights', labelKey: 'sidebar.ai_insights', route: 'ai-insights' }
       ]
     },
     {
       key: 'portfolio',
-      label: 'Danh mục',
+      labelKey: 'sidebar.portfolio',
       icon: Wallet,
       submenu: [
-        { key: 'holdings', label: 'Cổ phiếu nắm giữ', route: 'holdings' },
-        { key: 'performance', label: 'Hiệu suất', route: 'performance' },
-        { key: 'alerts', label: 'Cảnh báo giá', route: 'alerts' }
+        { key: 'holdings',    labelKey: 'sidebar.holdings',    route: 'holdings' },
+        { key: 'performance', labelKey: 'sidebar.performance', route: 'performance' },
+        { key: 'alerts',      labelKey: 'sidebar.alerts',      route: 'alerts' }
       ]
     },
     {
       key: 'journal',
-      label: 'Nhật ký giao dịch',
+      labelKey: 'sidebar.journal',
       icon: BookOpen,
       submenu: [
-        { key: 'journal-dashboard', label: 'Tổng quan', route: 'journal-dashboard' },
-        { key: 'journal-accounts', label: 'Tài khoản', route: 'journal-accounts' },
-        { key: 'trade-log', label: 'Sổ giao dịch', route: 'trade-log' },
-        { key: 'trade-diary', label: 'Nhật ký', route: 'trade-diary' },
-        { key: 'daily-planning', label: 'Kế hoạch hàng ngày', route: 'daily-planning' },
-        { key: 'weekly-review', label: 'Tổng kết tuần', route: 'weekly-review' }
+        { key: 'journal-dashboard', labelKey: 'sidebar.journal_dashboard', route: 'journal-dashboard' },
+        { key: 'journal-accounts',  labelKey: 'sidebar.journal_accounts',  route: 'journal-accounts' },
+        { key: 'trade-log',         labelKey: 'sidebar.trade_log',         route: 'trade-log' },
+        { key: 'trade-diary',       labelKey: 'sidebar.trade_diary',       route: 'trade-diary' },
+        { key: 'daily-planning',    labelKey: 'sidebar.daily_planning',    route: 'daily-planning' },
+        { key: 'weekly-review',     labelKey: 'sidebar.weekly_review',     route: 'weekly-review' }
       ]
     },
     {
       key: 'decision-helper',
-      label: 'Decision Helper',
+      labelKey: 'sidebar.decision_helper',
       icon: Crosshair,
       submenu: [
-        { key: 'decision-console', label: 'Decision Console', route: 'decision-console' },
-        { key: 'decision-board', label: 'Watchlist Board', route: 'decision-board' },
-        { key: 'backtest-studio', label: 'Backtest Studio', route: 'backtest-studio' },
-        { key: 'discipline', label: 'Discipline', route: 'discipline' },
-        { key: 'scheduled-runs', label: 'Scheduled Runs', route: 'scheduled-runs' },
-        { key: 'scanner', label: 'Scanner', route: 'scanner' },
-        { key: 'watchlist-heatmap', label: 'Heat Map', route: 'watchlist-heatmap' },
-        { key: 'analytics', label: 'Analytics', route: 'analytics' },
-        { key: 'positions-open', label: 'Open Positions', route: 'positions-open' },
-        { key: 'outcomes', label: 'Trade Outcomes', route: 'outcomes' },
-        { key: 'risk-dashboard', label: 'Risk Dashboard', route: 'risk-dashboard' },
+        { key: 'decision-console',  labelKey: 'sidebar.decision_console',  route: 'decision-console' },
+        { key: 'decision-board',    labelKey: 'sidebar.decision_board',    route: 'decision-board' },
+        { key: 'backtest-studio',   labelKey: 'sidebar.backtest_studio',   route: 'backtest-studio' },
+        { key: 'discipline',        labelKey: 'sidebar.discipline',        route: 'discipline' },
+        { key: 'scheduled-runs',    labelKey: 'sidebar.scheduled_runs',    route: 'scheduled-runs' },
+        { key: 'scanner',           labelKey: 'sidebar.scanner',           route: 'scanner' },
+        { key: 'watchlist-heatmap', labelKey: 'sidebar.watchlist_heatmap', route: 'watchlist-heatmap' },
+        { key: 'analytics',         labelKey: 'sidebar.analytics',         route: 'analytics' },
+        { key: 'positions-open',    labelKey: 'sidebar.positions_open',    route: 'positions-open' },
+        { key: 'outcomes',          labelKey: 'sidebar.outcomes',          route: 'outcomes' },
+        { key: 'risk-dashboard',    labelKey: 'sidebar.risk_dashboard',    route: 'risk-dashboard' }
       ]
     },
     {
       key: 'tools',
-      label: 'Công cụ',
+      labelKey: 'sidebar.tools',
       icon: Wrench,
       submenu: [
-        { key: 'calculator', label: 'Máy tính đầu tư', route: 'calculator' },
-        { key: 'watchlist', label: 'Danh sách theo dõi', route: 'watchlist' }
+        { key: 'calculator', labelKey: 'sidebar.calculator', route: 'calculator' },
+        { key: 'watchlist',  labelKey: 'sidebar.watchlist',  route: 'watchlist' }
       ]
     }
   ];
@@ -235,11 +222,11 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
                   }
                 }}
                 className={`nav-button ${isRouteActive(item.route) || isParentActive(item.submenu) ? 'active' : ''}`}
-                title={isCollapsed ? item.label : ''}
+                title={isCollapsed ? t(item.labelKey) : ''}
               >
                 <div className="nav-button-content">
                   <item.icon className="nav-icon" />
-                  {!isCollapsed && <span className="nav-button-text">{item.label}</span>}
+                  {!isCollapsed && <span className="nav-button-text">{t(item.labelKey)}</span>}
                 </div>
                 {!isCollapsed && item.submenu && (
                   expandedMenus[item.key] ?
@@ -256,7 +243,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
                       onClick={() => handleNavigation(subitem.route)}
                       className={`nav-submenu-item ${isRouteActive(subitem.route) ? 'active' : ''}`}
                     >
-                      {subitem.label}
+                      {t(subitem.labelKey)}
                     </button>
                   ))}
                 </div>
@@ -271,9 +258,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
               <div className="sidebar-user-avatar">{userInitials}</div>
               <div className="sidebar-user-info">
                 <div className="sidebar-user-email" title={userEmail}>
-                  {userEmail || 'Khách'}
+                  {userEmail || t('common.guest')}
                 </div>
-                <div className="sidebar-user-role">Tài khoản cá nhân</div>
+                <div className="sidebar-user-role">{t('common.personal_account')}</div>
               </div>
             </div>
           )}
@@ -286,10 +273,10 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
           <button
             onClick={onToggleCollapse}
             className="sidebar-toggle-btn desktop-only"
-            title={isCollapsed ? 'Mở rộng menu' : 'Thu gọn menu'}
+            title={isCollapsed ? t('common.expand_menu') : t('common.collapse_menu')}
           >
             {isCollapsed ? <ChevronRight /> : <ChevronLeft />}
-            {!isCollapsed && <span>Thu gọn menu</span>}
+            {!isCollapsed && <span>{t('common.collapse_menu')}</span>}
           </button>
         </div>
       </div>

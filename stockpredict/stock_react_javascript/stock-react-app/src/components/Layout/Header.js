@@ -2,62 +2,19 @@
 import React, { useEffect, useState } from 'react';
 import { LogOut, Menu, Search } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import NotificationBell from './NotificationBell';
+import LanguageSwitcher from './LanguageSwitcher';
 
-// Map the current path segment to a Vietnamese page title shown as the
-// H1 in the header. Falls back to a generic label for unknown routes so
-// the header is never empty.
-const PAGE_TITLES = {
-  '': { title: 'Bảng điều khiển', emphasis: 'khiển' },
-  dashboard: { title: 'Bảng điều khiển', emphasis: 'khiển' },
-  priceboard: { title: 'Bảng giá', emphasis: 'giá' },
-  stockscreener: { title: 'Lọc cổ phiếu', emphasis: 'phiếu' },
-  byindustry: { title: 'Theo ngành', emphasis: 'ngành' },
-  stocklist: { title: 'Danh sách cổ phiếu', emphasis: 'phiếu' },
-  topgainer: { title: 'Tăng mạnh nhất', emphasis: 'nhất' },
-  toploser: { title: 'Giảm mạnh nhất', emphasis: 'nhất' },
-  topactive: { title: 'Giao dịch nhiều nhất', emphasis: 'nhất' },
-  timeseries: { title: 'Chuỗi thời gian', emphasis: 'thời gian' },
-  models: { title: 'Mô hình', emphasis: 'hình' },
-  solutions: { title: 'Giải pháp', emphasis: 'pháp' },
-  indicators: { title: 'Chỉ báo', emphasis: 'báo' },
-  backtest: { title: 'Backtest', emphasis: '' },
-  simulation: { title: 'Mô phỏng giao dịch', emphasis: 'giao dịch' },
-  chatbot: { title: 'Trợ lý AI', emphasis: 'AI' },
-  'knowledge-qa': { title: 'Knowledge QA', emphasis: 'QA' },
-  technical: { title: 'Phân tích kỹ thuật', emphasis: 'thuật' },
-  fundamental: { title: 'Phân tích cơ bản', emphasis: 'bản' },
-  'ai-insights': { title: 'Phân tích AI', emphasis: 'AI' },
-  holdings: { title: 'Cổ phiếu nắm giữ', emphasis: 'giữ' },
-  performance: { title: 'Hiệu suất', emphasis: 'suất' },
-  alerts: { title: 'Cảnh báo giá', emphasis: 'giá' },
-  'journal-dashboard': { title: 'Tổng quan nhật ký', emphasis: 'nhật ký' },
-  'journal-accounts': { title: 'Tài khoản', emphasis: 'khoản' },
-  'trade-log': { title: 'Sổ giao dịch', emphasis: 'giao dịch' },
-  'trade-diary': { title: 'Nhật ký giao dịch', emphasis: 'giao dịch' },
-  'daily-planning': { title: 'Kế hoạch hàng ngày', emphasis: 'ngày' },
-  'weekly-review': { title: 'Tổng kết tuần', emphasis: 'tuần' },
-  'decision-console': { title: 'Decision Console', emphasis: 'Console' },
-  'decision-board': { title: 'Watchlist Board', emphasis: 'Board' },
-  'backtest-studio': { title: 'Backtest Studio', emphasis: 'Studio' },
-  discipline: { title: 'Discipline', emphasis: '' },
-  'scheduled-runs': { title: 'Scheduled Runs', emphasis: 'Runs' },
-  scanner: { title: 'Scanner', emphasis: '' },
-  analytics: { title: 'Analytics', emphasis: '' },
-  'positions-open': { title: 'Open Positions', emphasis: 'Positions' },
-  outcomes: { title: 'Trade Outcomes', emphasis: 'Outcomes' },
-  'risk-dashboard': { title: 'Risk Dashboard', emphasis: 'Dashboard' },
-  'watchlist-heatmap': { title: 'Watchlist Heat Map', emphasis: 'Heat Map' },
-  calculator: { title: 'Máy tính đầu tư', emphasis: 'đầu tư' },
-  watchlist: { title: 'Danh sách theo dõi', emphasis: 'theo dõi' },
-  company: { title: 'Chi tiết cổ phiếu', emphasis: 'cổ phiếu' },
-};
-
-const formatTime = (d) =>
-  d.toLocaleTimeString('vi-VN', { hour12: false });
-const formatDate = (d) =>
-  d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+// Locale used for the live clock + date in the header. We bias to the
+// active i18n language so a user reading the page in English doesn't
+// get a Vietnamese-formatted date next to English copy.
+const dateLocale = (lng) => (lng === 'en' ? 'en-GB' : 'vi-VN');
+const formatTime = (d, lng) =>
+  d.toLocaleTimeString(dateLocale(lng), { hour12: false });
+const formatDate = (d, lng) =>
+  d.toLocaleDateString(dateLocale(lng), { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 const renderTitle = ({ title, emphasis }) => {
   if (!emphasis || !title.endsWith(emphasis)) {
@@ -76,9 +33,18 @@ const renderTitle = ({ title, emphasis }) => {
 const Header = ({ alertSlot }) => {
   const { logout } = useAuth();
   const location = useLocation();
+  const { t, i18n } = useTranslation();
   const segments = location.pathname.split('/').filter(Boolean);
-  const key = segments.length === 0 ? '' : segments[0];
-  const pageTitle = PAGE_TITLES[key] || { title: 'Bảng điều khiển', emphasis: 'khiển' };
+  const key = segments.length === 0 ? 'dashboard' : segments[0];
+
+  // i18next "returnObjects" gives us {title, emphasis}; fall back to
+  // the dashboard key if the route hasn't been mapped yet so the
+  // header is never empty.
+  const lookup = t(`page_titles.${key}`, { returnObjects: true });
+  const pageTitle =
+    lookup && typeof lookup === 'object' && lookup.title
+      ? lookup
+      : t('page_titles.dashboard', { returnObjects: true });
 
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -94,7 +60,7 @@ const Header = ({ alertSlot }) => {
           <button
             onClick={() => document.dispatchEvent(new CustomEvent('toggleSidebar'))}
             className="menu-toggle mobile-only"
-            title="Mở menu di động"
+            title={t('common.open_menu')}
           >
             <Menu />
           </button>
@@ -103,7 +69,7 @@ const Header = ({ alertSlot }) => {
             <div className="header-meta">
               <span className="header-meta-dot" />
               <span className="header-meta-text">
-                CẬP NHẬT {formatTime(now)} · {formatDate(now)} · THỊ TRƯỜNG MỞ
+                {t('header.updated_at')} {formatTime(now, i18n.language)} · {formatDate(now, i18n.language)} · {t('header.market_status_open')}
               </span>
             </div>
             <h1 className="header-title">{renderTitle(pageTitle)}</h1>
@@ -115,9 +81,9 @@ const Header = ({ alertSlot }) => {
             <Search className="header-search-icon" />
             <input
               type="text"
-              placeholder="Tìm mã cổ phiếu..."
+              placeholder={t('common.search_placeholder')}
               className="header-search-input"
-              aria-label="Tìm kiếm"
+              aria-label={t('common.search_placeholder')}
             />
             <span className="header-search-kbd">⌘K</span>
           </div>
@@ -125,9 +91,11 @@ const Header = ({ alertSlot }) => {
           <NotificationBell />
           {alertSlot}
 
-          <button onClick={logout} className="logout-button" title="Đăng xuất">
+          <LanguageSwitcher />
+
+          <button onClick={logout} className="logout-button" title={t('common.logout')}>
             <LogOut />
-            <span className="logout-text">Đăng xuất</span>
+            <span className="logout-text">{t('common.logout')}</span>
           </button>
         </div>
       </div>

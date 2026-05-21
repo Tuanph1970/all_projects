@@ -16,6 +16,13 @@
   padding: 2rem;
   width: 100%;
   max-width: 28rem;
+  position: relative;
+}
+
+.auth-lang-corner {
+  position: absolute;
+  top: 12px;
+  right: 12px;
 }
 
 .auth-header {

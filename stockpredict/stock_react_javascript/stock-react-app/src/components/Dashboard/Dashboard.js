@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Inbox, Sparkles, Star } from 'lucide-react';
 import { stockAPI } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import Contact from '../Contact/Contact';
 import '../../styles/dashboard.css';
 
@@ -21,6 +22,7 @@ const Dashboard = () => {
   const [prospectiveStocks, setProspectiveStocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const handleSymbolClick = (symbol) => {
     navigate(`/company/${symbol}`);
@@ -90,35 +92,37 @@ const Dashboard = () => {
       {/* Stat cards */}
       <div className="dashboard-stat-grid">
         <div className="dashboard-stat">
-          <div className="dashboard-stat-label">Tổng giá trị</div>
+          <div className="dashboard-stat-label">{t('dashboard.stat_total_value')}</div>
           <div className="dashboard-stat-value">{formatUSD(totalValue)}</div>
           <div className="dashboard-stat-meta">
-            {portfolio.length === 0 ? 'Chưa có khoản đầu tư' : 'Tổng hiện tại'}
+            {portfolio.length === 0
+              ? t('dashboard.stat_no_investments')
+              : t('dashboard.stat_total_current')}
           </div>
         </div>
 
         <div className="dashboard-stat">
-          <div className="dashboard-stat-label">Lãi / Lỗ</div>
+          <div className="dashboard-stat-label">{t('dashboard.stat_pnl')}</div>
           <div
             className={`dashboard-stat-value ${totalGainLoss < 0 ? 'neg' : ''}`}
           >
             {formatSigned(totalGainLoss)}
           </div>
-          <div className="dashboard-stat-meta">Hôm nay</div>
+          <div className="dashboard-stat-meta">{t('dashboard.stat_today')}</div>
         </div>
 
         <div className="dashboard-stat">
-          <div className="dashboard-stat-label">Cổ phiếu nắm giữ</div>
+          <div className="dashboard-stat-label">{t('dashboard.stat_holdings')}</div>
           <div className="dashboard-stat-value">{portfolio.length}</div>
           <div className="dashboard-stat-meta">
-            {portfolio.length} mã đang nắm
+            {t('dashboard.stat_holdings_count', { count: portfolio.length })}
           </div>
         </div>
 
         <div className="dashboard-stat">
-          <div className="dashboard-stat-label">Thay đổi trong ngày</div>
+          <div className="dashboard-stat-label">{t('dashboard.stat_day_change')}</div>
           <div className="dashboard-stat-value pos">+2.34%</div>
-          <div className="dashboard-stat-meta">VN-Index +0.42%</div>
+          <div className="dashboard-stat-meta">{t('dashboard.stat_index_change')}</div>
         </div>
       </div>
 
@@ -126,9 +130,20 @@ const Dashboard = () => {
       <section className="dashboard-card">
         <div className="dashboard-card-header">
           <div>
-            <div className="dashboard-card-eyebrow">Danh mục đầu tư</div>
+            <div className="dashboard-card-eyebrow">{t('dashboard.portfolio_eyebrow')}</div>
             <div className="dashboard-card-title">
-              {portfolio.length} <em>mã đang nắm giữ</em>
+              {(() => {
+                const phrase = t('dashboard.portfolio_count', { count: portfolio.length });
+                // Italicize everything after the leading count so layout
+                // matches the serif/italic emphasis used elsewhere.
+                const head = String(portfolio.length);
+                const tail = phrase.startsWith(head) ? phrase.slice(head.length).trimStart() : phrase;
+                return (
+                  <>
+                    {head} <em>{tail}</em>
+                  </>
+                );
+              })()}
             </div>
           </div>
           <button
@@ -136,19 +151,19 @@ const Dashboard = () => {
             className="dashboard-primary-btn"
             onClick={() => navigate('/holdings')}
           >
-            + Thêm cổ phiếu
+            {t('dashboard.portfolio_add')}
           </button>
         </div>
 
         <div className="dashboard-table">
           <div className="dashboard-table-head">
-            <div className="col col-sym">Mã CP</div>
-            <div className="col col-name">Công ty</div>
-            <div className="col col-num">Số lượng</div>
-            <div className="col col-num">Giá TB</div>
-            <div className="col col-num">Giá hiện tại</div>
-            <div className="col col-num">Thay đổi</div>
-            <div className="col col-num">Giá trị</div>
+            <div className="col col-sym">{t('dashboard.col_symbol')}</div>
+            <div className="col col-name">{t('dashboard.col_company')}</div>
+            <div className="col col-num">{t('dashboard.col_shares')}</div>
+            <div className="col col-num">{t('dashboard.col_avg_price')}</div>
+            <div className="col col-num">{t('dashboard.col_current_price')}</div>
+            <div className="col col-num">{t('dashboard.col_change')}</div>
+            <div className="col col-num">{t('dashboard.col_value')}</div>
           </div>
 
           {portfolio.length === 0 ? (
@@ -157,18 +172,17 @@ const Dashboard = () => {
                 <Inbox />
               </div>
               <div className="dashboard-empty-title">
-                Danh mục của bạn đang trống
+                {t('dashboard.portfolio_empty_title')}
               </div>
               <div className="dashboard-empty-sub">
-                Bắt đầu thêm cổ phiếu để theo dõi hiệu suất danh mục của bạn theo
-                thời gian thực
+                {t('dashboard.portfolio_empty_sub')}
               </div>
               <button
                 type="button"
                 className="dashboard-secondary-btn"
                 onClick={() => navigate('/stockscreener')}
               >
-                Khám phá mã được khuyến nghị →
+                {t('dashboard.portfolio_empty_cta')}
               </button>
             </div>
           ) : (
@@ -215,7 +229,7 @@ const Dashboard = () => {
           <div className="dashboard-card-eyebrow with-icon">
             <Sparkles className="eyebrow-icon" />
             <span>
-              Khuyến nghị AI · {recommendations.length} mã
+              {t('dashboard.ai_eyebrow', { count: recommendations.length })}
             </span>
           </div>
           <button
@@ -223,7 +237,7 @@ const Dashboard = () => {
             className="dashboard-link-btn"
             onClick={() => navigate('/ai-insights')}
           >
-            Xem tất cả ›
+            {t('common.see_all')} ›
           </button>
         </div>
 
@@ -233,9 +247,9 @@ const Dashboard = () => {
               <div className="dashboard-empty-icon">
                 <Sparkles />
               </div>
-              <div className="dashboard-empty-title">Chưa có khuyến nghị AI</div>
+              <div className="dashboard-empty-title">{t('dashboard.ai_empty_title')}</div>
               <div className="dashboard-empty-sub">
-                Vui lòng quay lại sau để xem khuyến nghị mới.
+                {t('dashboard.ai_empty_sub')}
               </div>
             </div>
           ) : (
@@ -262,7 +276,7 @@ const Dashboard = () => {
                     <div className="rec-reason">{rec.reason}</div>
                   </div>
                   <div className="rec-confidence">
-                    <div className="rec-confidence-label">ĐỘ TIN CẬY</div>
+                    <div className="rec-confidence-label">{t('dashboard.ai_confidence_label')}</div>
                     <div className="rec-confidence-value">{conf}%</div>
                     <div className="rec-confidence-bar">
                       <div
@@ -283,11 +297,10 @@ const Dashboard = () => {
         <div className="dashboard-card-header column">
           <div className="dashboard-card-eyebrow with-icon">
             <Star className="eyebrow-icon" />
-            <span>Cổ phiếu tiềm năng</span>
+            <span>{t('dashboard.prospect_eyebrow')}</span>
           </div>
           <div className="dashboard-card-subtitle">
-            Dựa trên phân tích cơ bản: tin tức tích cực, tỷ số P/E hấp dẫn và tăng
-            trưởng lợi nhuận 2 năm
+            {t('dashboard.prospect_subtitle')}
           </div>
         </div>
 
@@ -298,11 +311,10 @@ const Dashboard = () => {
                 <Star />
               </div>
               <div className="dashboard-empty-title">
-                Chưa có cổ phiếu tiềm năng
+                {t('dashboard.prospect_empty_title')}
               </div>
               <div className="dashboard-empty-sub">
-                Hệ thống đang phân tích thị trường. Vui lòng quay lại sau để xem
-                các mã được đề xuất.
+                {t('dashboard.prospect_empty_sub')}
               </div>
             </div>
           ) : (
@@ -320,25 +332,25 @@ const Dashboard = () => {
                 <div className="prospect-name">{stock.name}</div>
                 <div className="prospect-metrics">
                   <div className="metric">
-                    <span className="metric-k">GIÁ</span>
+                    <span className="metric-k">{t('dashboard.prospect_metric_price')}</span>
                     <span className="metric-v">
                       ${Number(stock.price || 0).toFixed(2)}
                     </span>
                   </div>
                   <div className="metric">
-                    <span className="metric-k">P/E</span>
+                    <span className="metric-k">{t('dashboard.prospect_metric_pe')}</span>
                     <span className="metric-v">
                       {Number(stock.peRatio || 0).toFixed(1)}
                     </span>
                   </div>
                   <div className="metric">
-                    <span className="metric-k">EPS 2Y</span>
+                    <span className="metric-k">{t('dashboard.prospect_metric_eps')}</span>
                     <span className="metric-v pos">
                       +{Number(stock.epsGrowth2Y || 0).toFixed(1)}%
                     </span>
                   </div>
                   <div className="metric">
-                    <span className="metric-k">LNST 2Y</span>
+                    <span className="metric-k">{t('dashboard.prospect_metric_profit')}</span>
                     <span className="metric-v pos">
                       +{Number(stock.netProfitGrowth2Y || 0).toFixed(1)}%
                     </span>
