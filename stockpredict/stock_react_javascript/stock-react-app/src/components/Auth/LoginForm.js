@@ -1,6 +1,6 @@
 // src/components/Auth/LoginForm.js
 import React, { useState } from 'react';
-import { TrendingUp } from 'lucide-react';
+import { KeyRound, User, Mail, Eye, EyeOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import LanguageSwitcher from '../Layout/LanguageSwitcher';
@@ -18,6 +18,15 @@ const LoginForm = () => {
   });
   const { login, register, resetPassword, changePassword, loading } = useAuth();
   const [message, setMessage] = useState('');
+  // Per-field password visibility. Each entry maps the input `name` to
+  // a boolean (true = plaintext, false = masked). Keeping the state by
+  // field name lets every password input (login, register, current,
+  // new, confirm…) have an independent toggle.
+  const [visibility, setVisibility] = useState({});
+
+  const toggleVisibility = (name) => {
+    setVisibility((prev) => ({ ...prev, [name]: !prev[name] }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -32,10 +41,8 @@ const LoginForm = () => {
           return;
         }
         const result = await register(formData.username, formData.email, formData.password);
-        // Explicitly set success message from result
         const successMsg = result.message || t('login.success_register');
         setMessage(successMsg);
-        // Switch to login form after showing message
         setTimeout(() => {
           setFormType('login');
         }, 2000);
@@ -74,11 +81,66 @@ const LoginForm = () => {
       newPassword: ''
     });
     setMessage('');
+    setVisibility({});
   };
 
   const handleFormTypeChange = (newType) => {
     setFormType(newType);
     resetForm();
+  };
+
+  // Helper that renders a labelled text input with a left-side icon.
+  // Keeps the JSX below readable when there are 6 possible fields.
+  const renderInput = ({ id, name, type, label, autoComplete, Icon }) => (
+    <div className="form-group">
+      <label htmlFor={id} className="form-label">{label}</label>
+      <div className="form-input-wrapper">
+        <Icon className="form-input-icon" aria-hidden="true" />
+        <input
+          id={id}
+          type={type}
+          name={name}
+          value={formData[name]}
+          onChange={handleChange}
+          className="form-input has-icon"
+          autoComplete={autoComplete}
+          required
+        />
+      </div>
+    </div>
+  );
+
+  // Password variant — adds the right-side eye toggle.
+  const renderPassword = ({ id, name, label, autoComplete }) => {
+    const shown = !!visibility[name];
+    return (
+      <div className="form-group">
+        <label htmlFor={id} className="form-label">{label}</label>
+        <div className="form-input-wrapper">
+          <KeyRound className="form-input-icon" aria-hidden="true" />
+          <input
+            id={id}
+            type={shown ? 'text' : 'password'}
+            name={name}
+            value={formData[name]}
+            onChange={handleChange}
+            className="form-input has-icon has-trailing"
+            autoComplete={autoComplete}
+            required
+          />
+          <button
+            type="button"
+            onClick={() => toggleVisibility(name)}
+            className="form-input-eye"
+            aria-label={shown ? t('login.hide_password') : t('login.show_password')}
+            aria-pressed={shown}
+            tabIndex={-1}
+          >
+            {shown ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+          </button>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -89,7 +151,7 @@ const LoginForm = () => {
         </div>
         <div className="auth-header">
           <div className="auth-logo">
-            <TrendingUp />
+            <KeyRound />
           </div>
           <h1 className="auth-title">{t('login.app_title')}</h1>
           <p className="auth-subtitle">
@@ -101,97 +163,58 @@ const LoginForm = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
-          {(formType === 'login' || formType === 'register') && (
-            <div className="form-group">
-              <label htmlFor="lf-username" className="form-label">{t('login.label_username')}</label>
-              <input id="lf-username"
-                type="text"
-                name="username"
-                value={formData.username}
-                onChange={handleChange}
-                className="form-input"
-                required
-              />
-            </div>
-          )}
+          {(formType === 'login' || formType === 'register') && renderInput({
+            id: 'lf-username',
+            name: 'username',
+            type: 'text',
+            label: t('login.label_username'),
+            autoComplete: 'username',
+            Icon: User,
+          })}
 
-          {(formType === 'register' || formType === 'forgot') && (
-            <div className="form-group">
-              <label htmlFor="lf-email" className="form-label">{t('login.label_email')}</label>
-              <input id="lf-email"
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="form-input"
-                required
-              />
-            </div>
-          )}
+          {(formType === 'register' || formType === 'forgot') && renderInput({
+            id: 'lf-email',
+            name: 'email',
+            type: 'email',
+            label: t('login.label_email'),
+            autoComplete: 'email',
+            Icon: Mail,
+          })}
 
-          {(formType === 'login' || formType === 'register') && (
-            <div className="form-group">
-              <label htmlFor="lf-password" className="form-label">{t('login.label_password')}</label>
-              <input id="lf-password"
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                className="form-input"
-                required
-              />
-            </div>
-          )}
+          {(formType === 'login' || formType === 'register') && renderPassword({
+            id: 'lf-password',
+            name: 'password',
+            label: t('login.label_password'),
+            autoComplete: formType === 'register' ? 'new-password' : 'current-password',
+          })}
 
-          {formType === 'register' && (
-            <div className="form-group">
-              <label htmlFor="lf-confirmPassword" className="form-label">{t('login.label_confirm_password')}</label>
-              <input id="lf-confirmPassword"
-                type="password"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                className="form-input"
-                required
-              />
-            </div>
-          )}
+          {formType === 'register' && renderPassword({
+            id: 'lf-confirmPassword',
+            name: 'confirmPassword',
+            label: t('login.label_confirm_password'),
+            autoComplete: 'new-password',
+          })}
 
           {formType === 'changePassword' && (
             <>
-              <div className="form-group">
-                <label htmlFor="lf-currentPassword" className="form-label">{t('login.label_current_password')}</label>
-                <input id="lf-currentPassword"
-                  type="password"
-                  name="currentPassword"
-                  value={formData.currentPassword}
-                  onChange={handleChange}
-                  className="form-input"
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="lf-newPassword" className="form-label">{t('login.label_new_password')}</label>
-                <input id="lf-newPassword"
-                  type="password"
-                  name="newPassword"
-                  value={formData.newPassword}
-                  onChange={handleChange}
-                  className="form-input"
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="lf-confirmPassword" className="form-label">{t('login.label_confirm_new_password')}</label>
-                <input id="lf-confirmPassword"
-                  type="password"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  className="form-input"
-                  required
-                />
-              </div>
+              {renderPassword({
+                id: 'lf-currentPassword',
+                name: 'currentPassword',
+                label: t('login.label_current_password'),
+                autoComplete: 'current-password',
+              })}
+              {renderPassword({
+                id: 'lf-newPassword',
+                name: 'newPassword',
+                label: t('login.label_new_password'),
+                autoComplete: 'new-password',
+              })}
+              {renderPassword({
+                id: 'lf-confirmPassword',
+                name: 'confirmPassword',
+                label: t('login.label_confirm_new_password'),
+                autoComplete: 'new-password',
+              })}
             </>
           )}
 
