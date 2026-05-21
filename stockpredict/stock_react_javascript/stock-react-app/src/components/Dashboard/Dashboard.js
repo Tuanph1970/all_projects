@@ -1,9 +1,19 @@
 // src/components/Dashboard/Dashboard.js
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, BarChart3, PieChart, Star, Newspaper } from 'lucide-react';
+import { Inbox, Sparkles, Star } from 'lucide-react';
 import { stockAPI } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 import Contact from '../Contact/Contact';
+import '../../styles/dashboard.css';
+
+const formatUSD = (n) =>
+  `$${Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+
+const formatSigned = (n) => {
+  const v = Number(n || 0);
+  const sign = v > 0 ? '+' : v < 0 ? '−' : '+';
+  return `${sign}$${Math.abs(v).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+};
 
 const Dashboard = () => {
   const [portfolio, setPortfolio] = useState([]);
@@ -28,8 +38,6 @@ const Dashboard = () => {
         setPortfolio(portfolioData);
         setRecommendations(recommendationsData);
         setProspectiveStocks(prospectiveData);
-        console.log('Recommendations data:', recommendationsData);
-        console.log('Prospective stocks data:', prospectiveData);
       } catch (error) {
         console.error('Error loading dashboard data:', error);
       } finally {
@@ -40,378 +48,311 @@ const Dashboard = () => {
     loadDashboardData();
   }, []);
 
-  const totalValue = portfolio.reduce((sum, stock) => sum + (stock.shares * stock.currentPrice), 0);
-  const totalGainLoss = portfolio.reduce((sum, stock) => 
-    sum + (stock.shares * (stock.currentPrice - stock.avgPrice)), 0
+  const totalValue = portfolio.reduce(
+    (sum, stock) => sum + (stock.shares * stock.currentPrice), 0
+  );
+  const totalGainLoss = portfolio.reduce(
+    (sum, stock) => sum + (stock.shares * (stock.currentPrice - stock.avgPrice)), 0
   );
 
-  const getRecommendationStyle = (recommendation) => {
-    if (!recommendation) return 'bg-gray-50 border-gray-200';
-    switch (recommendation.toLowerCase()) {
-      case 'buy':
-        return 'bg-green-50 border-green-200';
-      case 'sell':
-        return 'bg-red-50 border-red-200';
-      case 'hold':
-        return 'bg-yellow-50 border-yellow-200';
-      default:
-        return 'bg-gray-50 border-gray-200';
+  const recommendationTone = (recommendation) => {
+    switch ((recommendation || '').toLowerCase()) {
+      case 'buy':  return 'buy';
+      case 'sell': return 'sell';
+      case 'hold': return 'hold';
+      default:     return 'hold';
     }
   };
 
-  const getBadgeStyle = (recommendation) => {
-    if (!recommendation) return 'bg-gray-50 border-gray-200';
-    switch (recommendation.toLowerCase()) {
-      case 'buy':
-        return 'bg-green-600 text-white';
-      case 'sell':
-        return 'bg-red-600 text-white';
-      case 'hold':
-        return 'bg-yellow-600 text-white';
-      default:
-        return 'bg-gray-600 text-white';
-    }
-  };
-
-  const getConfidenceStyle = (recommendation) => {
-    if (!recommendation) return 'bg-gray-50 border-gray-200';
-    switch (recommendation.toLowerCase()) {
-      case 'buy':
-        return 'text-green-600';
-      case 'sell':
-        return 'text-red-600';
-      case 'hold':
-        return 'text-yellow-600';
-      default:
-        return 'text-gray-600';
-    }
+  const confidenceTone = (pct) => {
+    const v = Number(pct) || 0;
+    if (v >= 80) return 'pos';
+    if (v >= 60) return 'amber';
+    return 'neg';
   };
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-48"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-32 bg-gray-200 rounded-xl"></div>
-            ))}
-          </div>
-          <div className="h-64 bg-gray-200 rounded-xl"></div>
+      <div className="dashboard">
+        <div className="dashboard-stat-grid">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="dashboard-stat skeleton" />
+          ))}
         </div>
+        <div className="dashboard-card skeleton-tall" />
+        <div className="dashboard-card skeleton-tall" />
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Bảng điều khiển</h1>
-        <div className="text-sm text-gray-500">
-          Cập nhật lúc: {new Date().toLocaleString('vi-VN')}
+    <div className="dashboard">
+      {/* Stat cards */}
+      <div className="dashboard-stat-grid">
+        <div className="dashboard-stat">
+          <div className="dashboard-stat-label">Tổng giá trị</div>
+          <div className="dashboard-stat-value">{formatUSD(totalValue)}</div>
+          <div className="dashboard-stat-meta">
+            {portfolio.length === 0 ? 'Chưa có khoản đầu tư' : 'Tổng hiện tại'}
+          </div>
+        </div>
+
+        <div className="dashboard-stat">
+          <div className="dashboard-stat-label">Lãi / Lỗ</div>
+          <div
+            className={`dashboard-stat-value ${totalGainLoss < 0 ? 'neg' : ''}`}
+          >
+            {formatSigned(totalGainLoss)}
+          </div>
+          <div className="dashboard-stat-meta">Hôm nay</div>
+        </div>
+
+        <div className="dashboard-stat">
+          <div className="dashboard-stat-label">Cổ phiếu nắm giữ</div>
+          <div className="dashboard-stat-value">{portfolio.length}</div>
+          <div className="dashboard-stat-meta">
+            {portfolio.length} mã đang nắm
+          </div>
+        </div>
+
+        <div className="dashboard-stat">
+          <div className="dashboard-stat-label">Thay đổi trong ngày</div>
+          <div className="dashboard-stat-value pos">+2.34%</div>
+          <div className="dashboard-stat-meta">VN-Index +0.42%</div>
         </div>
       </div>
 
-      {/* Portfolio Overview - Single Horizontal Row */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-600">Tổng giá trị</p>
-              <p className="text-xl font-bold text-gray-900">
-                ${totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-              </p>
-            </div>
-            <div className="bg-green-100 p-2 rounded-full">
-              <TrendingUp className="w-5 h-5 text-green-600" />
+      {/* Portfolio card */}
+      <section className="dashboard-card">
+        <div className="dashboard-card-header">
+          <div>
+            <div className="dashboard-card-eyebrow">Danh mục đầu tư</div>
+            <div className="dashboard-card-title">
+              {portfolio.length} <em>mã đang nắm giữ</em>
             </div>
           </div>
+          <button
+            type="button"
+            className="dashboard-primary-btn"
+            onClick={() => navigate('/holdings')}
+          >
+            + Thêm cổ phiếu
+          </button>
         </div>
 
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-600">Lãi/Lỗ</p>
-              <p className={`text-xl font-bold ${totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {totalGainLoss >= 0 ? '+' : ''}${totalGainLoss.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-              </p>
-            </div>
-            <div className="bg-blue-100 p-2 rounded-full">
-              <BarChart3 className="w-5 h-5 text-blue-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-600">Cổ phiếu nắm giữ</p>
-              <p className="text-xl font-bold text-gray-900">{portfolio.length}</p>
-            </div>
-            <div className="bg-purple-100 p-2 rounded-full">
-              <PieChart className="w-5 h-5 text-purple-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-600">Thay đổi trong ngày</p>
-              <p className="text-xl font-bold text-green-600">+2.34%</p>
-            </div>
-            <div className="bg-orange-100 p-2 rounded-full">
-              <TrendingUp className="w-5 h-5 text-orange-600" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Portfolio Holdings - Professional Enhanced Table */}
-      <div className="bg-white rounded-2xl shadow-lg border-0 overflow-hidden">
-        {/* Header with gradient accent */}
-        <div className="relative p-6 border-b border-gray-100">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
-              <PieChart className="w-5 h-5 text-white" />
-            </div>
-            <h2 className="text-xl font-bold text-gray-900">Danh mục đầu tư</h2>
-          </div>
-        </div>
-
-        <div className="p-6">
-          {/* Table Header with Gradient */}
-          <div className="flex text-left text-sm font-semibold mb-2 rounded-xl overflow-hidden"
-               style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-            <div className="flex-1 px-4 py-3 text-white">Mã CP</div>
-            <div className="flex-[2] px-4 py-3 text-white">Công ty</div>
-            <div className="flex-1 px-4 py-3 text-white text-right">Số lượng</div>
-            <div className="flex-1 px-4 py-3 text-white text-right">Giá TB</div>
-            <div className="flex-1 px-4 py-3 text-white text-right">Giá hiện tại</div>
-            <div className="flex-1 px-4 py-3 text-white text-right">Thay đổi</div>
-            <div className="flex-1 px-4 py-3 text-white text-right">Giá trị</div>
+        <div className="dashboard-table">
+          <div className="dashboard-table-head">
+            <div className="col col-sym">Mã CP</div>
+            <div className="col col-name">Công ty</div>
+            <div className="col col-num">Số lượng</div>
+            <div className="col col-num">Giá TB</div>
+            <div className="col col-num">Giá hiện tại</div>
+            <div className="col col-num">Thay đổi</div>
+            <div className="col col-num">Giá trị</div>
           </div>
 
-          {/* Table Body */}
-          <div className="space-y-1">
-            {portfolio.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <PieChart className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p className="font-medium">Chưa có cổ phiếu</p>
-                <p className="text-sm mt-1">Bắt đầu xây dựng danh mục của bạn</p>
+          {portfolio.length === 0 ? (
+            <div className="dashboard-empty">
+              <div className="dashboard-empty-icon">
+                <Inbox />
               </div>
-            ) : (
-              portfolio.map((stock, index) => (
-                <div
-                  key={stock.symbol}
-                  className={`flex items-center py-4 px-2 rounded-xl transition-all duration-300 hover:shadow-md hover:scale-[1.01] cursor-pointer ${
-                    index % 2 === 0 ? 'bg-gradient-to-r from-gray-50 to-white' : 'bg-white'
-                  }`}
-                  style={{ borderLeft: '3px solid transparent' }}
-                  onMouseEnter={(e) => e.currentTarget.style.borderLeftColor = '#667eea'}
-                  onMouseLeave={(e) => e.currentTarget.style.borderLeftColor = 'transparent'}
-                >
-                  {/* Symbol Badge */}
-                  <div className="flex-1 px-2">
-                    <span
-                      className="inline-flex items-center px-3 py-1.5 rounded-lg font-bold text-sm text-white cursor-pointer transition-all duration-200 hover:scale-105"
-                      style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)', boxShadow: '0 2px 4px rgba(59, 130, 246, 0.3)' }}
+              <div className="dashboard-empty-title">
+                Danh mục của bạn đang trống
+              </div>
+              <div className="dashboard-empty-sub">
+                Bắt đầu thêm cổ phiếu để theo dõi hiệu suất danh mục của bạn theo
+                thời gian thực
+              </div>
+              <button
+                type="button"
+                className="dashboard-secondary-btn"
+                onClick={() => navigate('/stockscreener')}
+              >
+                Khám phá mã được khuyến nghị →
+              </button>
+            </div>
+          ) : (
+            <div className="dashboard-table-body">
+              {portfolio.map((stock) => {
+                const change = parseFloat(stock.change);
+                const changeClass = change >= 0 ? 'pos' : 'neg';
+                return (
+                  <div className="dashboard-table-row" key={stock.symbol}>
+                    <div
+                      className="col col-sym sym"
                       onClick={() => handleSymbolClick(stock.symbol)}
                     >
                       {stock.symbol}
-                    </span>
-                  </div>
-
-                  {/* Company Name */}
-                  <div className="flex-[2] px-2">
-                    <span className="text-gray-700 font-medium truncate block">{stock.name}</span>
-                  </div>
-
-                  {/* Shares Badge */}
-                  <div className="flex-1 px-2 text-right">
-                    <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-semibold text-white"
-                          style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', minWidth: '50px' }}>
-                      {stock.shares}
-                    </span>
-                  </div>
-
-                  {/* Avg Price */}
-                  <div className="flex-1 px-2 text-right">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-teal-700"
-                          style={{ background: 'linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%)', border: '1px solid #99f6e4' }}>
-                      ${stock.avgPrice?.toFixed(2) || '0.00'}
-                    </span>
-                  </div>
-
-                  {/* Current Price */}
-                  <div className="flex-1 px-2 text-right">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium text-indigo-700"
-                          style={{ background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)', border: '1px solid #c7d2fe' }}>
-                      ${stock.currentPrice?.toFixed(2) || '0.00'}
-                    </span>
-                  </div>
-
-                  {/* Change Badge */}
-                  <div className="flex-1 px-2 text-right">
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-sm font-bold ${
-                      parseFloat(stock.change) >= 0
-                        ? 'text-green-700'
-                        : 'text-red-700'
-                    }`}
-                    style={{
-                      background: parseFloat(stock.change) >= 0
-                        ? 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)'
-                        : 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)',
-                      border: parseFloat(stock.change) >= 0 ? '1px solid #86efac' : '1px solid #fca5a5'
-                    }}>
+                    </div>
+                    <div className="col col-name">{stock.name}</div>
+                    <div className="col col-num">{stock.shares}</div>
+                    <div className="col col-num">
+                      ${Number(stock.avgPrice || 0).toFixed(2)}
+                    </div>
+                    <div className="col col-num">
+                      ${Number(stock.currentPrice || 0).toFixed(2)}
+                    </div>
+                    <div className={`col col-num ${changeClass}`}>
                       {stock.change}
-                    </span>
-                  </div>
-
-                  {/* Total Value Badge */}
-                  <div className="flex-1 px-2 text-right">
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-bold text-amber-800"
-                          style={{ background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', border: '1px solid #fcd34d', boxShadow: '0 2px 4px rgba(251, 191, 36, 0.2)' }}>
-                      ${(stock.shares * (stock.currentPrice || 0)).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* AI Recommendations */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Khuyến nghị AI</h2>
-        </div>
-        <div className="p-6">
-          <div className="space-y-4">
-            {recommendations.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <p>Chưa có khuyến nghị AI.</p>
-                <p className="text-sm mt-2">Vui lòng quay lại sau để xem khuyến nghị mới.</p>
-              </div>
-            ) : (
-              recommendations.map((rec, index) => (
-              <div
-                key={index}
-                className={`flex items-start space-x-4 p-4 rounded-lg border ${getRecommendationStyle(rec.type || rec.recommendation)}`}
-              >
-                <div className={`px-2 py-1 rounded text-xs font-medium ${getBadgeStyle(rec.type || rec.recommendation)}`}>
-                  {rec.type || rec.recommendation}
-                </div>
-                <div className="flex-1">
-                  <div className="font-medium text-gray-900">
-                    <span
-                      className="cursor-pointer hover:text-blue-600 hover:underline"
-                      onClick={() => handleSymbolClick(rec.symbol)}
-                    >
-                      {rec.symbol}
-                    </span>
-                    {' - '}{rec.name}
-                  </div>
-                  <div className="text-sm text-gray-600 mt-1">
-                    {rec.reason}
-                  </div>
-                  <div className={`text-xs mt-2 font-medium ${getConfidenceStyle(rec.type || rec.recommendation)}`}>
-                    Độ tin cậy: {rec.confidence}%
-                  </div>
-                </div>
-              </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Prospective Stocks - Fundamental Analysis */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <Star className="w-5 h-5 text-yellow-500" />
-            <h2 className="text-lg font-semibold text-gray-900">Cổ phiếu tiềm năng</h2>
-          </div>
-          <p className="text-sm text-gray-500 mt-1">
-            Dựa trên phân tích cơ bản: tin tức tích cực, tỷ số P/E hấp dẫn và tăng trưởng lợi nhuận 2 năm
-          </p>
-        </div>
-        <div className="p-6">
-          {prospectiveStocks.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <p>Chưa có cổ phiếu tiềm năng.</p>
-              <p className="text-sm mt-2">Vui lòng quay lại sau để xem phân tích mới.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {prospectiveStocks.map((stock, index) => (
-                <div
-                  key={index}
-                  className="p-4 rounded-lg border border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50 hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <span
-                          className="text-lg font-bold text-blue-700 cursor-pointer hover:text-blue-900 hover:underline"
-                          onClick={() => handleSymbolClick(stock.symbol)}
-                        >
-                          {stock.symbol}
-                        </span>
-                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">
-                          {stock.sector}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600 mt-1">{stock.name}</p>
-
-                      {/* Fundamental Metrics */}
-                      <div className="flex flex-wrap gap-4 mt-3">
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs text-gray-500">Giá:</span>
-                          <span className="text-sm font-medium text-gray-900">
-                            ${stock.price?.toFixed(2) || 'N/A'}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs text-gray-500">P/E:</span>
-                          <span className="text-sm font-medium text-indigo-600">
-                            {stock.peRatio?.toFixed(1) || 'N/A'}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs text-gray-500">Tăng trưởng EPS (2 năm):</span>
-                          <span className="text-sm font-medium text-green-600">
-                            +{stock.epsGrowth2Y?.toFixed(1) || 'N/A'}%
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs text-gray-500">Tăng trưởng lợi nhuận (2 năm):</span>
-                          <span className="text-sm font-medium text-green-600">
-                            +{stock.netProfitGrowth2Y?.toFixed(1) || 'N/A'}%
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* News Highlight */}
-                      <div className="mt-3 flex items-start gap-2">
-                        <Newspaper className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-gray-600 italic">
-                          {stock.news}
-                        </p>
-                      </div>
+                    </div>
+                    <div className="col col-num">
+                      ${(stock.shares * (stock.currentPrice || 0)).toLocaleString(
+                        'en-US',
+                        { maximumFractionDigits: 2 }
+                      )}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
-      </div>
+      </section>
 
-      {/* Contact Section */}
+      {/* AI Recommendations */}
+      <section className="dashboard-card">
+        <div className="dashboard-card-header">
+          <div className="dashboard-card-eyebrow with-icon">
+            <Sparkles className="eyebrow-icon" />
+            <span>
+              Khuyến nghị AI · {recommendations.length} mã
+            </span>
+          </div>
+          <button
+            type="button"
+            className="dashboard-link-btn"
+            onClick={() => navigate('/ai-insights')}
+          >
+            Xem tất cả ›
+          </button>
+        </div>
+
+        <div className="dashboard-rec-list">
+          {recommendations.length === 0 ? (
+            <div className="dashboard-empty">
+              <div className="dashboard-empty-icon">
+                <Sparkles />
+              </div>
+              <div className="dashboard-empty-title">Chưa có khuyến nghị AI</div>
+              <div className="dashboard-empty-sub">
+                Vui lòng quay lại sau để xem khuyến nghị mới.
+              </div>
+            </div>
+          ) : (
+            recommendations.map((rec, idx) => {
+              const tone = recommendationTone(rec.type || rec.recommendation);
+              const conf = Number(rec.confidence) || 0;
+              const confTone = confidenceTone(conf);
+              return (
+                <div className="dashboard-rec-row" key={idx}>
+                  <div className={`rec-badge tone-${tone}`}>
+                    {(rec.type || rec.recommendation || '').toUpperCase()}
+                  </div>
+                  <div className="rec-body">
+                    <div className="rec-headline">
+                      <span
+                        className="rec-symbol"
+                        onClick={() => handleSymbolClick(rec.symbol)}
+                      >
+                        {rec.symbol}
+                      </span>
+                      <span className="rec-sep">·</span>
+                      <span className="rec-name">{rec.name}</span>
+                    </div>
+                    <div className="rec-reason">{rec.reason}</div>
+                  </div>
+                  <div className="rec-confidence">
+                    <div className="rec-confidence-label">ĐỘ TIN CẬY</div>
+                    <div className="rec-confidence-value">{conf}%</div>
+                    <div className="rec-confidence-bar">
+                      <div
+                        className={`rec-confidence-bar-fill tone-${confTone}`}
+                        style={{ width: `${Math.max(0, Math.min(100, conf))}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </section>
+
+      {/* Prospective stocks */}
+      <section className="dashboard-card">
+        <div className="dashboard-card-header column">
+          <div className="dashboard-card-eyebrow with-icon">
+            <Star className="eyebrow-icon" />
+            <span>Cổ phiếu tiềm năng</span>
+          </div>
+          <div className="dashboard-card-subtitle">
+            Dựa trên phân tích cơ bản: tin tức tích cực, tỷ số P/E hấp dẫn và tăng
+            trưởng lợi nhuận 2 năm
+          </div>
+        </div>
+
+        <div className="dashboard-rec-list">
+          {prospectiveStocks.length === 0 ? (
+            <div className="dashboard-empty">
+              <div className="dashboard-empty-icon">
+                <Star />
+              </div>
+              <div className="dashboard-empty-title">
+                Chưa có cổ phiếu tiềm năng
+              </div>
+              <div className="dashboard-empty-sub">
+                Hệ thống đang phân tích thị trường. Vui lòng quay lại sau để xem
+                các mã được đề xuất.
+              </div>
+            </div>
+          ) : (
+            prospectiveStocks.map((stock, idx) => (
+              <div className="dashboard-prospect-row" key={idx}>
+                <div className="prospect-head">
+                  <span
+                    className="prospect-symbol"
+                    onClick={() => handleSymbolClick(stock.symbol)}
+                  >
+                    {stock.symbol}
+                  </span>
+                  <span className="prospect-sector">{stock.sector}</span>
+                </div>
+                <div className="prospect-name">{stock.name}</div>
+                <div className="prospect-metrics">
+                  <div className="metric">
+                    <span className="metric-k">GIÁ</span>
+                    <span className="metric-v">
+                      ${Number(stock.price || 0).toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="metric">
+                    <span className="metric-k">P/E</span>
+                    <span className="metric-v">
+                      {Number(stock.peRatio || 0).toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="metric">
+                    <span className="metric-k">EPS 2Y</span>
+                    <span className="metric-v pos">
+                      +{Number(stock.epsGrowth2Y || 0).toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="metric">
+                    <span className="metric-k">LNST 2Y</span>
+                    <span className="metric-v pos">
+                      +{Number(stock.netProfitGrowth2Y || 0).toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+                {stock.news && (
+                  <div className="prospect-news">{stock.news}</div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
       <Contact />
     </div>
   );

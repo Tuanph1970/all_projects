@@ -1,25 +1,43 @@
+:root {
+  --paper: #F5F2EA;
+  --panel: #FFFFFF;
+  --sidebar: #EEEBE2;
+  --line: #DDD9CF;
+  --rule: #EEEBE2;
+  --ink: #1A1810;
+  --ink2: #6B6859;
+  --ink3: #8F8C7F;
+  --pos: #2C5F4A;
+  --neg: #9B2C2C;
+  --amber: #88683E;
+
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  --font-mono: 'Geist Mono', 'JetBrains Mono', Menlo, Monaco, Consolas, 'Courier New', monospace;
+  --font-serif: 'Instrument Serif', 'Times New Roman', Georgia, serif;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-size: 14px;
   line-height: 1.5;
-  color: #1f2937;
-  background-color: #f9fafb;
+  color: var(--ink);
+  background-color: var(--paper);
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: var(--font-mono);
   font-size: 0.875em;
 }
+
+.mono { font-family: var(--font-mono); }
+.serif { font-family: var(--font-serif); }
 
 /* Global Compact Sizing */
 h1 { font-size: 1.5rem; margin: 0 0 0.75rem 0; font-weight: 600; }

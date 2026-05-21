@@ -19,11 +19,13 @@ import {
   Crosshair,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
   const [expandedMenus, setExpandedMenus] = useState({});
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   // The menu items below use `route: 'foo'` as a string id (matching the
   // legacy RouterContext convention). Derive the equivalent string from
   // the URL pathname so the existing isRouteActive logic keeps working
@@ -66,21 +68,18 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       key: 'dashboard',
       label: 'Bảng điều khiển',
       icon: LayoutDashboard,
-      iconColor: '#3b82f6', // Blue - overview/home
       route: 'dashboard'
     },
     {
       key: 'priceboard',
       label: 'Bảng giá',
       icon: Table2,
-      iconColor: '#06b6d4', // Cyan - data tables
       route: 'priceboard'
     },
     {
       key: 'stocks',
       label: 'Cổ phiếu',
       icon: TrendingUp,
-      iconColor: '#10b981', // Green - stocks/growth
       route: 'stocks',
       submenu:[
          { key: 'stockscreener', label: 'Lọc cổ phiếu', route: 'stockscreener' },
@@ -92,7 +91,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       key: 'maketmover',
       label: 'Biến động thị trường',
       icon: Activity,
-      iconColor: '#f59e0b', // Amber - activity/movement
       submenu: [
         { key: 'topgainer', label: 'Tăng mạnh nhất', route: 'topgainer' },
         { key: 'toploser', label: 'Giảm mạnh nhất', route: 'toploser' },
@@ -103,7 +101,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       key: 'prediction',
       label: 'Dự đoán',
       icon: BrainCircuit,
-      iconColor: '#8b5cf6', // Purple - AI/intelligence
       submenu: [
         { key: 'timeseries', label: 'Chuỗi thời gian', route: 'timeseries' },
         { key: 'models', label: 'Mô hình', route: 'models' },
@@ -116,14 +113,12 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       key: 'simulation',
       label: 'Mô phỏng giao dịch với AI',
       icon: PlayCircle,
-      iconColor: '#ec4899', // Pink - play/simulation
       route: "simulation"
     },
     {
       key: 'chatbot',
       label: 'Trợ lý AI',
       icon: MessageCircle,
-      iconColor: '#14b8a6', // Teal - communication
       submenu: [
         { key: 'chatbot-agent', label: 'Trò chuyện AI', route: 'chatbot' },
         { key: 'knowledge-qa', label: 'Knowledge QA', route: 'knowledge-qa' }
@@ -133,7 +128,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       key: 'analysis',
       label: 'Phân tích',
       icon: SearchCode,
-      iconColor: '#6366f1', // Indigo - analysis/research
       submenu: [
         { key: 'technical', label: 'Phân tích kỹ thuật', route: 'technical' },
         { key: 'fundamental', label: 'Phân tích cơ bản', route: 'fundamental' },
@@ -144,7 +138,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       key: 'portfolio',
       label: 'Danh mục',
       icon: Wallet,
-      iconColor: '#22c55e', // Emerald - money/wallet
       submenu: [
         { key: 'holdings', label: 'Cổ phiếu nắm giữ', route: 'holdings' },
         { key: 'performance', label: 'Hiệu suất', route: 'performance' },
@@ -155,7 +148,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       key: 'journal',
       label: 'Nhật ký giao dịch',
       icon: BookOpen,
-      iconColor: '#f97316', // Orange - journaling/reflection
       submenu: [
         { key: 'journal-dashboard', label: 'Tổng quan', route: 'journal-dashboard' },
         { key: 'journal-accounts', label: 'Tài khoản', route: 'journal-accounts' },
@@ -169,7 +161,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       key: 'decision-helper',
       label: 'Decision Helper',
       icon: Crosshair,
-      iconColor: '#a78bfa', // Violet - decision/strategy
       submenu: [
         { key: 'decision-console', label: 'Decision Console', route: 'decision-console' },
         { key: 'decision-board', label: 'Watchlist Board', route: 'decision-board' },
@@ -188,7 +179,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       key: 'tools',
       label: 'Công cụ',
       icon: Wrench,
-      iconColor: '#64748b', // Slate - utilities/tools
       submenu: [
         { key: 'calculator', label: 'Máy tính đầu tư', route: 'calculator' },
         { key: 'watchlist', label: 'Danh sách theo dõi', route: 'watchlist' }
@@ -211,6 +201,9 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
     }
   }, [isCollapsed]);
 
+  const userEmail = user?.email || user?.username || '';
+  const userInitials = (userEmail || 'U').slice(0, 2).toUpperCase();
+
   return (
     <>
       {isOpen && <div className="sidebar-overlay" onClick={onClose} />}
@@ -219,21 +212,16 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
         <div className="sidebar-header">
           <div className="sidebar-logo">
             <TrendingUp className="sidebar-logo-icon" />
-            {!isCollapsed && <span className="sidebar-logo-text">StockAI</span>}
+            {!isCollapsed && (
+              <span className="sidebar-logo-text">
+                Stock<em>AI</em>
+              </span>
+            )}
           </div>
           <button onClick={onClose} className="sidebar-close mobile-only">
             <X />
           </button>
         </div>
-
-        {/* Toggle button for desktop - visible at bottom of sidebar */}
-        <button
-          onClick={onToggleCollapse}
-          className="sidebar-toggle-btn desktop-only"
-          title={isCollapsed ? 'Mở rộng menu' : 'Thu gọn menu'}
-        >
-          {isCollapsed ? <ChevronRight /> : <ChevronLeft />}
-        </button>
 
         <nav className="sidebar-nav">
           {menuItems.map((item) => (
@@ -250,7 +238,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
                 title={isCollapsed ? item.label : ''}
               >
                 <div className="nav-button-content">
-                  <item.icon className="nav-icon" style={{ color: item.iconColor }} />
+                  <item.icon className="nav-icon" />
                   {!isCollapsed && <span className="nav-button-text">{item.label}</span>}
                 </div>
                 {!isCollapsed && item.submenu && (
@@ -276,6 +264,34 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
             </div>
           ))}
         </nav>
+
+        <div className="sidebar-footer">
+          {!isCollapsed && (
+            <div className="sidebar-user">
+              <div className="sidebar-user-avatar">{userInitials}</div>
+              <div className="sidebar-user-info">
+                <div className="sidebar-user-email" title={userEmail}>
+                  {userEmail || 'Khách'}
+                </div>
+                <div className="sidebar-user-role">Tài khoản cá nhân</div>
+              </div>
+            </div>
+          )}
+          {isCollapsed && (
+            <div className="sidebar-user collapsed" title={userEmail}>
+              <div className="sidebar-user-avatar">{userInitials}</div>
+            </div>
+          )}
+
+          <button
+            onClick={onToggleCollapse}
+            className="sidebar-toggle-btn desktop-only"
+            title={isCollapsed ? 'Mở rộng menu' : 'Thu gọn menu'}
+          >
+            {isCollapsed ? <ChevronRight /> : <ChevronLeft />}
+            {!isCollapsed && <span>Thu gọn menu</span>}
+          </button>
+        </div>
       </div>
     </>
   );
