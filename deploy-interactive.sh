@@ -5,7 +5,7 @@
 # ============================================================================
 # This script provides an interactive dialog-based deployment for:
 #   - Ceramic Mobile App Backend (Port 8002)
-#   - Stock Predict Backend (Port 8004)
+#   - Stock Predict Backend (Port 18004 — remapped from 8004 to avoid math-solver conflict)
 #   - Ollama LLM Setup (GPU/CPU)
 #
 # Usage: ./deploy-interactive.sh
@@ -363,7 +363,7 @@ show_project_info() {
             ;;
         stock)
             print_box "Stock Predict Full-Stack" \
-                     "API: 8004 | Frontend: 3004 | MySQL: 3309 | Grafana: 3100"
+                     "API: 18004 | Frontend: 3004 | MySQL: 3309 | Grafana: 3100"
             ;;
     esac
 }
@@ -868,9 +868,10 @@ main() {
             echo
             print_color $WHITE "  ┌─ Stock Predict Full-Stack ──────────────────────────────┐"
             print_color $YELLOW "  │ Frontend App:       http://localhost:3004"
-            print_color $YELLOW "  │ API Gateway:        http://localhost:8004"
+            print_color $YELLOW "  │ API Gateway:        http://localhost:18004"
             print_color $YELLOW "  │ Traefik Dashboard:  http://localhost:8084"
-            print_color $YELLOW "  │ Stock API:          http://localhost:8004/stock_helper/api/v2/"
+            print_color $YELLOW "  │ Stock API:          http://localhost:18004/stock_helper/api/v2/"
+            print_color $YELLOW "  │ Helper API:         http://localhost:18004/stock_helper/api/v2/helper"
             print_color $YELLOW "  │ MySQL:              localhost:3309"
             print_color $YELLOW "  │ Grafana:            http://localhost:3100"
             print_color $YELLOW "  │ RabbitMQ:           http://localhost:15674"
@@ -901,7 +902,7 @@ main() {
 
         echo
         print_color $CYAN "Port Allocation Summary:"
-        print_color $WHITE "  Ceramic: 8002 | Stock: 8004"
+        print_color $WHITE "  Ceramic: 8002 | Stock: 18004"
         echo
         print_color $CYAN "To check the status of your services, run:"
         print_color $WHITE "  $SCRIPT_DIR/deploy-projects.sh status"

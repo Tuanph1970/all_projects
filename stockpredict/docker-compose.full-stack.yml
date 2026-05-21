@@ -730,6 +730,64 @@ services:
       - "traefik.http.routers.stock-knowledge-qa.priority=10"
       - "traefik.http.services.stock-knowledge-qa.loadbalancer.server.port=8009"
 
+  # Decision Helper Service — Schwager-based trader decision pipeline
+  decision-helper-service:
+    build:
+      context: ./stock_microservices
+      dockerfile: services/decision-helper-service/Dockerfile
+    container_name: stock_decision_helper_service
+    environment:
+      - SERVICE_NAME=decision-helper-service
+      - SERVICE_VERSION=0.1.0
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DEBUG=${DEBUG:-0}
+      - API_PREFIX=stock_helper
+      - DATABASE_HOST=mysql
+      - DATABASE_PORT=3306
+      - DATABASE_USER=${MYSQL_USER:-stockuser}
+      - DATABASE_PASSWORD=${MYSQL_PASSWORD:-stockpass}
+      - DATABASE_NAME=${MYSQL_DATABASE:-defaultdb}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-stockuser}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-stockpass}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/stock}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
+      - JWT_ALGORITHM=HS256
+      - STOCK_DATA_SERVICE_URL=http://stock-data-service:8001
+      - ANALYSIS_SERVICE_URL=http://analysis-service:8004
+      - AI_INSIGHTS_SERVICE_URL=http://ai-insights-service:8005
+      - JOURNAL_SERVICE_URL=http://journal-service:8008
+      - MARKET_GATEWAY_TIMEOUT_MS=${MARKET_GATEWAY_TIMEOUT_MS:-10000}
+      - TRACING_ENABLED=true
+      - TRACING_JAEGER_HOST=jaeger
+      - TRACING_JAEGER_PORT=6831
+    expose:
+      - "8010"
+    networks:
+      - stock-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8010/health/live')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-decision-helper.rule=PathPrefix(`/stock_helper/api/v2/helper`)"
+      - "traefik.http.routers.stock-decision-helper.entrypoints=web"
+      - "traefik.http.routers.stock-decision-helper.priority=10"
+      - "traefik.http.services.stock-decision-helper.loadbalancer.server.port=8010"
+
   # Ollama - Local LLM inference server (CPU mode)
   ollama:
     image: ollama/ollama

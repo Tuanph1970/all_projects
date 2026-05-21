@@ -15,7 +15,7 @@
 #
 # Port Allocation:
 #   - Frontend:    3004
-#   - API Gateway: 8004
+#   - API Gateway: 18004  (remapped from 8004 to avoid math-solver conflict)
 #   - MySQL:       3309
 #   - Redis:       6382
 #   - RabbitMQ:    5674/15674
@@ -169,14 +169,15 @@ show_endpoints() {
     echo -e "${WHITE}│                    Stock Predict Services                    │${NC}"
     echo -e "${WHITE}├─────────────────────────────────────────────────────────────┤${NC}"
     echo -e "${YELLOW}│ Frontend App:       http://localhost:3004                   │${NC}"
-    echo -e "${YELLOW}│ API Gateway:        http://localhost:8004                   │${NC}"
+    echo -e "${YELLOW}│ API Gateway:        http://localhost:18004                  │${NC}"
     echo -e "${YELLOW}│ Traefik Dashboard:  http://localhost:8084                   │${NC}"
     echo -e "${WHITE}├─────────────────────────────────────────────────────────────┤${NC}"
     echo -e "${CYAN}│ API Endpoints:                                              │${NC}"
-    echo -e "${CYAN}│   Auth:      http://localhost:8004/stock_helper/api/v2/auth │${NC}"
-    echo -e "${CYAN}│   Stocks:    http://localhost:8004/stock_helper/api/v2/stocks│${NC}"
-    echo -e "${CYAN}│   Portfolio: http://localhost:8004/stock_helper/api/v2/portfolio│${NC}"
-    echo -e "${CYAN}│   Analysis:  http://localhost:8004/stock_helper/api/v2/analysis│${NC}"
+    echo -e "${CYAN}│   Auth:      http://localhost:18004/stock_helper/api/v2/auth│${NC}"
+    echo -e "${CYAN}│   Stocks:    http://localhost:18004/stock_helper/api/v2/stocks│${NC}"
+    echo -e "${CYAN}│   Portfolio: http://localhost:18004/stock_helper/api/v2/portfolio│${NC}"
+    echo -e "${CYAN}│   Analysis:  http://localhost:18004/stock_helper/api/v2/analysis│${NC}"
+    echo -e "${CYAN}│   Helper:    http://localhost:18004/stock_helper/api/v2/helper│${NC}"
     echo -e "${WHITE}├─────────────────────────────────────────────────────────────┤${NC}"
     echo -e "${GREEN}│ Monitoring:                                                 │${NC}"
     echo -e "${GREEN}│   Grafana:     http://localhost:3100     (admin/admin)      │${NC}"

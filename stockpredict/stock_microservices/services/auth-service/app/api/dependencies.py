@@ -18,7 +18,12 @@ settings = get_settings()
 engine = create_async_engine(
     settings.database_url,
     pool_size=settings.DATABASE_POOL_SIZE,
-    pool_pre_ping=True,
+    # pool_pre_ping disabled: asyncmy's connection.ping() signature requires
+    # a `reconnect` arg that SQLAlchemy's pymysql dialect doesn't pass,
+    # causing every checkout to TypeError. Stale connections still recover
+    # via SQLAlchemy's per-statement error handling.
+    pool_pre_ping=False,
+    pool_recycle=3600,  # recycle every hour as a coarse stale-conn guard
     echo=settings.DEBUG,
 )
 
