@@ -1,4 +1,5 @@
 import React,{useEffect,useState} from "react";
+import { useTranslation } from 'react-i18next';
 import httpClient from "../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../constants/api";
 import {Form, FormGroup} from 'react-bootstrap';
@@ -7,6 +8,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import '../../../node_modules/bootstrap/dist/css/bootstrap.min.css';
 
 const TimeSeriesDetail = (props) => {
+    const { t } = useTranslation();
     const onSeriesNameChange = (name) =>{        
         let series = props.dataParentToChild;
         series.series_name = name;
@@ -48,22 +50,22 @@ const TimeSeriesDetail = (props) => {
 
     
     if (isLoading) {
-      return <p>Loading data...</p>;
+      return <p>{t('timeseries.loading_data')}</p>;
     } else {
     return (
       <div width='400px'>
           <Form.Group className="mb-3" controlId="SeriesName">
-             <Form.Label>Time Series Name</Form.Label>
-             <Form.Control type="text" placeholder="Enter Time Series Name" value={props.displayTimeSeries.series_name} onChange={onSeriesNameChange('bbb')} />
+             <Form.Label>{t('timeseries.label_name_input')}</Form.Label>
+             <Form.Control type="text" placeholder={t('timeseries.placeholder_name_input')} value={props.displayTimeSeries.series_name} onChange={onSeriesNameChange('bbb')} />
           </Form.Group>
 
-          <FormGroup className="mb-3">          
-               <Form.Label>Start Date</Form.Label>
+          <FormGroup className="mb-3">
+               <Form.Label>{t('timeseries.label_start_date')}</Form.Label>
                <DatePicker selected={new Date(startDate)} onChange={(date) => startDateOnChange(date)} />
-               
+
           </FormGroup>
-          <FormGroup className="mb-3"> 
-                <Form.Label>End  Date</Form.Label>
+          <FormGroup className="mb-3">
+                <Form.Label>{t('timeseries.label_end_date')}</Form.Label>
                 <DatePicker selected={new Date(endDate)} onChange={(date) => endDateOnChange(date)} />
                 
           </FormGroup>

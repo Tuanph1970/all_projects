@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import timeSeriesService from '../../../services/timeSeriesService';
 import indicatorService from '../../../services/indicatorService';
 import './TimeSeries.css';
 
 const TimeSeriesList = () => {
+  const { t } = useTranslation();
   const [timeSeries, setTimeSeries] = useState([]);
   const [indicators, setIndicators] = useState({
     trend: [],
@@ -38,7 +40,7 @@ const TimeSeriesList = () => {
       setIndicators(indicatorsData);
       setError(null);
     } catch (err) {
-      setError('Failed to load data: ' + err.message);
+      setError(t('timeseries.error_load_data') + err.message);
     } finally {
       setLoading(false);
     }
@@ -88,14 +90,14 @@ const TimeSeriesList = () => {
 
   const handleDelete = async (seriesId, e) => {
     e.stopPropagation();
-    if (window.confirm('Are you sure you want to delete this time series?')) {
+    if (window.confirm(t('timeseries.confirm_delete'))) {
       try {
         setLoading(true);
         await timeSeriesService.deleteTimeSeries(seriesId);
         await fetchAllData();
         setError(null);
       } catch (err) {
-        setError('Failed to delete time series: ' + err.message);
+        setError(t('timeseries.error_delete') + err.message);
       } finally {
         setLoading(false);
       }
@@ -121,11 +123,11 @@ const TimeSeriesList = () => {
     const errors = {};
 
     if (!formData.series_name.trim()) {
-      errors.series_name = 'Time series name is required';
+      errors.series_name = t('timeseries.error_name_required');
     }
 
     if (!formData.indicator_id) {
-      errors.indicator_id = 'Indicator selection is required';
+      errors.indicator_id = t('timeseries.error_indicator_required');
     }
 
     setFormErrors(errors);
@@ -155,7 +157,7 @@ const TimeSeriesList = () => {
       await fetchAllData();
       setError(null);
     } catch (err) {
-      setError('Failed to create time series: ' + err.message);
+      setError(t('timeseries.error_create') + err.message);
     } finally {
       setLoading(false);
     }
@@ -184,7 +186,7 @@ const TimeSeriesList = () => {
       await fetchAllData();
       setError(null);
     } catch (err) {
-      setError('Failed to update time series: ' + err.message);
+      setError(t('timeseries.error_update') + err.message);
     } finally {
       setLoading(false);
     }
@@ -220,7 +222,7 @@ const TimeSeriesList = () => {
   if (loading && timeSeries.length === 0) {
     return (
       <div className="timeseries-container">
-        <div className="loading">Loading time series...</div>
+        <div className="loading">{t('timeseries.loading')}</div>
       </div>
     );
   }
@@ -229,13 +231,13 @@ const TimeSeriesList = () => {
     <div className="timeseries-container">
       <div className="timeseries-header">
         <div>
-          <h1>Time Series Management</h1>
+          <h1>{t('timeseries.title')}</h1>
           <p className="subtitle">
-            Manage time series data with technical indicators for stock analysis
+            {t('timeseries.subtitle')}
           </p>
         </div>
         <button className="add-new-button" onClick={handleAddNew}>
-          ➕ Add New Time Series
+          {t('timeseries.button_add')}
         </button>
       </div>
 
@@ -264,19 +266,19 @@ const TimeSeriesList = () => {
               </div>
             </div>
             <p className="timeseries-description">
-              <strong>Indicator:</strong> {series.indicator_name}
+              <strong>{t('timeseries.label_indicator')}</strong> {series.indicator_name}
             </p>
             <div className="timeseries-info">
               <div className="timeseries-info-row">
-                <strong>End Date:</strong>
-                <span>{series.end_date || 'Not set'}</span>
+                <strong>{t('timeseries.label_end_date_inline')}</strong>
+                <span>{series.end_date || t('timeseries.not_set')}</span>
               </div>
               <div className="timeseries-info-row">
-                <strong>Created:</strong>
+                <strong>{t('timeseries.label_created')}</strong>
                 <span>{series.created_date}</span>
               </div>
               <div className="timeseries-info-row">
-                <strong>Parameters:</strong>
+                <strong>{t('timeseries.label_parameters')}</strong>
                 <span>{JSON.stringify(series.default_parameters)}</span>
               </div>
             </div>
@@ -284,16 +286,16 @@ const TimeSeriesList = () => {
               <button
                 className="edit-button"
                 onClick={(e) => handleEdit(series, e)}
-                title="Edit time series"
+                title={t('timeseries.tooltip_edit')}
               >
-                ✏️ Edit
+                {t('timeseries.button_edit')}
               </button>
               <button
                 className="delete-button"
                 onClick={(e) => handleDelete(series.id, e)}
-                title="Delete time series"
+                title={t('timeseries.tooltip_delete')}
               >
-                🗑️ Delete
+                {t('timeseries.button_delete')}
               </button>
             </div>
           </div>
@@ -305,12 +307,12 @@ const TimeSeriesList = () => {
         <div className="timeseries-modal-overlay" onClick={handleCloseModal}>
           <div className="timeseries-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Add New Time Series</h2>
+              <h2>{t('timeseries.modal_add_title')}</h2>
               <button className="close-button" onClick={handleCloseModal}>✕</button>
             </div>
             <form onSubmit={handleSubmitAdd}>
               <div className="form-group">
-                <label htmlFor="series_name">Time Series Name *</label>
+                <label htmlFor="series_name">{t('timeseries.field_name')}</label>
                 <input
                   type="text"
                   id="series_name"
@@ -318,13 +320,13 @@ const TimeSeriesList = () => {
                   value={formData.series_name}
                   onChange={handleFormChange}
                   className={formErrors.series_name ? 'error' : ''}
-                  placeholder="e.g., AAPL RSI Analysis"
+                  placeholder={t('timeseries.placeholder_name')}
                 />
                 {formErrors.series_name && <span className="error-message">{formErrors.series_name}</span>}
               </div>
 
               <div className="form-group">
-                <label htmlFor="indicator_id">Technical Indicator *</label>
+                <label htmlFor="indicator_id">{t('timeseries.field_indicator')}</label>
                 <select
                   id="indicator_id"
                   name="indicator_id"
@@ -332,7 +334,7 @@ const TimeSeriesList = () => {
                   onChange={handleFormChange}
                   className={formErrors.indicator_id ? 'error' : ''}
                 >
-                  <option value="">Select an indicator</option>
+                  <option value="">{t('timeseries.option_select')}</option>
                   {Object.keys(indicators).map(category => (
                     <optgroup key={category} label={category.toUpperCase()}>
                       {indicators[category].map(indicator => (
@@ -347,23 +349,23 @@ const TimeSeriesList = () => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="end_date">End Date (Optional)</label>
+                <label htmlFor="end_date">{t('timeseries.field_end_date')}</label>
                 <input
                   type="date"
                   id="end_date"
                   name="end_date"
                   value={formData.end_date}
                   onChange={handleFormChange}
-                  placeholder="Select end date"
+                  placeholder={t('timeseries.placeholder_end_date')}
                 />
               </div>
 
               <div className="modal-actions">
                 <button type="button" className="btn-cancel" onClick={handleCloseModal}>
-                  Cancel
+                  {t('timeseries.button_cancel')}
                 </button>
                 <button type="submit" className="btn-submit">
-                  Create Time Series
+                  {t('timeseries.button_create')}
                 </button>
               </div>
             </form>
@@ -376,12 +378,12 @@ const TimeSeriesList = () => {
         <div className="timeseries-modal-overlay" onClick={handleCloseModal}>
           <div className="timeseries-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Edit Time Series</h2>
+              <h2>{t('timeseries.modal_edit_title')}</h2>
               <button className="close-button" onClick={handleCloseModal}>✕</button>
             </div>
             <form onSubmit={handleSubmitEdit}>
               <div className="form-group">
-                <label htmlFor="edit-series_name">Time Series Name *</label>
+                <label htmlFor="edit-series_name">{t('timeseries.field_name')}</label>
                 <input
                   type="text"
                   id="edit-series_name"
@@ -389,13 +391,13 @@ const TimeSeriesList = () => {
                   value={formData.series_name}
                   onChange={handleFormChange}
                   className={formErrors.series_name ? 'error' : ''}
-                  placeholder="e.g., AAPL RSI Analysis"
+                  placeholder={t('timeseries.placeholder_name')}
                 />
                 {formErrors.series_name && <span className="error-message">{formErrors.series_name}</span>}
               </div>
 
               <div className="form-group">
-                <label htmlFor="edit-indicator_id">Technical Indicator *</label>
+                <label htmlFor="edit-indicator_id">{t('timeseries.field_indicator')}</label>
                 <select
                   id="edit-indicator_id"
                   name="indicator_id"
@@ -403,7 +405,7 @@ const TimeSeriesList = () => {
                   onChange={handleFormChange}
                   className={formErrors.indicator_id ? 'error' : ''}
                 >
-                  <option value="">Select an indicator</option>
+                  <option value="">{t('timeseries.option_select')}</option>
                   {Object.keys(indicators).map(category => (
                     <optgroup key={category} label={category.toUpperCase()}>
                       {indicators[category].map(indicator => (
@@ -418,23 +420,23 @@ const TimeSeriesList = () => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="edit-end_date">End Date (Optional)</label>
+                <label htmlFor="edit-end_date">{t('timeseries.field_end_date')}</label>
                 <input
                   type="date"
                   id="edit-end_date"
                   name="end_date"
                   value={formData.end_date}
                   onChange={handleFormChange}
-                  placeholder="Select end date"
+                  placeholder={t('timeseries.placeholder_end_date')}
                 />
               </div>
 
               <div className="modal-actions">
                 <button type="button" className="btn-cancel" onClick={handleCloseModal}>
-                  Cancel
+                  {t('timeseries.button_cancel')}
                 </button>
                 <button type="submit" className="btn-submit">
-                  Update Time Series
+                  {t('timeseries.button_update')}
                 </button>
               </div>
             </form>

@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import './Models.css';
 import ModelService from "../../../services/modelService";
 import httpClient from "../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../constants/api";
 
 const ModelList = () => {
+    const { t } = useTranslation();
     const [modelListData, setModelListData] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -29,13 +31,13 @@ const ModelList = () => {
 
     // Helper function to safely format dates
     const formatDate = (dateValue, includeTime = false) => {
-        if (!dateValue) return 'N/A';
+        if (!dateValue) return t('models.na');
         try {
             const date = new Date(dateValue);
-            if (isNaN(date.getTime())) return 'N/A';
+            if (isNaN(date.getTime())) return t('models.na');
             return includeTime ? date.toLocaleString() : date.toLocaleDateString();
         } catch (error) {
-            return 'N/A';
+            return t('models.na');
         }
     };
 
@@ -56,7 +58,7 @@ const ModelList = () => {
             ]);
             setError(null);
         } catch (err) {
-            setError('Failed to load data: ' + err.message);
+            setError(t('models.error_load_data') + err.message);
         } finally {
             setIsLoading(false);
         }
@@ -173,10 +175,10 @@ const ModelList = () => {
                 setFormErrors({});
                 setShowEditModal(true);
             } else {
-                setError('Failed to load model configuration: ' + (result.error || 'Unknown error'));
+                setError(t('models.error_load_config') + (result.error || 'Unknown error'));
             }
         } catch (err) {
-            setError('Failed to load model configuration: ' + err.message);
+            setError(t('models.error_load_config') + err.message);
         } finally {
             setIsLoading(false);
         }
@@ -184,7 +186,7 @@ const ModelList = () => {
 
     const handleDelete = async (model, e) => {
         e.stopPropagation();
-        if (window.confirm(`Are you sure you want to delete "${model.model_name}"?`)) {
+        if (window.confirm(t('models.confirm_delete', { name: model.model_name }))) {
             try {
                 setIsLoading(true);
                 const result = await ModelService.deleteModel(model.id);
@@ -192,10 +194,10 @@ const ModelList = () => {
                     await getModelList();
                     setError(null);
                 } else {
-                    setError('Failed to delete model: ' + result.error);
+                    setError(t('models.error_delete') + result.error);
                 }
             } catch (err) {
-                setError('Failed to delete model: ' + err.message);
+                setError(t('models.error_delete') + err.message);
             } finally {
                 setIsLoading(false);
             }
@@ -309,7 +311,7 @@ const ModelList = () => {
     const validateForm = () => {
         const errors = {};
         if (!modelType) {
-            errors.model_type = 'Model type is required';
+            errors.model_type = t('models.error_type_required');
         }
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
@@ -325,14 +327,14 @@ const ModelList = () => {
             const result = await httpClient.post(API_ENDPOINTS.MODEL_BY_TYPE(modelType.toLowerCase()), data);
 
             if (!result.success) {
-                throw new Error(result.error?.message || 'Failed to create model');
+                throw new Error(result.error?.message || t('models.error_create').trim());
             }
 
             setShowAddModal(false);
             await getModelList();
             setError(null);
         } catch (err) {
-            setError('Failed to create model: ' + err.message);
+            setError(t('models.error_create') + err.message);
         } finally {
             setIsLoading(false);
         }
@@ -349,7 +351,7 @@ const ModelList = () => {
             const result = await httpClient.put(API_ENDPOINTS.MODEL_BY_TYPE(modelType.toLowerCase()), data);
 
             if (!result.success) {
-                throw new Error(result.error?.message || 'Failed to update model');
+                throw new Error(result.error?.message || t('models.error_update').trim());
             }
 
             setShowEditModal(false);
@@ -357,7 +359,7 @@ const ModelList = () => {
             await getModelList();
             setError(null);
         } catch (err) {
-            setError('Failed to update model: ' + err.message);
+            setError(t('models.error_update') + err.message);
         } finally {
             setIsLoading(false);
         }
@@ -371,7 +373,7 @@ const ModelList = () => {
     if (isLoading && modelListData.length === 0) {
         return (
             <div className="models-container">
-                <div className="loading">Loading models...</div>
+                <div className="loading">{t('models.loading')}</div>
             </div>
         );
     }
@@ -380,13 +382,13 @@ const ModelList = () => {
         <div className="models-container">
             <div className="models-header">
                 <div>
-                    <h1>Prediction Models</h1>
+                    <h1>{t('models.title')}</h1>
                     <p className="subtitle">
-                        Manage machine learning models for stock price prediction
+                        {t('models.subtitle')}
                     </p>
                 </div>
                 <button className="add-new-button" onClick={handleAddNew}>
-                    ➕ Add New Model
+                    {t('models.button_add')}
                 </button>
             </div>
 
@@ -408,7 +410,7 @@ const ModelList = () => {
                     >
                         <span className="type-icon">{type === 'all' ? '📋' : getTypeIcon(type)}</span>
                         <span className="type-name">
-                            {type === 'all' ? 'All Models' : type}
+                            {type === 'all' ? t('models.tab_all') : type}
                         </span>
                         <span className="type-count">
                             {type === 'all' ? modelListData.length : modelListData.filter(m => m.model_type === type).length}
@@ -443,34 +445,34 @@ const ModelList = () => {
                                 <button
                                     className="edit-button"
                                     onClick={(e) => handleEdit(model, e)}
-                                    title="Edit model"
+                                    title={t('models.tooltip_edit')}
                                 >
-                                    ✏️ Edit
+                                    {t('models.button_edit')}
                                 </button>
                                 <button
                                     className="delete-button"
                                     onClick={(e) => handleDelete(model, e)}
-                                    title="Delete model"
+                                    title={t('models.tooltip_delete')}
                                 >
-                                    🗑️ Delete
+                                    {t('models.button_delete')}
                                 </button>
                             </div>
                         </div>
                         <div className="model-info">
                             <div className="info-item">
-                                <span className="info-label">Sub Type:</span>
-                                <span className="info-value">{model.model_sub_type || 'N/A'}</span>
+                                <span className="info-label">{t('models.info_subtype')}</span>
+                                <span className="info-value">{model.model_sub_type || t('models.na')}</span>
                             </div>
                             <div className="info-item">
-                                <span className="info-label">Created:</span>
+                                <span className="info-label">{t('models.info_created')}</span>
                                 <span className="info-value">{formatDate(model.created_at)}</span>
                             </div>
                             <div className="info-item">
-                                <span className="info-label">Updated:</span>
+                                <span className="info-label">{t('models.info_updated')}</span>
                                 <span className="info-value">{formatDate(model.updated_at)}</span>
                             </div>
                             <div className="info-item">
-                                <span className="info-label">Created By:</span>
+                                <span className="info-label">{t('models.info_created_by')}</span>
                                 <span className="info-value">{model.created_by}</span>
                             </div>
                         </div>
@@ -480,7 +482,7 @@ const ModelList = () => {
 
             {filteredModels.length === 0 && (
                 <div className="empty-state">
-                    <p>No models found. Create your first model to get started!</p>
+                    <p>{t('models.empty_state')}</p>
                 </div>
             )}
 
@@ -493,7 +495,7 @@ const ModelList = () => {
                         </button>
                         <h2>{selectedModel.model_name}</h2>
                         <div className="details-section">
-                            <h3>Model Type</h3>
+                            <h3>{t('models.details_type')}</h3>
                             <span
                                 className="type-badge-large"
                                 style={{
@@ -505,19 +507,19 @@ const ModelList = () => {
                             </span>
                         </div>
                         <div className="details-section">
-                            <h3>Model Sub Type</h3>
-                            <p>{selectedModel.model_sub_type || 'N/A'}</p>
+                            <h3>{t('models.details_subtype')}</h3>
+                            <p>{selectedModel.model_sub_type || t('models.na')}</p>
                         </div>
                         <div className="details-section">
-                            <h3>Created Date</h3>
+                            <h3>{t('models.details_created')}</h3>
                             <p>{formatDate(selectedModel.created_at, true)}</p>
                         </div>
                         <div className="details-section">
-                            <h3>Updated Date</h3>
+                            <h3>{t('models.details_updated')}</h3>
                             <p>{formatDate(selectedModel.updated_at, true)}</p>
                         </div>
                         <div className="details-section">
-                            <h3>Created By</h3>
+                            <h3>{t('models.details_created_by')}</h3>
                             <p>{selectedModel.created_by}</p>
                         </div>
                     </div>
@@ -529,24 +531,24 @@ const ModelList = () => {
                 <div className="model-modal-overlay" onClick={handleCloseModal}>
                     <div className="model-modal" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h2>Add New Model</h2>
+                            <h2>{t('models.modal_add_title')}</h2>
                             <button className="close-button" onClick={handleCloseModal}>✕</button>
                         </div>
                         <form onSubmit={handleSubmit(handleSubmitAdd)}>
                             <div className="form-group">
-                                <label htmlFor="model_name">Model Name *</label>
+                                <label htmlFor="model_name">{t('models.field_name')}</label>
                                 <input
                                     type="text"
                                     id="model_name"
                                     {...register('model_name', { required: true })}
-                                    placeholder="Enter model name"
+                                    placeholder={t('models.placeholder_name')}
                                     className={errors.model_name ? 'error' : ''}
                                 />
-                                {errors.model_name && <span className="error-message">Model name is required</span>}
+                                {errors.model_name && <span className="error-message">{t('models.error_name_required')}</span>}
                             </div>
 
                             <div className="form-group">
-                                <label htmlFor="model_type">Model Type *</label>
+                                <label htmlFor="model_type">{t('models.field_type')}</label>
                                 <select
                                     id="model_type"
                                     {...register("model_type")}
@@ -554,7 +556,7 @@ const ModelList = () => {
                                     value={modelType}
                                     className={formErrors.model_type ? 'error' : ''}
                                 >
-                                    <option value="">Select a model type</option>
+                                    <option value="">{t('models.option_select_type')}</option>
                                     {modelTypeList.map((data, index) => (
                                         <option key={index} value={data.name}>
                                             {data.name}
@@ -568,10 +570,10 @@ const ModelList = () => {
 
                             <div className="modal-actions">
                                 <button type="button" className="btn-cancel" onClick={handleCloseModal}>
-                                    Cancel
+                                    {t('models.button_cancel')}
                                 </button>
                                 <button type="submit" className="btn-submit">
-                                    Create Model
+                                    {t('models.button_create')}
                                 </button>
                             </div>
                         </form>
@@ -584,24 +586,24 @@ const ModelList = () => {
                 <div className="model-modal-overlay" onClick={handleCloseModal}>
                     <div className="model-modal" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h2>Edit Model</h2>
+                            <h2>{t('models.modal_edit_title')}</h2>
                             <button className="close-button" onClick={handleCloseModal}>✕</button>
                         </div>
                         <form onSubmit={handleSubmit(handleSubmitEdit)}>
                             <div className="form-group">
-                                <label htmlFor="edit_model_name">Model Name *</label>
+                                <label htmlFor="edit_model_name">{t('models.field_name')}</label>
                                 <input
                                     type="text"
                                     id="edit_model_name"
                                     {...register('model_name', { required: true })}
-                                    placeholder="Enter model name"
+                                    placeholder={t('models.placeholder_name')}
                                     className={errors.model_name ? 'error' : ''}
                                 />
-                                {errors.model_name && <span className="error-message">Model name is required</span>}
+                                {errors.model_name && <span className="error-message">{t('models.error_name_required')}</span>}
                             </div>
 
                             <div className="form-group">
-                                <label htmlFor="edit_model_type">Model Type</label>
+                                <label htmlFor="edit_model_type">{t('models.field_type_edit')}</label>
                                 <div className="readonly-field">{modelType}</div>
                             </div>
 
@@ -609,10 +611,10 @@ const ModelList = () => {
 
                             <div className="modal-actions">
                                 <button type="button" className="btn-cancel" onClick={handleCloseModal}>
-                                    Cancel
+                                    {t('models.button_cancel')}
                                 </button>
                                 <button type="submit" className="btn-submit">
-                                    Update Model
+                                    {t('models.button_update')}
                                 </button>
                             </div>
                         </form>

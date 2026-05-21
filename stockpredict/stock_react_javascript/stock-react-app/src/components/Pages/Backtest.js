@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Activity, AlertTriangle, History, Play, Target } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import modelService from '../../services/modelService';
 
 const MODEL_TYPES = [
@@ -22,6 +23,7 @@ const fmtPct = (v) => `${(Number(v) * 100).toFixed(2)}%`;
 const fmtNum = (v, digits = 4) => Number(v).toFixed(digits);
 
 const Backtest = () => {
+  const { t } = useTranslation();
   const [form, setForm] = useState({
     symbol: 'FPT',
     model_type: 'xgboost',
@@ -44,11 +46,11 @@ const Backtest = () => {
     setResult(null);
 
     if (!form.symbol.trim()) {
-      setError('Vui lòng nhập mã cổ phiếu.');
+      setError(t('backtest.error_symbol_required'));
       return;
     }
     if (new Date(form.start_date) >= new Date(form.end_date)) {
-      setError('Ngày bắt đầu phải trước ngày kết thúc.');
+      setError(t('backtest.error_date_range'));
       return;
     }
 
@@ -62,7 +64,7 @@ const Backtest = () => {
     if (response.success) {
       setResult(response.data);
     } else {
-      setError(response.error || 'Không thể chạy backtest.');
+      setError(response.error || t('backtest.error_run_failed'));
     }
   };
 
@@ -70,11 +72,10 @@ const Backtest = () => {
     <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
       <h1 style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
         <History color="#8b5cf6" />
-        Prediction Backtest
+        {t('backtest.title')}
       </h1>
       <p style={{ color: '#6b7280', marginBottom: 24 }}>
-        Đánh giá độ chính xác của mô hình dự đoán giá trên dữ liệu lịch sử.
-        Báo cáo gồm tỉ lệ đoán đúng hướng, MAE, RMSE và độ tin cậy trung bình.
+        {t('backtest.description')}
       </p>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24 }}>
@@ -88,11 +89,11 @@ const Backtest = () => {
             boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
           }}
         >
-          <h3 style={{ marginTop: 0, marginBottom: 16 }}>Tham số</h3>
+          <h3 style={{ marginTop: 0, marginBottom: 16 }}>{t('backtest.parameters_header')}</h3>
 
           <div style={{ marginBottom: 12 }}>
             <label htmlFor="bt-symbol" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
-              Mã cổ phiếu
+              {t('backtest.symbol_label')}
             </label>
             <input
               id="bt-symbol"
@@ -106,7 +107,7 @@ const Backtest = () => {
 
           <div style={{ marginBottom: 12 }}>
             <label htmlFor="bt-model" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
-              Loại mô hình
+              {t('backtest.model_type_label')}
             </label>
             <select
               id="bt-model"
@@ -123,7 +124,7 @@ const Backtest = () => {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             <div>
               <label htmlFor="bt-start" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
-                Từ ngày
+                {t('backtest.from_date')}
               </label>
               <input
                 id="bt-start"
@@ -135,7 +136,7 @@ const Backtest = () => {
             </div>
             <div>
               <label htmlFor="bt-end" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
-                Đến ngày
+                {t('backtest.to_date')}
               </label>
               <input
                 id="bt-end"
@@ -149,7 +150,7 @@ const Backtest = () => {
 
           <div style={{ marginBottom: 16 }}>
             <label htmlFor="bt-horizon" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
-              Khoảng dự đoán (ngày)
+              {t('backtest.prediction_horizon')}
             </label>
             <input
               id="bt-horizon"
@@ -181,7 +182,7 @@ const Backtest = () => {
             }}
           >
             <Play size={16} />
-            {loading ? 'Đang chạy backtest...' : 'Chạy backtest'}
+            {loading ? t('backtest.running') : t('backtest.run')}
           </button>
 
           {error && (
@@ -214,17 +215,17 @@ const Backtest = () => {
             minHeight: 320,
           }}
         >
-          <h3 style={{ marginTop: 0, marginBottom: 16 }}>Kết quả</h3>
+          <h3 style={{ marginTop: 0, marginBottom: 16 }}>{t('backtest.results_header')}</h3>
 
           {!result && !loading && (
             <p style={{ color: '#9ca3af' }}>
-              Nhập tham số rồi nhấn "Chạy backtest" để xem kết quả.
+              {t('backtest.empty_message')}
             </p>
           )}
 
           {loading && (
             <p style={{ color: '#6b7280' }} aria-live="polite">
-              Đang phân tích dữ liệu lịch sử...
+              {t('backtest.analyzing')}
             </p>
           )}
 
@@ -242,7 +243,7 @@ const Backtest = () => {
               <div style={{ marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                   <Target size={16} color="#8b5cf6" />
-                  <span style={{ fontWeight: 500 }}>Đoán đúng hướng</span>
+                  <span style={{ fontWeight: 500 }}>{t('backtest.direction_accuracy')}</span>
                   <span data-testid="bt-direction-accuracy" style={{ marginLeft: 'auto', fontWeight: 600 }}>
                     {fmtPct(result.direction_accuracy)}
                   </span>
@@ -257,7 +258,7 @@ const Backtest = () => {
                   />
                 </div>
                 <div style={{ marginTop: 4, fontSize: 12, color: '#6b7280' }}>
-                  {result.correct_direction} / {result.total_predictions} dự đoán
+                  {result.correct_direction} / {result.total_predictions} {t('backtest.predictions_unit')}
                 </div>
               </div>
 
@@ -265,11 +266,11 @@ const Backtest = () => {
                 <Metric label="MAE" value={fmtNum(result.mean_absolute_error)} />
                 <Metric label="RMSE" value={fmtNum(result.root_mean_squared_error)} />
                 <Metric
-                  label="Độ tin cậy trung bình"
+                  label={t('backtest.average_confidence')}
                   value={fmtPct(result.average_confidence)}
                   icon={<Activity size={14} color="#6366f1" />}
                 />
-                <Metric label="Tổng số dự đoán" value={result.total_predictions} />
+                <Metric label={t('backtest.total_predictions')} value={result.total_predictions} />
               </div>
             </div>
           )}

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import indicatorService from '../../../services/indicatorService';
 import './Indicators.css';
 
 const IndicatorsList = () => {
+  const { t } = useTranslation();
   const [indicators, setIndicators] = useState({
     trend: [],
     momentum: [],
@@ -39,7 +41,7 @@ const IndicatorsList = () => {
       setIndicators(data);
       setError(null);
     } catch (err) {
-      setError('Failed to load indicators: ' + err.message);
+      setError(t('indicators.error_load') + err.message);
     } finally {
       setLoading(false);
     }
@@ -73,13 +75,13 @@ const IndicatorsList = () => {
 
   const getCategoryLabel = (category) => {
     const labels = {
-      trend: 'Trend',
-      momentum: 'Momentum',
-      volatility: 'Volatility',
-      volume: 'Volume',
-      support_resistance: 'Support/Resistance',
-      price_transform: 'Price Transform',
-      bill_williams: 'Bill Williams'
+      trend: t('indicators.category_trend'),
+      momentum: t('indicators.category_momentum'),
+      volatility: t('indicators.category_volatility'),
+      volume: t('indicators.category_volume'),
+      support_resistance: t('indicators.category_support'),
+      price_transform: t('indicators.category_price'),
+      bill_williams: t('indicators.category_williams')
     };
     return labels[category] || category.charAt(0).toUpperCase() + category.slice(1);
   };
@@ -129,22 +131,22 @@ const IndicatorsList = () => {
     const errors = {};
 
     if (!formData.name.trim()) {
-      errors.name = 'Indicator name is required';
+      errors.name = t('indicators.error_name_required');
     }
 
     if (!formData.description.trim()) {
-      errors.description = 'Description is required';
+      errors.description = t('indicators.error_description_required');
     }
 
     if (!formData.calculation_function.trim()) {
-      errors.calculation_function = 'Calculation function is required';
+      errors.calculation_function = t('indicators.error_calculation_required');
     }
 
     // Validate JSON format for parameters
     try {
       JSON.parse(formData.default_parameters);
     } catch (e) {
-      errors.default_parameters = 'Invalid JSON format';
+      errors.default_parameters = t('indicators.error_invalid_json');
     }
 
     setFormErrors(errors);
@@ -170,7 +172,7 @@ const IndicatorsList = () => {
       await fetchAllIndicators();
       setError(null);
     } catch (err) {
-      setError('Failed to create indicator: ' + err.message);
+      setError(t('indicators.error_create') + err.message);
     } finally {
       setLoading(false);
     }
@@ -199,7 +201,7 @@ const IndicatorsList = () => {
       await fetchAllIndicators();
       setError(null);
     } catch (err) {
-      setError('Failed to update indicator: ' + err.message);
+      setError(t('indicators.error_update') + err.message);
     } finally {
       setLoading(false);
     }
@@ -222,7 +224,7 @@ const IndicatorsList = () => {
   if (loading) {
     return (
       <div className="indicators-container">
-        <div className="loading">Loading indicators...</div>
+        <div className="loading">{t('indicators.loading')}</div>
       </div>
     );
   }
@@ -241,13 +243,13 @@ const IndicatorsList = () => {
     <div className="indicators-container">
       <div className="indicators-header">
         <div>
-          <h1>Technical Indicators</h1>
+          <h1>{t('indicators.title')}</h1>
           <p className="subtitle">
-            Explore technical indicators for stock market analysis and prediction
+            {t('indicators.subtitle')}
           </p>
         </div>
         <button className="add-new-button" onClick={handleAddNew}>
-          ➕ Add New Indicator
+          {t('indicators.button_add')}
         </button>
       </div>
 
@@ -302,15 +304,15 @@ const IndicatorsList = () => {
                 <button
                   className="edit-button"
                   onClick={(e) => handleEdit(indicator, e)}
-                  title="Edit indicator"
+                  title={t('indicators.tooltip_edit')}
                 >
-                  ✏️ Edit
+                  {t('indicators.button_edit')}
                 </button>
               </div>
             </div>
             <p className="indicator-description">{indicator.description}</p>
             <div className="indicator-parameters">
-              <strong>Default Parameters:</strong>
+              <strong>{t('indicators.info_default_params')}</strong>
               <pre>{JSON.stringify(indicator.default_parameters, null, 2)}</pre>
             </div>
           </div>
@@ -326,11 +328,11 @@ const IndicatorsList = () => {
             </button>
             <h2>{selectedIndicator.name}</h2>
             <div className="details-section">
-              <h3>Description</h3>
+              <h3>{t('indicators.details_description')}</h3>
               <p>{selectedIndicator.description}</p>
             </div>
             <div className="details-section">
-              <h3>Category</h3>
+              <h3>{t('indicators.details_category')}</h3>
               <span
                 className="category-badge-large"
                 style={{
@@ -342,13 +344,13 @@ const IndicatorsList = () => {
               </span>
             </div>
             <div className="details-section">
-              <h3>Default Parameters</h3>
+              <h3>{t('indicators.details_default_params')}</h3>
               <pre className="parameters-display">
                 {JSON.stringify(selectedIndicator.default_parameters, null, 2)}
               </pre>
             </div>
             <div className="details-section">
-              <h3>Calculation Function</h3>
+              <h3>{t('indicators.details_calculation')}</h3>
               <code>{selectedIndicator.calculation_function}</code>
             </div>
           </div>
@@ -360,12 +362,12 @@ const IndicatorsList = () => {
         <div className="indicator-modal-overlay" onClick={handleCloseModal}>
           <div className="indicator-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Add New Indicator</h2>
+              <h2>{t('indicators.modal_add_title')}</h2>
               <button className="close-button" onClick={handleCloseModal}>✕</button>
             </div>
             <form onSubmit={handleSubmitAdd}>
               <div className="form-group">
-                <label htmlFor="name">Indicator Name *</label>
+                <label htmlFor="name">{t('indicators.field_name')}</label>
                 <input
                   type="text"
                   id="name"
@@ -373,45 +375,45 @@ const IndicatorsList = () => {
                   value={formData.name}
                   onChange={handleFormChange}
                   className={formErrors.name ? 'error' : ''}
-                  placeholder="e.g., RSI, MACD, SMA"
+                  placeholder={t('indicators.placeholder_name')}
                 />
                 {formErrors.name && <span className="error-message">{formErrors.name}</span>}
               </div>
 
               <div className="form-group">
-                <label htmlFor="type">Category *</label>
+                <label htmlFor="type">{t('indicators.field_category')}</label>
                 <select
                   id="type"
                   name="type"
                   value={formData.type}
                   onChange={handleFormChange}
                 >
-                  <option value="trend">Trend</option>
-                  <option value="momentum">Momentum</option>
-                  <option value="volatility">Volatility</option>
-                  <option value="volume">Volume</option>
-                  <option value="support_resistance">Support/Resistance</option>
-                  <option value="price_transform">Price Transform</option>
-                  <option value="bill_williams">Bill Williams</option>
+                  <option value="trend">{t('indicators.category_trend')}</option>
+                  <option value="momentum">{t('indicators.category_momentum')}</option>
+                  <option value="volatility">{t('indicators.category_volatility')}</option>
+                  <option value="volume">{t('indicators.category_volume')}</option>
+                  <option value="support_resistance">{t('indicators.category_support')}</option>
+                  <option value="price_transform">{t('indicators.category_price')}</option>
+                  <option value="bill_williams">{t('indicators.category_williams')}</option>
                 </select>
               </div>
 
               <div className="form-group">
-                <label htmlFor="description">Description *</label>
+                <label htmlFor="description">{t('indicators.field_description')}</label>
                 <textarea
                   id="description"
                   name="description"
                   value={formData.description}
                   onChange={handleFormChange}
                   className={formErrors.description ? 'error' : ''}
-                  placeholder="Describe what this indicator measures and how it's used"
+                  placeholder={t('indicators.placeholder_description')}
                   rows="3"
                 />
                 {formErrors.description && <span className="error-message">{formErrors.description}</span>}
               </div>
 
               <div className="form-group">
-                <label htmlFor="calculation_function">Calculation Function *</label>
+                <label htmlFor="calculation_function">{t('indicators.field_calculation')}</label>
                 <input
                   type="text"
                   id="calculation_function"
@@ -419,20 +421,20 @@ const IndicatorsList = () => {
                   value={formData.calculation_function}
                   onChange={handleFormChange}
                   className={formErrors.calculation_function ? 'error' : ''}
-                  placeholder="e.g., talib.RSI, calculate_macd"
+                  placeholder={t('indicators.placeholder_calculation')}
                 />
                 {formErrors.calculation_function && <span className="error-message">{formErrors.calculation_function}</span>}
               </div>
 
               <div className="form-group">
-                <label htmlFor="default_parameters">Default Parameters (JSON) *</label>
+                <label htmlFor="default_parameters">{t('indicators.field_default_params')}</label>
                 <textarea
                   id="default_parameters"
                   name="default_parameters"
                   value={formData.default_parameters}
                   onChange={handleFormChange}
                   className={formErrors.default_parameters ? 'error' : ''}
-                  placeholder='{"period": 14, "threshold": 30}'
+                  placeholder={t('indicators.placeholder_default_params')}
                   rows="4"
                 />
                 {formErrors.default_parameters && <span className="error-message">{formErrors.default_parameters}</span>}
@@ -440,10 +442,10 @@ const IndicatorsList = () => {
 
               <div className="modal-actions">
                 <button type="button" className="btn-cancel" onClick={handleCloseModal}>
-                  Cancel
+                  {t('indicators.button_cancel')}
                 </button>
                 <button type="submit" className="btn-submit">
-                  Create Indicator
+                  {t('indicators.button_create')}
                 </button>
               </div>
             </form>
@@ -456,12 +458,12 @@ const IndicatorsList = () => {
         <div className="indicator-modal-overlay" onClick={handleCloseModal}>
           <div className="indicator-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Edit Indicator</h2>
+              <h2>{t('indicators.modal_edit_title')}</h2>
               <button className="close-button" onClick={handleCloseModal}>✕</button>
             </div>
             <form onSubmit={handleSubmitEdit}>
               <div className="form-group">
-                <label htmlFor="edit-name">Indicator Name *</label>
+                <label htmlFor="edit-name">{t('indicators.field_name')}</label>
                 <input
                   type="text"
                   id="edit-name"
@@ -469,45 +471,45 @@ const IndicatorsList = () => {
                   value={formData.name}
                   onChange={handleFormChange}
                   className={formErrors.name ? 'error' : ''}
-                  placeholder="e.g., RSI, MACD, SMA"
+                  placeholder={t('indicators.placeholder_name')}
                 />
                 {formErrors.name && <span className="error-message">{formErrors.name}</span>}
               </div>
 
               <div className="form-group">
-                <label htmlFor="edit-type">Category *</label>
+                <label htmlFor="edit-type">{t('indicators.field_category')}</label>
                 <select
                   id="edit-type"
                   name="type"
                   value={formData.type}
                   onChange={handleFormChange}
                 >
-                  <option value="trend">Trend</option>
-                  <option value="momentum">Momentum</option>
-                  <option value="volatility">Volatility</option>
-                  <option value="volume">Volume</option>
-                  <option value="support_resistance">Support/Resistance</option>
-                  <option value="price_transform">Price Transform</option>
-                  <option value="bill_williams">Bill Williams</option>
+                  <option value="trend">{t('indicators.category_trend')}</option>
+                  <option value="momentum">{t('indicators.category_momentum')}</option>
+                  <option value="volatility">{t('indicators.category_volatility')}</option>
+                  <option value="volume">{t('indicators.category_volume')}</option>
+                  <option value="support_resistance">{t('indicators.category_support')}</option>
+                  <option value="price_transform">{t('indicators.category_price')}</option>
+                  <option value="bill_williams">{t('indicators.category_williams')}</option>
                 </select>
               </div>
 
               <div className="form-group">
-                <label htmlFor="edit-description">Description *</label>
+                <label htmlFor="edit-description">{t('indicators.field_description')}</label>
                 <textarea
                   id="edit-description"
                   name="description"
                   value={formData.description}
                   onChange={handleFormChange}
                   className={formErrors.description ? 'error' : ''}
-                  placeholder="Describe what this indicator measures and how it's used"
+                  placeholder={t('indicators.placeholder_description')}
                   rows="3"
                 />
                 {formErrors.description && <span className="error-message">{formErrors.description}</span>}
               </div>
 
               <div className="form-group">
-                <label htmlFor="edit-calculation_function">Calculation Function *</label>
+                <label htmlFor="edit-calculation_function">{t('indicators.field_calculation')}</label>
                 <input
                   type="text"
                   id="edit-calculation_function"
@@ -515,20 +517,20 @@ const IndicatorsList = () => {
                   value={formData.calculation_function}
                   onChange={handleFormChange}
                   className={formErrors.calculation_function ? 'error' : ''}
-                  placeholder="e.g., talib.RSI, calculate_macd"
+                  placeholder={t('indicators.placeholder_calculation')}
                 />
                 {formErrors.calculation_function && <span className="error-message">{formErrors.calculation_function}</span>}
               </div>
 
               <div className="form-group">
-                <label htmlFor="edit-default_parameters">Default Parameters (JSON) *</label>
+                <label htmlFor="edit-default_parameters">{t('indicators.field_default_params')}</label>
                 <textarea
                   id="edit-default_parameters"
                   name="default_parameters"
                   value={formData.default_parameters}
                   onChange={handleFormChange}
                   className={formErrors.default_parameters ? 'error' : ''}
-                  placeholder='{"period": 14, "threshold": 30}'
+                  placeholder={t('indicators.placeholder_default_params')}
                   rows="4"
                 />
                 {formErrors.default_parameters && <span className="error-message">{formErrors.default_parameters}</span>}
@@ -536,10 +538,10 @@ const IndicatorsList = () => {
 
               <div className="modal-actions">
                 <button type="button" className="btn-cancel" onClick={handleCloseModal}>
-                  Cancel
+                  {t('indicators.button_cancel')}
                 </button>
                 <button type="submit" className="btn-submit">
-                  Update Indicator
+                  {t('indicators.button_update')}
                 </button>
               </div>
             </form>

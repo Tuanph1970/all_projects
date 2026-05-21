@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { Button } from "react-bootstrap";
 import DataTable from 'react-data-table-component'
+import { useTranslation } from "react-i18next";
 import solutionService from "../../../services/solutionService";
 import SolutionModal from "./SolutionModal";
 import "../../../styles/solution-list.css";
 
 const SolutionList = () => {
+  const { t, i18n } = useTranslation();
   // navigate was destructured here but never called — dropped during the
   // useRouter → react-router migration. Add useNavigate back if needed.
   const [solutionList, setSolutionList] = useState([]);
@@ -74,10 +76,10 @@ const SolutionList = () => {
         setError(result.error);
       }
     } catch (err) {
-      setError('Không thể tải giải pháp');
+      setError(t('solutions.load_error'));
     } finally {
-      setIsLoading(false);                 
-    }    
+      setIsLoading(false);
+    }
   }
 
   const editSolution = async (event) => {
@@ -98,10 +100,10 @@ const SolutionList = () => {
     const id = parseInt(event.target.id);
     if (id > 0) {
       // Show confirmation dialog
-      if (window.confirm('Bạn có chắc muốn xóa giải pháp này?')) {
+      if (window.confirm(t('solutions.delete_confirm'))) {
         try {
           const result = await solutionService.deleteSolution(id);
-          
+
           if (result.success) {
             // Refresh the list after successful deletion
             loadSolutions();
@@ -109,7 +111,7 @@ const SolutionList = () => {
             setError(result.error);
           }
         } catch (err) {
-          setError('Không thể xóa giải pháp');
+          setError(t('solutions.delete_error'));
         }
       }
     }
@@ -133,17 +135,17 @@ const SolutionList = () => {
   const renderTrainStatusBadge = (status) => {
     const statusConfig = {
       'not_trained': {
-        label: 'Chưa huấn luyện',
+        label: t('solutions.status_not_trained'),
         className: 'badge bg-secondary',
         icon: '○'
       },
       'trained': {
-        label: 'Đã huấn luyện',
+        label: t('solutions.status_trained'),
         className: 'badge bg-success',
         icon: '✓'
       },
       'predicted': {
-        label: 'Đã dự đoán',
+        label: t('solutions.status_predicted'),
         className: 'badge bg-primary',
         icon: '★'
       }
@@ -158,6 +160,10 @@ const SolutionList = () => {
     );
   };
 
+  // Use the active language for date formatting so dates match the rest
+  // of the UI when the user switches to English.
+  const dateLocale = i18n.language === 'en' ? 'en-GB' : 'vi-VN';
+
   const general_columns = [
         {
             name: 'ID',
@@ -165,7 +171,7 @@ const SolutionList = () => {
             omit: true,
         },
         {
-          name: 'Tên giải pháp',
+          name: t('solutions.column_name'),
           selector: row => row.solution_name,
           sortable: true,
           grow: 2,
@@ -175,7 +181,7 @@ const SolutionList = () => {
           }
         },
         {
-            name: 'Mã CK',
+            name: t('solutions.column_ticker'),
             selector: row => row.ticker,
             sortable: true,
             width: '100px',
@@ -185,58 +191,58 @@ const SolutionList = () => {
             }
         },
         {
-          name: 'Trạng thái',
+          name: t('solutions.column_status'),
           selector: row => row.train_status,
           sortable: true,
           width: '130px',
           cell: (row) => renderTrainStatusBadge(row.train_status)
         },
         {
-          name: 'Loại mô hình',
+          name: t('solutions.column_model_type'),
           selector: row => row.model_type,
           sortable: true,
           width: '120px',
         },
         {
-          name: 'Loại phụ',
+          name: t('solutions.column_sub_type'),
           selector: row => row.model_sub_type,
           sortable: true,
           width: '130px',
         },
         {
-            name: 'Tên mô hình',
+            name: t('solutions.column_model_name'),
             selector: row => row.model_name,
             sortable: true,
             width: '130px',
         },
         {
-            name: 'Người tạo',
+            name: t('solutions.column_creator'),
             selector: row => row.created_by,
             sortable: true,
             width: '110px',
         },
         {
-            name: 'Ngày tạo',
+            name: t('solutions.column_created_date'),
             selector: row => row.created_date,
             sortable: true,
             width: '120px',
             format: row => {
               if (!row.created_date) return '-';
-              return new Date(row.created_date).toLocaleDateString('vi-VN');
+              return new Date(row.created_date).toLocaleDateString(dateLocale);
             }
         },
         {
-            name: 'Ngày cập nhật',
+            name: t('solutions.column_updated_date'),
             selector: row => row.updated_date,
             sortable: true,
             width: '120px',
             format: row => {
               if (!row.updated_date) return '-';
-              return new Date(row.updated_date).toLocaleDateString('vi-VN');
+              return new Date(row.updated_date).toLocaleDateString(dateLocale);
             }
         },
         {
-          name: 'Thao tác',
+          name: t('solutions.column_actions'),
           width: "180px",
           center: true,
           cell: (row) => (
@@ -248,7 +254,7 @@ const SolutionList = () => {
                    id={row.id}
                    className="action-btn-edit"
                  >
-                   Sửa
+                   {t('solutions.edit')}
                  </Button>
                  <Button
                    variant="outline-danger"
@@ -257,7 +263,7 @@ const SolutionList = () => {
                    id={row.id}
                    className="action-btn-delete"
                  >
-                   Xóa
+                   {t('solutions.delete')}
                  </Button>
               </div>
           )
@@ -267,7 +273,7 @@ const SolutionList = () => {
     return (
       <div className="solution-loading">
         <span className="loading-spinner"></span>
-        Đang tải giải pháp...
+        {t('solutions.loading')}
       </div>
     );
   }
@@ -276,14 +282,14 @@ const SolutionList = () => {
     <div className="solution-list-container">
       <div className="solution-header">
         <div className="header-content">
-          <h1>Quản lý Giải pháp</h1>
-          <p className="header-subtitle">Quản lý và tổ chức các giải pháp dự đoán chứng khoán</p>
+          <h1>{t('solutions.title')}</h1>
+          <p className="header-subtitle">{t('solutions.subtitle')}</p>
         </div>
       </div>
 
       {error && (
         <div className="error-message">
-          <strong>Lỗi:</strong> {error}
+          <strong>{t('solutions.error_label')}</strong> {error}
         </div>
       )}
 
@@ -291,7 +297,7 @@ const SolutionList = () => {
         <div className="solution-filters">
           <input
             type="text"
-            placeholder="🔍 Tìm kiếm theo tên, mã CK, loại mô hình, hoặc người tạo..."
+            placeholder={`🔍 ${t('solutions.search_placeholder')}`}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="filter-input"
@@ -300,7 +306,7 @@ const SolutionList = () => {
 
         <div className="solution-actions">
           <Button variant="primary" onClick={onAddNew} className="btn btn-primary">
-            + Giải pháp mới
+            {t('solutions.add_new')}
           </Button>
         </div>
       </div>
@@ -311,7 +317,7 @@ const SolutionList = () => {
           onClick={() => setStatusFilter('all')}
           style={{ cursor: 'pointer' }}
         >
-          <span className="stat-label">Tất cả giải pháp</span>
+          <span className="stat-label">{t('solutions.filter_all')}</span>
           <span className="stat-value">{statusCounts.all}</span>
         </div>
         <div
@@ -319,7 +325,7 @@ const SolutionList = () => {
           onClick={() => setStatusFilter('not_trained')}
           style={{ cursor: 'pointer', borderLeft: '3px solid #6b7280' }}
         >
-          <span className="stat-label">○ Chưa huấn luyện</span>
+          <span className="stat-label">{t('solutions.filter_not_trained')}</span>
           <span className="stat-value">{statusCounts.not_trained}</span>
         </div>
         <div
@@ -327,7 +333,7 @@ const SolutionList = () => {
           onClick={() => setStatusFilter('trained')}
           style={{ cursor: 'pointer', borderLeft: '3px solid #22c55e' }}
         >
-          <span className="stat-label">✓ Đã huấn luyện</span>
+          <span className="stat-label">{t('solutions.filter_trained')}</span>
           <span className="stat-value">{statusCounts.trained}</span>
         </div>
         <div
@@ -335,12 +341,12 @@ const SolutionList = () => {
           onClick={() => setStatusFilter('predicted')}
           style={{ cursor: 'pointer', borderLeft: '3px solid #3b82f6' }}
         >
-          <span className="stat-label">★ Đã dự đoán</span>
+          <span className="stat-label">{t('solutions.filter_predicted')}</span>
           <span className="stat-value">{statusCounts.predicted}</span>
         </div>
         {(searchTerm || statusFilter !== 'all') && (
           <div className="stat-card">
-            <span className="stat-label">Kết quả lọc</span>
+            <span className="stat-label">{t('solutions.filter_results')}</span>
             <span className="stat-value">{filteredSolutions.length}</span>
           </div>
         )}
@@ -398,15 +404,15 @@ const SolutionList = () => {
             noDataComponent={
               <div className="empty-state">
                 <div className="empty-icon">📋</div>
-                <h3>Không tìm thấy giải pháp</h3>
+                <h3>{t('solutions.empty_title')}</h3>
                 <p>
                   {searchTerm
-                    ? `Không có giải pháp khớp với "${searchTerm}". Thử từ khóa khác.`
-                    : 'Không có giải pháp để hiển thị. Tạo giải pháp đầu tiên để bắt đầu.'}
+                    ? t('solutions.empty_search', { searchTerm })
+                    : t('solutions.empty_default')}
                 </p>
                 {!searchTerm && (
                   <Button onClick={onAddNew} className="btn btn-primary">
-                    + Tạo giải pháp đầu tiên
+                    {t('solutions.create_first')}
                   </Button>
                 )}
               </div>
