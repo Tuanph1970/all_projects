@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
 import { TrendingUp, TrendingDown, AlertTriangle, Brain, Activity, Shield, Target, Settings, RefreshCw, BarChart3, ChartLine } from 'lucide-react';
 import { format } from "d3-format";
 import { timeFormat } from "d3-time-format";
@@ -45,6 +46,7 @@ const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 const API_BASE_URL = API_BASE_URLS.AI_API;
 
 export const AIInsights = () => {
+  const { t } = useTranslation();
   const [selectedStock, setSelectedStock] = useState('');
   const [portfolioStocks, setPortfolioStocks] = useState([]);
   const [selectedIndicators, setSelectedIndicators] = useState({
@@ -393,8 +395,8 @@ export const AIInsights = () => {
         <div className="bg-white rounded-lg p-6 border border-gray-200">
           <div className="text-center py-8">
             <ChartLine className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-600">No indicator data available</p>
-            <p className="text-sm text-gray-500 mt-2">Select indicators and click Analyze to view charts</p>
+            <p className="text-gray-600">{t('analysis.ai_insights.no_indicator_data')}</p>
+            <p className="text-sm text-gray-500 mt-2">{t('analysis.ai_insights.select_indicators_hint')}</p>
           </div>
         </div>
       );
@@ -481,7 +483,7 @@ export const AIInsights = () => {
     const volumeColor = d => d.close > d.open ? "rgba(38, 166, 154, 0.5)" : "rgba(239, 83, 80, 0.5)";
 
     return (
-      <ChartWrapper yAxisTitle="Price" xAxisTitle="Date">
+      <ChartWrapper yAxisTitle={t('analysis.technical.price_axis_label')} xAxisTitle={t('analysis.technical.date_axis_label')}>
       <ChartCanvas
         height={chartHeight}
         ratio={2}
@@ -594,7 +596,7 @@ export const AIInsights = () => {
                 <RSISeries yAccessor={d => d.rsiCalc || d.RSI} strokeStyle={{ line: "#F59E0B" }} />
                 <SingleValueTooltip
                   yAccessor={d => d.rsiCalc || d.RSI}
-                  yLabel="RSI(14)"
+                  yLabel={t('analysis.ai_insights.rsi_label')}
                   yDisplayFormat={format(".2f")}
                   origin={[8, 16]}
                 />
@@ -606,7 +608,7 @@ export const AIInsights = () => {
                 <LineSeries yAccessor={d => d.Stochastic} strokeStyle="#EF4444" strokeWidth={1.5} />
                 <SingleValueTooltip
                   yAccessor={d => d.Stochastic}
-                  yLabel="Stochastic"
+                  yLabel={t('analysis.ai_insights.stochastic_label')}
                   yDisplayFormat={format(".2f")}
                   origin={[8, 16]}
                 />
@@ -618,7 +620,7 @@ export const AIInsights = () => {
                 <LineSeries yAccessor={d => d.MFI} strokeStyle="#F97316" strokeWidth={1.5} />
                 <SingleValueTooltip
                   yAccessor={d => d.MFI}
-                  yLabel="MFI"
+                  yLabel={t('analysis.ai_insights.mfi_label')}
                   yDisplayFormat={format(".2f")}
                   origin={[8, 16]}
                 />
@@ -654,13 +656,13 @@ export const AIInsights = () => {
 
             <SingleValueTooltip
               yAccessor={d => d.macdCalc?.MACD}
-              yLabel="MACD"
+              yLabel={t('analysis.ai_insights.macd_tooltip_label')}
               yDisplayFormat={pricesDisplayFormat}
               origin={[8, 16]}
             />
             <SingleValueTooltip
               yAccessor={d => d.macdCalc?.signal}
-              yLabel="Signal"
+              yLabel={t('analysis.ai_insights.signal_tooltip_label')}
               yDisplayFormat={pricesDisplayFormat}
               origin={[80, 16]}
             />
@@ -696,7 +698,7 @@ export const AIInsights = () => {
 
             <SingleValueTooltip
               yAccessor={d => d.volume}
-              yLabel="Vol"
+              yLabel={t('analysis.ai_insights.volume_tooltip_label')}
               yDisplayFormat={volumeFormat}
               origin={[8, 16]}
             />
@@ -722,7 +724,7 @@ export const AIInsights = () => {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Technical Indicators Chart</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{t('analysis.ai_insights.chart_title')}</h2>
           <div className="flex items-center space-x-2">
             {chartLoading && (
               <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />
@@ -735,37 +737,37 @@ export const AIInsights = () => {
         <div className="mb-4 p-3 bg-gray-50 rounded-lg">
           <div className="flex flex-wrap gap-4 text-sm">
             <div className="flex items-center gap-2">
-              <span className="font-medium text-gray-700">Price Panel:</span>
-              <span className="flex items-center"><span className="w-3 h-3 bg-green-500 mr-1 rounded"></span>Candles</span>
+              <span className="font-medium text-gray-700">{t('analysis.ai_insights.price_panel_label')}</span>
+              <span className="flex items-center"><span className="w-3 h-3 bg-green-500 mr-1 rounded"></span>{t('analysis.ai_insights.candles_label')}</span>
               {showBollingerBands && (
-                <span className="flex items-center"><span className="w-3 h-0.5 bg-purple-500 mr-1"></span>BB</span>
+                <span className="flex items-center"><span className="w-3 h-0.5 bg-purple-500 mr-1"></span>{t('analysis.ai_insights.bb_label')}</span>
               )}
               {showMovingAverage && (
                 <span className="flex items-center"><span className="w-3 h-0.5 bg-cyan-500 mr-1"></span>{indicators.trend?.name}</span>
               )}
               {indicators.volume?.name === 'VWAP' && (
-                <span className="flex items-center"><span className="w-3 h-0.5 bg-teal-500 mr-1" style={{borderStyle: 'dashed'}}></span>VWAP</span>
+                <span className="flex items-center"><span className="w-3 h-0.5 bg-teal-500 mr-1" style={{borderStyle: 'dashed'}}></span>{t('analysis.ai_insights.vwap_label')}</span>
               )}
             </div>
             {showMomentumPanel && (
               <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-700">Momentum:</span>
+                <span className="font-medium text-gray-700">{t('analysis.ai_insights.momentum_panel_label')}</span>
                 <span className="flex items-center"><span className="w-3 h-0.5 bg-amber-500 mr-1"></span>{indicators.momentum?.name}</span>
               </div>
             )}
             {showMACDPanel && (
               <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-700">MACD:</span>
-                <span className="flex items-center"><span className="w-3 h-0.5 bg-emerald-500 mr-1"></span>MACD</span>
-                <span className="flex items-center"><span className="w-3 h-0.5 bg-emerald-700 mr-1"></span>Signal</span>
+                <span className="font-medium text-gray-700">{t('analysis.ai_insights.macd_panel_label')}</span>
+                <span className="flex items-center"><span className="w-3 h-0.5 bg-emerald-500 mr-1"></span>{t('analysis.ai_insights.macd_label')}</span>
+                <span className="flex items-center"><span className="w-3 h-0.5 bg-emerald-700 mr-1"></span>{t('analysis.ai_insights.signal_label')}</span>
               </div>
             )}
             {showVolumePanel && (
               <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-700">Volume:</span>
-                <span className="flex items-center"><span className="w-3 h-3 bg-gray-400 mr-1 rounded-sm"></span>Vol Bars</span>
+                <span className="font-medium text-gray-700">{t('analysis.ai_insights.volume_panel_label')}</span>
+                <span className="flex items-center"><span className="w-3 h-3 bg-gray-400 mr-1 rounded-sm"></span>{t('analysis.ai_insights.vol_bars_label')}</span>
                 {indicators.volume?.name === 'OBV' && (
-                  <span className="flex items-center"><span className="w-3 h-0.5 bg-indigo-500 mr-1"></span>OBV</span>
+                  <span className="flex items-center"><span className="w-3 h-0.5 bg-indigo-500 mr-1"></span>{t('analysis.ai_insights.obv_label')}</span>
                 )}
               </div>
             )}
@@ -781,8 +783,7 @@ export const AIInsights = () => {
 
         <div className="mt-4 p-3 bg-blue-50 rounded-lg">
           <p className="text-sm text-blue-700">
-            Use mouse wheel to zoom, drag to pan. Indicators with same data range are grouped in panels.
-            Price overlays (MA, BB, VWAP) share the price panel. Momentum indicators (RSI, Stochastic, MFI) use 0-100 scale.
+            {t('analysis.ai_insights.chart_hint')}
           </p>
         </div>
       </div>
@@ -1049,7 +1050,7 @@ export const AIInsights = () => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-4">
-            <h1 className="text-lg font-bold text-gray-900">AI Insights</h1>
+            <h1 className="text-lg font-bold text-gray-900">{t('analysis.ai_insights.title')}</h1>
             {/* Professional Tab Controls */}
             <div className="flex items-center rounded-2xl p-1.5" style={{ background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.06)' }}>
               <button
@@ -1061,7 +1062,7 @@ export const AIInsights = () => {
                 }
               >
                 <Settings className={`w-4 h-4 ${activeTab === 'parameters' ? 'animate-pulse' : ''}`} />
-                <span>Parameters & Indicators</span>
+                <span>{t('analysis.ai_insights.parameters_tab')}</span>
               </button>
               <button
                 onClick={() => setActiveTab('charts')}
@@ -1072,7 +1073,7 @@ export const AIInsights = () => {
                 }
               >
                 <ChartLine className={`w-4 h-4 ${activeTab === 'charts' ? 'animate-pulse' : ''}`} />
-                <span>Chart & Series</span>
+                <span>{t('analysis.ai_insights.charts_tab')}</span>
               </button>
             </div>
           </div>
@@ -1086,7 +1087,7 @@ export const AIInsights = () => {
             ) : (
               <Brain className="w-4 h-4 mr-2" />
             )}
-            {loading ? 'Analyzing...' : 'Analyze'}
+            {loading ? t('analysis.ai_insights.analyzing_button') : t('analysis.ai_insights.analyze_button')}
           </button>
         </div>
 
@@ -1094,18 +1095,18 @@ export const AIInsights = () => {
         <table className="w-full text-sm">
           <tbody>
             <tr className="border-b border-gray-100">
-              <td className="py-2 text-gray-500 w-1/6">Symbol</td>
+              <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.symbol_label')}</td>
               <td className="py-2 font-semibold text-blue-600 w-1/6">{selectedStock}</td>
-              <td className="py-2 text-gray-500 w-1/6">Date Range</td>
-              <td className="py-2 font-semibold w-1/6">{dateRange.start} to {dateRange.end}</td>
-              <td className="py-2 text-gray-500 w-1/6">Status</td>
+              <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.date_range_label')}</td>
+              <td className="py-2 font-semibold w-1/6">{dateRange.start} – {dateRange.end}</td>
+              <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.status_label')}</td>
               <td className="py-2 font-semibold w-1/6">
                 {loading ? (
-                  <span className="text-yellow-600">Analyzing...</span>
+                  <span className="text-yellow-600">{t('analysis.ai_insights.status_analyzing')}</span>
                 ) : insights ? (
-                  <span className="text-green-600">Ready</span>
+                  <span className="text-green-600">{t('analysis.ai_insights.status_ready')}</span>
                 ) : (
-                  <span className="text-gray-500">Awaiting Analysis</span>
+                  <span className="text-gray-500">{t('analysis.ai_insights.status_awaiting')}</span>
                 )}
               </td>
             </tr>
@@ -1130,12 +1131,12 @@ export const AIInsights = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
               <Settings className="w-4 h-4 mr-2" />
-              Stock Parameters
+              {t('analysis.ai_insights.stock_parameters_title')}
             </h3>
             <table className="w-full text-sm">
               <tbody>
                 <tr className="border-b border-gray-100">
-                  <td className="py-2 text-gray-500 w-1/6">Stock Symbol</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.stock_symbol_label')}</td>
                   <td className="py-2 w-1/6">
                     <select
                       value={selectedStock}
@@ -1143,7 +1144,7 @@ export const AIInsights = () => {
                       className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                     >
                       {portfolioStocks.length === 0 ? (
-                        <option value="">Loading...</option>
+                        <option value="">{t('analysis.ai_insights.loading_option')}</option>
                       ) : (
                         portfolioStocks.map(stock => (
                           <option key={stock.symbol} value={stock.symbol}>
@@ -1153,7 +1154,7 @@ export const AIInsights = () => {
                       )}
                     </select>
                   </td>
-                  <td className="py-2 text-gray-500 w-1/6">Start Date</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.start_date_label')}</td>
                   <td className="py-2 w-1/6">
                     <input
                       type="date"
@@ -1162,7 +1163,7 @@ export const AIInsights = () => {
                       className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                   </td>
-                  <td className="py-2 text-gray-500 w-1/6">End Date</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.end_date_label')}</td>
                   <td className="py-2 w-1/6">
                     <input
                       type="date"
@@ -1180,12 +1181,12 @@ export const AIInsights = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
               <Activity className="w-4 h-4 mr-2" />
-              Technical Indicators
+              {t('analysis.ai_insights.technical_indicators_title')}
             </h3>
             <table className="w-full text-sm">
               <tbody>
                 <tr className="border-b border-gray-100">
-                  <td className="py-2 text-gray-500 w-1/6">Trend</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.trend_label')}</td>
                   <td className="py-2 w-1/6">
                     <select
                       value={selectedIndicators.trend}
@@ -1197,7 +1198,7 @@ export const AIInsights = () => {
                       ))}
                     </select>
                   </td>
-                  <td className="py-2 text-gray-500 w-1/6">Momentum</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.momentum_label')}</td>
                   <td className="py-2 w-1/6">
                     <select
                       value={selectedIndicators.momentum}
@@ -1209,7 +1210,7 @@ export const AIInsights = () => {
                       ))}
                     </select>
                   </td>
-                  <td className="py-2 text-gray-500 w-1/6">Volatility</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.volatility_label')}</td>
                   <td className="py-2 w-1/6">
                     <select
                       value={selectedIndicators.volatility}
@@ -1223,7 +1224,7 @@ export const AIInsights = () => {
                   </td>
                 </tr>
                 <tr>
-                  <td className="py-2 text-gray-500">Volume</td>
+                  <td className="py-2 text-gray-500">{t('analysis.ai_insights.volume_label')}</td>
                   <td className="py-2">
                     <select
                       value={selectedIndicators.volume}
@@ -1249,27 +1250,27 @@ export const AIInsights = () => {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
               <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
                 <BarChart3 className="w-4 h-4 mr-2" />
-                AI Confidence Score
+                {t('analysis.ai_insights.ai_score_title')}
               </h3>
               <table className="w-full text-sm">
                 <tbody>
                   <tr className="border-b border-gray-100">
-                    <td className="py-2 text-gray-500 w-1/6">Overall Score</td>
+                    <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.overall_score_label')}</td>
                     <td className="py-2 font-bold text-purple-600 w-1/6">{insights.ai_score.overall_score}</td>
-                    <td className="py-2 text-gray-500 w-1/6">Confidence</td>
+                    <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.confidence_label')}</td>
                     <td className={`py-2 font-semibold w-1/6 ${
                       insights.ai_score.confidence_level === 'High' ? 'text-green-600' :
                       insights.ai_score.confidence_level === 'Medium' ? 'text-yellow-600' : 'text-red-600'
                     }`}>{insights.ai_score.confidence_level}</td>
-                    <td className="py-2 text-gray-500 w-1/6">Pattern Score</td>
+                    <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.pattern_score_label')}</td>
                     <td className="py-2 font-semibold text-blue-600 w-1/6">{insights.ai_score.pattern_score}</td>
                   </tr>
                   <tr>
-                    <td className="py-2 text-gray-500">Sentiment Score</td>
+                    <td className="py-2 text-gray-500">{t('analysis.ai_insights.sentiment_score_label')}</td>
                     <td className="py-2 font-semibold text-green-600">{insights.ai_score.sentiment_score}</td>
-                    <td className="py-2 text-gray-500">Risk Score</td>
+                    <td className="py-2 text-gray-500">{t('analysis.ai_insights.risk_score_label')}</td>
                     <td className="py-2 font-semibold text-yellow-600">{insights.ai_score.risk_score}</td>
-                    <td className="py-2 text-gray-500">Prediction Score</td>
+                    <td className="py-2 text-gray-500">{t('analysis.ai_insights.prediction_score_label')}</td>
                     <td className="py-2 font-semibold text-red-600">{insights.ai_score.prediction_score}</td>
                   </tr>
                 </tbody>
@@ -1285,23 +1286,23 @@ export const AIInsights = () => {
             }`}>
               <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
                 <Brain className="w-4 h-4 mr-2" />
-                Market Sentiment
+                {t('analysis.ai_insights.market_sentiment_title')}
               </h3>
               <table className="w-full text-sm">
                 <tbody>
                   <tr className="border-b border-gray-100">
-                    <td className="py-2 text-gray-500 w-1/6">Sentiment</td>
+                    <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.sentiment_label')}</td>
                     <td className={`py-2 font-bold w-1/6 ${
                       insights.sentiment_analysis.sentiment_type.includes('positive') ? 'text-green-600' :
                       insights.sentiment_analysis.sentiment_type.includes('negative') ? 'text-red-600' : 'text-gray-600'
                     }`}>{insights.sentiment_analysis.sentiment_type.replace('_', ' ').toUpperCase()}</td>
-                    <td className="py-2 text-gray-500 w-1/6">Score</td>
+                    <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.score_label')}</td>
                     <td className="py-2 font-semibold w-1/6">{(insights.sentiment_analysis.score * 100).toFixed(1)}%</td>
-                    <td className="py-2 text-gray-500 w-1/6">Confidence</td>
+                    <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.confidence_label')}</td>
                     <td className="py-2 font-semibold w-1/6">{(insights.sentiment_analysis.confidence * 100).toFixed(1)}%</td>
                   </tr>
                   <tr>
-                    <td className="py-2 text-gray-500">News Count</td>
+                    <td className="py-2 text-gray-500">{t('analysis.ai_insights.news_count_label')}</td>
                     <td className="py-2 font-semibold">{insights.sentiment_analysis.news_count}</td>
                     <td className="py-2 text-gray-500" colSpan="4">
                       <span className="text-gray-600 text-xs">{insights.sentiment_analysis.summary}</span>
@@ -1321,29 +1322,29 @@ export const AIInsights = () => {
             }`}>
               <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
                 <Shield className="w-4 h-4 mr-2" />
-                Risk Assessment
+                {t('analysis.ai_insights.risk_assessment_title')}
               </h3>
               <table className="w-full text-sm">
                 <tbody>
                   <tr className="border-b border-gray-100">
-                    <td className="py-2 text-gray-500 w-1/6">Risk Level</td>
+                    <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.risk_level_label')}</td>
                     <td className={`py-2 font-bold w-1/6 ${
                       insights.risk_assessment.risk_level === 'low' ? 'text-green-600' :
                       insights.risk_assessment.risk_level === 'medium' ? 'text-yellow-600' :
                       insights.risk_assessment.risk_level === 'high' ? 'text-orange-600' : 'text-red-600'
                     }`}>{insights.risk_assessment.risk_level?.toUpperCase() || 'N/A'}</td>
-                    <td className="py-2 text-gray-500 w-1/6">Risk Score</td>
+                    <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.risk_score_label_2')}</td>
                     <td className="py-2 font-semibold w-1/6">{insights.risk_assessment.risk_score?.toFixed(1) || 'N/A'}</td>
-                    <td className="py-2 text-gray-500 w-1/6">Volatility</td>
+                    <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.volatility_label')}</td>
                     <td className="py-2 font-semibold text-purple-600 w-1/6">{insights.risk_assessment.volatility?.toFixed(1) || 'N/A'}%</td>
                   </tr>
                   <tr>
-                    <td className="py-2 text-gray-500">Beta</td>
+                    <td className="py-2 text-gray-500">{t('analysis.ai_insights.beta_label')}</td>
                     <td className="py-2 font-semibold">{insights.risk_assessment.beta?.toFixed(2) || 'N/A'}</td>
-                    <td className="py-2 text-gray-500">VaR (95%)</td>
+                    <td className="py-2 text-gray-500">{t('analysis.ai_insights.var_95_label')}</td>
                     <td className="py-2 font-semibold text-red-600">{insights.risk_assessment.var_95?.toFixed(2) || 'N/A'}</td>
-                    <td className="py-2 text-gray-500">Factors</td>
-                    <td className="py-2 text-xs text-gray-600">{insights.risk_assessment.factors?.length || 0} identified</td>
+                    <td className="py-2 text-gray-500">{t('analysis.ai_insights.risk_factors_label')}</td>
+                    <td className="py-2 text-xs text-gray-600">{insights.risk_assessment.factors?.length || 0} {t('analysis.ai_insights.identified_label')}</td>
                   </tr>
                 </tbody>
               </table>
@@ -1370,7 +1371,7 @@ export const AIInsights = () => {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
               <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
                 <Activity className="w-4 h-4 mr-2" />
-                Pattern Recognition
+                {t('analysis.ai_insights.pattern_recognition_title')}
               </h3>
               <p className="text-xs text-gray-600 mb-3">{insights.pattern_recognition.summary}</p>
               <table className="w-full text-sm">
@@ -1416,17 +1417,17 @@ export const AIInsights = () => {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
               <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
                 <Target className="w-4 h-4 mr-2" />
-                Price Predictions
+                {t('analysis.ai_insights.price_predictions_title')}
               </h3>
               <table className="w-full text-sm">
                 <tbody>
                   {insights.price_prediction.random_forest && (
                     <tr className="border-b border-gray-100">
-                      <td className="py-2 text-gray-500 w-1/6">Random Forest</td>
+                      <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.random_forest_label')}</td>
                       <td className="py-2 font-bold text-blue-600 w-1/6">{insights.price_prediction.random_forest.predicted_price?.toFixed(2) || 'N/A'}</td>
-                      <td className="py-2 text-gray-500 w-1/6">Confidence</td>
+                      <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.confidence_label')}</td>
                       <td className="py-2 font-semibold w-1/6">{((insights.price_prediction.random_forest.confidence || 0) * 100).toFixed(1)}%</td>
-                      <td className="py-2 text-gray-500 w-1/6">Range</td>
+                      <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.range_label')}</td>
                       <td className="py-2 font-semibold text-green-600 w-1/6">
                         {insights.price_prediction.random_forest.lower_bound?.toFixed(2) || 'N/A'} - {insights.price_prediction.random_forest.upper_bound?.toFixed(2) || 'N/A'}
                       </td>
@@ -1434,11 +1435,11 @@ export const AIInsights = () => {
                   )}
                   {insights.price_prediction.xgboost && (
                     <tr className="border-b border-gray-100">
-                      <td className="py-2 text-gray-500">XGBoost</td>
+                      <td className="py-2 text-gray-500">{t('analysis.ai_insights.xgboost_label')}</td>
                       <td className="py-2 font-bold text-purple-600">{insights.price_prediction.xgboost.predicted_price?.toFixed(2) || 'N/A'}</td>
-                      <td className="py-2 text-gray-500">Confidence</td>
+                      <td className="py-2 text-gray-500">{t('analysis.ai_insights.confidence_label')}</td>
                       <td className="py-2 font-semibold">{((insights.price_prediction.xgboost.confidence || 0) * 100).toFixed(1)}%</td>
-                      <td className="py-2 text-gray-500">Range</td>
+                      <td className="py-2 text-gray-500">{t('analysis.ai_insights.range_label')}</td>
                       <td className="py-2 font-semibold text-green-600">
                         {insights.price_prediction.xgboost.lower_bound?.toFixed(2) || 'N/A'} - {insights.price_prediction.xgboost.upper_bound?.toFixed(2) || 'N/A'}
                       </td>
@@ -1446,11 +1447,11 @@ export const AIInsights = () => {
                   )}
                   {insights.price_prediction.ensemble && (
                     <tr>
-                      <td className="py-2 text-gray-500">Ensemble</td>
+                      <td className="py-2 text-gray-500">{t('analysis.ai_insights.ensemble_label')}</td>
                       <td className="py-2 font-bold text-green-600">{insights.price_prediction.ensemble.predicted_price?.toFixed(2) || 'N/A'}</td>
-                      <td className="py-2 text-gray-500">Confidence</td>
+                      <td className="py-2 text-gray-500">{t('analysis.ai_insights.confidence_label')}</td>
                       <td className="py-2 font-semibold">{((insights.price_prediction.ensemble.confidence || 0) * 100).toFixed(1)}%</td>
-                      <td className="py-2 text-gray-500">Direction</td>
+                      <td className="py-2 text-gray-500">{t('analysis.ai_insights.direction_label')}</td>
                       <td className={`py-2 font-semibold ${
                         insights.price_prediction.ensemble.direction === 'up' ? 'text-green-600' :
                         insights.price_prediction.ensemble.direction === 'down' ? 'text-red-600' : 'text-gray-600'
@@ -1473,7 +1474,7 @@ export const AIInsights = () => {
           {loading && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
               <RefreshCw className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-4" />
-              <p className="text-gray-600">Analyzing market data with AI models...</p>
+              <p className="text-gray-600">{t('analysis.ai_insights.analyzing_message')}</p>
             </div>
           )}
 
@@ -1481,9 +1482,9 @@ export const AIInsights = () => {
           {!insights && !loading && !error && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
               <Brain className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">Ready for AI Analysis</h3>
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">{t('analysis.ai_insights.ready_title')}</h3>
               <p className="text-xs text-gray-600">
-                Configure parameters above and click Analyze to get comprehensive AI insights.
+                {t('analysis.ai_insights.ready_message')}
               </p>
             </div>
           )}

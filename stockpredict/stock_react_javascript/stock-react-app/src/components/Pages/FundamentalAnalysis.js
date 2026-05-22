@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { analysisAPI, stockAPI } from '../../services/api';
 import { TrendingUp, AlertCircle, DollarSign, BarChart2, Activity, Briefcase, Search } from 'lucide-react';
 
 export const FundamentalAnalysis = () => {
+  const { t } = useTranslation();
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -148,7 +150,7 @@ export const FundamentalAnalysis = () => {
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-bold text-gray-900">Phân tích cơ bản</h1>
+        <h1 className="text-lg font-bold text-gray-900">{t('analysis.fundamental.title')}</h1>
 
         {/* Stock Search */}
         <div className="relative">
@@ -156,7 +158,7 @@ export const FundamentalAnalysis = () => {
             <Search className="w-5 h-5 text-gray-400 mr-2" />
             <input
               type="text"
-              placeholder="Tìm cổ phiếu (VD: TCB, VIC)..."
+              placeholder={t('analysis.search_placeholder')}
               value={searchQuery}
               onChange={handleSearchChange}
               onFocus={handleSearchFocus}
@@ -168,7 +170,7 @@ export const FundamentalAnalysis = () => {
           {showResults && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
               {isSearching ? (
-                <div className="p-3 text-center text-gray-500">Đang tìm kiếm...</div>
+                <div className="p-3 text-center text-gray-500">{t('analysis.searching')}</div>
               ) : searchResults.length > 0 ? (
                 searchResults.map((stock) => (
                   <button
@@ -191,7 +193,7 @@ export const FundamentalAnalysis = () => {
                   </button>
                 ))
               ) : (
-                <div className="p-3 text-center text-gray-500">Không tìm thấy kết quả</div>
+                <div className="p-3 text-center text-gray-500">{t('analysis.no_results')}</div>
               )}
             </div>
           )}
@@ -201,26 +203,26 @@ export const FundamentalAnalysis = () => {
       {!selectedSymbol ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
           <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-700 mb-2">Chưa chọn cổ phiếu</h2>
+          <h2 className="text-xl font-semibold text-gray-700 mb-2">{t('analysis.fundamental.no_selection_title')}</h2>
           <p className="text-gray-500">
-            Vui lòng tìm và chọn một cổ phiếu từ thanh tìm kiếm để xem phân tích cơ bản
+            {t('analysis.fundamental.no_selection_message')}
           </p>
         </div>
       ) : loading ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Đang tải phân tích cơ bản cho {selectedSymbol}...</p>
+          <p className="mt-4 text-gray-600">{t('analysis.fundamental.loading_message', { symbol: selectedSymbol })}</p>
         </div>
       ) : error ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-700 mb-2">Lỗi tải dữ liệu</h2>
+          <h2 className="text-xl font-semibold text-gray-700 mb-2">{t('analysis.fundamental.error_title')}</h2>
           <p className="text-gray-500">{error}</p>
           <button
             onClick={() => fetchFundamentalAnalysis(selectedSymbol)}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
-            Thử lại
+            {t('analysis.common.retry_button')}
           </button>
         </div>
       ) : analysisData ? (
@@ -236,15 +238,15 @@ export const FundamentalAnalysis = () => {
             <table className="w-full text-sm">
               <tbody>
                 <tr className="border-b border-gray-100">
-                  <td className="py-2 text-gray-500 w-1/6">Vốn hóa</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.market_cap_label')}</td>
                   <td className="py-2 font-semibold text-blue-600 w-1/6">{formatCurrency(analysisData.company_info?.marketCap)}</td>
-                  <td className="py-2 text-gray-500 w-1/6">Ngành</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.industry_label')}</td>
                   <td className="py-2 font-semibold w-1/6">{analysisData.company_info?.industry || 'N/A'}</td>
-                  <td className="py-2 text-gray-500 w-1/6">Lĩnh vực</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.sector_label')}</td>
                   <td className="py-2 font-semibold w-1/6">{analysisData.company_info?.sector || 'N/A'}</td>
                 </tr>
                 <tr>
-                  <td className="py-2 text-gray-500">Sàn giao dịch</td>
+                  <td className="py-2 text-gray-500">{t('analysis.fundamental.exchange_label')}</td>
                   <td className="py-2 font-semibold">{analysisData.company_info?.exchange || 'N/A'}</td>
                   <td className="py-2"></td>
                   <td className="py-2"></td>
@@ -259,13 +261,13 @@ export const FundamentalAnalysis = () => {
           {analysisData.valuation_summary && (
             <div className={`rounded-xl shadow-sm border border-gray-200 p-4 ${getStatusBgColor(analysisData.valuation_summary.status)}`}>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-bold text-gray-900">Tóm tắt định giá</h2>
+                <h2 className="text-sm font-bold text-gray-900">{t('analysis.fundamental.valuation_summary_title')}</h2>
                 <div className="flex items-center space-x-2">
                   <span className={`text-lg font-bold ${getStatusColor(analysisData.valuation_summary.status)}`}>
                     {analysisData.valuation_summary.status?.toUpperCase()}
                   </span>
                   <span className="text-xs text-gray-500">
-                    (Điểm: {analysisData.valuation_summary.score}/100)
+                    ({t('analysis.fundamental.score_label')} {analysisData.valuation_summary.score}/100)
                   </span>
                 </div>
               </div>
@@ -303,30 +305,30 @@ export const FundamentalAnalysis = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
               <BarChart2 className="w-4 h-4 mr-2" />
-              Tỷ số tài chính
+              {t('analysis.fundamental.financial_ratios_title')}
             </h3>
             <table className="w-full text-sm">
               <tbody>
                 <tr className="border-b border-gray-100">
-                  <td className="py-2 text-gray-500 w-1/6">P/E</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.pe_label')}</td>
                   <td className="py-2 font-semibold text-blue-600 w-1/6">{formatNumber(analysisData.financial_ratios?.pe)}</td>
-                  <td className="py-2 text-gray-500 w-1/6">ROE</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.roe_label')}</td>
                   <td className="py-2 font-semibold text-green-600 w-1/6">{formatPercentage(analysisData.financial_ratios?.roe)}</td>
-                  <td className="py-2 text-gray-500 w-1/6">ROA</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.roa_label')}</td>
                   <td className="py-2 font-semibold text-purple-600 w-1/6">{formatPercentage(analysisData.financial_ratios?.roa)}</td>
                 </tr>
                 <tr className="border-b border-gray-100">
-                  <td className="py-2 text-gray-500">Nợ/Vốn CSH</td>
+                  <td className="py-2 text-gray-500">{t('analysis.fundamental.debt_to_equity_label')}</td>
                   <td className="py-2 font-semibold text-yellow-600">{formatNumber(analysisData.financial_ratios?.debtToEquity)}</td>
-                  <td className="py-2 text-gray-500">Hệ số thanh toán</td>
+                  <td className="py-2 text-gray-500">{t('analysis.fundamental.current_ratio_label')}</td>
                   <td className="py-2 font-semibold text-red-600">{formatNumber(analysisData.financial_ratios?.currentRatio)}</td>
-                  <td className="py-2 text-gray-500">Biên lợi nhuận gộp</td>
+                  <td className="py-2 text-gray-500">{t('analysis.fundamental.gross_margin_label')}</td>
                   <td className="py-2 font-semibold text-indigo-600">{formatPercentage(analysisData.financial_ratios?.grossMargin)}</td>
                 </tr>
                 <tr>
-                  <td className="py-2 text-gray-500">Biên lợi nhuận ròng</td>
+                  <td className="py-2 text-gray-500">{t('analysis.fundamental.net_margin_label')}</td>
                   <td className="py-2 font-semibold text-pink-600">{formatPercentage(analysisData.financial_ratios?.netMargin)}</td>
-                  <td className="py-2 text-gray-500">P/B</td>
+                  <td className="py-2 text-gray-500">{t('analysis.fundamental.pb_label')}</td>
                   <td className="py-2 font-semibold text-gray-600">{formatNumber(analysisData.financial_ratios?.pb)}</td>
                   <td className="py-2"></td>
                   <td className="py-2"></td>
@@ -339,12 +341,12 @@ export const FundamentalAnalysis = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
               <TrendingUp className="w-4 h-4 mr-2" />
-              Chỉ số tăng trưởng (YoY)
+              {t('analysis.fundamental.growth_metrics_title')}
             </h3>
             <table className="w-full text-sm">
               <tbody>
                 <tr>
-                  <td className="py-2 text-gray-500 w-1/6">Tăng trưởng DT</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.revenue_growth_label')}</td>
                   <td className="py-2 font-semibold w-1/6">
                     <span className={analysisData.growth_metrics?.revenueGrowth > 0 ? 'text-green-600' : 'text-red-600'}>
                       {formatPercentage(analysisData.growth_metrics?.revenueGrowth)}
@@ -353,7 +355,7 @@ export const FundamentalAnalysis = () => {
                       {analysisData.growth_metrics?.revenueGrowth > 0 ? '↑' : '↓'}
                     </span>
                   </td>
-                  <td className="py-2 text-gray-500 w-1/6">Tăng trưởng LN</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.earnings_growth_label')}</td>
                   <td className="py-2 font-semibold w-1/6">
                     <span className={analysisData.growth_metrics?.earningsGrowth > 0 ? 'text-green-600' : 'text-red-600'}>
                       {formatPercentage(analysisData.growth_metrics?.earningsGrowth)}
@@ -362,7 +364,7 @@ export const FundamentalAnalysis = () => {
                       {analysisData.growth_metrics?.earningsGrowth > 0 ? '↑' : '↓'}
                     </span>
                   </td>
-                  <td className="py-2 text-gray-500 w-1/6">Tăng trưởng EPS</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.eps_growth_label')}</td>
                   <td className="py-2 font-semibold w-1/6">
                     <span className={analysisData.growth_metrics?.epsGrowth > 0 ? 'text-green-600' : 'text-red-600'}>
                       {formatPercentage(analysisData.growth_metrics?.epsGrowth)}
@@ -380,22 +382,22 @@ export const FundamentalAnalysis = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
               <DollarSign className="w-4 h-4 mr-2" />
-              Báo cáo kết quả kinh doanh
+              {t('analysis.fundamental.income_statement_title')}
             </h3>
             <table className="w-full text-sm">
               <tbody>
                 <tr className="border-b border-gray-100">
-                  <td className="py-2 text-gray-500 w-1/6">Doanh thu</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.revenue_label')}</td>
                   <td className="py-2 font-semibold text-blue-600 w-1/6">{formatCurrency(analysisData.income_statement?.revenue)}</td>
-                  <td className="py-2 text-gray-500 w-1/6">Lợi nhuận gộp</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.gross_profit_label')}</td>
                   <td className="py-2 font-semibold text-green-600 w-1/6">{formatCurrency(analysisData.income_statement?.grossProfit)}</td>
-                  <td className="py-2 text-gray-500 w-1/6">LN hoạt động</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.operating_income_label')}</td>
                   <td className="py-2 font-semibold text-purple-600 w-1/6">{formatCurrency(analysisData.income_statement?.operatingIncome)}</td>
                 </tr>
                 <tr>
-                  <td className="py-2 text-gray-500">LN ròng</td>
+                  <td className="py-2 text-gray-500">{t('analysis.fundamental.net_income_label')}</td>
                   <td className="py-2 font-semibold text-indigo-600">{formatCurrency(analysisData.income_statement?.netIncome)}</td>
-                  <td className="py-2 text-gray-500">EPS</td>
+                  <td className="py-2 text-gray-500">{t('analysis.fundamental.eps_label')}</td>
                   <td className="py-2 font-semibold text-pink-600">{formatNumber(analysisData.income_statement?.eps)}</td>
                   <td className="py-2"></td>
                   <td className="py-2"></td>
@@ -408,22 +410,22 @@ export const FundamentalAnalysis = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
               <Briefcase className="w-4 h-4 mr-2" />
-              Bảng cân đối kế toán
+              {t('analysis.fundamental.balance_sheet_title')}
             </h3>
             <table className="w-full text-sm">
               <tbody>
                 <tr className="border-b border-gray-100">
-                  <td className="py-2 text-gray-500 w-1/6">Tổng tài sản</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.total_assets_label')}</td>
                   <td className="py-2 font-semibold text-blue-600 w-1/6">{formatCurrency(analysisData.balance_sheet?.totalAssets)}</td>
-                  <td className="py-2 text-gray-500 w-1/6">Tổng nợ phải trả</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.total_liabilities_label')}</td>
                   <td className="py-2 font-semibold text-red-600 w-1/6">{formatCurrency(analysisData.balance_sheet?.totalLiabilities)}</td>
-                  <td className="py-2 text-gray-500 w-1/6">Vốn chủ sở hữu</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.total_equity_label')}</td>
                   <td className="py-2 font-semibold text-green-600 w-1/6">{formatCurrency(analysisData.balance_sheet?.totalEquity)}</td>
                 </tr>
                 <tr>
-                  <td className="py-2 text-gray-500">Tiền mặt</td>
+                  <td className="py-2 text-gray-500">{t('analysis.fundamental.cash_label')}</td>
                   <td className="py-2 font-semibold text-teal-600">{formatCurrency(analysisData.balance_sheet?.cash)}</td>
-                  <td className="py-2 text-gray-500">Nợ dài hạn</td>
+                  <td className="py-2 text-gray-500">{t('analysis.fundamental.long_term_debt_label')}</td>
                   <td className="py-2 font-semibold text-orange-600">{formatCurrency(analysisData.balance_sheet?.longTermDebt)}</td>
                   <td className="py-2"></td>
                   <td className="py-2"></td>
@@ -436,22 +438,22 @@ export const FundamentalAnalysis = () => {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
               <Activity className="w-4 h-4 mr-2" />
-              Báo cáo lưu chuyển tiền tệ
+              {t('analysis.fundamental.cash_flow_title')}
             </h3>
             <table className="w-full text-sm">
               <tbody>
                 <tr className="border-b border-gray-100">
-                  <td className="py-2 text-gray-500 w-1/6">LCTT hoạt động</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.operating_cash_flow_label')}</td>
                   <td className="py-2 font-semibold text-blue-600 w-1/6">{formatCurrency(analysisData.cash_flow?.operatingCashFlow)}</td>
-                  <td className="py-2 text-gray-500 w-1/6">LCTT đầu tư</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.investing_cash_flow_label')}</td>
                   <td className="py-2 font-semibold text-purple-600 w-1/6">{formatCurrency(analysisData.cash_flow?.investingCashFlow)}</td>
-                  <td className="py-2 text-gray-500 w-1/6">LCTT tài chính</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.fundamental.financing_cash_flow_label')}</td>
                   <td className="py-2 font-semibold text-indigo-600 w-1/6">{formatCurrency(analysisData.cash_flow?.financingCashFlow)}</td>
                 </tr>
                 <tr>
-                  <td className="py-2 text-gray-500">Dòng tiền tự do</td>
+                  <td className="py-2 text-gray-500">{t('analysis.fundamental.free_cash_flow_label')}</td>
                   <td className="py-2 font-semibold text-green-600">{formatCurrency(analysisData.cash_flow?.freeCashFlow)}</td>
-                  <td className="py-2 text-gray-500">Dòng tiền ròng</td>
+                  <td className="py-2 text-gray-500">{t('analysis.fundamental.net_cash_flow_label')}</td>
                   <td className="py-2 font-semibold text-teal-600">{formatCurrency(analysisData.cash_flow?.netCashFlow)}</td>
                   <td className="py-2"></td>
                   <td className="py-2"></td>

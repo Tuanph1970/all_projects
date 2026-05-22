@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { analysisAPI, stockAPI } from '../../services/api';
 import { AlertCircle, TrendingUp, TrendingDown, Activity, BarChart2, LineChart, Target, Zap, Search, Settings, ChevronDown, ChevronUp, X, Check, RotateCcw } from 'lucide-react';
 import { format } from "d3-format";
@@ -205,6 +206,7 @@ const INDICATOR_GROUPS = {
 };
 
 export const TechnicalAnalysis = () => {
+  const { t } = useTranslation();
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -541,7 +543,7 @@ export const TechnicalAnalysis = () => {
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-bold text-gray-900 flex items-center">
           <Settings className="w-4 h-4 mr-2" />
-          Indicator Settings
+          {t('analysis.technical.indicator_settings_title')}
         </h3>
         <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-gray-600">
           <ChevronUp className="w-5 h-5" />
@@ -560,7 +562,7 @@ export const TechnicalAnalysis = () => {
                   onChange={() => togglePanel(groupKey === 'priceOverlay' ? 'price' : groupKey === 'oscillators' ? 'oscillators' : groupKey === 'momentum' ? 'macd' : 'volume')}
                   className="w-3 h-3 rounded border-gray-300 text-blue-600 mr-1"
                 />
-                <span className="text-xs text-gray-500">Panel</span>
+                <span className="text-xs text-gray-500">{t('analysis.technical.panel_label')}</span>
               </label>
             </div>
             <p className="text-xs text-gray-500 mb-2">{group.description}</p>
@@ -603,17 +605,17 @@ export const TechnicalAnalysis = () => {
               <div>
                 <h2 className="text-xl font-bold flex items-center gap-2">
                   <BarChart2 className="w-6 h-6" />
-                  Technical Indicators
+                  {t('analysis.technical.indicators_popup_title')}
                 </h2>
                 <p className="text-white/80 text-sm mt-1">
-                  Select indicators to display on chart • {getSelectedCount()} selected
+                  {t('analysis.technical.indicators_popup_subtitle', { count: getSelectedCount() })}
                 </p>
               </div>
               <button
                 onClick={() => setShowIndicatorPopup(false)}
                 className="p-2 rounded-lg transition-colors"
                 style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: '#ffffff' }}
-                title="Close"
+                title={t('analysis.technical.close_button')}
               >
                 <X className="w-6 h-6" />
               </button>
@@ -624,7 +626,7 @@ export const TechnicalAnalysis = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-white/60" />
               <input
                 type="text"
-                placeholder="Search indicators (e.g., RSI, MACD, SMA...)"
+                placeholder={t('analysis.technical.search_indicators_placeholder')}
                 value={searchIndicator}
                 onChange={(e) => setSearchIndicator(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
@@ -641,11 +643,11 @@ export const TechnicalAnalysis = () => {
                 style={{ backgroundColor: '#e5e7eb', color: '#374151', border: '1px solid #d1d5db' }}
               >
                 <RotateCcw className="w-4 h-4" />
-                Reset to Default
+                {t('analysis.technical.reset_to_default_button')}
               </button>
             </div>
             <div className="text-sm" style={{ color: '#4b5563' }}>
-              Click category to expand • Overlay = on price chart, Panel = separate chart
+              {t('analysis.technical.popup_hint')}
             </div>
           </div>
 
@@ -682,14 +684,14 @@ export const TechnicalAnalysis = () => {
                           className="px-2 py-1 text-xs rounded transition-colors font-medium"
                           style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd' }}
                         >
-                          All
+                          {t('analysis.technical.select_all_button')}
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); deselectAllInCategory(categoryKey); }}
                           className="px-2 py-1 text-xs rounded transition-colors font-medium"
                           style={{ backgroundColor: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db' }}
                         >
-                          None
+                          {t('analysis.technical.select_none_button')}
                         </button>
                       </div>
                       <div className={`p-1 rounded transition-colors ${expandedCategories[categoryKey] ? 'bg-blue-100' : 'bg-gray-200'}`}>
@@ -741,7 +743,7 @@ export const TechnicalAnalysis = () => {
                                     ? 'bg-orange-100 text-orange-700'
                                     : 'bg-purple-100 text-purple-700'
                                 }`}>
-                                  {indicator.type === 'overlay' ? 'Overlay' : indicator.type === 'candle' ? 'Candle' : 'Panel'}
+                                  {indicator.type === 'overlay' ? t('analysis.technical.overlay_badge') : indicator.type === 'candle' ? t('analysis.technical.candle_badge') : t('analysis.technical.panel_badge')}
                                 </span>
                               </div>
                             </div>
@@ -761,7 +763,7 @@ export const TechnicalAnalysis = () => {
           {/* Footer */}
           <div className="p-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between flex-shrink-0 rounded-b-2xl">
             <div className="text-sm" style={{ color: '#4b5563' }}>
-              <span className="font-semibold" style={{ color: '#2563eb' }}>{getSelectedCount()}</span> indicators selected
+              {t('analysis.technical.indicators_count_label', { count: getSelectedCount() })}
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -769,14 +771,14 @@ export const TechnicalAnalysis = () => {
                 className="px-5 py-2.5 rounded-lg transition-colors font-medium"
                 style={{ backgroundColor: '#e5e7eb', color: '#374151', border: '1px solid #d1d5db' }}
               >
-                Close
+                {t('analysis.technical.close_button')}
               </button>
               <button
                 onClick={applyIndicators}
                 className="px-6 py-2.5 font-semibold rounded-lg transition-all shadow-md hover:shadow-lg"
                 style={{ backgroundColor: '#4f46e5', color: '#ffffff' }}
               >
-                Apply Indicators
+                {t('analysis.technical.apply_indicators_button')}
               </button>
             </div>
           </div>
@@ -788,7 +790,7 @@ export const TechnicalAnalysis = () => {
   // Financial Chart Component with zoom/pan
   const FinancialChart = () => {
     const rawData = prepareChartData();
-    if (!rawData || rawData.length === 0) return <div>No chart data available</div>;
+    if (!rawData || rawData.length === 0) return <div>{t('analysis.technical.no_chart_data')}</div>;
 
     const priceOverlay = indicatorSettings.priceOverlay.indicators;
     const oscillators = indicatorSettings.oscillators.indicators;
@@ -900,7 +902,7 @@ export const TechnicalAnalysis = () => {
     const volumeColor = d => d.close > d.open ? "rgba(38, 166, 154, 0.5)" : "rgba(239, 83, 80, 0.5)";
 
     return (
-      <ChartWrapper yAxisTitle="Price (VND)" xAxisTitle="Date">
+      <ChartWrapper yAxisTitle={t('analysis.technical.price_axis_label')} xAxisTitle={t('analysis.technical.date_axis_label')}>
       <ChartCanvas
         height={chartHeight}
         ratio={2}
@@ -1016,7 +1018,7 @@ export const TechnicalAnalysis = () => {
                 <RSISeries yAccessor={d => d.rsi} strokeStyle={{ line: oscillators.rsi.color }} />
                 <SingleValueTooltip
                   yAccessor={d => d.rsi}
-                  yLabel="RSI(14)"
+                  yLabel={t('analysis.technical.rsi_tooltip_label')}
                   yDisplayFormat={format(".2f")}
                   origin={[8, 16]}
                 />
@@ -1034,7 +1036,7 @@ export const TechnicalAnalysis = () => {
                 />
                 <SingleValueTooltip
                   yAccessor={d => d.stoch?.K}
-                  yLabel="Stoch %K"
+                  yLabel={t('analysis.technical.stoch_k_tooltip_label')}
                   yDisplayFormat={format(".2f")}
                   origin={[8, oscillators.rsi.enabled ? 36 : 16]}
                 />
@@ -1070,13 +1072,13 @@ export const TechnicalAnalysis = () => {
 
             <SingleValueTooltip
               yAccessor={d => d.macd?.MACD}
-              yLabel="MACD"
+              yLabel={t('analysis.technical.macd_tooltip_label')}
               yDisplayFormat={pricesDisplayFormat}
               origin={[8, 16]}
             />
             <SingleValueTooltip
               yAccessor={d => d.macd?.signal}
-              yLabel="Signal"
+              yLabel={t('analysis.technical.signal_tooltip_label')}
               yDisplayFormat={pricesDisplayFormat}
               origin={[80, 16]}
             />
@@ -1112,7 +1114,7 @@ export const TechnicalAnalysis = () => {
 
             <SingleValueTooltip
               yAccessor={d => d.volume}
-              yLabel="Vol"
+              yLabel={t('analysis.technical.volume_tooltip_label')}
               yDisplayFormat={volumeFormat}
               origin={[8, 16]}
             />
@@ -1128,7 +1130,7 @@ export const TechnicalAnalysis = () => {
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-bold text-gray-900">Phân tích kỹ thuật</h1>
+        <h1 className="text-lg font-bold text-gray-900">{t('analysis.technical.title')}</h1>
 
         {/* Stock Search */}
         <div className="relative">
@@ -1136,7 +1138,7 @@ export const TechnicalAnalysis = () => {
             <Search className="w-5 h-5 text-gray-400 mr-2" />
             <input
               type="text"
-              placeholder="Tìm cổ phiếu (VD: TCB, VIC)..."
+              placeholder={t('analysis.search_placeholder')}
               value={searchQuery}
               onChange={handleSearchChange}
               onFocus={() => searchQuery && setShowResults(true)}
@@ -1148,7 +1150,7 @@ export const TechnicalAnalysis = () => {
           {showResults && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
               {isSearching ? (
-                <div className="p-3 text-center text-gray-500">Đang tìm kiếm...</div>
+                <div className="p-3 text-center text-gray-500">{t('analysis.searching')}</div>
               ) : searchResults.length > 0 ? (
                 searchResults.map((stock) => (
                   <button
@@ -1169,7 +1171,7 @@ export const TechnicalAnalysis = () => {
                   </button>
                 ))
               ) : (
-                <div className="p-3 text-center text-gray-500">Không tìm thấy kết quả</div>
+                <div className="p-3 text-center text-gray-500">{t('analysis.no_results')}</div>
               )}
             </div>
           )}
@@ -1179,26 +1181,26 @@ export const TechnicalAnalysis = () => {
       {!selectedSymbol ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
           <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-700 mb-2">Chưa chọn cổ phiếu</h2>
+          <h2 className="text-xl font-semibold text-gray-700 mb-2">{t('analysis.technical.no_selection_title')}</h2>
           <p className="text-gray-500">
-            Vui lòng tìm và chọn một cổ phiếu từ thanh tìm kiếm phía trên để xem phân tích kỹ thuật
+            {t('analysis.technical.no_selection_message')}
           </p>
         </div>
       ) : loading ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Đang tải phân tích kỹ thuật cho {selectedSymbol}...</p>
+          <p className="mt-4 text-gray-600">{t('analysis.technical.loading_message', { symbol: selectedSymbol })}</p>
         </div>
       ) : error ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-700 mb-2">Lỗi tải dữ liệu</h2>
+          <h2 className="text-xl font-semibold text-gray-700 mb-2">{t('analysis.technical.error_title')}</h2>
           <p className="text-gray-500">{error}</p>
           <button
             onClick={() => fetchTechnicalAnalysis(selectedSymbol)}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
-            Thử lại
+            {t('analysis.common.retry_button')}
           </button>
         </div>
       ) : analysisData ? (
@@ -1219,7 +1221,7 @@ export const TechnicalAnalysis = () => {
                     }
                   >
                     <Zap className={`w-4 h-4 ${activeTab === 'indicators' ? 'animate-pulse' : ''}`} />
-                    <span>Indicators</span>
+                    <span>{t('analysis.technical.indicators_tab')}</span>
                   </button>
                   <button
                     onClick={() => setActiveTab('charts')}
@@ -1230,7 +1232,7 @@ export const TechnicalAnalysis = () => {
                     }
                   >
                     <LineChart className={`w-4 h-4 ${activeTab === 'charts' ? 'animate-pulse' : ''}`} />
-                    <span>Charts</span>
+                    <span>{t('analysis.technical.charts_tab')}</span>
                   </button>
                 </div>
               </div>
@@ -1240,10 +1242,10 @@ export const TechnicalAnalysis = () => {
                   onChange={(e) => setPeriod(Number(e.target.value))}
                   className="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value={30}>30 Ngày</option>
-                  <option value={60}>60 Ngày</option>
-                  <option value={100}>100 Ngày</option>
-                  <option value={200}>200 Ngày</option>
+                  <option value={30}>{t('analysis.technical.period_30_days')}</option>
+                  <option value={60}>{t('analysis.technical.period_60_days')}</option>
+                  <option value={100}>{t('analysis.technical.period_100_days')}</option>
+                  <option value={200}>{t('analysis.technical.period_200_days')}</option>
                 </select>
                 {activeTab === 'charts' && (
                   <>
@@ -1253,7 +1255,7 @@ export const TechnicalAnalysis = () => {
                       style={{ backgroundColor: '#4f46e5', color: '#ffffff' }}
                     >
                       <BarChart2 className="w-4 h-4" />
-                      Indicators
+                      {t('analysis.technical.indicators_button')}
                       <span
                         className="px-1.5 py-0.5 rounded text-xs font-bold"
                         style={{ backgroundColor: '#e0e7ff', color: '#3730a3' }}
@@ -1276,17 +1278,17 @@ export const TechnicalAnalysis = () => {
             <table className="w-full text-sm">
               <tbody>
                 <tr className="border-b border-gray-100">
-                  <td className="py-2 text-gray-500 w-1/6">Giá</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.technical.price_label')}</td>
                   <td className="py-2 font-semibold text-blue-600 w-1/6">{formatCurrency(analysisData.current_price?.price)}</td>
-                  <td className="py-2 text-gray-500 w-1/6">Khối lượng</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.technical.volume_label')}</td>
                   <td className="py-2 font-semibold w-1/6">{formatVolume(analysisData.current_price?.volume)}</td>
-                  <td className="py-2 text-gray-500 w-1/6">Mở cửa</td>
+                  <td className="py-2 text-gray-500 w-1/6">{t('analysis.technical.open_label')}</td>
                   <td className="py-2 font-semibold w-1/6">{formatCurrency(analysisData.current_price?.open)}</td>
                 </tr>
                 <tr>
-                  <td className="py-2 text-gray-500">Cao nhất</td>
+                  <td className="py-2 text-gray-500">{t('analysis.technical.high_label')}</td>
                   <td className="py-2 font-semibold text-green-600">{formatCurrency(analysisData.current_price?.high)}</td>
-                  <td className="py-2 text-gray-500">Thấp nhất</td>
+                  <td className="py-2 text-gray-500">{t('analysis.technical.low_label')}</td>
                   <td className="py-2 font-semibold text-red-600">{formatCurrency(analysisData.current_price?.low)}</td>
                   <td className="py-2"></td>
                   <td className="py-2"></td>
@@ -1302,7 +1304,7 @@ export const TechnicalAnalysis = () => {
               {analysisData.trading_analysis && (
                 <div className={`rounded-xl shadow-sm border border-gray-200 p-4 ${getSignalBgColor(analysisData.trading_analysis.recommendation)}`}>
                   <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-sm font-bold text-gray-900">Phân tích giao dịch</h2>
+                    <h2 className="text-sm font-bold text-gray-900">{t('analysis.technical.trading_analysis_title')}</h2>
                     <div className="flex items-center space-x-2">
                       {getRecommendationIcon(analysisData.trading_analysis.recommendation)}
                       <span className={`text-lg font-bold ${getSignalColor(analysisData.trading_analysis.recommendation)}`}>
@@ -1347,24 +1349,24 @@ export const TechnicalAnalysis = () => {
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
                 <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
                   <Zap className="w-4 h-4 mr-2" />
-                  Chỉ báo kỹ thuật
+                  {t('analysis.technical.indicators_title')}
                 </h3>
                 <table className="w-full text-sm">
                   <tbody>
                     <tr className="border-b border-gray-100">
-                      <td className="py-2 text-gray-500 w-1/6">RSI (14)</td>
+                      <td className="py-2 text-gray-500 w-1/6">{t('analysis.technical.rsi_label')}</td>
                       <td className="py-2 font-semibold w-1/6">{formatNumber(analysisData.momentum_indicators?.RSI)} <span className="text-xs text-gray-400">({analysisData.momentum_indicators?.RSI > 70 ? 'OB' : analysisData.momentum_indicators?.RSI < 30 ? 'OS' : 'N'})</span></td>
-                      <td className="py-2 text-gray-500 w-1/6">MACD</td>
+                      <td className="py-2 text-gray-500 w-1/6">{t('analysis.technical.macd_label')}</td>
                       <td className="py-2 font-semibold w-1/6">{formatNumber(analysisData.momentum_indicators?.MACD)} <span className="text-xs text-gray-400">({analysisData.momentum_indicators?.MACD > analysisData.momentum_indicators?.MACD_Signal ? 'Bull' : 'Bear'})</span></td>
-                      <td className="py-2 text-gray-500 w-1/6">Stoch %K</td>
+                      <td className="py-2 text-gray-500 w-1/6">{t('analysis.technical.stoch_k_label')}</td>
                       <td className="py-2 font-semibold w-1/6">{formatNumber(analysisData.momentum_indicators?.Stoch_K)} <span className="text-xs text-gray-400">({analysisData.momentum_indicators?.Stoch_K > 80 ? 'OB' : analysisData.momentum_indicators?.Stoch_K < 20 ? 'OS' : 'N'})</span></td>
                     </tr>
                     <tr>
-                      <td className="py-2 text-gray-500">SMA 20</td>
+                      <td className="py-2 text-gray-500">{t('analysis.technical.sma20_label')}</td>
                       <td className="py-2 font-semibold">{formatCurrency(analysisData.moving_averages?.SMA_20)} <span className="text-xs text-gray-400">({analysisData.current_price?.price > analysisData.moving_averages?.SMA_20 ? '↑' : '↓'})</span></td>
-                      <td className="py-2 text-gray-500">SMA 50</td>
+                      <td className="py-2 text-gray-500">{t('analysis.technical.sma50_label')}</td>
                       <td className="py-2 font-semibold">{formatCurrency(analysisData.moving_averages?.SMA_50)} <span className="text-xs text-gray-400">({analysisData.current_price?.price > analysisData.moving_averages?.SMA_50 ? '↑' : '↓'})</span></td>
-                      <td className="py-2 text-gray-500">SMA 200</td>
+                      <td className="py-2 text-gray-500">{t('analysis.technical.sma200_label')}</td>
                       <td className="py-2 font-semibold">{formatCurrency(analysisData.moving_averages?.SMA_200)} <span className="text-xs text-gray-400">({analysisData.current_price?.price > analysisData.moving_averages?.SMA_200 ? '↑' : '↓'})</span></td>
                     </tr>
                   </tbody>
@@ -1375,7 +1377,7 @@ export const TechnicalAnalysis = () => {
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
                 <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
                   <Target className="w-4 h-4 mr-2" />
-                  Hỗ trợ, Kháng cự & Fibonacci
+                  {t('analysis.technical.support_resistance_title')}
                 </h3>
                 <table className="w-full text-sm">
                   <tbody>
@@ -1407,24 +1409,24 @@ export const TechnicalAnalysis = () => {
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
                 <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
                   <Activity className="w-4 h-4 mr-2" />
-                  Chỉ báo biến động & Khối lượng
+                  {t('analysis.technical.volatility_volume_title')}
                 </h3>
                 <table className="w-full text-sm">
                   <tbody>
                     <tr className="border-b border-gray-100">
-                      <td className="py-2 text-gray-500 w-1/6">BB Upper</td>
+                      <td className="py-2 text-gray-500 w-1/6">{t('analysis.technical.bb_upper_label')}</td>
                       <td className="py-2 font-semibold text-blue-600 w-1/6">{formatCurrency(analysisData.volatility_indicators?.BB_Upper)}</td>
-                      <td className="py-2 text-gray-500 w-1/6">BB Middle</td>
+                      <td className="py-2 text-gray-500 w-1/6">{t('analysis.technical.bb_middle_label')}</td>
                       <td className="py-2 font-semibold w-1/6">{formatCurrency(analysisData.volatility_indicators?.BB_Middle)}</td>
-                      <td className="py-2 text-gray-500 w-1/6">BB Lower</td>
+                      <td className="py-2 text-gray-500 w-1/6">{t('analysis.technical.bb_lower_label')}</td>
                       <td className="py-2 font-semibold text-blue-600 w-1/6">{formatCurrency(analysisData.volatility_indicators?.BB_Lower)}</td>
                     </tr>
                     <tr>
-                      <td className="py-2 text-gray-500">ATR (14)</td>
+                      <td className="py-2 text-gray-500">{t('analysis.technical.atr_label')}</td>
                       <td className="py-2 font-semibold text-purple-600">{formatNumber(analysisData.volatility_indicators?.ATR)}</td>
-                      <td className="py-2 text-gray-500">OBV</td>
+                      <td className="py-2 text-gray-500">{t('analysis.technical.obv_label')}</td>
                       <td className="py-2 font-semibold text-yellow-600">{formatVolume(analysisData.volume_indicators?.OBV)}</td>
-                      <td className="py-2 text-gray-500">Avg Vol (20)</td>
+                      <td className="py-2 text-gray-500">{t('analysis.technical.avg_vol_20_label')}</td>
                       <td className="py-2 font-semibold text-green-600">{formatVolume(analysisData.volume_indicators?.volume_avg_20)}</td>
                     </tr>
                   </tbody>
@@ -1448,43 +1450,43 @@ export const TechnicalAnalysis = () => {
 
               {/* Chart Legend */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                <h3 className="text-sm font-bold text-gray-900 mb-3">Chú thích biểu đồ</h3>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">{t('analysis.technical.chart_legend_title')}</h3>
                 <div className="flex flex-wrap gap-4 text-sm">
                   {panels.price && (
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-700">Price Panel:</span>
+                      <span className="font-medium text-gray-700">{t('analysis.technical.price_panel_label')}</span>
                       {indicatorSettings.priceOverlay.indicators.sma20.enabled && (
-                        <span className="flex items-center"><span className="w-3 h-0.5 bg-blue-600 mr-1"></span>SMA20</span>
+                        <span className="flex items-center"><span className="w-3 h-0.5 bg-blue-600 mr-1"></span>{t('analysis.technical.sma20_short')}</span>
                       )}
                       {indicatorSettings.priceOverlay.indicators.sma50.enabled && (
-                        <span className="flex items-center"><span className="w-3 h-0.5 bg-amber-500 mr-1"></span>SMA50</span>
+                        <span className="flex items-center"><span className="w-3 h-0.5 bg-amber-500 mr-1"></span>{t('analysis.technical.sma50_short')}</span>
                       )}
                       {indicatorSettings.priceOverlay.indicators.bollingerBands.enabled && (
-                        <span className="flex items-center"><span className="w-3 h-0.5 bg-red-500 mr-1"></span>BB</span>
+                        <span className="flex items-center"><span className="w-3 h-0.5 bg-red-500 mr-1"></span>{t('analysis.technical.bb_short')}</span>
                       )}
                     </div>
                   )}
                   {panels.oscillators && (
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-700">Oscillators:</span>
+                      <span className="font-medium text-gray-700">{t('analysis.technical.oscillators_panel_label')}</span>
                       {indicatorSettings.oscillators.indicators.rsi.enabled && (
-                        <span className="flex items-center"><span className="w-3 h-0.5 bg-indigo-500 mr-1"></span>RSI</span>
+                        <span className="flex items-center"><span className="w-3 h-0.5 bg-indigo-500 mr-1"></span>{t('analysis.technical.rsi_short')}</span>
                       )}
                       {indicatorSettings.oscillators.indicators.stochastic.enabled && (
-                        <span className="flex items-center"><span className="w-3 h-0.5 bg-blue-600 mr-1"></span>Stoch</span>
+                        <span className="flex items-center"><span className="w-3 h-0.5 bg-blue-600 mr-1"></span>{t('analysis.technical.stoch_short')}</span>
                       )}
                     </div>
                   )}
                   {panels.macd && (
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-700">MACD:</span>
-                      <span className="flex items-center"><span className="w-3 h-0.5 bg-blue-600 mr-1"></span>MACD</span>
-                      <span className="flex items-center"><span className="w-3 h-0.5 bg-red-500 mr-1"></span>Signal</span>
+                      <span className="font-medium text-gray-700">{t('analysis.technical.macd_panel_label')}</span>
+                      <span className="flex items-center"><span className="w-3 h-0.5 bg-blue-600 mr-1"></span>{t('analysis.technical.macd_short')}</span>
+                      <span className="flex items-center"><span className="w-3 h-0.5 bg-red-500 mr-1"></span>{t('analysis.technical.signal_short')}</span>
                     </div>
                   )}
                 </div>
                 <p className="text-xs text-gray-500 mt-2">
-                  Mẹo: Sử dụng cuộn chuột để phóng to/thu nhỏ, kéo để di chuyển. Nhấn nút Cài đặt để tùy chỉnh chỉ báo.
+                  {t('analysis.technical.chart_hint')}
                 </p>
               </div>
             </div>
