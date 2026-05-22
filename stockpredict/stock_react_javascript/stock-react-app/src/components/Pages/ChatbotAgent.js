@@ -4,10 +4,12 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import chatbotAgentService from '../../services/chatbotAgentService';
 import '../../styles/chatbot-agent.css';
 
 const ChatbotAgent = () => {
+  const { t, i18n } = useTranslation();
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -66,11 +68,12 @@ const ChatbotAgent = () => {
       {
         id: Date.now(),
         type: 'bot',
-        content: 'Xin chào! Tôi là trợ lý thị trường chứng khoán thông minh của bạn. Hãy hỏi tôi bất cứ điều gì về thị trường chứng khoán Việt Nam, cổ phiếu riêng lẻ, ngành, xu hướng hoặc dự đoán!',
+        content: t('chatbot.welcome_message'),
         category: 'system',
         timestamp: new Date()
       }
     ]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -127,7 +130,7 @@ const ChatbotAgent = () => {
       console.error('ChatbotAgent error:', error);
 
       // Extract error message
-      let errorText = 'Xin lỗi, đã xảy ra lỗi khi xử lý câu hỏi của bạn. Vui lòng thử lại.';
+      let errorText = t('chatbot.error_processing');
       if (error?.message) {
         errorText = `Error: ${error.message}`;
       } else if (typeof error === 'string') {
@@ -150,7 +153,7 @@ const ChatbotAgent = () => {
 
   const formatResponse = (response) => {
     if (!response.success) {
-      return response.message || 'Không thể xử lý câu hỏi của bạn.';
+      return response.message || t('chatbot.error_unprocessable');
     }
 
     const { data, message, category } = response;
@@ -174,15 +177,35 @@ const ChatbotAgent = () => {
     }
   };
 
+  // Helper: format a signed number with leading +/- (returns "N/A" if missing)
+  const fmtSigned = (v) => {
+    if (v === null || v === undefined) return 'N/A';
+    return (v >= 0 ? '+' : '') + v;
+  };
+  const fmtSignedFixed = (v, digits = 2) => {
+    if (v === null || v === undefined) return 'N/A';
+    return (v >= 0 ? '+' : '') + v.toFixed(digits);
+  };
+
   const formatMarketOverview = (data, message) => {
     if (!data) return message;
 
     if (data.index) {
-      return `**Tổng quan ${data.index}**\n\n` +
-        `Mức hiện tại: ${data.level || data.current_level || 'N/A'}\n` +
-        `Thay đổi: ${data.change >= 0 ? '+' : ''}${data.change || 'N/A'} (${data.change_percent >= 0 ? '+' : ''}${data.change_percent || 'N/A'}%)\n` +
-        (data.volume ? `Khối lượng: ${formatNumber(data.volume)} cổ phiếu\n` : '') +
-        (data.gainers ? `Tăng: ${data.gainers} | Giảm: ${data.losers} | Không đổi: ${data.unchanged}\n` : '');
+      let out = t('chatbot.tpl_overview_header', { index: data.index }) + '\n\n';
+      out += t('chatbot.tpl_current_level', { level: data.level || data.current_level || 'N/A' }) + '\n';
+      out += t('chatbot.tpl_change', {
+        change: fmtSigned(data.change),
+        percent: fmtSigned(data.change_percent),
+      }) + '\n';
+      if (data.volume) out += t('chatbot.tpl_volume', { count: formatNumber(data.volume) }) + '\n';
+      if (data.gainers) {
+        out += t('chatbot.tpl_gainers_losers', {
+          gainers: data.gainers,
+          losers: data.losers,
+          unchanged: data.unchanged,
+        }) + '\n';
+      }
+      return out;
     }
     return message;
   };
@@ -193,15 +216,18 @@ const ChatbotAgent = () => {
     if (Array.isArray(data)) {
       // Format list of stocks
       return data.map(stock =>
-        `${stock.ticker}: ${stock.price || 'N/A'} (${stock.change_percent >= 0 ? '+' : ''}${stock.change_percent || 'N/A'}%)`
+        `${stock.ticker}: ${stock.price || 'N/A'} (${fmtSigned(stock.change_percent)}%)`
       ).join('\n');
     } else if (data.ticker) {
-      // Format single stock
-      return `**${data.ticker}**\n\n` +
-        `Giá: ${data.price || 'N/A'} VND\n` +
-        `Thay đổi: ${data.change >= 0 ? '+' : ''}${data.change || 'N/A'} (${data.change_percent >= 0 ? '+' : ''}${data.change_percent || 'N/A'}%)\n` +
-        (data.volume ? `Khối lượng: ${formatNumber(data.volume)} cổ phiếu\n` : '') +
-        (data.market_cap ? `Vốn hóa: ${formatNumber(data.market_cap)} VND\n` : '');
+      let out = `**${data.ticker}**\n\n`;
+      out += t('chatbot.tpl_stock_price', { price: data.price || 'N/A' }) + '\n';
+      out += t('chatbot.tpl_change', {
+        change: fmtSigned(data.change),
+        percent: fmtSigned(data.change_percent),
+      }) + '\n';
+      if (data.volume) out += t('chatbot.tpl_volume', { count: formatNumber(data.volume) }) + '\n';
+      if (data.market_cap) out += t('chatbot.tpl_market_cap', { value: formatNumber(data.market_cap) }) + '\n';
+      return out;
     }
     return message;
   };
@@ -211,12 +237,16 @@ const ChatbotAgent = () => {
 
     if (Array.isArray(data)) {
       return data.map(sector =>
-        `${sector.sector}: ${sector.change_percent >= 0 ? '+' : ''}${sector.change_percent}%`
+        `${sector.sector}: ${fmtSigned(sector.change_percent)}%`
       ).join('\n');
     } else if (data.sector) {
-      return `**Ngành ${data.sector}**\n\n` +
-        `Hiệu suất: ${data.change_percent >= 0 ? '+' : ''}${data.change_percent}%\n` +
-        (data.top_stocks ? `Cổ phiếu hàng đầu:\n${data.top_stocks.map(s => `  - ${s.ticker}: ${s.change_percent >= 0 ? '+' : ''}${s.change_percent}%`).join('\n')}` : '');
+      let out = t('chatbot.tpl_sector_header', { sector: data.sector }) + '\n\n';
+      out += t('chatbot.tpl_sector_performance', { percent: fmtSigned(data.change_percent) }) + '\n';
+      if (data.top_stocks) {
+        out += t('chatbot.tpl_top_stocks') + '\n';
+        out += data.top_stocks.map(s => `  - ${s.ticker}: ${fmtSigned(s.change_percent)}%`).join('\n');
+      }
+      return out;
     }
     return message;
   };
@@ -226,18 +256,24 @@ const ChatbotAgent = () => {
 
     let formatted = '';
     if (data.trend) {
-      formatted += `**Xu hướng thị trường: ${data.trend.trend || data.trend}**\n\n`;
-      if (data.trend.strength) formatted += `Độ mạnh: ${data.trend.strength}\n`;
-      if (data.trend.support_level) formatted += `Hỗ trợ: ${data.trend.support_level}\n`;
-      if (data.trend.resistance_level) formatted += `Kháng cự: ${data.trend.resistance_level}\n`;
+      formatted += t('chatbot.tpl_market_trend', { trend: data.trend.trend || data.trend }) + '\n\n';
+      if (data.trend.strength) formatted += t('chatbot.tpl_trend_strength', { strength: data.trend.strength }) + '\n';
+      if (data.trend.support_level) formatted += t('chatbot.tpl_support_level', { level: data.trend.support_level }) + '\n';
+      if (data.trend.resistance_level) formatted += t('chatbot.tpl_resistance_level', { level: data.trend.resistance_level }) + '\n';
     }
     if (data.breadth) {
-      formatted += `\nĐộ rộng thị trường:\n`;
-      formatted += `Tăng: ${data.breadth.gainers} | Giảm: ${data.breadth.losers}\n`;
-      formatted += `Tỷ lệ độ rộng: ${data.breadth.breadth_ratio}\n`;
+      formatted += '\n' + t('chatbot.tpl_market_breadth') + '\n';
+      formatted += t('chatbot.tpl_breadth_gainers_losers', {
+        gainers: data.breadth.gainers,
+        losers: data.breadth.losers,
+      }) + '\n';
+      formatted += t('chatbot.tpl_breadth_ratio', { ratio: data.breadth.breadth_ratio }) + '\n';
     }
     if (data.sentiment) {
-      formatted += `\nTâm lý: ${data.sentiment.sentiment} (độ tin cậy ${Math.round(data.sentiment.confidence * 100)}%)\n`;
+      formatted += '\n' + t('chatbot.tpl_sentiment', {
+        sentiment: data.sentiment.sentiment,
+        percent: Math.round(data.sentiment.confidence * 100),
+      }) + '\n';
     }
     return formatted || message;
   };
@@ -250,7 +286,7 @@ const ChatbotAgent = () => {
       const latest = data[data.length - 1];
       return JSON.stringify(latest, null, 2);
     } else if (data.ticker) {
-      let formatted = `**Chỉ báo kỹ thuật cho ${data.ticker}**\n\n`;
+      let formatted = t('chatbot.tpl_technical_for', { ticker: data.ticker }) + '\n\n';
       if (data.rsi) formatted += `RSI: ${JSON.stringify(data.rsi)}\n`;
       if (data.macd) formatted += `MACD: ${JSON.stringify(data.macd)}\n`;
       if (data.sma_20) formatted += `SMA(20): ${JSON.stringify(data.sma_20)}\n`;
@@ -263,24 +299,32 @@ const ChatbotAgent = () => {
     if (!data) return message;
 
     const directionEmoji = data.direction === 'up' ? '📈' : '📉';
-    let formatted = `**Dự đoán cổ phiếu ${data.ticker}** ${directionEmoji}\n\n`;
+    let formatted = t('chatbot.tpl_prediction_header', { ticker: data.ticker, emoji: directionEmoji }) + '\n\n';
 
     // Current status
-    formatted += `**Trạng thái hiện tại**:\n`;
-    formatted += `• Giá: ${formatNumber(data.current_price)} VND\n`;
-    formatted += `• Ngày: ${data.date}\n\n`;
+    formatted += t('chatbot.tpl_current_status') + '\n';
+    formatted += t('chatbot.tpl_current_price_line', { price: formatNumber(data.current_price) }) + '\n';
+    formatted += t('chatbot.tpl_current_date_line', { date: data.date }) + '\n\n';
 
     // Forecast
-    formatted += `**Dự báo ${data.horizon}**:\n`;
-    formatted += `• Dự đoán: ${formatNumber(data.predicted_price)} VND\n`;
-    formatted += `• Thay đổi: ${data.change_percent >= 0 ? '+' : ''}${data.change_percent.toFixed(2)}% `;
-    formatted += `(${data.change_amount >= 0 ? '+' : ''}${formatNumber(data.change_amount)} VND)\n`;
-    formatted += `• Hướng: ${data.direction === 'up' ? 'TĂNG' : 'GIẢM'} (xác suất ${Math.round(data.probability * 100)}%)\n`;
-    formatted += `• Phạm vi 95%: ${formatNumber(data.confidence_interval.lower)} - ${formatNumber(data.confidence_interval.upper)} VND\n\n`;
+    formatted += t('chatbot.tpl_forecast_header', { horizon: data.horizon }) + '\n';
+    formatted += t('chatbot.tpl_predicted_price_line', { price: formatNumber(data.predicted_price) }) + '\n';
+    formatted += t('chatbot.tpl_change_line', {
+      percent: fmtSignedFixed(data.change_percent),
+      amount: fmtSigned(formatNumber(data.change_amount)),
+    }) + '\n';
+    formatted += t('chatbot.tpl_direction_line', {
+      direction: data.direction === 'up' ? t('chatbot.tpl_direction_up') : t('chatbot.tpl_direction_down'),
+      percent: Math.round(data.probability * 100),
+    }) + '\n';
+    formatted += t('chatbot.tpl_confidence_interval', {
+      lower: formatNumber(data.confidence_interval.lower),
+      upper: formatNumber(data.confidence_interval.upper),
+    }) + '\n\n';
 
     // Technical signals
     if (data.technical_signals && data.technical_signals.length > 0) {
-      formatted += `**Tín hiệu kỹ thuật**:\n`;
+      formatted += t('chatbot.tpl_technical_signals_header') + '\n';
       data.technical_signals.forEach(signal => {
         formatted += `• ${signal}\n`;
       });
@@ -288,27 +332,30 @@ const ChatbotAgent = () => {
     }
 
     // Confidence
-    formatted += `**Độ tin cậy**: ${Math.round((data.confidence || 0.5) * 100)}%\n\n`;
+    formatted += t('chatbot.tpl_confidence_line', { percent: Math.round((data.confidence || 0.5) * 100) }) + '\n\n';
 
     // Current indicators
     if (data.current_indicators) {
       const ind = data.current_indicators;
-      formatted += `**Chỉ báo hiện tại**:\n`;
-      formatted += `• RSI: ${ind.rsi.toFixed(1)}\n`;
-      formatted += `• MACD: ${ind.macd.toFixed(2)}\n`;
-      formatted += `• Khối lượng: ${ind.relative_volume.toFixed(2)}x trung bình\n`;
-      formatted += `• Xu hướng: ${ind.trend_strength > 0 ? 'Tăng ↗' : 'Giảm ↘'}\n\n`;
+      formatted += t('chatbot.tpl_current_indicators_header') + '\n';
+      formatted += t('chatbot.tpl_rsi_line', { value: ind.rsi.toFixed(1) }) + '\n';
+      formatted += t('chatbot.tpl_macd_line', { value: ind.macd.toFixed(2) }) + '\n';
+      formatted += t('chatbot.tpl_relative_volume_line', { value: ind.relative_volume.toFixed(2) }) + '\n';
+      formatted += t('chatbot.tpl_trend_line', {
+        label: ind.trend_strength > 0 ? t('chatbot.tpl_trend_up_label') : t('chatbot.tpl_trend_down_label'),
+      }) + '\n\n';
     }
 
     // Disclaimer
-    formatted += `⚠️ ${data.disclaimer || 'Phân tích AI chỉ mang tính chất tham khảo. Không phải lời khuyên đầu tư.'}`;
+    formatted += `⚠️ ${data.disclaimer || t('chatbot.disclaimer_default')}`;
 
     return formatted;
   };
 
+  const numLocale = i18n.language === 'en' ? 'en-US' : 'vi-VN';
   const formatNumber = (num) => {
     if (!num) return 'N/A';
-    return num.toLocaleString('vi-VN');
+    return num.toLocaleString(numLocale);
   };
 
   const handleSuggestionClick = (question) => {
@@ -331,8 +378,8 @@ const ChatbotAgent = () => {
   return (
     <div className="chatbot-agent-container">
       <div className="chatbot-header">
-        <h2>🤖 Trợ lý AI Thị trường Chứng khoán</h2>
-        <p>Được hỗ trợ bởi hệ thống AI</p>
+        <h2>{t('chatbot.header_title')}</h2>
+        <p>{t('chatbot.header_subtitle')}</p>
       </div>
 
       {/* Category Pills */}
@@ -352,7 +399,7 @@ const ChatbotAgent = () => {
       {/* Sample Questions */}
       {showSuggestions && selectedCategory && (
         <div className="suggestions-panel">
-          <h4>Câu hỏi mẫu cho {selectedCategory.name.replace('_', ' ')}:</h4>
+          <h4>{t('chatbot.sample_questions_header', { category: selectedCategory.name.replace('_', ' ') })}</h4>
           <div className="suggestions-list">
             {(selectedCategory.examples || []).map((question, idx) => (
               <button
@@ -373,7 +420,7 @@ const ChatbotAgent = () => {
           <div key={msg.id} className={`message ${msg.type}-message ${msg.error ? 'error' : ''}`}>
             <div className="message-header">
               <span className="message-sender">
-                {msg.type === 'user' ? '👤 Bạn' : '🤖 Trợ lý AI'}
+                {msg.type === 'user' ? t('chatbot.you') : t('chatbot.ai_assistant')}
               </span>
               <span className="message-time">
                 {msg.timestamp.toLocaleTimeString()}
@@ -392,15 +439,15 @@ const ChatbotAgent = () => {
             </div>
             {msg.category && msg.category !== 'system' && (
               <div className="message-meta">
-                <span className="message-category">Danh mục: {msg.category}</span>
+                <span className="message-category">{t('chatbot.category_label', { category: msg.category })}</span>
                 {msg.confidence && (
                   <span className="message-confidence">
-                    Độ tin cậy: {Math.round(msg.confidence * 100)}%
+                    {t('chatbot.confidence_label', { percent: Math.round(msg.confidence * 100) })}
                   </span>
                 )}
                 {msg.sources && msg.sources.length > 0 && (
                   <span className="message-sources">
-                    Nguồn: {msg.sources.join(', ')}
+                    {t('chatbot.sources_label', { sources: msg.sources.join(', ') })}
                   </span>
                 )}
               </div>
@@ -427,7 +474,7 @@ const ChatbotAgent = () => {
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyPress={handleKeyPress}
-          placeholder="Hỏi bất cứ điều gì về thị trường chứng khoán..."
+          placeholder={t('chatbot.input_placeholder')}
           rows={2}
           disabled={isLoading}
         />
@@ -436,7 +483,7 @@ const ChatbotAgent = () => {
           disabled={isLoading || !inputValue.trim()}
           className="send-btn"
         >
-          {isLoading ? 'Đang xử lý...' : 'Gửi'}
+          {isLoading ? t('chatbot.btn_processing') : t('chatbot.btn_send')}
         </button>
       </div>
     </div>

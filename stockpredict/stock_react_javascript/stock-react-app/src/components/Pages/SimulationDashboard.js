@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import httpClient from "../../services/httpClient";
 import { API_ENDPOINTS } from "../../constants/api";
 import {
@@ -15,6 +16,7 @@ import { getRechartsGridProps } from "../../constants/chartTheme";
 import "./SimulationDashboard.css";
 
 const SimulationDashboard = () => {
+  const { t, i18n } = useTranslation();
   // State management
   const [tickers, setTickers] = useState([]);
   const [models, setModels] = useState([]);
@@ -159,8 +161,9 @@ const SimulationDashboard = () => {
     }
   };
 
+  const numLocale = i18n.language === 'en' ? 'en-US' : 'vi-VN';
   const formatCurrency = (value) => {
-    return new Intl.NumberFormat('vi-VN', {
+    return new Intl.NumberFormat(numLocale, {
       style: 'currency',
       currency: 'VND'
     }).format(value);
@@ -173,8 +176,8 @@ const SimulationDashboard = () => {
   return (
     <div className="simulation-dashboard">
       <div className="dashboard-header">
-        <h1>Mô phỏng Giao dịch với AI</h1>
-        <p>Huấn luyện mô hình ML để dự đoán giá cổ phiếu và mô phỏng chiến lược giao dịch</p>
+        <h1>{t('simulation.title')}</h1>
+        <p>{t('simulation.subtitle')}</p>
       </div>
 
       <div className="dashboard-content">
@@ -190,7 +193,7 @@ const SimulationDashboard = () => {
               }
             >
               <Settings className={`tab-icon ${activeTab === "parameters" ? "animate-pulse" : ""}`} size={18} />
-              <span>Tham số</span>
+              <span>{t('simulation.tab_parameters')}</span>
             </button>
             <button
               className="tab-button"
@@ -201,7 +204,7 @@ const SimulationDashboard = () => {
               }
             >
               <TrendingUp className={`tab-icon ${activeTab === "trading" ? "animate-pulse" : ""}`} size={18} />
-              <span>Chiến lược giao dịch</span>
+              <span>{t('simulation.tab_trading')}</span>
             </button>
             <button
               className="tab-button"
@@ -213,7 +216,7 @@ const SimulationDashboard = () => {
               }
             >
               <BarChart3 className={`tab-icon ${activeTab === "result" ? "animate-pulse" : ""}`} size={18} />
-              <span>Kết quả</span>
+              <span>{t('simulation.tab_results')}</span>
             </button>
           </div>
 
@@ -223,7 +226,7 @@ const SimulationDashboard = () => {
               <div className="configuration-panel">
                 {/* Stock Selection */}
                 <div className="form-section">
-                  <h3>Cổ phiếu & Thời gian</h3>
+                  <h3>{t('simulation.section_stock_time')}</h3>
                   {tickers.length === 0 ? (
                     <div className="empty-portfolio-warning" style={{
                       backgroundColor: '#fff3cd',
@@ -232,23 +235,23 @@ const SimulationDashboard = () => {
                       padding: '16px',
                       marginBottom: '16px'
                     }}>
-                      <h4 style={{ color: '#856404', marginBottom: '8px' }}>Chưa có cổ phiếu trong danh mục</h4>
+                      <h4 style={{ color: '#856404', marginBottom: '8px' }}>{t('simulation.empty_portfolio_title')}</h4>
                       <p style={{ color: '#856404', marginBottom: '8px' }}>
-                        Bạn cần thêm cổ phiếu vào danh mục trước khi chạy mô phỏng.
+                        {t('simulation.empty_portfolio_message')}
                       </p>
-                      <a href="/portfolio" style={{ color: '#0d6efd' }}>Đi đến Danh mục →</a>
+                      <a href="/portfolio" style={{ color: '#0d6efd' }}>{t('simulation.go_to_portfolio_link')}</a>
                     </div>
                   ) : (
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Mã cổ phiếu</label>
+                      <label>{t('simulation.label_ticker')}</label>
                       <select
                         name="ticker"
                         value={formData.ticker}
                         onChange={handleInputChange}
                         required
                       >
-                        <option value="">Chọn cổ phiếu...</option>
+                        <option value="">{t('simulation.select_stock_placeholder')}</option>
                         {tickers.map((ticker) => (
                           <option key={ticker.ticker} value={ticker.ticker}>
                             {ticker.ticker} - {ticker.name}
@@ -261,7 +264,7 @@ const SimulationDashboard = () => {
 
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Ngày bắt đầu</label>
+                      <label>{t('simulation.label_start_date')}</label>
                       <input
                         type="date"
                         name="startDate"
@@ -271,7 +274,7 @@ const SimulationDashboard = () => {
                       />
                     </div>
                     <div className="form-group">
-                      <label>Ngày kết thúc</label>
+                      <label>{t('simulation.label_end_date')}</label>
                       <input
                         type="date"
                         name="endDate"
@@ -285,7 +288,7 @@ const SimulationDashboard = () => {
 
                 {/* ML Model Selection */}
                 <div className="form-section">
-                  <h3>Mô hình ML</h3>
+                  <h3>{t('simulation.section_ml_model')}</h3>
 
                   <div className="form-group checkbox-group">
                     <label>
@@ -295,31 +298,31 @@ const SimulationDashboard = () => {
                         checked={formData.usePretrainedModel}
                         onChange={handleInputChange}
                       />
-                      Sử dụng mô hình đã huấn luyện (Bỏ qua huấn luyện)
+                      {t('simulation.label_use_pretrained')}
                     </label>
                   </div>
 
                   {formData.usePretrainedModel ? (
                     <div className="form-group">
-                      <label>Chọn giải pháp đã huấn luyện</label>
+                      <label>{t('simulation.label_select_solution')}</label>
                       <select
                         name="pretrainedSolutionId"
                         value={formData.pretrainedSolutionId}
                         onChange={handleInputChange}
                         required
                       >
-                        <option value="">Chọn giải pháp...</option>
+                        <option value="">{t('simulation.select_solution_placeholder')}</option>
                         {trainedSolutions.map((solution) => (
                           <option key={solution.solution_id} value={solution.solution_id}>
                             {solution.solution_name} - {solution.model_name} ({solution.ticker}) - {solution.training_period}
                           </option>
                         ))}
                       </select>
-                      <small>Sử dụng mô hình đã huấn luyện sẽ bỏ qua giai đoạn huấn luyện</small>
+                      <small>{t('simulation.hint_pretrained_skip')}</small>
                     </div>
                   ) : (
                     <div className="form-group">
-                      <label>Mô hình dự đoán (Huấn luyện mới)</label>
+                      <label>{t('simulation.label_new_model')}</label>
                       <select
                         name="modelType"
                         value={formData.modelType}
@@ -332,7 +335,7 @@ const SimulationDashboard = () => {
                           </option>
                         ))}
                       </select>
-                      <small>Điều này sẽ huấn luyện mô hình mới từ đầu</small>
+                      <small>{t('simulation.hint_new_training')}</small>
                     </div>
                   )}
 
@@ -344,7 +347,7 @@ const SimulationDashboard = () => {
                         checked={formData.useIndicators}
                         onChange={handleInputChange}
                       />
-                      Sử dụng chỉ báo kỹ thuật (SMA, RSI, MACD)
+                      {t('simulation.label_use_indicators')}
                     </label>
                   </div>
                 </div>
@@ -355,7 +358,7 @@ const SimulationDashboard = () => {
                     className="btn-primary"
                     onClick={() => setActiveTab("trading")}
                   >
-                    Tiếp: Chiến lược giao dịch →
+                    {t('simulation.btn_next_trading')}
                   </button>
                 </div>
               </div>
@@ -365,9 +368,9 @@ const SimulationDashboard = () => {
             <div className={`tab-content ${activeTab === "trading" ? "active" : ""}`}>
               <div className="configuration-panel">
                 <div className="form-section">
-                  <h3>Vốn & Vị thế</h3>
+                  <h3>{t('simulation.section_capital_position')}</h3>
                   <div className="form-group">
-                    <label>Vốn ban đầu (VND)</label>
+                    <label>{t('simulation.label_initial_capital')}</label>
                     <input
                       type="number"
                       name="initialCapital"
@@ -380,7 +383,7 @@ const SimulationDashboard = () => {
                   </div>
 
                   <div className="form-group">
-                    <label>Kích thước vị thế (%)</label>
+                    <label>{t('simulation.label_position_size')}</label>
                     <input
                       type="number"
                       name="positionSize"
@@ -390,15 +393,15 @@ const SimulationDashboard = () => {
                       max="100"
                       step="1"
                     />
-                    <small>Phần trăm vốn sử dụng cho mỗi giao dịch</small>
+                    <small>{t('simulation.hint_position_size')}</small>
                   </div>
                 </div>
 
                 <div className="form-section">
-                  <h3>Ngưỡng Mua/Bán</h3>
+                  <h3>{t('simulation.section_buy_sell_threshold')}</h3>
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Ngưỡng Mua (%)</label>
+                      <label>{t('simulation.label_threshold_buy')}</label>
                       <input
                         type="number"
                         name="thresholdBuy"
@@ -407,10 +410,10 @@ const SimulationDashboard = () => {
                         step="0.1"
                         min="0"
                       />
-                      <small>Mua khi lợi nhuận dự đoán vượt % này</small>
+                      <small>{t('simulation.hint_buy_threshold')}</small>
                     </div>
                     <div className="form-group">
-                      <label>Ngưỡng Bán (%)</label>
+                      <label>{t('simulation.label_threshold_sell')}</label>
                       <input
                         type="number"
                         name="thresholdSell"
@@ -419,7 +422,7 @@ const SimulationDashboard = () => {
                         step="0.1"
                         max="0"
                       />
-                      <small>Bán khi lợi nhuận dự đoán dưới % này</small>
+                      <small>{t('simulation.hint_sell_threshold')}</small>
                     </div>
                   </div>
                 </div>
@@ -430,14 +433,14 @@ const SimulationDashboard = () => {
                     className="btn-secondary"
                     onClick={() => setActiveTab("parameters")}
                   >
-                    ← Quay lại
+                    {t('simulation.btn_back')}
                   </button>
                   <button
                     type="submit"
                     className="btn-primary"
                     disabled={loading}
                   >
-                    {loading ? "Đang chạy mô phỏng..." : "Chạy mô phỏng"}
+                    {loading ? t('simulation.btn_running') : t('simulation.btn_run_simulation')}
                   </button>
                 </div>
               </div>
@@ -447,7 +450,7 @@ const SimulationDashboard = () => {
             <div className={`tab-content ${activeTab === "result" ? "active" : ""}`}>
               {error && (
                 <div className="results-panel error-panel">
-                  <h2>Lỗi</h2>
+                  <h2>{t('simulation.error_title')}</h2>
                   <p>{error}</p>
                 </div>
               )}
@@ -456,22 +459,22 @@ const SimulationDashboard = () => {
                 <div className="results-panel">
                   {/* Performance Metrics */}
                   <div className="metrics-section">
-                    <h2>Tóm tắt Hiệu suất</h2>
+                    <h2>{t('simulation.section_performance_summary')}</h2>
                     <div className="metrics-grid">
                       <div className="metric-card">
-                        <div className="metric-label">Vốn ban đầu</div>
+                        <div className="metric-label">{t('simulation.metric_initial_capital')}</div>
                         <div className="metric-value">
                           {formatCurrency(results.portfolio_metrics.initial_capital)}
                         </div>
                       </div>
                       <div className="metric-card">
-                        <div className="metric-label">Giá trị cuối</div>
+                        <div className="metric-label">{t('simulation.metric_final_value')}</div>
                         <div className="metric-value">
                           {formatCurrency(results.portfolio_metrics.final_value)}
                         </div>
                       </div>
                       <div className={`metric-card ${results.portfolio_metrics.total_return >= 0 ? 'positive' : 'negative'}`}>
-                        <div className="metric-label">Tổng lợi nhuận</div>
+                        <div className="metric-label">{t('simulation.metric_total_return')}</div>
                         <div className="metric-value">
                           {formatCurrency(results.portfolio_metrics.total_return)}
                         </div>
@@ -480,39 +483,39 @@ const SimulationDashboard = () => {
                         </div>
                       </div>
                       <div className="metric-card">
-                        <div className="metric-label">Tổng giao dịch</div>
+                        <div className="metric-label">{t('simulation.metric_total_trades')}</div>
                         <div className="metric-value">
                           {results.portfolio_metrics.total_trades}
                         </div>
                         <div className="metric-sub">
-                          Tỷ lệ thắng: {results.portfolio_metrics.win_rate.toFixed(1)}%
+                          {t('simulation.metric_win_rate', { rate: results.portfolio_metrics.win_rate.toFixed(1) })}
                         </div>
                       </div>
                       <div className="metric-card">
-                        <div className="metric-label">Tỷ lệ Sharpe</div>
+                        <div className="metric-label">{t('simulation.metric_sharpe_ratio')}</div>
                         <div className="metric-value">
                           {results.portfolio_metrics.sharpe_ratio.toFixed(2)}
                         </div>
                       </div>
                       <div className="metric-card">
-                        <div className="metric-label">Sụt giảm tối đa</div>
+                        <div className="metric-label">{t('simulation.metric_max_drawdown')}</div>
                         <div className="metric-value negative">
                           {results.portfolio_metrics.max_drawdown.toFixed(2)}%
                         </div>
                       </div>
                       <div className={`metric-card ${results.portfolio_metrics.alpha >= 0 ? 'positive' : 'negative'}`}>
-                        <div className="metric-label">Alpha (so với Mua & Giữ)</div>
+                        <div className="metric-label">{t('simulation.metric_alpha')}</div>
                         <div className="metric-value">
                           {formatPercent(results.portfolio_metrics.alpha)}
                         </div>
                       </div>
                       <div className="metric-card">
-                        <div className="metric-label">Độ chính xác dự đoán</div>
+                        <div className="metric-label">{t('simulation.metric_prediction_accuracy')}</div>
                         <div className="metric-value">
                           {results.prediction_accuracy.direction_accuracy.toFixed(1)}%
                         </div>
                         <div className="metric-sub">
-                          MAPE: {results.prediction_accuracy.mape.toFixed(2)}%
+                          {t('simulation.metric_mape', { value: results.prediction_accuracy.mape.toFixed(2) })}
                         </div>
                       </div>
                     </div>
@@ -532,14 +535,14 @@ const SimulationDashboard = () => {
               {!results && !error && (
                 <div className="no-results">
                   <div className="no-results-icon">📊</div>
-                  <h3>Chưa có Kết quả</h3>
-                  <p>Cấu hình tham số và chạy mô phỏng để xem kết quả tại đây.</p>
+                  <h3>{t('simulation.no_results_title')}</h3>
+                  <p>{t('simulation.no_results_message')}</p>
                   <button
                     type="button"
                     className="btn-primary"
                     onClick={() => setActiveTab("parameters")}
                   >
-                    Đi đến Tham số
+                    {t('simulation.btn_go_to_parameters')}
                   </button>
                 </div>
               )}
@@ -589,6 +592,10 @@ const SellSignalShape = (props) => {
 
 // Result Chart Component with Buy/Sell signals
 const ResultChart = ({ data, transactions }) => {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language === 'en' ? 'en-GB' : 'vi-VN';
+  const numLocale = i18n.language === 'en' ? 'en-US' : 'vi-VN';
+
   // Prepare chart data with buy/sell markers
   const chartData = data.map((point) => {
     const buyTransaction = transactions.find(t => t.type === "BUY" && t.date === point.date);
@@ -607,18 +614,18 @@ const ResultChart = ({ data, transactions }) => {
       const dataPoint = payload[0].payload;
       return (
         <div className="custom-tooltip">
-          <p className="tooltip-date">{new Date(label).toLocaleDateString('vi-VN')}</p>
+          <p className="tooltip-date">{new Date(label).toLocaleDateString(dateLocale)}</p>
           <p className="tooltip-actual">
-            Giá thực: {dataPoint.actual_price?.toLocaleString('vi-VN')} VND
+            {t('simulation.tooltip_actual_price', { price: dataPoint.actual_price?.toLocaleString(numLocale) })}
           </p>
           <p className="tooltip-predicted">
-            Dự đoán: {dataPoint.predicted_price?.toLocaleString('vi-VN')} VND
+            {t('simulation.tooltip_predicted_price', { price: dataPoint.predicted_price?.toLocaleString(numLocale) })}
           </p>
           {dataPoint.buySignal && (
-            <p className="tooltip-buy">Tín hiệu MUA</p>
+            <p className="tooltip-buy">{t('simulation.tooltip_buy_signal')}</p>
           )}
           {dataPoint.sellSignal && (
-            <p className="tooltip-sell">Tín hiệu BÁN</p>
+            <p className="tooltip-sell">{t('simulation.tooltip_sell_signal')}</p>
           )}
         </div>
       );
@@ -628,19 +635,19 @@ const ResultChart = ({ data, transactions }) => {
 
   return (
     <div className="chart-section">
-      <h2>Dự đoán Giá & Tín hiệu Giao dịch</h2>
+      <h2>{t('simulation.section_chart_title')}</h2>
       <div className="chart-legend-custom">
         <span className="legend-item">
-          <span className="legend-line actual"></span> Giá thực tế
+          <span className="legend-line actual"></span> {t('simulation.legend_actual_price')}
         </span>
         <span className="legend-item">
-          <span className="legend-line predicted"></span> Giá dự đoán
+          <span className="legend-line predicted"></span> {t('simulation.legend_predicted_price')}
         </span>
         <span className="legend-item buy-signal">
-          <span className="signal-marker">^</span> Tín hiệu Mua
+          <span className="signal-marker">^</span> {t('simulation.legend_buy_signal')}
         </span>
         <span className="legend-item sell-signal">
-          <span className="signal-marker">V</span> Tín hiệu Bán
+          <span className="signal-marker">V</span> {t('simulation.legend_sell_signal')}
         </span>
       </div>
       <ResponsiveContainer width="100%" height={450}>
@@ -648,7 +655,7 @@ const ResultChart = ({ data, transactions }) => {
           <CartesianGrid {...getRechartsGridProps().grid} />
           <XAxis
             dataKey="date"
-            tickFormatter={(date) => new Date(date).toLocaleDateString('vi-VN')}
+            tickFormatter={(date) => new Date(date).toLocaleDateString(dateLocale)}
             tick={getRechartsGridProps().tick}
           />
           <YAxis
@@ -703,36 +710,39 @@ const PriceChart = ({ data, transactions }) => {
 
 // Transaction History Component
 const TransactionHistory = ({ transactions }) => {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language === 'en' ? 'en-GB' : 'vi-VN';
+  const numLocale = i18n.language === 'en' ? 'en-US' : 'vi-VN';
   return (
     <div className="transaction-section">
-      <h2>Lịch sử Giao dịch</h2>
+      <h2>{t('simulation.section_transaction_history')}</h2>
       <div className="transaction-table-wrapper">
         <table className="transaction-table">
           <thead>
             <tr>
-              <th>Ngày</th>
-              <th>Hành động</th>
-              <th>Giá</th>
-              <th>Số CP</th>
-              <th>Tổng giá trị</th>
-              <th>Giá trị DM</th>
-              <th>Số dư TM</th>
+              <th>{t('simulation.column_date')}</th>
+              <th>{t('simulation.column_action')}</th>
+              <th>{t('simulation.column_price')}</th>
+              <th>{t('simulation.column_shares')}</th>
+              <th>{t('simulation.column_total_value')}</th>
+              <th>{t('simulation.column_portfolio_value')}</th>
+              <th>{t('simulation.column_cash_balance')}</th>
             </tr>
           </thead>
           <tbody>
             {transactions.map((transaction, index) => (
               <tr key={index} className={`transaction-${transaction.type.toLowerCase()}`}>
-                <td>{new Date(transaction.date).toLocaleDateString('vi-VN')}</td>
+                <td>{new Date(transaction.date).toLocaleDateString(dateLocale)}</td>
                 <td>
                   <span className={`badge badge-${transaction.type.toLowerCase()}`}>
                     {transaction.type}
                   </span>
                 </td>
-                <td>{transaction.price.toLocaleString('vi-VN')}</td>
-                <td>{transaction.shares.toLocaleString()}</td>
-                <td>{transaction.total_value.toLocaleString('vi-VN')}</td>
-                <td>{transaction.portfolio_value.toLocaleString('vi-VN')}</td>
-                <td>{transaction.cash_balance.toLocaleString('vi-VN')}</td>
+                <td>{transaction.price.toLocaleString(numLocale)}</td>
+                <td>{transaction.shares.toLocaleString(numLocale)}</td>
+                <td>{transaction.total_value.toLocaleString(numLocale)}</td>
+                <td>{transaction.portfolio_value.toLocaleString(numLocale)}</td>
+                <td>{transaction.cash_balance.toLocaleString(numLocale)}</td>
               </tr>
             ))}
           </tbody>

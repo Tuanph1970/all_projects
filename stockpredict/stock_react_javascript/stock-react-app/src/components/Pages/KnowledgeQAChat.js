@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Trash2, Database, FileText, ChevronDown, ChevronUp, AlertCircle, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { askQuestion, getHistory, clearSession, getGraphStats } from '../../services/knowledgeQAService';
 import '../../styles/knowledge-qa.css';
 
@@ -15,6 +16,7 @@ const getSessionId = () => {
 };
 
 const KnowledgeQAChat = () => {
+  const { t } = useTranslation();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -114,12 +116,12 @@ const KnowledgeQAChat = () => {
         setIsStreaming(false);
         setMessages(prev => prev.map(m =>
           m.id === assistantId
-            ? { ...m, content: m.content || 'An error occurred while generating the response.', isStreaming: false }
+            ? { ...m, content: m.content || t('knowledge_qa.stream_error'), isStreaming: false }
             : m
         ));
       },
     });
-  }, [input, isStreaming]);
+  }, [input, isStreaming, t]);
 
   const handleClear = async () => {
     if (isStreaming && abortRef.current) {
@@ -148,22 +150,22 @@ const KnowledgeQAChat = () => {
       <div className="kqa-header">
         <div className="kqa-header-left">
           <Database size={20} />
-          <h2>Knowledge QA</h2>
+          <h2>{t('knowledge_qa.title')}</h2>
           {stats && (
             <div className="kqa-stats">
-              <span>{stats.total_notes} notes</span>
-              <span>{stats.total_tags} tags</span>
-              <span>{stats.total_links} links</span>
+              <span>{t('knowledge_qa.stats_notes', { count: stats.total_notes })}</span>
+              <span>{t('knowledge_qa.stats_tags', { count: stats.total_tags })}</span>
+              <span>{t('knowledge_qa.stats_links', { count: stats.total_links })}</span>
             </div>
           )}
         </div>
         <button
           className="kqa-clear-btn"
           onClick={handleClear}
-          title="Clear chat"
+          title={t('knowledge_qa.btn_clear_tooltip')}
         >
           <Trash2 size={16} />
-          <span>Clear</span>
+          <span>{t('knowledge_qa.btn_clear')}</span>
         </button>
       </div>
 
@@ -172,7 +174,7 @@ const KnowledgeQAChat = () => {
         <div className="kqa-error">
           <AlertCircle size={16} />
           <span>{error}</span>
-          <button onClick={() => setError(null)}>Dismiss</button>
+          <button onClick={() => setError(null)}>{t('knowledge_qa.btn_dismiss')}</button>
         </div>
       )}
 
@@ -181,13 +183,13 @@ const KnowledgeQAChat = () => {
         {messages.length === 0 && (
           <div className="kqa-empty">
             <Database size={48} className="kqa-empty-icon" />
-            <h3>Ask anything about your knowledge base</h3>
-            <p>Your questions will be answered using your Obsidian notes stored in Neo4j.</p>
+            <h3>{t('knowledge_qa.empty_title')}</h3>
+            <p>{t('knowledge_qa.empty_message')}</p>
             <div className="kqa-suggestions">
               {[
-                'What topics are covered in my notes?',
-                'Summarize my notes about investing',
-                'What are the key concepts in my knowledge base?',
+                t('knowledge_qa.suggestion_topics'),
+                t('knowledge_qa.suggestion_summary'),
+                t('knowledge_qa.suggestion_concepts'),
               ].map((suggestion, i) => (
                 <button
                   key={i}
@@ -222,7 +224,7 @@ const KnowledgeQAChat = () => {
                     onClick={() => toggleSources(msg.id)}
                   >
                     <FileText size={14} />
-                    <span>{msg.sources.length} source{msg.sources.length > 1 ? 's' : ''}</span>
+                    <span>{msg.sources.length > 1 ? t('knowledge_qa.sources_count_many', { count: msg.sources.length }) : t('knowledge_qa.sources_count_one', { count: msg.sources.length })}</span>
                     {expandedSources[msg.id] ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </button>
 
@@ -260,7 +262,7 @@ const KnowledgeQAChat = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask a question about your knowledge base..."
+            placeholder={t('knowledge_qa.input_placeholder')}
             rows={1}
             disabled={isStreaming}
           />
@@ -273,7 +275,7 @@ const KnowledgeQAChat = () => {
           </button>
         </div>
         <p className="kqa-input-hint">
-          Press Enter to send, Shift+Enter for new line
+          {t('knowledge_qa.input_hint')}
         </p>
       </div>
     </div>
