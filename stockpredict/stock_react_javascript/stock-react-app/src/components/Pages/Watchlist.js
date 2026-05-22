@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Star, Trash2, RefreshCw, Plus, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import httpClient from '../../services/httpClient';
 import { API_ENDPOINTS } from '../../constants/api';
 import { useNavigate } from 'react-router-dom';
 
 const Watchlist = () => {
+  const { t, i18n } = useTranslation();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -21,11 +23,11 @@ const Watchlist = () => {
     if (res.success && Array.isArray(res.data)) {
       setItems(res.data);
     } else {
-      setError(res.error?.message || 'Không thể tải danh sách theo dõi');
+      setError(res.error?.message || t('tools.watchlist.load_error'));
       setItems([]);
     }
     setLoading(false);
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -42,7 +44,7 @@ const Watchlist = () => {
       setShowAdd(false);
       load();
     } else {
-      setError(res.error?.message || 'Không thể thêm mã');
+      setError(res.error?.message || t('tools.watchlist.add_error'));
     }
   };
 
@@ -51,13 +53,14 @@ const Watchlist = () => {
     if (res.success) {
       setItems(prev => prev.filter(i => (i.symbol || i) !== symbol));
     } else {
-      setError(res.error?.message || `Không thể xóa ${symbol}`);
+      setError(res.error?.message || t('tools.watchlist.remove_error', { symbol }));
     }
   };
 
+  const numLocale = i18n.language === 'en' ? 'en-US' : 'vi-VN';
   const formatPrice = (v) => {
     if (v == null) return '—';
-    return new Intl.NumberFormat('vi-VN').format(v);
+    return new Intl.NumberFormat(numLocale).format(v);
   };
 
   const formatPct = (v) => {
@@ -71,7 +74,7 @@ const Watchlist = () => {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <h1 style={{ display: 'flex', alignItems: 'center', gap: 12, margin: 0 }}>
           <Star color="#f59e0b" />
-          Danh sách theo dõi
+          {t('tools.watchlist.title')}
         </h1>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
@@ -79,10 +82,10 @@ const Watchlist = () => {
             className="btn-secondary"
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
             disabled={loading}
-            aria-label="Refresh"
+            aria-label={t('tools.watchlist.refresh_aria')}
           >
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            Làm mới
+            {t('tools.watchlist.refresh_button')}
           </button>
           <button
             onClick={() => setShowAdd(s => !s)}
@@ -90,7 +93,7 @@ const Watchlist = () => {
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
           >
             {showAdd ? <X size={16} /> : <Plus size={16} />}
-            {showAdd ? 'Hủy' : 'Thêm'}
+            {showAdd ? t('tools.watchlist.cancel_button') : t('tools.watchlist.add_button')}
           </button>
         </div>
       </div>
@@ -98,21 +101,21 @@ const Watchlist = () => {
       {showAdd && (
         <form onSubmit={handleAdd} style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <label htmlFor="wl-symbol" className="visually-hidden" style={{ position: 'absolute', left: '-10000px' }}>
-            Mã cổ phiếu
+            {t('tools.watchlist.stock_code_label')}
           </label>
           <input
             id="wl-symbol"
             type="text"
             value={newSymbol}
             onChange={(e) => setNewSymbol(e.target.value)}
-            placeholder="Mã cổ phiếu (vd: FPT)"
+            placeholder={t('tools.watchlist.stock_code_placeholder')}
             style={{ flex: 1, padding: 8, border: '1px solid #d1d5db', borderRadius: 6 }}
             autoFocus
             maxLength={10}
             required
           />
           <button type="submit" className="btn-primary" disabled={adding}>
-            {adding ? 'Đang thêm…' : 'Lưu'}
+            {adding ? t('tools.watchlist.adding_state') : t('tools.watchlist.save_button')}
           </button>
         </form>
       )}
@@ -124,22 +127,22 @@ const Watchlist = () => {
       )}
 
       {loading && items.length === 0 ? (
-        <div style={{ padding: 32, textAlign: 'center', color: '#6b7280' }}>Đang tải…</div>
+        <div style={{ padding: 32, textAlign: 'center', color: '#6b7280' }}>{t('tools.watchlist.loading')}</div>
       ) : items.length === 0 ? (
         <div style={{ padding: 48, textAlign: 'center', color: '#6b7280', border: '1px dashed #d1d5db', borderRadius: 8 }}>
           <Star size={48} style={{ margin: '0 auto 12px', color: '#d1d5db' }} />
-          <p>Chưa có mã nào trong danh sách theo dõi.</p>
-          <p style={{ fontSize: 14 }}>Nhấn "Thêm" để bắt đầu theo dõi cổ phiếu yêu thích.</p>
+          <p>{t('tools.watchlist.empty_list')}</p>
+          <p style={{ fontSize: 14 }}>{t('tools.watchlist.empty_hint')}</p>
         </div>
       ) : (
         <div style={{ background: '#fff', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead style={{ background: '#f9fafb' }}>
               <tr>
-                <th style={{ padding: 12, textAlign: 'left' }}>Mã</th>
-                <th style={{ padding: 12, textAlign: 'left' }}>Tên</th>
-                <th style={{ padding: 12, textAlign: 'right' }}>Giá hiện tại</th>
-                <th style={{ padding: 12, textAlign: 'right' }}>Thay đổi</th>
+                <th style={{ padding: 12, textAlign: 'left' }}>{t('tools.watchlist.column_symbol')}</th>
+                <th style={{ padding: 12, textAlign: 'left' }}>{t('tools.watchlist.column_name')}</th>
+                <th style={{ padding: 12, textAlign: 'right' }}>{t('tools.watchlist.column_current_price')}</th>
+                <th style={{ padding: 12, textAlign: 'right' }}>{t('tools.watchlist.column_change')}</th>
                 <th style={{ padding: 12, textAlign: 'center' }}></th>
               </tr>
             </thead>
@@ -166,7 +169,7 @@ const Watchlist = () => {
                     <td style={{ padding: 12, textAlign: 'center' }}>
                       <button
                         onClick={() => handleRemove(symbol)}
-                        title="Xóa khỏi danh sách"
+                        title={t('tools.watchlist.remove_tooltip')}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626' }}
                       >
                         <Trash2 size={16} />

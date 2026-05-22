@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { stockAPI } from '../../../services/api';
 import { LoadingSpinner, ErrorMessage } from '../../ui';
 import { TrendingUp, TrendingDown, DollarSign, Percent, BarChart3, PieChart } from 'lucide-react';
 
 const Performance = () => {
+  const { t } = useTranslation();
   const [portfolio, setPortfolio] = useState([]);
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -29,7 +31,7 @@ const Performance = () => {
       setPortfolio(performanceData);
       setMetrics(metricsData);
     } catch (err) {
-      setError('Failed to fetch portfolio data. Please try again later.');
+      setError(t('portfolio.performance.load_error'));
       console.error('Error fetching portfolio data:', err);
     } finally {
       setLoading(false);
@@ -55,7 +57,7 @@ const Performance = () => {
   return (
     <div className="performance-page">
       <div className="page-header">
-        <h1>Hiệu suất danh mục</h1>
+        <h1>{t('portfolio.performance.page_title')}</h1>
         <div className="timeframe-selector">
           {['1D', '1W', '1M', '3M', '6M', '1Y', 'ALL'].map(period => (
             <button
@@ -77,7 +79,7 @@ const Performance = () => {
             <div className="metric-card">
               <div className="metric-header">
                 <DollarSign className="metric-icon" />
-                <span>Tổng giá trị</span>
+                <span>{t('portfolio.performance.total_value_label')}</span>
               </div>
               <div className="metric-value">{formatCurrency(metrics.total_value)}</div>
               <div className={`metric-change ${metrics.total_gain_loss >= 0 ? 'positive' : 'negative'}`}>
@@ -89,37 +91,37 @@ const Performance = () => {
             <div className="metric-card">
               <div className="metric-header">
                 <Percent className="metric-icon" />
-                <span>Lợi suất toàn bộ</span>
+                <span>{t('portfolio.performance.total_return_label')}</span>
               </div>
               <div className={`metric-value ${metrics.total_gain_loss >= 0 ? 'positive' : 'negative'}`}>
                 {formatPercent(metrics.total_gain_loss_percent)}
               </div>
               <div className="metric-subtitle">
-                {formatCurrency(metrics.total_gain_loss)} lãi/lỗ
+                {formatCurrency(metrics.total_gain_loss)} {t('portfolio.performance.gain_loss_label')}
               </div>
             </div>
 
             <div className="metric-card">
               <div className="metric-header">
                 <BarChart3 className="metric-icon" />
-                <span>Tổng cổ phiếu</span>
+                <span>{t('portfolio.performance.total_stocks_label')}</span>
               </div>
               <div className="metric-value">{metrics.total_stocks}</div>
               <div className="metric-subtitle">
-                Vị thế đang mở
+                {t('portfolio.performance.open_positions_label')}
               </div>
             </div>
 
             <div className="metric-card">
               <div className="metric-header">
                 <PieChart className="metric-icon" />
-                <span>Đa dạng hóa</span>
+                <span>{t('portfolio.performance.diversification_label')}</span>
               </div>
               <div className="metric-value">
                 {metrics.total_stocks > 0 ? (100 / metrics.total_stocks).toFixed(1) : 0}%
               </div>
               <div className="metric-subtitle">
-                Phân bổ TB mỗi cổ phiếu
+                {t('portfolio.performance.avg_allocation_label')}
               </div>
             </div>
           </div>
@@ -127,7 +129,7 @@ const Performance = () => {
           <div className="performance-details">
             {metrics.top_performer && (
               <div className="performance-section">
-                <h2>Hiệu suất cao nhất</h2>
+                <h2>{t('portfolio.performance.top_performer_title')}</h2>
                 <div className="performer-card positive">
                   <div className="performer-info">
                     <h3>{metrics.top_performer.symbol}</h3>
@@ -147,7 +149,7 @@ const Performance = () => {
 
             {metrics.worst_performer && metrics.worst_performer.symbol !== metrics.top_performer?.symbol && (
               <div className="performance-section">
-                <h2>Hiệu suất thấp nhất</h2>
+                <h2>{t('portfolio.performance.worst_performer_title')}</h2>
                 <div className="performer-card negative">
                   <div className="performer-info">
                     <h3>{metrics.worst_performer.symbol}</h3>
@@ -167,7 +169,7 @@ const Performance = () => {
           </div>
 
           <div className="holdings-breakdown">
-            <h2>Chi tiết nắm giữ</h2>
+            <h2>{t('portfolio.performance.holdings_details_title')}</h2>
             <div className="holdings-list">
               {portfolio.map(stock => {
                 const allocation = metrics.portfolio_distribution?.find(
@@ -179,7 +181,7 @@ const Performance = () => {
                     <div className="holding-info">
                       <h3>{stock.symbol}</h3>
                       <p>{stock.company_name}</p>
-                      <span className="holding-shares">{stock.shares} cổ phiếu</span>
+                      <span className="holding-shares">{stock.shares} {t('portfolio.performance.shares_label')}</span>
                     </div>
                     <div className="holding-metrics">
                       <div className="holding-value">
@@ -209,7 +211,7 @@ const Performance = () => {
 
           {metrics.portfolio_distribution && metrics.portfolio_distribution.length > 0 && (
             <div className="portfolio-distribution">
-              <h2>Phân bổ danh mục</h2>
+              <h2>{t('portfolio.performance.portfolio_distribution_title')}</h2>
               <div className="distribution-grid">
                 {metrics.portfolio_distribution.map(item => (
                   <div key={item.symbol} className="distribution-item">
@@ -239,8 +241,8 @@ const Performance = () => {
       {(!portfolio || portfolio.length === 0) && !loading && (
         <div className="empty-state">
           <PieChart size={64} className="empty-icon" />
-          <h2>Không có dữ liệu danh mục</h2>
-          <p>Thêm cổ phiếu vào danh mục để xem các chỉ số hiệu suất.</p>
+          <h2>{t('portfolio.performance.no_data_title')}</h2>
+          <p>{t('portfolio.performance.no_data_hint')}</p>
         </div>
       )}
     </div>

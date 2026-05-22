@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { LoadingSpinner, ErrorMessage, DataTable, ConfirmDialog } from '../../ui';
 import { TrendingUp, TrendingDown, Plus, Trash2, DollarSign, Coins, Building2 } from 'lucide-react';
 import portfolioService from '../../../services/portfolioService';
@@ -6,6 +7,7 @@ import { formatVND, formatStockPrice } from '../../../utils/currencyFormatter';
 import '../../../styles/holdings.css';
 
 const Holdings = () => {
+  const { t } = useTranslation();
   const [portfolio, setPortfolio] = useState([]);
   const [summary, setSummary] = useState({ total_stocks: 0, total_value: 0 });
   const [loading, setLoading] = useState(false);
@@ -56,7 +58,7 @@ const Holdings = () => {
       if (portfolioResult.success) {
         setPortfolio(portfolioService.formatPortfolioData(portfolioResult.data));
       } else {
-        setError('Failed to load portfolio: ' + portfolioResult.error);
+        setError(t('portfolio.holdings.load_error') + portfolioResult.error);
       }
 
       if (summaryResult.success) {
@@ -66,11 +68,11 @@ const Holdings = () => {
         });
       }
     } catch (err) {
-      setError('Failed to load portfolio data');
+      setError(t('portfolio.holdings.load_data_error'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadPortfolioData();
@@ -105,10 +107,10 @@ const Holdings = () => {
         loadPortfolioData();
         setError(null);
       } else {
-        setError('Failed to add stock: ' + result.error);
+        setError(t('portfolio.holdings.add_stock_error') + result.error);
       }
     } catch (err) {
-      setError('Failed to add stock: ' + err.message);
+      setError(t('portfolio.holdings.add_stock_error') + err.message);
     }
   };
 
@@ -131,11 +133,11 @@ const Holdings = () => {
         setError(null);
       } else {
         console.error('Failed to sell stock:', result.error);
-        setError('Failed to sell stock: ' + result.error);
+        setError(t('portfolio.holdings.sell_stock_error') + result.error);
       }
     } catch (err) {
       console.error('Error selling stock:', err);
-      setError('Failed to sell stock: ' + err.message);
+      setError(t('portfolio.holdings.sell_stock_error') + err.message);
     }
   };
 
@@ -151,11 +153,11 @@ const Holdings = () => {
         setError(null);
       } else {
         console.error('Failed to remove stock:', result.error);
-        setError('Failed to remove stock: ' + result.error);
+        setError(t('portfolio.holdings.remove_stock_error') + result.error);
       }
     } catch (err) {
       console.error('Error removing stock:', err);
-      setError('Failed to remove stock: ' + err.message);
+      setError(t('portfolio.holdings.remove_stock_error') + err.message);
     }
   };
 
@@ -197,7 +199,7 @@ const Holdings = () => {
   const columns = [
     {
       key: 'symbol',
-      header: 'Mã',
+      header: t('portfolio.holdings.column_symbol'),
       render: (value) => (
         <span className="symbol-badge">
           {value}
@@ -206,7 +208,7 @@ const Holdings = () => {
     },
     {
       key: 'name',
-      header: 'Công ty',
+      header: t('portfolio.holdings.column_company'),
       render: (value) => (
         <div className="company-cell" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Building2 size={16} style={{ color: '#6366f1', opacity: 0.7 }} />
@@ -216,7 +218,7 @@ const Holdings = () => {
     },
     {
       key: 'shares',
-      header: 'Số CP',
+      header: t('portfolio.holdings.column_shares'),
       render: (value) => (
         <span className="shares-badge">
           {value?.toLocaleString() || 0}
@@ -225,7 +227,7 @@ const Holdings = () => {
     },
     {
       key: 'avgPrice',
-      header: 'Giá',
+      header: t('portfolio.holdings.column_price'),
       render: (value) => (
         <span className="price-value">
           <Coins size={14} style={{ color: '#0d9488' }} />
@@ -235,7 +237,7 @@ const Holdings = () => {
     },
     {
       key: 'total_value',
-      header: 'Tổng giá trị',
+      header: t('portfolio.holdings.column_total_value'),
       render: (value, row) => (
         <span className="total-value-badge">
           <DollarSign size={14} className="currency-icon" />
@@ -245,7 +247,7 @@ const Holdings = () => {
     },
     {
       key: 'actions',
-      header: 'Thao tác',
+      header: t('portfolio.holdings.column_actions'),
       render: (value, row) => (
         <div className="actions-cell">
           <button
@@ -256,7 +258,7 @@ const Holdings = () => {
               openSellForm(row);
             }}
             className="action-btn sell-btn"
-            title="Bán cổ phiếu"
+            title={t('portfolio.holdings.sell_action_title')}
           >
             <TrendingDown size={18} />
           </button>
@@ -268,7 +270,7 @@ const Holdings = () => {
               setConfirmDelete(row);
             }}
             className="action-btn remove-btn"
-            title="Xóa cổ phiếu"
+            title={t('portfolio.holdings.remove_action_title')}
           >
             <Trash2 size={18} />
           </button>
@@ -285,7 +287,7 @@ const Holdings = () => {
   return (
     <div className="holdings-page">
       <div className="page-header">
-        <h1>Danh mục của tôi</h1>
+        <h1>{t('portfolio.holdings.page_title')}</h1>
         <button
           onClick={() => {
             console.log('Add Stock button clicked');
@@ -295,7 +297,7 @@ const Holdings = () => {
           className="btn btn-primary"
         >
           <Plus size={16} />
-          Thêm cổ phiếu
+          {t('portfolio.holdings.add_stock_button')}
         </button>
       </div>
 
@@ -306,14 +308,14 @@ const Holdings = () => {
           <div className="summary-item">
             <DollarSign className="summary-icon" />
             <div>
-              <h3>Tổng giá trị</h3>
+              <h3>{t('portfolio.holdings.summary_total_value')}</h3>
               <p className="summary-value">{formatVND(typeof summary.total_value === 'number' ? summary.total_value * 1000 : 0)}</p>
             </div>
           </div>
           <div className="summary-item">
             <TrendingUp className="summary-icon" />
             <div>
-              <h3>Tổng số cổ phiếu</h3>
+              <h3>{t('portfolio.holdings.summary_total_stocks')}</h3>
               <p className="summary-value">{summary.total_stocks || 0}</p>
             </div>
           </div>
@@ -324,7 +326,7 @@ const Holdings = () => {
         <DataTable
           data={portfolio}
           columns={columns}
-          emptyMessage="Chưa có cổ phiếu trong danh mục"
+          emptyMessage={t('portfolio.holdings.no_stocks_message')}
         />
       </div>
 
@@ -332,7 +334,7 @@ const Holdings = () => {
         <div className="modal-overlay" style={{ display: 'flex', position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 999999, alignItems: 'center', justifyContent: 'center' }}>
           <div className="modal" style={{ display: 'block', backgroundColor: 'white', padding: '2rem', borderRadius: '0.5rem', minWidth: '500px', maxWidth: '600px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', position: 'relative' }}>
             <div className="modal-header">
-              <h2>Thêm cổ phiếu vào danh mục</h2>
+              <h2>{t('portfolio.holdings.add_modal_title')}</h2>
               <button onClick={resetForm} className="modal-close">
                 ×
               </button>
@@ -340,11 +342,11 @@ const Holdings = () => {
 
             <div>
               <div className="stock-select-container">
-                <label className="form-label">Chọn cổ phiếu</label>
+                <label className="form-label">{t('portfolio.holdings.select_stock_label')}</label>
                 {loadingStockOptions ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', backgroundColor: '#f0f9ff', borderRadius: '0.375rem', border: '1px solid #bae6fd' }}>
                     <div style={{ width: '20px', height: '20px', border: '3px solid #e2e8f0', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                    <span style={{ color: '#475569', fontSize: '0.875rem' }}>Đang tải danh sách cổ phiếu...</span>
+                    <span style={{ color: '#475569', fontSize: '0.875rem' }}>{t('portfolio.holdings.loading_stocks')}</span>
                     <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
                   </div>
                 ) : (
@@ -353,7 +355,7 @@ const Holdings = () => {
                     onChange={handleStockSelect}
                     className="form-select"
                   >
-                    <option value="">-- Chọn một cổ phiếu --</option>
+                    <option value="">{t('portfolio.holdings.select_option')}</option>
                     {stockOptions.map((stock) => (
                       <option key={stock.symbol} value={stock.symbol}>
                         {stock.symbol} - {stock.name} ({formatStockPrice(stock.price)})
@@ -366,19 +368,19 @@ const Holdings = () => {
               {formData.symbol && (
                 <div className="stock-info-card">
                   <h3>{formData.symbol} - {formData.companyName}</h3>
-                  <p>Giá hiện tại: <strong>{formatStockPrice(formData.price)}</strong></p>
+                  <p>{t('portfolio.holdings.current_price_label')}<strong>{formatStockPrice(formData.price)}</strong></p>
                 </div>
               )}
 
               {formData.symbol && (
                 <div className="shares-input-container">
-                  <label className="form-label">Số lượng cổ phiếu</label>
+                  <label className="form-label">{t('portfolio.holdings.shares_quantity_label')}</label>
                   <input
                     type="number"
                     value={formData.shares}
                     onChange={(e) => setFormData({...formData, shares: e.target.value})}
                     min="1"
-                    placeholder="Nhập số lượng cổ phiếu"
+                    placeholder={t('portfolio.holdings.shares_placeholder')}
                     className="form-input"
                   />
                 </div>
@@ -386,18 +388,18 @@ const Holdings = () => {
 
               {formData.shares && formData.price && (
                 <div className="total-cost-card">
-                  <p>Tổng chi phí: {formatVND(portfolioService.calculateTotalCost(formData.shares, formData.price) * 1000)}</p>
+                  <p>{t('portfolio.holdings.total_cost_label')}{formatVND(portfolioService.calculateTotalCost(formData.shares, formData.price) * 1000)}</p>
                 </div>
               )}
 
               <div className="form-actions">
                 <button onClick={resetForm} className="btn btn-secondary">
-                  Hủy
+                  {t('portfolio.holdings.cancel_button')}
                 </button>
 
                 {formData.symbol && formData.shares && (
                   <button onClick={handleAddStock} className="btn btn-primary">
-                    Thêm vào danh mục
+                    {t('portfolio.holdings.add_portfolio_button')}
                   </button>
                 )}
               </div>
@@ -410,12 +412,12 @@ const Holdings = () => {
         <div className="modal-overlay" style={{ display: 'flex', position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 999999, alignItems: 'center', justifyContent: 'center' }}>
           <div className="modal" style={{ display: 'block', backgroundColor: 'white', padding: '2rem', borderRadius: '0.5rem', minWidth: '500px', maxWidth: '600px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', position: 'relative' }}>
             <div className="modal-header">
-              <h2>Bán {selectedStock.symbol}</h2>
+              <h2>{t('portfolio.holdings.sell_modal_title', { symbol: selectedStock.symbol })}</h2>
               <button onClick={() => setShowSellForm(false)} className="modal-close">×</button>
             </div>
             <form onSubmit={handleSellStock} className="stock-form">
               <div className="form-group">
-                <label>Số cổ phiếu khả dụng: {selectedStock.shares}</label>
+                <label>{t('portfolio.holdings.available_shares_label')}{selectedStock.shares}</label>
                 <input
                   type="number"
                   value={sellData.shares}
@@ -423,15 +425,15 @@ const Holdings = () => {
                   min="1"
                   max={selectedStock.shares}
                   required
-                  placeholder="Số cổ phiếu cần bán"
+                  placeholder={t('portfolio.holdings.sell_shares_placeholder')}
                 />
               </div>
               <div className="form-actions">
                 <button type="submit" className="btn btn-danger">
-                  Bán cổ phiếu
+                  {t('portfolio.holdings.sell_button')}
                 </button>
                 <button type="button" onClick={() => setShowSellForm(false)} className="btn btn-secondary">
-                  Hủy
+                  {t('portfolio.holdings.cancel_button')}
                 </button>
               </div>
             </form>
@@ -441,8 +443,8 @@ const Holdings = () => {
 
       <ConfirmDialog
         show={!!confirmDelete}
-        title="Xóa cổ phiếu"
-        message={`Bạn có chắc muốn xóa ${confirmDelete?.symbol} khỏi danh mục?`}
+        title={t('portfolio.holdings.delete_confirm_title')}
+        message={t('portfolio.holdings.delete_confirm_message', { symbol: confirmDelete?.symbol })}
         onConfirm={() => handleRemoveStock(confirmDelete.symbol)}
         onCancel={() => setConfirmDelete(null)}
       />
