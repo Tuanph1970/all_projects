@@ -341,6 +341,7 @@ services:
       - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/stock}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
       - VNSTOCK_DATA_SOURCE=${VNSTOCK_DATA_SOURCE:-VCI}
       - TRACING_ENABLED=true
       - TRACING_JAEGER_HOST=jaeger
@@ -504,6 +505,11 @@ services:
       - DATABASE_NAME=${MYSQL_DATABASE:-defaultdb}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-stockuser}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-stockpass}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/stock}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
       - STOCK_DATA_SERVICE_URL=http://stock-data-service:8001
       - TRACING_ENABLED=true
