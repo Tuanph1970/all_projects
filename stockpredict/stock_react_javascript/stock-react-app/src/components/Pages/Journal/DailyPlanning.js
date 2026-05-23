@@ -6,9 +6,11 @@ import {
 } from 'lucide-react';
 import journalService from '../../../services/journalService';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import '../../../styles/journal.css';
 
 const DailyPlanning = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [accounts, setAccounts] = useState([]);
   const [selectedAccountId, setSelectedAccountId] = useState(null);
@@ -18,6 +20,7 @@ const DailyPlanning = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
+  const [saveIsError, setSaveIsError] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -108,13 +111,14 @@ const DailyPlanning = () => {
     if (!selectedAccountId) return;
     setSaving(true);
     setSaveMsg('');
+    setSaveIsError(false);
     try {
       if (selectedPlan) {
         // Update existing
         const res = await journalService.updateDailyPlan(selectedAccountId, selectedPlan.id, form);
         const updated = res.data || res;
         setSelectedPlan(updated);
-        setSaveMsg('Đã lưu thành công!');
+        setSaveMsg(t('journal.daily_planning.save_success'));
       } else {
         // Create new
         const res = await journalService.createDailyPlan(selectedAccountId, {
@@ -123,12 +127,13 @@ const DailyPlanning = () => {
         });
         const created = res.data || res;
         setSelectedPlan(created);
-        setSaveMsg('Đã tạo kế hoạch!');
+        setSaveMsg(t('journal.daily_planning.plan_created'));
         await loadPlans();
       }
       setIsEditing(false);
     } catch {
-      setSaveMsg('Lỗi khi lưu!');
+      setSaveMsg(t('journal.daily_planning.save_error'));
+      setSaveIsError(true);
     } finally {
       setSaving(false);
       setTimeout(() => setSaveMsg(''), 3000);
@@ -136,7 +141,7 @@ const DailyPlanning = () => {
   };
 
   const handleDelete = async () => {
-    if (!selectedPlan || !window.confirm('Xóa kế hoạch ngày này?')) return;
+    if (!selectedPlan || !window.confirm(t('journal.daily_planning.delete_plan_confirm'))) return;
     try {
       await journalService.deleteDailyPlan(selectedAccountId, selectedPlan.id);
       setSelectedPlan(null);
@@ -159,7 +164,7 @@ const DailyPlanning = () => {
       <div className="journal-accounts">
         <div className="journal-empty">
           <RefreshCw size={40} className="spin" />
-          <p>Đang tải...</p>
+          <p>{t('journal.common.loading')}</p>
         </div>
       </div>
     );
@@ -170,10 +175,10 @@ const DailyPlanning = () => {
       <div className="journal-accounts">
         <div className="journal-empty">
           <CalendarDays size={48} />
-          <h3>Chưa có tài khoản nhật ký</h3>
-          <p>Vui lòng tạo tài khoản nhật ký giao dịch trước khi lập kế hoạch.</p>
+          <h3>{t('journal.common.no_accounts_title')}</h3>
+          <p>{t('journal.daily_planning.create_account_first_hint')}</p>
           <button className="btn-primary" onClick={() => navigate('/journal-accounts')} style={{ marginTop: '12px' }}>
-            <Plus size={16} /> Tạo tài khoản nhật ký
+            <Plus size={16} /> {t('journal.common.create_account_btn')}
           </button>
         </div>
       </div>
@@ -186,7 +191,7 @@ const DailyPlanning = () => {
       <div className="jplan-header">
         <div className="jplan-title">
           <CalendarDays size={22} />
-          <h2>Kế Hoạch Hàng Ngày</h2>
+          <h2>{t('journal.daily_planning.title')}</h2>
         </div>
         <select
           value={selectedAccountId || ''}
@@ -201,18 +206,18 @@ const DailyPlanning = () => {
 
       {/* Schwager quote */}
       <div className="jplan-quote">
-        <em>"Mỗi ngày trước khi thị trường mở cửa, bạn nên xem xét toàn bộ các vị thế đang mở và lên kế hoạch giao dịch cho ngày hôm đó."</em>
-        <span>— Jack Schwager, Getting Started in Technical Analysis</span>
+        <em>{t('journal.daily_planning.schwager_quote')}</em>
+        <span>{t('journal.daily_planning.schwager_attribution')}</span>
       </div>
 
       {lastWeekBullets.length > 0 && (
         <div className="jplan-last-adjustments" data-testid="last-adjustments">
           <div className="jplan-last-adjustments-header">
             <Repeat size={16} />
-            <h4>Điều chỉnh từ tuần trước</h4>
+            <h4>{t('journal.daily_planning.last_adjustments_title')}</h4>
             {lastReview?.week_start && (
               <span className="jplan-last-adjustments-week">
-                Tuần {formatDateVN(lastReview.week_start)}
+                {t('journal.daily_planning.week_label', { date: formatDateVN(lastReview.week_start) })}
               </span>
             )}
           </div>
@@ -225,10 +230,10 @@ const DailyPlanning = () => {
       <div className="jplan-layout">
         {/* Left: Plan History */}
         <div className="jplan-sidebar">
-          <h4>Lịch sử kế hoạch</h4>
+          <h4>{t('journal.daily_planning.plan_history_title')}</h4>
           <div className="jplan-plan-list">
             {plans.length === 0 ? (
-              <p className="jplan-no-plans">Chưa có kế hoạch nào.</p>
+              <p className="jplan-no-plans">{t('journal.daily_planning.no_plans_message')}</p>
             ) : (
               plans.map(p => (
                 <div
@@ -267,17 +272,17 @@ const DailyPlanning = () => {
               className="btn-secondary btn-sm"
               onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
             >
-              Hôm nay
+              {t('journal.daily_planning.today_btn')}
             </button>
 
             <div className="jplan-date-actions">
               {selectedPlan && !isEditing && (
-                <button className="btn-icon" onClick={() => setIsEditing(true)} title="Chỉnh sửa">
+                <button className="btn-icon" onClick={() => setIsEditing(true)} title={t('journal.daily_planning.edit_tooltip')}>
                   <Edit3 size={16} />
                 </button>
               )}
               {selectedPlan && (
-                <button className="btn-icon btn-danger" onClick={handleDelete} title="Xóa">
+                <button className="btn-icon btn-danger" onClick={handleDelete} title={t('journal.daily_planning.delete_tooltip')}>
                   <Trash2 size={16} />
                 </button>
               )}
@@ -286,7 +291,7 @@ const DailyPlanning = () => {
 
           {isComplete && (
             <div className="jplan-complete-badge">
-              <CheckCircle size={14} /> Kế hoạch đã hoàn thành
+              <CheckCircle size={14} /> {t('journal.daily_planning.plan_complete_badge')}
             </div>
           )}
 
@@ -294,8 +299,8 @@ const DailyPlanning = () => {
           <div className="jplan-sections">
             <PlanSection
               icon={<Eye size={18} />}
-              title="1. Nhận Xét Thị Trường"
-              subtitle="Tổng quan xu hướng, tin tức chính, mức hỗ trợ/kháng cự"
+              title={t('journal.daily_planning.section_1_title')}
+              subtitle={t('journal.daily_planning.section_1_subtitle')}
               value={form.market_review}
               onChange={(v) => setForm(prev => ({ ...prev, market_review: v }))}
               disabled={!isEditing}
@@ -303,8 +308,8 @@ const DailyPlanning = () => {
             />
             <PlanSection
               icon={<Lightbulb size={18} />}
-              title="2. Ý Tưởng Giao Dịch Mới"
-              subtitle="Cổ phiếu tiềm năng, setup kỹ thuật, điều kiện vào lệnh"
+              title={t('journal.daily_planning.section_2_title')}
+              subtitle={t('journal.daily_planning.section_2_subtitle')}
               value={form.new_trade_ideas}
               onChange={(v) => setForm(prev => ({ ...prev, new_trade_ideas: v }))}
               disabled={!isEditing}
@@ -312,8 +317,8 @@ const DailyPlanning = () => {
             />
             <PlanSection
               icon={<TrendingUp size={18} />}
-              title="3. Cập Nhật Stop & Mục Tiêu"
-              subtitle="Xem xét stop-loss, trailing stop, mục tiêu cho các lệnh đang mở"
+              title={t('journal.daily_planning.section_3_title')}
+              subtitle={t('journal.daily_planning.section_3_subtitle')}
               value={form.stop_objective_updates}
               onChange={(v) => setForm(prev => ({ ...prev, stop_objective_updates: v }))}
               disabled={!isEditing}
@@ -321,8 +326,8 @@ const DailyPlanning = () => {
             />
             <PlanSection
               icon={<Heart size={18} />}
-              title="4. Check-in Tâm Lý"
-              subtitle="Tâm trạng, mức độ tự tin, yếu tố stress, cam kết kỷ luật"
+              title={t('journal.daily_planning.section_4_title')}
+              subtitle={t('journal.daily_planning.section_4_subtitle')}
               value={form.emotional_checkin}
               onChange={(v) => setForm(prev => ({ ...prev, emotional_checkin: v }))}
               disabled={!isEditing}
@@ -335,18 +340,18 @@ const DailyPlanning = () => {
             <div className="jplan-save-bar">
               <button className="btn-primary" onClick={handleSave} disabled={saving}>
                 <Save size={16} />
-                {saving ? 'Đang lưu...' : (selectedPlan ? 'Cập nhật' : 'Tạo kế hoạch')}
+                {saving ? t('journal.common.saving') : (selectedPlan ? t('journal.daily_planning.update_btn') : t('journal.daily_planning.create_btn'))}
               </button>
               {selectedPlan && (
                 <button className="btn-secondary" onClick={() => {
                   loadPlanForDate();
                   setIsEditing(false);
                 }}>
-                  Hủy
+                  {t('journal.common.cancel_btn')}
                 </button>
               )}
               {saveMsg && (
-                <span className={`jplan-save-msg ${saveMsg.includes('Lỗi') ? 'error' : 'success'}`}>
+                <span className={`jplan-save-msg ${saveIsError ? 'error' : 'success'}`}>
                   {saveMsg}
                 </span>
               )}
@@ -360,25 +365,28 @@ const DailyPlanning = () => {
 
 // Sub-components
 
-const PlanSection = ({ icon, title, subtitle, value, onChange, disabled, color }) => (
-  <div className="jplan-section">
-    <div className="jplan-section-header" style={{ borderLeftColor: color }}>
-      <span style={{ color }}>{icon}</span>
-      <div>
-        <h4>{title}</h4>
-        <p>{subtitle}</p>
+const PlanSection = ({ icon, title, subtitle, value, onChange, disabled, color }) => {
+  const { t } = useTranslation();
+  return (
+    <div className="jplan-section">
+      <div className="jplan-section-header" style={{ borderLeftColor: color }}>
+        <span style={{ color }}>{icon}</span>
+        <div>
+          <h4>{title}</h4>
+          <p>{subtitle}</p>
+        </div>
       </div>
+      <textarea
+        className="jplan-textarea"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        placeholder={disabled ? t('journal.common.placeholder_no_content') : t('journal.common.placeholder_enter_content')}
+        rows={4}
+      />
     </div>
-    <textarea
-      className="jplan-textarea"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={disabled}
-      placeholder={disabled ? '(Chưa có nội dung)' : 'Nhập nội dung...'}
-      rows={4}
-    />
-  </div>
-);
+  );
+};
 
 const formatDateVN = (dateStr) => {
   if (!dateStr) return '';

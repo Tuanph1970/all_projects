@@ -1,20 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { LoadingSpinner, ErrorMessage, ConfirmDialog } from '../../ui';
 import { Plus, Edit3, Trash2, Shield, DollarSign, Settings, ChevronRight, BookOpen } from 'lucide-react';
 import journalService from '../../../services/journalService';
 import '../../../styles/journal.css';
 
 const RULE_CATEGORIES = [
-  { value: 'Risk', label: 'Quản lý rủi ro' },
-  { value: 'Entry', label: 'Vào lệnh' },
-  { value: 'Exit', label: 'Thoát lệnh' },
-  { value: 'Psychology', label: 'Tâm lý' },
-  { value: 'General', label: 'Chung' }
+  { value: 'Risk', labelKey: 'journal.accounts.rule_risk' },
+  { value: 'Entry', labelKey: 'journal.accounts.rule_entry' },
+  { value: 'Exit', labelKey: 'journal.accounts.rule_exit' },
+  { value: 'Psychology', labelKey: 'journal.accounts.rule_psychology' },
+  { value: 'General', labelKey: 'journal.accounts.rule_general' }
 ];
 
 const CURRENCIES = ['VND', 'USD', 'EUR', 'JPY', 'GBP'];
 
 const JournalAccounts = () => {
+  const { t } = useTranslation();
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -55,14 +57,14 @@ const JournalAccounts = () => {
           setSelectedAccountId(result.data[0].id);
         }
       } else {
-        setError(result.error?.message || 'Không thể tải danh sách tài khoản');
+        setError(result.error?.message || t('journal.common.error_loading_accounts'));
       }
     } catch (err) {
-      setError('Lỗi kết nối server');
+      setError(t('journal.common.connection_error'));
     } finally {
       setLoading(false);
     }
-  }, [selectedAccountId]);
+  }, [selectedAccountId, t]);
 
   const loadRules = useCallback(async (accountId) => {
     if (!accountId) return;
@@ -139,7 +141,7 @@ const JournalAccounts = () => {
       resetForm();
       loadAccounts();
     } else {
-      setError(result.error?.message || 'Lỗi lưu tài khoản');
+      setError(result.error?.message || t('journal.accounts.error_saving_account'));
     }
   };
 
@@ -212,7 +214,7 @@ const JournalAccounts = () => {
   const selectedAccount = accounts.find(a => a.id === selectedAccountId);
 
   if (loading && accounts.length === 0) {
-    return <LoadingSpinner text="Đang tải nhật ký giao dịch..." />;
+    return <LoadingSpinner text={t('journal.accounts.loading_accounts')} />;
   }
 
   return (
@@ -220,10 +222,10 @@ const JournalAccounts = () => {
       <div className="journal-header">
         <div className="journal-title">
           <BookOpen size={24} />
-          <h2>Tài khoản nhật ký giao dịch</h2>
+          <h2>{t('journal.accounts.title')}</h2>
         </div>
         <button className="btn-primary" onClick={() => setShowForm(true)}>
-          <Plus size={16} /> Thêm tài khoản
+          <Plus size={16} /> {t('journal.accounts.add_account_btn')}
         </button>
       </div>
 
@@ -233,21 +235,21 @@ const JournalAccounts = () => {
       {showForm && (
         <div className="journal-modal-overlay" onClick={resetForm}>
           <div className="journal-modal" onClick={e => e.stopPropagation()}>
-            <h3>{editingAccount ? 'Chỉnh sửa tài khoản' : 'Tạo tài khoản mới'}</h3>
+            <h3>{editingAccount ? t('journal.accounts.edit_account_modal') : t('journal.accounts.new_account_modal')}</h3>
             <form onSubmit={handleSubmitAccount}>
               <div className="form-group">
-                <label>Tên tài khoản</label>
+                <label>{t('journal.accounts.account_name_label')}</label>
                 <input
                   type="text"
                   value={formData.account_name}
                   onChange={e => setFormData({ ...formData, account_name: e.target.value })}
-                  placeholder="VD: Tài khoản SSI"
+                  placeholder={t('journal.accounts.account_name_placeholder')}
                   required
                 />
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Vốn ban đầu</label>
+                  <label>{t('journal.accounts.starting_equity_label')}</label>
                   <input
                     type="number"
                     value={formData.starting_equity}
@@ -258,7 +260,7 @@ const JournalAccounts = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Tiền tệ</label>
+                  <label>{t('journal.accounts.currency_label')}</label>
                   <select
                     value={formData.currency}
                     onChange={e => setFormData({ ...formData, currency: e.target.value })}
@@ -269,7 +271,7 @@ const JournalAccounts = () => {
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Rủi ro tối đa / lệnh (%)</label>
+                  <label>{t('journal.accounts.max_risk_per_trade_label')}</label>
                   <input
                     type="number"
                     step="0.1"
@@ -280,7 +282,7 @@ const JournalAccounts = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Rủi ro tích lũy tối đa (%)</label>
+                  <label>{t('journal.accounts.max_cumulative_risk_label')}</label>
                   <input
                     type="number"
                     step="0.1"
@@ -292,9 +294,9 @@ const JournalAccounts = () => {
                 </div>
               </div>
               <div className="form-actions">
-                <button type="button" className="btn-secondary" onClick={resetForm}>Hủy</button>
+                <button type="button" className="btn-secondary" onClick={resetForm}>{t('journal.common.cancel_btn')}</button>
                 <button type="submit" className="btn-primary">
-                  {editingAccount ? 'Cập nhật' : 'Tạo tài khoản'}
+                  {editingAccount ? t('journal.accounts.update_btn') : t('journal.accounts.create_btn')}
                 </button>
               </div>
             </form>
@@ -306,10 +308,10 @@ const JournalAccounts = () => {
       {accounts.length === 0 && !loading ? (
         <div className="journal-empty">
           <BookOpen size={48} strokeWidth={1} />
-          <h3>Chưa có tài khoản nhật ký</h3>
-          <p>Tạo tài khoản đầu tiên để bắt đầu ghi nhật ký giao dịch theo phương pháp Schwager.</p>
+          <h3>{t('journal.common.no_accounts_title')}</h3>
+          <p>{t('journal.accounts.create_first_account_hint')}</p>
           <button className="btn-primary" onClick={() => setShowForm(true)}>
-            <Plus size={16} /> Tạo tài khoản
+            <Plus size={16} /> {t('journal.accounts.create_account_btn_empty')}
           </button>
         </div>
       ) : (
@@ -336,17 +338,17 @@ const JournalAccounts = () => {
                 <div className="account-card-body">
                   <div className="account-stat">
                     <DollarSign size={14} />
-                    <span className="stat-label">Vốn hiện tại</span>
+                    <span className="stat-label">{t('journal.accounts.current_equity_label')}</span>
                     <span className="stat-value">{journalService.formatCurrency(account.current_equity, account.currency)}</span>
                   </div>
                   <div className="account-stat">
                     <Shield size={14} />
-                    <span className="stat-label">Rủi ro / lệnh</span>
+                    <span className="stat-label">{t('journal.accounts.risk_per_trade_label')}</span>
                     <span className="stat-value">{account.max_risk_per_trade}%</span>
                   </div>
                   <div className="account-stat">
                     <Settings size={14} />
-                    <span className="stat-label">Rủi ro tích lũy</span>
+                    <span className="stat-label">{t('journal.accounts.cumulative_risk_label')}</span>
                     <span className="stat-value">{account.max_cumulative_risk}%</span>
                   </div>
                 </div>
@@ -359,9 +361,9 @@ const JournalAccounts = () => {
           {selectedAccount && (
             <div className="rules-section">
               <div className="rules-header">
-                <h3>Quy tắc giao dịch — {selectedAccount.account_name}</h3>
+                <h3>{t('journal.accounts.trading_rules_header', { accountName: selectedAccount.account_name })}</h3>
                 <button className="btn-primary btn-sm" onClick={() => setShowRuleForm(true)}>
-                  <Plus size={14} /> Thêm quy tắc
+                  <Plus size={14} /> {t('journal.accounts.add_rule_btn')}
                 </button>
               </div>
 
@@ -375,7 +377,7 @@ const JournalAccounts = () => {
                           type="text"
                           value={ruleForm.rule_text}
                           onChange={e => setRuleForm({ ...ruleForm, rule_text: e.target.value })}
-                          placeholder="Nhập quy tắc giao dịch..."
+                          placeholder={t('journal.accounts.rule_placeholder')}
                           required
                         />
                       </div>
@@ -385,15 +387,15 @@ const JournalAccounts = () => {
                           onChange={e => setRuleForm({ ...ruleForm, category: e.target.value })}
                         >
                           {RULE_CATEGORIES.map(c => (
-                            <option key={c.value} value={c.value}>{c.label}</option>
+                            <option key={c.value} value={c.value}>{t(c.labelKey)}</option>
                           ))}
                         </select>
                       </div>
                       <div className="form-actions-inline">
                         <button type="submit" className="btn-primary btn-sm">
-                          {editingRule ? 'Cập nhật' : 'Thêm'}
+                          {editingRule ? t('journal.accounts.rule_update_btn') : t('journal.accounts.rule_add_btn')}
                         </button>
-                        <button type="button" className="btn-secondary btn-sm" onClick={resetRuleForm}>Hủy</button>
+                        <button type="button" className="btn-secondary btn-sm" onClick={resetRuleForm}>{t('journal.accounts.rule_cancel_btn')}</button>
                       </div>
                     </div>
                   </form>
@@ -402,10 +404,10 @@ const JournalAccounts = () => {
 
               {/* Rules List */}
               {loadingRules ? (
-                <LoadingSpinner text="Đang tải quy tắc..." />
+                <LoadingSpinner text={t('journal.accounts.loading_rules')} />
               ) : rules.length === 0 ? (
                 <div className="rules-empty">
-                  <p>Chưa có quy tắc. Thêm quy tắc giao dịch cá nhân theo phương pháp Schwager.</p>
+                  <p>{t('journal.accounts.no_rules_hint')}</p>
                 </div>
               ) : (
                 <div className="rules-list">
@@ -414,7 +416,7 @@ const JournalAccounts = () => {
                     if (categoryRules.length === 0) return null;
                     return (
                       <div key={cat.value} className="rule-category-group">
-                        <h4 className="rule-category-title">{cat.label}</h4>
+                        <h4 className="rule-category-title">{t(cat.labelKey)}</h4>
                         {categoryRules.map(rule => (
                           <div key={rule.id} className={`rule-item ${!rule.is_active ? 'rule-inactive' : ''}`}>
                             <label className="rule-checkbox">
@@ -448,12 +450,12 @@ const JournalAccounts = () => {
       {/* Delete Confirmation */}
       {confirmDelete && (
         <ConfirmDialog
-          title="Xóa tài khoản"
-          message={`Bạn có chắc muốn xóa tài khoản "${confirmDelete.account_name}"? Tất cả dữ liệu giao dịch sẽ bị xóa vĩnh viễn.`}
+          title={t('journal.accounts.delete_account_confirm_title')}
+          message={t('journal.accounts.delete_account_confirm_msg', { accountName: confirmDelete.account_name })}
           onConfirm={handleDeleteAccount}
           onCancel={() => setConfirmDelete(null)}
-          confirmText="Xóa"
-          cancelText="Hủy"
+          confirmText={t('journal.accounts.delete_btn')}
+          cancelText={t('journal.accounts.cancel_delete_btn')}
           variant="danger"
         />
       )}

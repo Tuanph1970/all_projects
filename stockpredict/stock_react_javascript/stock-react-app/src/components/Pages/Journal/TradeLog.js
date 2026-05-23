@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { LoadingSpinner, ErrorMessage, ConfirmDialog } from '../../ui';
 import {
   Plus, Edit3, Trash2, X, ChevronDown, ChevronUp,
@@ -22,13 +23,14 @@ const ENTRY_TYPES = [
 ];
 
 const STATUS_OPTIONS = [
-  { value: '', label: 'Tất cả' },
-  { value: 'Open', label: 'Đang mở' },
-  { value: 'Closed', label: 'Đã đóng' },
-  { value: 'Cancelled', label: 'Đã hủy' }
+  { value: '', labelKey: 'journal.common.all_option' },
+  { value: 'Open', labelKey: 'journal.trade_log.open_status' },
+  { value: 'Closed', labelKey: 'journal.trade_log.closed_status' },
+  { value: 'Cancelled', labelKey: 'journal.trade_log.cancelled_status' }
 ];
 
 const TradeLog = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   // Account selection
@@ -128,14 +130,14 @@ const TradeLog = () => {
         setTotalTrades(result.data.total || 0);
         setCumulativeRisk(result.data.cumulative_risk || null);
       } else {
-        setError(result.error?.message || 'Không thể tải danh sách giao dịch');
+        setError(result.error?.message || t('journal.trade_log.error_loading_trades'));
       }
     } catch (err) {
-      setError('Lỗi kết nối server');
+      setError(t('journal.common.connection_error'));
     } finally {
       setLoading(false);
     }
-  }, [selectedAccountId, statusFilter, directionFilter, tickerFilter]);
+  }, [selectedAccountId, statusFilter, directionFilter, tickerFilter, t]);
 
   useEffect(() => { loadAccounts(); }, [loadAccounts]);
   useEffect(() => { loadTrades(); }, [loadTrades]);
@@ -247,7 +249,7 @@ const TradeLog = () => {
       resetTradeForm();
       loadTrades();
     } else {
-      setFormError(result.error?.detail || result.error?.message || 'Lỗi tạo giao dịch');
+      setFormError(result.error?.detail || result.error?.message || t('journal.trade_log.error_creating_trade'));
     }
   };
 
@@ -283,7 +285,7 @@ const TradeLog = () => {
       setCloseForm({ exit_price: '', exit_date: new Date().toISOString().split('T')[0], exit_reason: '' });
       loadTrades();
     } else {
-      setFormError(result.error?.detail || result.error?.message || 'Lỗi đóng lệnh');
+      setFormError(result.error?.detail || result.error?.message || t('journal.trade_log.error_closing_trade'));
     }
   };
 
@@ -301,7 +303,7 @@ const TradeLog = () => {
       setStopForm({ new_stop: '', reason: '' });
       loadTrades();
     } else {
-      setFormError(result.error?.detail || result.error?.message || 'Lỗi điều chỉnh stop');
+      setFormError(result.error?.detail || result.error?.message || t('journal.trade_log.error_revising_stop'));
     }
   };
 
@@ -356,10 +358,10 @@ const TradeLog = () => {
       <div className="journal-accounts">
         <div className="journal-empty">
           <BookOpen size={48} strokeWidth={1} />
-          <h3>Chưa có tài khoản nhật ký</h3>
-          <p>Vui lòng tạo tài khoản nhật ký giao dịch trước khi ghi sổ giao dịch.</p>
+          <h3>{t('journal.common.no_accounts_title')}</h3>
+          <p>{t('journal.trade_log.create_account_first_hint')}</p>
           <button className="btn-primary" onClick={() => navigate('/journal-accounts')} style={{ marginTop: '12px' }}>
-            <Plus size={16} /> Tạo tài khoản nhật ký
+            <Plus size={16} /> {t('journal.common.create_account_btn')}
           </button>
         </div>
       </div>
@@ -372,7 +374,7 @@ const TradeLog = () => {
       <div className="journal-header">
         <div className="journal-title">
           <BookOpen size={24} />
-          <h2>Sổ giao dịch</h2>
+          <h2>{t('journal.trade_log.title')}</h2>
         </div>
         <div className="trade-log-actions">
           {/* Account Selector */}
@@ -386,7 +388,7 @@ const TradeLog = () => {
             ))}
           </select>
           <button className="btn-primary" onClick={() => setShowTradeForm(true)}>
-            <Plus size={16} /> Thêm giao dịch
+            <Plus size={16} /> {t('journal.trade_log.add_trade_btn')}
           </button>
         </div>
       </div>
@@ -413,11 +415,11 @@ const TradeLog = () => {
         <div className="risk-summary-bar">
           <div className="risk-stat">
             <Shield size={14} />
-            <span>Lệnh đang mở: <strong>{cumulativeRisk.open_trade_count}</strong></span>
+            <span>{t('journal.trade_log.open_trades_label')}<strong>{cumulativeRisk.open_trade_count}</strong></span>
           </div>
           <div className="risk-stat">
             <Target size={14} />
-            <span>Rủi ro tích lũy: <strong className={
+            <span>{t('journal.trade_log.cumulative_risk_label')}<strong className={
               cumulativeRisk.cumulative_risk_percent > selectedAccount.max_cumulative_risk ? 'text-loss' :
               cumulativeRisk.cumulative_risk_percent > selectedAccount.max_cumulative_risk * 0.7 ? 'text-warning' :
               'text-profit'
@@ -426,10 +428,10 @@ const TradeLog = () => {
             </strong> / {selectedAccount.max_cumulative_risk}%</span>
           </div>
           <div className="risk-stat">
-            <span>Vốn: <strong>{journalService.formatCurrency(selectedAccount.current_equity, selectedAccount.currency)}</strong></span>
+            <span>{t('journal.trade_log.equity_label')}<strong>{journalService.formatCurrency(selectedAccount.current_equity, selectedAccount.currency)}</strong></span>
           </div>
           <div className="risk-stat">
-            <span>Tổng giao dịch: <strong>{totalTrades}</strong></span>
+            <span>{t('journal.trade_log.total_trades_label')}<strong>{totalTrades}</strong></span>
           </div>
         </div>
       )}
@@ -444,7 +446,7 @@ const TradeLog = () => {
             tabIndex={0}
           >
             <CalendarDays size={16} />
-            <h4>Kế hoạch hôm nay</h4>
+            <h4>{t('journal.trade_log.today_plan_title')}</h4>
             <span className="tlog-today-plan-spacer" />
             {todayPlanCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
           </div>
@@ -454,7 +456,7 @@ const TradeLog = () => {
                 <div className="tlog-today-plan-section">
                   <div className="tlog-today-plan-label">
                     <Lightbulb size={13} />
-                    <span>Ý tưởng giao dịch</span>
+                    <span>{t('journal.trade_log.trade_ideas_label')}</span>
                   </div>
                   <p>{todayPlan.new_trade_ideas}</p>
                 </div>
@@ -463,7 +465,7 @@ const TradeLog = () => {
                 <div className="tlog-today-plan-section">
                   <div className="tlog-today-plan-label">
                     <BookOpen size={13} />
-                    <span>Nhận xét thị trường</span>
+                    <span>{t('journal.trade_log.market_review_label')}</span>
                   </div>
                   <p>{todayPlan.market_review}</p>
                 </div>
@@ -472,7 +474,7 @@ const TradeLog = () => {
                 className="btn-secondary btn-sm tlog-today-plan-link"
                 onClick={() => navigate('/daily-planning')}
               >
-                Mở Kế Hoạch Hàng Ngày
+                {t('journal.trade_log.open_daily_plan_btn')}
               </button>
             </div>
           )}
@@ -480,9 +482,9 @@ const TradeLog = () => {
       ) : selectedAccountId ? (
         <div className="tlog-today-plan tlog-today-plan-empty" data-testid="today-plan-empty">
           <CalendarDays size={16} />
-          <span>Chưa có kế hoạch cho hôm nay.</span>
+          <span>{t('journal.trade_log.no_plan_today')}</span>
           <button className="btn-secondary btn-sm" onClick={() => navigate('/daily-planning')}>
-            Lập kế hoạch
+            {t('journal.trade_log.create_plan_btn')}
           </button>
         </div>
       ) : null}
@@ -490,16 +492,16 @@ const TradeLog = () => {
       {/* Filters */}
       <div className="trade-filters">
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-          {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{t(o.labelKey)}</option>)}
         </select>
         <select value={directionFilter} onChange={e => setDirectionFilter(e.target.value)}>
-          <option value="">Tất cả hướng</option>
+          <option value="">{t('journal.common.all_option')}</option>
           <option value="Long">Long</option>
           <option value="Short">Short</option>
         </select>
         <input
           type="text"
-          placeholder="Lọc mã CK..."
+          placeholder={t('journal.trade_log.ticker_filter_placeholder')}
           value={tickerFilter}
           onChange={e => setTickerFilter(e.target.value.toUpperCase())}
           className="ticker-filter-input"
@@ -508,31 +510,31 @@ const TradeLog = () => {
 
       {/* Trade Table */}
       {loading ? (
-        <LoadingSpinner text="Đang tải giao dịch..." />
+        <LoadingSpinner text={t('journal.trade_log.loading_trades')} />
       ) : sortedTrades.length === 0 ? (
         <div className="journal-empty">
           <BookOpen size={36} strokeWidth={1} />
-          <h3>Chưa có giao dịch</h3>
-          <p>Thêm giao dịch đầu tiên để bắt đầu theo dõi.</p>
+          <h3>{t('journal.trade_log.no_trades_title')}</h3>
+          <p>{t('journal.trade_log.no_trades_hint')}</p>
         </div>
       ) : (
         <div className="trade-table-wrapper">
           <table className="trade-table">
             <thead>
               <tr>
-                <th onClick={() => handleSort('trade_number')}># <SortIcon field="trade_number" /></th>
-                <th onClick={() => handleSort('entry_date')}>Ngày vào <SortIcon field="entry_date" /></th>
-                <th onClick={() => handleSort('market_ticker')}>Mã CK <SortIcon field="market_ticker" /></th>
-                <th>Hướng</th>
-                <th onClick={() => handleSort('entry_price')}>Giá vào <SortIcon field="entry_price" /></th>
-                <th>Stop</th>
-                <th>KL</th>
-                <th>Rủi ro</th>
-                <th>Giá thoát</th>
-                <th onClick={() => handleSort('net_pnl')}>P/L <SortIcon field="net_pnl" /></th>
-                <th onClick={() => handleSort('r_multiple')}>R <SortIcon field="r_multiple" /></th>
-                <th>Trạng thái</th>
-                <th>Thao tác</th>
+                <th onClick={() => handleSort('trade_number')}>{t('journal.trade_log.number_column')} <SortIcon field="trade_number" /></th>
+                <th onClick={() => handleSort('entry_date')}>{t('journal.trade_log.entry_date_column')} <SortIcon field="entry_date" /></th>
+                <th onClick={() => handleSort('market_ticker')}>{t('journal.common.ticker_column')} <SortIcon field="market_ticker" /></th>
+                <th>{t('journal.trade_log.direction_column')}</th>
+                <th onClick={() => handleSort('entry_price')}>{t('journal.trade_log.entry_price_column')} <SortIcon field="entry_price" /></th>
+                <th>{t('journal.trade_log.stop_column')}</th>
+                <th>{t('journal.trade_log.quantity_column')}</th>
+                <th>{t('journal.trade_log.risk_column')}</th>
+                <th>{t('journal.trade_log.exit_price_column')}</th>
+                <th onClick={() => handleSort('net_pnl')}>{t('journal.common.pnl_column')} <SortIcon field="net_pnl" /></th>
+                <th onClick={() => handleSort('r_multiple')}>{t('journal.trade_log.r_multiple_column')} <SortIcon field="r_multiple" /></th>
+                <th>{t('journal.trade_log.status_column')}</th>
+                <th>{t('journal.trade_log.actions_column')}</th>
               </tr>
             </thead>
             <tbody>
@@ -551,7 +553,7 @@ const TradeLog = () => {
                   <td className="num-cell">
                     {formatNum(trade.revised_stop || trade.initial_stop, 2)}
                     {trade.revised_stop && trade.revised_stop !== trade.initial_stop && (
-                      <span className="stop-revised-badge" title={`Ban đầu: ${formatNum(trade.initial_stop, 2)}`}>*</span>
+                      <span className="stop-revised-badge" title={t('journal.trade_log.stop_revised_badge_title', { initial: formatNum(trade.initial_stop, 2) })}>*</span>
                     )}
                   </td>
                   <td className="num-cell">{formatNum(trade.position_size)}</td>
@@ -577,7 +579,7 @@ const TradeLog = () => {
                       {trade.status === 'Open' && <Clock size={12} />}
                       {trade.status === 'Closed' && <CheckCircle size={12} />}
                       {trade.status === 'Cancelled' && <XCircle size={12} />}
-                      {trade.status === 'Open' ? 'Mở' : trade.status === 'Closed' ? 'Đóng' : 'Hủy'}
+                      {trade.status === 'Open' ? t('journal.trade_log.status_open') : trade.status === 'Closed' ? t('journal.trade_log.status_closed') : t('journal.trade_log.status_cancelled')}
                     </span>
                   </td>
                   <td>
@@ -586,7 +588,7 @@ const TradeLog = () => {
                         <>
                           <button
                             className="btn-icon"
-                            title="Đóng lệnh"
+                            title={t('journal.trade_log.close_trade_btn_title')}
                             onClick={() => {
                               setShowCloseForm(trade);
                               setCloseForm({
@@ -600,7 +602,7 @@ const TradeLog = () => {
                           </button>
                           <button
                             className="btn-icon"
-                            title="Điều chỉnh stop"
+                            title={t('journal.trade_log.revise_stop_btn_title')}
                             onClick={() => {
                               setShowStopForm(trade);
                               setStopForm({ new_stop: '', reason: '' });
@@ -612,7 +614,7 @@ const TradeLog = () => {
                       )}
                       <button
                         className="btn-icon"
-                        title="Chỉnh sửa"
+                        title={t('journal.trade_log.edit_btn_title')}
                         onClick={() => {
                           setEditingTrade(trade);
                           setEditForm(prev => ({
@@ -628,7 +630,7 @@ const TradeLog = () => {
                       </button>
                       <button
                         className="btn-icon btn-danger"
-                        title="Xóa"
+                        title={t('journal.trade_log.delete_btn_title')}
                         onClick={() => setConfirmDelete(trade)}
                       >
                         <Trash2 size={14} />
@@ -648,12 +650,12 @@ const TradeLog = () => {
       {showTradeForm && (
         <div className="journal-modal-overlay" onClick={resetTradeForm}>
           <div className="journal-modal journal-modal-wide" onClick={e => e.stopPropagation()}>
-            <h3>Thêm giao dịch mới</h3>
+            <h3>{t('journal.trade_log.new_trade_modal_title')}</h3>
             {formError && <div className="form-error"><AlertTriangle size={14} /> {formError}</div>}
             <form onSubmit={handleCreateTrade}>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Ngày vào lệnh</label>
+                  <label>{t('journal.trade_log.entry_date_label')}</label>
                   <input
                     type="date"
                     value={tradeForm.entry_date}
@@ -662,18 +664,18 @@ const TradeLog = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Mã chứng khoán</label>
+                  <label>{t('journal.trade_log.ticker_label')}</label>
                   <input
                     type="text"
                     value={tradeForm.market_ticker}
                     onChange={e => setTradeForm({ ...tradeForm, market_ticker: e.target.value.toUpperCase() })}
-                    placeholder="VD: VNM"
+                    placeholder={t('journal.trade_log.ticker_placeholder')}
                     required
                     maxLength={20}
                   />
                 </div>
                 <div className="form-group">
-                  <label>Hướng</label>
+                  <label>{t('journal.trade_log.direction_label')}</label>
                   <div className="direction-selector">
                     {DIRECTIONS.map(d => (
                       <button
@@ -691,7 +693,7 @@ const TradeLog = () => {
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Giá vào</label>
+                  <label>{t('journal.trade_log.entry_price_label')}</label>
                   <input
                     type="number"
                     step="any"
@@ -701,16 +703,16 @@ const TradeLog = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Loại lệnh</label>
+                  <label>{t('journal.trade_log.entry_type_label')}</label>
                   <select
                     value={tradeForm.entry_type}
                     onChange={e => setTradeForm({ ...tradeForm, entry_type: e.target.value })}
                   >
-                    {ENTRY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    {ENTRY_TYPES.map(et => <option key={et.value} value={et.value}>{et.label}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Stop ban đầu</label>
+                  <label>{t('journal.trade_log.initial_stop_label')}</label>
                   <input
                     type="number"
                     step="any"
@@ -722,7 +724,7 @@ const TradeLog = () => {
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Khối lượng</label>
+                  <label>{t('journal.trade_log.position_size_label')}</label>
                   <input
                     type="number"
                     step="any"
@@ -732,7 +734,7 @@ const TradeLog = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Phí GD</label>
+                  <label>{t('journal.trade_log.commission_label')}</label>
                   <input
                     type="number"
                     step="any"
@@ -743,33 +745,33 @@ const TradeLog = () => {
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Mục tiêu 1</label>
+                  <label>{t('journal.trade_log.objective_1_label')}</label>
                   <input
                     type="number"
                     step="any"
                     value={tradeForm.objective_1}
                     onChange={e => setTradeForm({ ...tradeForm, objective_1: e.target.value })}
-                    placeholder="Tùy chọn"
+                    placeholder={t('journal.trade_log.objective_optional')}
                   />
                 </div>
                 <div className="form-group">
-                  <label>Mục tiêu 2</label>
+                  <label>{t('journal.trade_log.objective_2_label')}</label>
                   <input
                     type="number"
                     step="any"
                     value={tradeForm.objective_2}
                     onChange={e => setTradeForm({ ...tradeForm, objective_2: e.target.value })}
-                    placeholder="Tùy chọn"
+                    placeholder={t('journal.trade_log.objective_optional')}
                   />
                 </div>
               </div>
               <div className="form-group">
-                <label>Lý do vào lệnh</label>
+                <label>{t('journal.trade_log.entry_reason_label')}</label>
                 <textarea
                   value={tradeForm.entry_reason}
                   onChange={e => setTradeForm({ ...tradeForm, entry_reason: e.target.value })}
                   rows={3}
-                  placeholder="Mô tả lý do vào lệnh..."
+                  placeholder={t('journal.trade_log.entry_reason_placeholder')}
                 />
               </div>
 
@@ -777,11 +779,11 @@ const TradeLog = () => {
               {previewRisk() && (
                 <div className="risk-preview">
                   <div className="risk-preview-item">
-                    <span>Rủi ro lệnh:</span>
+                    <span>{t('journal.trade_log.trade_risk_label')}</span>
                     <strong>{formatNum(previewRisk().riskAmt)} {selectedAccount?.currency}</strong>
                   </div>
                   <div className="risk-preview-item">
-                    <span>% vốn:</span>
+                    <span>{t('journal.trade_log.percent_equity_label')}</span>
                     <strong className={previewRisk().riskPct > (selectedAccount?.max_risk_per_trade || 2) ? 'text-loss' : 'text-profit'}>
                       {previewRisk().riskPct.toFixed(2)}%
                     </strong>
@@ -790,8 +792,8 @@ const TradeLog = () => {
               )}
 
               <div className="form-actions">
-                <button type="button" className="btn-secondary" onClick={resetTradeForm}>Hủy</button>
-                <button type="submit" className="btn-primary">Tạo giao dịch</button>
+                <button type="button" className="btn-secondary" onClick={resetTradeForm}>{t('journal.common.cancel_btn')}</button>
+                <button type="submit" className="btn-primary">{t('journal.trade_log.create_trade_btn')}</button>
               </div>
             </form>
           </div>
@@ -804,12 +806,12 @@ const TradeLog = () => {
       {showCloseForm && (
         <div className="journal-modal-overlay" onClick={() => setShowCloseForm(null)}>
           <div className="journal-modal" onClick={e => e.stopPropagation()}>
-            <h3>Đóng lệnh #{showCloseForm.trade_number} — {showCloseForm.market_ticker}</h3>
+            <h3>{t('journal.trade_log.close_trade_modal_title', { tradeNum: showCloseForm.trade_number, ticker: showCloseForm.market_ticker })}</h3>
             {formError && <div className="form-error"><AlertTriangle size={14} /> {formError}</div>}
             <form onSubmit={handleCloseTrade}>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Giá thoát</label>
+                  <label>{t('journal.trade_log.exit_price_label')}</label>
                   <input
                     type="number"
                     step="any"
@@ -819,7 +821,7 @@ const TradeLog = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Ngày thoát</label>
+                  <label>{t('journal.trade_log.exit_date_label')}</label>
                   <input
                     type="date"
                     value={closeForm.exit_date}
@@ -828,17 +830,17 @@ const TradeLog = () => {
                 </div>
               </div>
               <div className="form-group">
-                <label>Lý do thoát lệnh</label>
+                <label>{t('journal.trade_log.exit_reason_label')}</label>
                 <textarea
                   value={closeForm.exit_reason}
                   onChange={e => setCloseForm({ ...closeForm, exit_reason: e.target.value })}
                   rows={2}
-                  placeholder="VD: Chạm stop, đạt mục tiêu, tín hiệu đảo chiều..."
+                  placeholder={t('journal.trade_log.exit_reason_placeholder')}
                 />
               </div>
               <div className="form-actions">
-                <button type="button" className="btn-secondary" onClick={() => setShowCloseForm(null)}>Hủy</button>
-                <button type="submit" className="btn-primary">Đóng lệnh</button>
+                <button type="button" className="btn-secondary" onClick={() => setShowCloseForm(null)}>{t('journal.common.cancel_btn')}</button>
+                <button type="submit" className="btn-primary">{t('journal.trade_log.close_trade_btn')}</button>
               </div>
             </form>
           </div>
@@ -851,19 +853,19 @@ const TradeLog = () => {
       {showStopForm && (
         <div className="journal-modal-overlay" onClick={() => setShowStopForm(null)}>
           <div className="journal-modal" onClick={e => e.stopPropagation()}>
-            <h3>Điều chỉnh Stop — #{showStopForm.trade_number} {showStopForm.market_ticker}</h3>
+            <h3>{t('journal.trade_log.revise_stop_modal_title', { tradeNum: showStopForm.trade_number, ticker: showStopForm.market_ticker })}</h3>
             <p className="modal-hint">
               {showStopForm.direction === 'Long'
-                ? 'Long: Stop mới phải >= stop hiện tại (chỉ thắt chặt)'
-                : 'Short: Stop mới phải <= stop hiện tại (chỉ thắt chặt)'}
+                ? t('journal.trade_log.long_stop_hint')
+                : t('journal.trade_log.short_stop_hint')}
             </p>
             <p className="modal-current">
-              Stop hiện tại: <strong>{formatNum(showStopForm.revised_stop || showStopForm.initial_stop, 2)}</strong>
+              {t('journal.trade_log.current_stop_label')}<strong>{formatNum(showStopForm.revised_stop || showStopForm.initial_stop, 2)}</strong>
             </p>
             {formError && <div className="form-error"><AlertTriangle size={14} /> {formError}</div>}
             <form onSubmit={handleReviseStop}>
               <div className="form-group">
-                <label>Stop mới</label>
+                <label>{t('journal.trade_log.new_stop_label')}</label>
                 <input
                   type="number"
                   step="any"
@@ -873,17 +875,17 @@ const TradeLog = () => {
                 />
               </div>
               <div className="form-group">
-                <label>Lý do điều chỉnh</label>
+                <label>{t('journal.trade_log.stop_revision_reason_label')}</label>
                 <textarea
                   value={stopForm.reason}
                   onChange={e => setStopForm({ ...stopForm, reason: e.target.value })}
                   rows={2}
-                  placeholder="VD: Giá vượt qua vùng kháng cự..."
+                  placeholder={t('journal.trade_log.stop_revision_placeholder')}
                 />
               </div>
               <div className="form-actions">
-                <button type="button" className="btn-secondary" onClick={() => setShowStopForm(null)}>Hủy</button>
-                <button type="submit" className="btn-primary">Cập nhật Stop</button>
+                <button type="button" className="btn-secondary" onClick={() => setShowStopForm(null)}>{t('journal.common.cancel_btn')}</button>
+                <button type="submit" className="btn-primary">{t('journal.trade_log.update_stop_btn')}</button>
               </div>
             </form>
           </div>
@@ -896,9 +898,9 @@ const TradeLog = () => {
       {editingTrade && (
         <div className="journal-modal-overlay" onClick={() => setEditingTrade(null)}>
           <div className="journal-modal" onClick={e => e.stopPropagation()}>
-            <h3>Ghi chú — #{editingTrade.trade_number} {editingTrade.market_ticker}</h3>
+            <h3>{t('journal.trade_log.edit_trade_modal_title', { tradeNum: editingTrade.trade_number, ticker: editingTrade.market_ticker })}</h3>
             <div className="form-group">
-              <label>Lý do thoát lệnh</label>
+              <label>{t('journal.trade_log.exit_reason_label')}</label>
               <textarea
                 value={editForm[editingTrade.id]?.exit_reason || ''}
                 onChange={e => setEditForm(prev => ({
@@ -909,7 +911,7 @@ const TradeLog = () => {
               />
             </div>
             <div className="form-group">
-              <label>Bài học rút ra</label>
+              <label>{t('journal.trade_log.lessons_learned_label')}</label>
               <textarea
                 value={editForm[editingTrade.id]?.lessons_learned || ''}
                 onChange={e => setEditForm(prev => ({
@@ -917,13 +919,13 @@ const TradeLog = () => {
                   [editingTrade.id]: { ...prev[editingTrade.id], lessons_learned: e.target.value }
                 }))}
                 rows={3}
-                placeholder="Ghi lại bài học từ giao dịch này..."
+                placeholder={t('journal.trade_log.lessons_placeholder')}
               />
             </div>
             <div className="form-actions">
-              <button className="btn-secondary" onClick={() => setEditingTrade(null)}>Hủy</button>
+              <button className="btn-secondary" onClick={() => setEditingTrade(null)}>{t('journal.common.cancel_btn')}</button>
               <button className="btn-primary" onClick={() => { handleUpdateTrade(editingTrade.id); setEditingTrade(null); }}>
-                Lưu
+                {t('journal.common.save_btn')}
               </button>
             </div>
           </div>
@@ -933,12 +935,12 @@ const TradeLog = () => {
       {/* Delete Confirmation */}
       {confirmDelete && (
         <ConfirmDialog
-          title="Xóa giao dịch"
-          message={`Xóa giao dịch #${confirmDelete.trade_number} (${confirmDelete.market_ticker})?`}
+          title={t('journal.trade_log.delete_trade_confirm_title')}
+          message={t('journal.trade_log.delete_trade_confirm_msg', { tradeNum: confirmDelete.trade_number, ticker: confirmDelete.market_ticker })}
           onConfirm={handleDeleteTrade}
           onCancel={() => setConfirmDelete(null)}
-          confirmText="Xóa"
-          cancelText="Hủy"
+          confirmText={t('journal.trade_log.delete_btn')}
+          cancelText={t('journal.trade_log.cancel_delete_btn')}
           variant="danger"
         />
       )}

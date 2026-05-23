@@ -4,11 +4,13 @@ import {
   TrendingDown, AlertTriangle, Target, Award,
   Edit3, RotateCw, DollarSign
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import journalService from '../../../services/journalService';
 import { useNavigate } from 'react-router-dom';
 import '../../../styles/journal.css';
 
 const WeeklyReview = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [accounts, setAccounts] = useState([]);
   const [selectedAccountId, setSelectedAccountId] = useState(null);
@@ -17,6 +19,7 @@ const WeeklyReview = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
+  const [saveIsError, setSaveIsError] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -76,6 +79,7 @@ const WeeklyReview = () => {
     if (!selectedAccountId) return;
     setSaving(true);
     setSaveMsg('');
+    setSaveIsError(false);
     try {
       const res = await journalService.createWeeklyReview(selectedAccountId, {
         week_start: weekStart,
@@ -83,16 +87,18 @@ const WeeklyReview = () => {
       });
       const data = res.data || res;
       if (data.error) {
-        setSaveMsg(data.message || 'Lỗi tạo review');
+        setSaveMsg(data.message || t('journal.weekly_review.error_creating_review'));
+        setSaveIsError(true);
       } else {
-        setSaveMsg('Đã tạo weekly review!');
+        setSaveMsg(t('journal.weekly_review.review_created'));
         setShowNewForm(false);
         await loadReviews();
         selectReview(data);
       }
     } catch (err) {
-      const msg = err?.response?.data?.detail || 'Lỗi khi tạo!';
+      const msg = err?.response?.data?.detail || t('journal.weekly_review.creating_error_generic');
       setSaveMsg(msg);
+      setSaveIsError(true);
     } finally {
       setSaving(false);
       setTimeout(() => setSaveMsg(''), 4000);
@@ -103,17 +109,19 @@ const WeeklyReview = () => {
     if (!selectedReview) return;
     setSaving(true);
     setSaveMsg('');
+    setSaveIsError(false);
     try {
       const res = await journalService.updateWeeklyReview(
         selectedAccountId, selectedReview.id, form
       );
       const updated = res.data || res;
       setSelectedReview(updated);
-      setSaveMsg('Đã cập nhật!');
+      setSaveMsg(t('journal.weekly_review.review_updated'));
       setIsEditing(false);
       await loadReviews();
     } catch {
-      setSaveMsg('Lỗi cập nhật!');
+      setSaveMsg(t('journal.weekly_review.error_updating_review'));
+      setSaveIsError(true);
     } finally {
       setSaving(false);
       setTimeout(() => setSaveMsg(''), 3000);
@@ -128,16 +136,18 @@ const WeeklyReview = () => {
       );
       const updated = res.data || res;
       setSelectedReview(updated);
-      setSaveMsg('Đã cập nhật thống kê!');
+      setSaveMsg(t('journal.weekly_review.stats_updated'));
+      setSaveIsError(false);
       await loadReviews();
       setTimeout(() => setSaveMsg(''), 3000);
     } catch {
-      setSaveMsg('Lỗi cập nhật thống kê!');
+      setSaveMsg(t('journal.weekly_review.error_updating_stats'));
+      setSaveIsError(true);
     }
   };
 
   const handleDelete = async () => {
-    if (!selectedReview || !window.confirm('Xóa weekly review này?')) return;
+    if (!selectedReview || !window.confirm(t('journal.weekly_review.delete_review_confirm'))) return;
     try {
       await journalService.deleteWeeklyReview(selectedAccountId, selectedReview.id);
       setSelectedReview(null);
@@ -154,7 +164,7 @@ const WeeklyReview = () => {
       <div className="journal-accounts">
         <div className="journal-empty">
           <RefreshCw size={40} className="spin" />
-          <p>Đang tải...</p>
+          <p>{t('journal.common.loading')}</p>
         </div>
       </div>
     );
@@ -165,10 +175,10 @@ const WeeklyReview = () => {
       <div className="journal-accounts">
         <div className="journal-empty">
           <CalendarRange size={48} />
-          <h3>Chưa có tài khoản nhật ký</h3>
-          <p>Vui lòng tạo tài khoản nhật ký giao dịch trước khi tổng kết tuần.</p>
+          <h3>{t('journal.common.no_accounts_title')}</h3>
+          <p>{t('journal.weekly_review.create_account_first_hint')}</p>
           <button className="btn-primary" onClick={() => navigate('/journal-accounts')} style={{ marginTop: '12px' }}>
-            <Plus size={16} /> Tạo tài khoản nhật ký
+            <Plus size={16} /> {t('journal.common.create_account_btn')}
           </button>
         </div>
       </div>
@@ -181,7 +191,7 @@ const WeeklyReview = () => {
       <div className="jweek-header">
         <div className="jplan-title">
           <CalendarRange size={22} />
-          <h2>Tổng Kết Tuần</h2>
+          <h2>{t('journal.weekly_review.title')}</h2>
         </div>
         <div className="jdash-controls">
           <select
@@ -203,7 +213,7 @@ const WeeklyReview = () => {
               setIsEditing(true);
             }}
           >
-            <Plus size={14} /> Tạo Review
+            <Plus size={14} /> {t('journal.weekly_review.create_review_btn')}
           </button>
         </div>
       </div>
@@ -211,10 +221,10 @@ const WeeklyReview = () => {
       <div className="jweek-layout">
         {/* Left: Review List */}
         <div className="jplan-sidebar">
-          <h4>Danh sách review</h4>
+          <h4>{t('journal.weekly_review.reviews_list_title')}</h4>
           <div className="jplan-plan-list">
             {reviews.length === 0 ? (
-              <p className="jplan-no-plans">Chưa có review nào.</p>
+              <p className="jplan-no-plans">{t('journal.weekly_review.no_reviews_message')}</p>
             ) : (
               reviews.map(r => (
                 <div
@@ -227,7 +237,7 @@ const WeeklyReview = () => {
                     <span>{formatWeekRange(r.week_start)}</span>
                   </div>
                   <div className="jweek-review-item-stats">
-                    <span>{r.trades_taken} lệnh</span>
+                    <span>{t('journal.weekly_review.trades_count_label', { count: r.trades_taken })}</span>
                     <span className={r.weekly_pnl >= 0 ? 'positive' : 'negative'}>
                       {fmt(r.weekly_pnl)}
                     </span>
@@ -243,9 +253,9 @@ const WeeklyReview = () => {
           {showNewForm ? (
             <>
               <div className="jweek-new-header">
-                <h3>Tạo Weekly Review Mới</h3>
+                <h3>{t('journal.weekly_review.new_review_modal_title')}</h3>
                 <div className="jweek-week-picker">
-                  <label>Tuần bắt đầu (Thứ 2):</label>
+                  <label>{t('journal.weekly_review.week_start_label')}</label>
                   <input
                     type="date"
                     value={weekStart}
@@ -260,13 +270,13 @@ const WeeklyReview = () => {
               <div className="jplan-save-bar">
                 <button className="btn-primary" onClick={handleCreate} disabled={saving}>
                   <Plus size={16} />
-                  {saving ? 'Đang tạo...' : 'Tạo Review'}
+                  {saving ? t('journal.common.creating') : t('journal.weekly_review.create_review_btn')}
                 </button>
                 <button className="btn-secondary" onClick={() => setShowNewForm(false)}>
-                  Hủy
+                  {t('journal.common.cancel_btn')}
                 </button>
                 {saveMsg && (
-                  <span className={`jplan-save-msg ${saveMsg.includes('Lỗi') || saveMsg.includes('Đã có') ? 'error' : 'success'}`}>
+                  <span className={`jplan-save-msg ${saveIsError ? 'error' : 'success'}`}>
                     {saveMsg}
                   </span>
                 )}
@@ -276,17 +286,17 @@ const WeeklyReview = () => {
             <>
               {/* Stats Cards */}
               <div className="jweek-stats-header">
-                <h3>Tuần {formatWeekRange(selectedReview.week_start)}</h3>
+                <h3>{t('journal.weekly_review.week_title', { dateRange: formatWeekRange(selectedReview.week_start) })}</h3>
                 <div className="jweek-actions">
                   {!isEditing && (
-                    <button className="btn-icon" onClick={() => setIsEditing(true)} title="Chỉnh sửa">
+                    <button className="btn-icon" onClick={() => setIsEditing(true)} title={t('journal.weekly_review.edit_tooltip')}>
                       <Edit3 size={16} />
                     </button>
                   )}
-                  <button className="btn-icon" onClick={handleRecalculate} title="Tính lại thống kê">
+                  <button className="btn-icon" onClick={handleRecalculate} title={t('journal.weekly_review.recalc_stats_tooltip')}>
                     <RotateCw size={16} />
                   </button>
-                  <button className="btn-icon btn-danger" onClick={handleDelete} title="Xóa">
+                  <button className="btn-icon btn-danger" onClick={handleDelete} title={t('journal.weekly_review.delete_tooltip')}>
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -296,21 +306,21 @@ const WeeklyReview = () => {
                 <div className="jweek-stat-card">
                   <Target size={18} className="jweek-stat-icon" style={{ color: '#3b82f6' }} />
                   <div>
-                    <span className="jweek-stat-label">Số lệnh</span>
+                    <span className="jweek-stat-label">{t('journal.weekly_review.trades_taken_label')}</span>
                     <span className="jweek-stat-value">{selectedReview.trades_taken}</span>
                   </div>
                 </div>
                 <div className="jweek-stat-card">
                   <Award size={18} className="jweek-stat-icon" style={{ color: '#10b981' }} />
                   <div>
-                    <span className="jweek-stat-label">Thắng</span>
+                    <span className="jweek-stat-label">{t('journal.weekly_review.trades_won_label')}</span>
                     <span className="jweek-stat-value">{selectedReview.trades_won}</span>
                   </div>
                 </div>
                 <div className="jweek-stat-card">
                   <Target size={18} className="jweek-stat-icon" style={{ color: '#f59e0b' }} />
                   <div>
-                    <span className="jweek-stat-label">Win Rate</span>
+                    <span className="jweek-stat-label">{t('journal.common.win_rate_label')}</span>
                     <span className="jweek-stat-value">{selectedReview.win_rate || 0}%</span>
                   </div>
                 </div>
@@ -319,7 +329,7 @@ const WeeklyReview = () => {
                     style={{ color: selectedReview.weekly_pnl >= 0 ? '#10b981' : '#ef4444' }}
                   />
                   <div>
-                    <span className="jweek-stat-label">P/L tuần</span>
+                    <span className="jweek-stat-label">{t('journal.weekly_review.weekly_pnl_label')}</span>
                     <span className={`jweek-stat-value ${selectedReview.weekly_pnl >= 0 ? 'positive' : 'negative'}`}>
                       {fmt(selectedReview.weekly_pnl)}
                     </span>
@@ -333,16 +343,16 @@ const WeeklyReview = () => {
                 <div className="jplan-save-bar">
                   <button className="btn-primary" onClick={handleUpdate} disabled={saving}>
                     <Save size={16} />
-                    {saving ? 'Đang lưu...' : 'Cập nhật'}
+                    {saving ? t('journal.common.saving') : t('journal.weekly_review.update_btn')}
                   </button>
                   <button className="btn-secondary" onClick={() => {
                     selectReview(selectedReview);
                     setIsEditing(false);
                   }}>
-                    Hủy
+                    {t('journal.common.cancel_btn')}
                   </button>
                   {saveMsg && (
-                    <span className={`jplan-save-msg ${saveMsg.includes('Lỗi') ? 'error' : 'success'}`}>
+                    <span className={`jplan-save-msg ${saveIsError ? 'error' : 'success'}`}>
                       {saveMsg}
                     </span>
                   )}
@@ -352,8 +362,8 @@ const WeeklyReview = () => {
           ) : (
             <div className="journal-empty">
               <CalendarRange size={48} />
-              <h3>Chọn một review hoặc tạo mới</h3>
-              <p>Weekly review giúp bạn đánh giá và cải thiện chiến lược giao dịch mỗi tuần.</p>
+              <h3>{t('journal.weekly_review.select_or_create')}</h3>
+              <p>{t('journal.weekly_review.weekly_review_hint')}</p>
             </div>
           )}
         </div>
@@ -364,63 +374,66 @@ const WeeklyReview = () => {
 
 // Sub-components
 
-const ReviewSections = ({ form, setForm, disabled }) => (
-  <div className="jplan-sections">
-    <div className="jplan-section">
-      <div className="jplan-section-header" style={{ borderLeftColor: '#10b981' }}>
-        <span style={{ color: '#10b981' }}><TrendingUp size={18} /></span>
-        <div>
-          <h4>Điều gì đã làm tốt?</h4>
-          <p>Giao dịch thành công, kỷ luật tốt, tuân thủ kế hoạch</p>
+const ReviewSections = ({ form, setForm, disabled }) => {
+  const { t } = useTranslation();
+  return (
+    <div className="jplan-sections">
+      <div className="jplan-section">
+        <div className="jplan-section-header" style={{ borderLeftColor: '#10b981' }}>
+          <span style={{ color: '#10b981' }}><TrendingUp size={18} /></span>
+          <div>
+            <h4>{t('journal.weekly_review.what_went_well_title')}</h4>
+            <p>{t('journal.weekly_review.what_went_well_subtitle')}</p>
+          </div>
         </div>
+        <textarea
+          className="jplan-textarea"
+          value={form.what_went_well}
+          onChange={(e) => setForm(prev => ({ ...prev, what_went_well: e.target.value }))}
+          disabled={disabled}
+          placeholder={disabled ? t('journal.common.placeholder_no_content') : t('journal.common.placeholder_enter_content')}
+          rows={4}
+        />
       </div>
-      <textarea
-        className="jplan-textarea"
-        value={form.what_went_well}
-        onChange={(e) => setForm(prev => ({ ...prev, what_went_well: e.target.value }))}
-        disabled={disabled}
-        placeholder={disabled ? '(Chưa có nội dung)' : 'Nhập nội dung...'}
-        rows={4}
-      />
-    </div>
 
-    <div className="jplan-section">
-      <div className="jplan-section-header" style={{ borderLeftColor: '#ef4444' }}>
-        <span style={{ color: '#ef4444' }}><TrendingDown size={18} /></span>
-        <div>
-          <h4>Điều gì chưa tốt?</h4>
-          <p>Sai lầm, vi phạm kỷ luật, cơ hội bỏ lỡ</p>
+      <div className="jplan-section">
+        <div className="jplan-section-header" style={{ borderLeftColor: '#ef4444' }}>
+          <span style={{ color: '#ef4444' }}><TrendingDown size={18} /></span>
+          <div>
+            <h4>{t('journal.weekly_review.what_went_wrong_title')}</h4>
+            <p>{t('journal.weekly_review.what_went_wrong_subtitle')}</p>
+          </div>
         </div>
+        <textarea
+          className="jplan-textarea"
+          value={form.what_went_wrong}
+          onChange={(e) => setForm(prev => ({ ...prev, what_went_wrong: e.target.value }))}
+          disabled={disabled}
+          placeholder={disabled ? t('journal.common.placeholder_no_content') : t('journal.common.placeholder_enter_content')}
+          rows={4}
+        />
       </div>
-      <textarea
-        className="jplan-textarea"
-        value={form.what_went_wrong}
-        onChange={(e) => setForm(prev => ({ ...prev, what_went_wrong: e.target.value }))}
-        disabled={disabled}
-        placeholder={disabled ? '(Chưa có nội dung)' : 'Nhập nội dung...'}
-        rows={4}
-      />
-    </div>
 
-    <div className="jplan-section">
-      <div className="jplan-section-header" style={{ borderLeftColor: '#f59e0b' }}>
-        <span style={{ color: '#f59e0b' }}><AlertTriangle size={18} /></span>
-        <div>
-          <h4>Điều chỉnh quan trọng</h4>
-          <p>Thay đổi chiến lược, quy tắc mới, bài học áp dụng</p>
+      <div className="jplan-section">
+        <div className="jplan-section-header" style={{ borderLeftColor: '#f59e0b' }}>
+          <span style={{ color: '#f59e0b' }}><AlertTriangle size={18} /></span>
+          <div>
+            <h4>{t('journal.weekly_review.key_adjustments_title')}</h4>
+            <p>{t('journal.weekly_review.key_adjustments_subtitle')}</p>
+          </div>
         </div>
+        <textarea
+          className="jplan-textarea"
+          value={form.key_adjustments}
+          onChange={(e) => setForm(prev => ({ ...prev, key_adjustments: e.target.value }))}
+          disabled={disabled}
+          placeholder={disabled ? t('journal.common.placeholder_no_content') : t('journal.common.placeholder_enter_content')}
+          rows={4}
+        />
       </div>
-      <textarea
-        className="jplan-textarea"
-        value={form.key_adjustments}
-        onChange={(e) => setForm(prev => ({ ...prev, key_adjustments: e.target.value }))}
-        disabled={disabled}
-        placeholder={disabled ? '(Chưa có nội dung)' : 'Nhập nội dung...'}
-        rows={4}
-      />
     </div>
-  </div>
-);
+  );
+};
 
 // Helpers
 

@@ -10,6 +10,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   Area, AreaChart
 } from 'recharts';
+import { useTranslation } from 'react-i18next';
 import journalService from '../../../services/journalService';
 import { useNavigate } from 'react-router-dom';
 import '../../../styles/journal.css';
@@ -17,6 +18,7 @@ import '../../../styles/journal.css';
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
 
 const JournalDashboard = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [accounts, setAccounts] = useState([]);
   const [selectedAccountId, setSelectedAccountId] = useState(null);
@@ -35,12 +37,13 @@ const JournalDashboard = () => {
           setSelectedAccountId(data[0].id);
         }
       } catch (err) {
-        setError('Không thể tải danh sách tài khoản');
+        setError(t('journal.common.error_loading_accounts'));
       } finally {
         setLoading(false);
       }
     };
     loadAccounts();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load dashboard data when account changes
@@ -52,11 +55,11 @@ const JournalDashboard = () => {
       const res = await journalService.getDashboard(selectedAccountId);
       setDashboard(res.data || res);
     } catch (err) {
-      setError('Không thể tải dữ liệu dashboard');
+      setError(t('journal.dashboard.error_loading_dashboard'));
     } finally {
       setLoading(false);
     }
-  }, [selectedAccountId]);
+  }, [selectedAccountId, t]);
 
   useEffect(() => {
     loadDashboard();
@@ -70,7 +73,7 @@ const JournalDashboard = () => {
       <div className="journal-accounts">
         <div className="journal-empty">
           <RefreshCw size={40} className="spin" />
-          <p>Đang tải dashboard...</p>
+          <p>{t('journal.dashboard.loading_dashboard')}</p>
         </div>
       </div>
     );
@@ -81,10 +84,10 @@ const JournalDashboard = () => {
       <div className="journal-accounts">
         <div className="journal-empty">
           <BarChart3 size={48} />
-          <h3>Chưa có tài khoản nhật ký</h3>
-          <p>Vui lòng tạo tài khoản nhật ký giao dịch để bắt đầu theo dõi.</p>
+          <h3>{t('journal.common.no_accounts_title')}</h3>
+          <p>{t('journal.common.no_accounts_hint')}</p>
           <button className="btn-primary" onClick={() => navigate('/journal-accounts')} style={{ marginTop: '12px' }}>
-            <Plus size={16} /> Tạo tài khoản nhật ký
+            <Plus size={16} /> {t('journal.common.create_account_btn')}
           </button>
         </div>
       </div>
@@ -115,7 +118,7 @@ const JournalDashboard = () => {
       <div className="jdash-header">
         <div className="jdash-title">
           <BarChart3 size={22} />
-          <h2>Dashboard Giao Dịch</h2>
+          <h2>{t('journal.dashboard.title')}</h2>
         </div>
         <div className="jdash-controls">
           <select
@@ -127,7 +130,7 @@ const JournalDashboard = () => {
               <option key={a.id} value={a.id}>{a.account_name}</option>
             ))}
           </select>
-          <button onClick={loadDashboard} className="btn-icon" title="Làm mới">
+          <button onClick={loadDashboard} className="btn-icon" title={t('journal.common.refresh_btn')}>
             <RefreshCw size={16} />
           </button>
         </div>
@@ -140,21 +143,21 @@ const JournalDashboard = () => {
           {/* Account Summary Bar */}
           <div className="jdash-summary-bar">
             <div className="jdash-summary-item">
-              <span className="jdash-summary-label">Vốn ban đầu</span>
+              <span className="jdash-summary-label">{t('journal.dashboard.starting_equity')}</span>
               <span className="jdash-summary-value">{fmt(account?.starting_equity, currency)}</span>
             </div>
             <div className="jdash-summary-item">
-              <span className="jdash-summary-label">Vốn hiện tại</span>
+              <span className="jdash-summary-label">{t('journal.dashboard.current_equity')}</span>
               <span className="jdash-summary-value">{fmt(account?.current_equity, currency)}</span>
             </div>
             <div className="jdash-summary-item">
-              <span className="jdash-summary-label">Tổng P/L</span>
+              <span className="jdash-summary-label">{t('journal.common.total_pnl')}</span>
               <span className={`jdash-summary-value ${stats?.total_pnl > 0 ? 'positive' : stats?.total_pnl < 0 ? 'negative' : ''}`}>
                 {fmt(stats?.total_pnl, currency)}
               </span>
             </div>
             <div className="jdash-summary-item">
-              <span className="jdash-summary-label">Lợi nhuận %</span>
+              <span className="jdash-summary-label">{t('journal.dashboard.return_percent')}</span>
               <span className={`jdash-summary-value ${stats?.total_return_pct > 0 ? 'positive' : stats?.total_return_pct < 0 ? 'negative' : ''}`}>
                 {fmtPct(stats?.total_return_pct)}
               </span>
@@ -165,58 +168,58 @@ const JournalDashboard = () => {
           <div className="jdash-cards">
             <StatCard
               icon={<Activity size={18} />}
-              label="Tổng lệnh đã đóng"
+              label={t('journal.dashboard.total_closed_trades')}
               value={stats?.total_closed || 0}
-              sub={`${stats?.total_open || 0} lệnh đang mở`}
+              sub={`${stats?.total_open || 0} ${t('journal.dashboard.trades_open_suffix')}`}
               color="#3b82f6"
             />
             <StatCard
               icon={<Target size={18} />}
-              label="Win Rate"
+              label={t('journal.dashboard.win_rate')}
               value={`${stats?.win_rate || 0}%`}
-              sub={`${stats?.win_count || 0}W / ${stats?.loss_count || 0}L`}
+              sub={`${stats?.win_count || 0}${t('journal.common.win_loss_separator')}${stats?.loss_count || 0}L`}
               color={stats?.win_rate >= 50 ? '#10b981' : '#f59e0b'}
             />
             <StatCard
               icon={<Zap size={18} />}
-              label="Profit Factor"
+              label={t('journal.dashboard.profit_factor')}
               value={stats?.profit_factor || 0}
-              sub={stats?.profit_factor >= 1.5 ? 'Tốt' : stats?.profit_factor >= 1 ? 'Trung bình' : 'Kém'}
+              sub={stats?.profit_factor >= 1.5 ? t('journal.dashboard.pf_good') : stats?.profit_factor >= 1 ? t('journal.dashboard.pf_average') : t('journal.dashboard.pf_poor')}
               color={stats?.profit_factor >= 1.5 ? '#10b981' : stats?.profit_factor >= 1 ? '#f59e0b' : '#ef4444'}
             />
             <StatCard
               icon={<TrendingUp size={18} />}
-              label="Avg R-Multiple"
+              label={t('journal.dashboard.avg_r_multiple')}
               value={`${stats?.avg_r_multiple || 0}R`}
-              sub={stats?.avg_r_multiple >= 1 ? 'Tích cực' : 'Cần cải thiện'}
+              sub={stats?.avg_r_multiple >= 1 ? t('journal.dashboard.rm_positive') : t('journal.dashboard.rm_needs_improvement')}
               color={stats?.avg_r_multiple >= 1 ? '#10b981' : '#f59e0b'}
             />
             <StatCard
               icon={<DollarSign size={18} />}
-              label="Expectancy"
+              label={t('journal.dashboard.expectancy')}
               value={fmt(stats?.expectancy, currency)}
-              sub="TB mỗi lệnh"
+              sub={t('journal.dashboard.per_trade_avg')}
               color={stats?.expectancy > 0 ? '#10b981' : '#ef4444'}
             />
             <StatCard
               icon={<Award size={18} />}
-              label="Streak"
+              label={t('journal.dashboard.streak')}
               value={`${stats?.max_consecutive_wins || 0}W / ${stats?.max_consecutive_losses || 0}L`}
-              sub="Max chuỗi thắng/thua"
+              sub={t('journal.dashboard.max_streak')}
               color="#8b5cf6"
             />
             <StatCard
               icon={<Clock size={18} />}
-              label="TB thời gian"
+              label={t('journal.dashboard.avg_duration')}
               value={`${stats?.avg_duration_days || 0} ngày`}
-              sub="mỗi giao dịch"
+              sub={t('journal.dashboard.per_trade_suffix')}
               color="#06b6d4"
             />
             <StatCard
               icon={<DollarSign size={18} />}
-              label="TB Win / Loss"
+              label={t('journal.dashboard.avg_win_loss')}
               value={fmt(stats?.avg_win, currency)}
-              sub={`Loss: ${fmt(stats?.avg_loss, currency)}`}
+              sub={`${t('journal.dashboard.loss_prefix')}${fmt(stats?.avg_loss, currency)}`}
               color="#10b981"
             />
           </div>
@@ -225,12 +228,12 @@ const JournalDashboard = () => {
           <div className="jdash-section">
             <div className="jdash-section-header">
               <Shield size={18} />
-              <h3>Giám Sát Rủi Ro</h3>
+              <h3>{t('journal.dashboard.risk_monitor')}</h3>
             </div>
             <div className="jdash-risk-monitor">
               <div className="jdash-risk-bar-container">
                 <div className="jdash-risk-labels">
-                  <span>Rủi ro tích lũy</span>
+                  <span>{t('journal.dashboard.cumulative_risk')}</span>
                   <span style={{ color: getRiskColor(riskPct) }}>
                     {riskPct.toFixed(1)}% / {account?.max_cumulative_risk}%
                   </span>
@@ -244,27 +247,27 @@ const JournalDashboard = () => {
                     }}
                   />
                   {/* Threshold markers */}
-                  <div className="jdash-risk-marker" style={{ left: '70%' }} title="Cảnh báo (70%)" />
-                  <div className="jdash-risk-marker jdash-risk-marker-danger" style={{ left: '100%' }} title="Giới hạn (100%)" />
+                  <div className="jdash-risk-marker" style={{ left: '70%' }} title={t('journal.dashboard.warning_threshold')} />
+                  <div className="jdash-risk-marker jdash-risk-marker-danger" style={{ left: '100%' }} title={t('journal.dashboard.limit_threshold')} />
                 </div>
               </div>
               <div className="jdash-risk-details">
                 <div className="jdash-risk-detail">
-                  <span>Lệnh mở</span>
+                  <span>{t('journal.dashboard.open_trades')}</span>
                   <strong>{cumRisk?.open_trades || 0}</strong>
                 </div>
                 <div className="jdash-risk-detail">
-                  <span>Rủi ro đang dùng</span>
+                  <span>{t('journal.dashboard.risk_used')}</span>
                   <strong style={{ color: getRiskColor(riskPct) }}>
                     {fmt(cumRisk?.total_risk_amount, currency)}
                   </strong>
                 </div>
                 <div className="jdash-risk-detail">
-                  <span>Max / lệnh</span>
+                  <span>{t('journal.dashboard.max_per_trade')}</span>
                   <strong>{account?.max_risk_per_trade}%</strong>
                 </div>
                 <div className="jdash-risk-detail">
-                  <span>Còn có thể rủi ro</span>
+                  <span>{t('journal.dashboard.remaining_risk')}</span>
                   <strong style={{ color: '#10b981' }}>
                     {fmt(cumRisk?.remaining_risk, currency)}
                   </strong>
@@ -274,8 +277,8 @@ const JournalDashboard = () => {
                 <div className={`jdash-risk-warning ${riskPct >= 100 ? 'danger' : 'caution'}`}>
                   <AlertTriangle size={16} />
                   {riskPct >= 100
-                    ? 'Đã vượt giới hạn rủi ro tích lũy! Không nên mở thêm lệnh.'
-                    : 'Rủi ro tích lũy đang ở mức cao. Cân nhắc giảm vị thế.'
+                    ? t('journal.dashboard.error_exceed_risk')
+                    : t('journal.dashboard.warning_high_risk')
                   }
                 </div>
               )}
@@ -286,7 +289,7 @@ const JournalDashboard = () => {
           <div className="jdash-section">
             <div className="jdash-section-header">
               <TrendingUp size={18} />
-              <h3>Đường Vốn (Equity Curve)</h3>
+              <h3>{t('journal.dashboard.equity_curve')}</h3>
             </div>
             <div className="jdash-chart-container">
               {equityCurve.length > 1 ? (
@@ -324,7 +327,7 @@ const JournalDashboard = () => {
                 </ResponsiveContainer>
               ) : (
                 <div className="jdash-chart-empty">
-                  <p>Chưa có dữ liệu equity curve. Đóng ít nhất 1 giao dịch để xem biểu đồ.</p>
+                  <p>{t('journal.dashboard.no_equity_data')}</p>
                 </div>
               )}
             </div>
@@ -336,7 +339,7 @@ const JournalDashboard = () => {
             <div className="jdash-section">
               <div className="jdash-section-header">
                 <Calendar size={18} />
-                <h3>P/L Theo Tháng</h3>
+                <h3>{t('journal.dashboard.monthly_pnl')}</h3>
               </div>
               <div className="jdash-chart-container">
                 {byMonth.length > 0 ? (
@@ -362,7 +365,7 @@ const JournalDashboard = () => {
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="jdash-chart-empty"><p>Chưa có dữ liệu.</p></div>
+                  <div className="jdash-chart-empty"><p>{t('journal.common.no_data')}</p></div>
                 )}
               </div>
             </div>
@@ -371,7 +374,7 @@ const JournalDashboard = () => {
             <div className="jdash-section">
               <div className="jdash-section-header">
                 <PieChart size={18} />
-                <h3>Phân Tích Long/Short</h3>
+                <h3>{t('journal.dashboard.direction_analysis')}</h3>
               </div>
               <div className="jdash-direction-cards">
                 {byDirection.length > 0 ? byDirection.map((d, i) => (
@@ -383,17 +386,17 @@ const JournalDashboard = () => {
                         <ArrowDownRight size={18} className="jdash-dir-icon short" />
                       )}
                       <span className="jdash-dir-label">{d.direction}</span>
-                      <span className="jdash-dir-count">{d.trade_count} lệnh</span>
+                      <span className="jdash-dir-count">{d.trade_count} {t('journal.common.trades_suffix')}</span>
                     </div>
                     <div className="jdash-dir-stats">
                       <div className="jdash-dir-stat">
-                        <span>P/L</span>
+                        <span>{t('journal.common.pnl_column')}</span>
                         <strong className={d.total_pnl >= 0 ? 'positive' : 'negative'}>
                           {fmt(d.total_pnl, currency)}
                         </strong>
                       </div>
                       <div className="jdash-dir-stat">
-                        <span>Win Rate</span>
+                        <span>{t('journal.common.win_rate_column')}</span>
                         <strong>{d.win_rate}%</strong>
                       </div>
                       <div className="jdash-dir-stat">
@@ -403,7 +406,7 @@ const JournalDashboard = () => {
                     </div>
                   </div>
                 )) : (
-                  <div className="jdash-chart-empty"><p>Chưa có dữ liệu.</p></div>
+                  <div className="jdash-chart-empty"><p>{t('journal.common.no_data')}</p></div>
                 )}
               </div>
             </div>
@@ -413,19 +416,19 @@ const JournalDashboard = () => {
           <div className="jdash-section">
             <div className="jdash-section-header">
               <BarChart3 size={18} />
-              <h3>Phân Tích Theo Mã</h3>
+              <h3>{t('journal.dashboard.ticker_analysis')}</h3>
             </div>
             {byTicker.length > 0 ? (
               <div className="jdash-ticker-table-wrap">
                 <table className="jdash-ticker-table">
                   <thead>
                     <tr>
-                      <th>Mã CK</th>
-                      <th>Số lệnh</th>
-                      <th>Tổng P/L</th>
-                      <th>Win</th>
-                      <th>Win Rate</th>
-                      <th>TB P/L</th>
+                      <th>{t('journal.common.ticker_column')}</th>
+                      <th>{t('journal.dashboard.trade_count_column')}</th>
+                      <th>{t('journal.dashboard.total_pnl_column')}</th>
+                      <th>{t('journal.common.win_column')}</th>
+                      <th>{t('journal.common.win_rate_column')}</th>
+                      <th>{t('journal.dashboard.avg_pnl_column')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -456,7 +459,7 @@ const JournalDashboard = () => {
                 </table>
               </div>
             ) : (
-              <div className="jdash-chart-empty"><p>Chưa có dữ liệu giao dịch theo mã.</p></div>
+              <div className="jdash-chart-empty"><p>{t('journal.dashboard.no_ticker_data')}</p></div>
             )}
           </div>
 
@@ -465,14 +468,14 @@ const JournalDashboard = () => {
             <div className="jdash-highlight-card best">
               <TrendingUp size={20} />
               <div>
-                <span className="jdash-hl-label">Lệnh tốt nhất</span>
+                <span className="jdash-hl-label">{t('journal.dashboard.best_trade')}</span>
                 <span className="jdash-hl-value positive">{fmt(stats?.best_trade_pnl, currency)}</span>
               </div>
             </div>
             <div className="jdash-highlight-card worst">
               <TrendingDown size={20} />
               <div>
-                <span className="jdash-hl-label">Lệnh tệ nhất</span>
+                <span className="jdash-hl-label">{t('journal.dashboard.worst_trade')}</span>
                 <span className="jdash-hl-value negative">{fmt(stats?.worst_trade_pnl, currency)}</span>
               </div>
             </div>
@@ -501,13 +504,14 @@ const StatCard = ({ icon, label, value, sub, color }) => (
 );
 
 const EquityTooltip = ({ active, payload, currency, fmt }) => {
+  const { t } = useTranslation();
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
     <div className="jdash-tooltip">
       <div className="jdash-tooltip-date">{d.date}</div>
       <div className="jdash-tooltip-row">
-        <span>Equity:</span>
+        <span>{t('journal.common.equity_label')}</span>
         <strong>{fmt(d.equity, currency)}</strong>
       </div>
       {d.trade && (
@@ -523,23 +527,24 @@ const EquityTooltip = ({ active, payload, currency, fmt }) => {
 };
 
 const MonthlyTooltip = ({ active, payload, currency, fmt }) => {
+  const { t } = useTranslation();
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
     <div className="jdash-tooltip">
       <div className="jdash-tooltip-date">{d.month}</div>
       <div className="jdash-tooltip-row">
-        <span>P/L:</span>
+        <span>{t('journal.common.pnl_label')}</span>
         <strong className={d.total_pnl >= 0 ? 'positive' : 'negative'}>
           {fmt(d.total_pnl, currency)}
         </strong>
       </div>
       <div className="jdash-tooltip-row">
-        <span>Lệnh:</span>
-        <strong>{d.trade_count} ({d.win_count}W)</strong>
+        <span>{t('journal.common.trades_label')}</span>
+        <strong>{d.trade_count} {t('journal.common.win_count_format', { count: d.win_count })}</strong>
       </div>
       <div className="jdash-tooltip-row">
-        <span>Win Rate:</span>
+        <span>{t('journal.common.win_rate_label')}</span>
         <strong>{d.win_rate}%</strong>
       </div>
     </div>

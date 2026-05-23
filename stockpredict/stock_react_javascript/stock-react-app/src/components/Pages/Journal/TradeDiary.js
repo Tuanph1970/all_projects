@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { LoadingSpinner, ErrorMessage, ConfirmDialog } from '../../ui';
 import {
   BookOpen, Plus, Save, Trash2, Upload, Image,
@@ -29,30 +30,31 @@ const CHART_PATTERNS = [
   { value: 'Breakout', label: 'Breakout' },
   { value: 'Breakdown', label: 'Breakdown' },
   { value: 'Consolidation', label: 'Consolidation' },
-  { value: 'Other', label: 'Khác' }
+  { value: 'Other', labelKey: 'journal.trade_diary.chart_other' }
 ];
 
 const EMOTIONAL_STATES = [
-  { value: 'Confident', label: 'Tự tin', emoji: '💪' },
-  { value: 'Calm', label: 'Bình tĩnh', emoji: '😌' },
-  { value: 'Excited', label: 'Hưng phấn', emoji: '🤩' },
-  { value: 'Anxious', label: 'Lo lắng', emoji: '😰' },
-  { value: 'Fearful', label: 'Sợ hãi', emoji: '😨' },
-  { value: 'Greedy', label: 'Tham lam', emoji: '🤑' },
-  { value: 'Frustrated', label: 'Nản chí', emoji: '😤' },
-  { value: 'Revenge', label: 'Trả thù', emoji: '😡' },
-  { value: 'Bored', label: 'Chán nản', emoji: '😐' },
-  { value: 'Neutral', label: 'Bình thường', emoji: '😊' }
+  { value: 'Confident', labelKey: 'journal.trade_diary.emo_confident', emoji: '💪' },
+  { value: 'Calm', labelKey: 'journal.trade_diary.emo_calm', emoji: '😌' },
+  { value: 'Excited', labelKey: 'journal.trade_diary.emo_excited', emoji: '🤩' },
+  { value: 'Anxious', labelKey: 'journal.trade_diary.emo_anxious', emoji: '😰' },
+  { value: 'Fearful', labelKey: 'journal.trade_diary.emo_fearful', emoji: '😨' },
+  { value: 'Greedy', labelKey: 'journal.trade_diary.emo_greedy', emoji: '🤑' },
+  { value: 'Frustrated', labelKey: 'journal.trade_diary.emo_frustrated', emoji: '😤' },
+  { value: 'Revenge', labelKey: 'journal.trade_diary.emo_revenge', emoji: '😡' },
+  { value: 'Bored', labelKey: 'journal.trade_diary.emo_bored', emoji: '😐' },
+  { value: 'Neutral', labelKey: 'journal.trade_diary.emo_neutral', emoji: '😊' }
 ];
 
 const CHART_TYPES = [
-  { value: 'Entry', label: 'Khi vào lệnh' },
-  { value: 'During', label: 'Trong lệnh' },
-  { value: 'Exit', label: 'Khi thoát lệnh' },
-  { value: 'Overview', label: 'Tổng quan' }
+  { value: 'Entry', labelKey: 'journal.trade_diary.chart_entry' },
+  { value: 'During', labelKey: 'journal.trade_diary.chart_during' },
+  { value: 'Exit', labelKey: 'journal.trade_diary.chart_exit' },
+  { value: 'Overview', labelKey: 'journal.trade_diary.chart_overview' }
 ];
 
 const TradeDiary = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   // Account & trade selection
@@ -148,11 +150,11 @@ const TradeDiary = () => {
         });
       }
     } catch (err) {
-      setError('Lỗi tải nhật ký');
+      setError(t('journal.trade_diary.error_loading_diary'));
     } finally {
       setLoadingDiary(false);
     }
-  }, [selectedTradeId]);
+  }, [selectedTradeId, t]);
 
   useEffect(() => { loadAccounts(); }, [loadAccounts]);
   useEffect(() => { loadTrades(); }, [loadTrades]);
@@ -180,10 +182,10 @@ const TradeDiary = () => {
     const result = await journalService.createOrGetDiary(selectedTradeId, data);
     if (result.success) {
       setDiary(result.data);
-      setSaveMsg('Nhật ký đã được tạo');
+      setSaveMsg(t('journal.trade_diary.diary_created'));
       setTimeout(() => setSaveMsg(null), 3000);
     } else {
-      setError(result.error?.detail || result.error?.message || 'Lỗi tạo nhật ký');
+      setError(result.error?.detail || result.error?.message || t('journal.trade_diary.error_creating_diary'));
     }
   };
 
@@ -212,7 +214,7 @@ const TradeDiary = () => {
       update.emotional_state_exit = diaryForm.emotional_state_exit || null;
 
     if (Object.keys(update).length === 0) {
-      setSaveMsg('Không có thay đổi');
+      setSaveMsg(t('journal.trade_diary.no_changes'));
       setTimeout(() => setSaveMsg(null), 2000);
       return;
     }
@@ -220,10 +222,10 @@ const TradeDiary = () => {
     const result = await journalService.updateDiary(selectedTradeId, update);
     if (result.success) {
       setDiary(result.data);
-      setSaveMsg('Đã lưu nhật ký');
+      setSaveMsg(t('journal.trade_diary.diary_saved'));
       setTimeout(() => setSaveMsg(null), 3000);
     } else {
-      setError(result.error?.detail || result.error?.message || 'Lỗi lưu nhật ký');
+      setError(result.error?.detail || result.error?.message || t('journal.trade_diary.error_saving_diary'));
     }
   };
 
@@ -246,7 +248,7 @@ const TradeDiary = () => {
       setUploadChartType('');
       loadDiary(); // Refresh to get updated charts
     } else {
-      setError(result.error?.detail || result.error?.message || 'Lỗi upload ảnh');
+      setError(result.error?.detail || result.error?.message || t('journal.trade_diary.error_uploading_chart'));
     }
     setUploading(false);
   };
@@ -274,7 +276,7 @@ const TradeDiary = () => {
   // eslint-disable-next-line no-unused-vars -- emoji labels for future render
   const getEmotionLabel = (value) => {
     const state = EMOTIONAL_STATES.find(s => s.value === value);
-    return state ? `${state.emoji} ${state.label}` : value;
+    return state ? `${state.emoji} ${t(state.labelKey)}` : value;
   };
 
   // =========================================================================
@@ -286,10 +288,10 @@ const TradeDiary = () => {
       <div className="journal-accounts">
         <div className="journal-empty">
           <BookOpen size={48} strokeWidth={1} />
-          <h3>Chưa có tài khoản nhật ký</h3>
-          <p>Vui lòng tạo tài khoản nhật ký giao dịch trước khi viết nhật ký.</p>
+          <h3>{t('journal.common.no_accounts_title')}</h3>
+          <p>{t('journal.trade_diary.create_account_first_hint')}</p>
           <button className="btn-primary" onClick={() => navigate('/journal-accounts')} style={{ marginTop: '12px' }}>
-            <Plus size={16} /> Tạo tài khoản nhật ký
+            <Plus size={16} /> {t('journal.common.create_account_btn')}
           </button>
         </div>
       </div>
@@ -302,7 +304,7 @@ const TradeDiary = () => {
       <div className="journal-header">
         <div className="journal-title">
           <BookOpen size={24} />
-          <h2>Nhật ký giao dịch</h2>
+          <h2>{t('journal.trade_diary.title')}</h2>
         </div>
         <div className="trade-log-actions">
           <select
@@ -331,11 +333,11 @@ const TradeDiary = () => {
       <div className="diary-layout">
         {/* Left: Trade List */}
         <div className="diary-trade-list">
-          <h3 className="diary-section-title">Giao dịch</h3>
+          <h3 className="diary-section-title">{t('journal.trade_diary.trades_section')}</h3>
           {loading ? (
-            <LoadingSpinner text="Đang tải..." />
+            <LoadingSpinner text={t('journal.common.loading')} />
           ) : trades.length === 0 ? (
-            <p className="diary-empty-hint">Chưa có giao dịch nào.</p>
+            <p className="diary-empty-hint">{t('journal.trade_diary.no_trades_hint')}</p>
           ) : (
             <div className="diary-trade-items">
               {trades.map(trade => (
@@ -355,7 +357,7 @@ const TradeDiary = () => {
                     <strong>{trade.market_ticker}</strong>
                     <span className={`status-badge status-${trade.status.toLowerCase()}`}>
                       {trade.status === 'Open' ? <Clock size={10} /> : <CheckCircle size={10} />}
-                      {trade.status === 'Open' ? 'Mở' : trade.status === 'Closed' ? 'Đóng' : 'Hủy'}
+                      {trade.status === 'Open' ? t('journal.trade_log.status_open') : trade.status === 'Closed' ? t('journal.trade_log.status_closed') : t('journal.trade_log.status_cancelled')}
                     </span>
                   </div>
                   <div className="diary-trade-item-date">{trade.entry_date}</div>
@@ -370,10 +372,10 @@ const TradeDiary = () => {
           {!selectedTradeId ? (
             <div className="diary-empty-content">
               <BookOpen size={36} strokeWidth={1} />
-              <p>Chọn một giao dịch để xem/viết nhật ký</p>
+              <p>{t('journal.trade_diary.select_trade_hint')}</p>
             </div>
           ) : loadingDiary ? (
-            <LoadingSpinner text="Đang tải nhật ký..." />
+            <LoadingSpinner text={t('journal.trade_diary.loading_diary')} />
           ) : (
             <>
               {/* Trade Info Bar */}
@@ -384,11 +386,11 @@ const TradeDiary = () => {
                   <span className={`direction-badge direction-${selectedTrade.direction.toLowerCase()}`}>
                     {selectedTrade.direction}
                   </span>
-                  <span>Giá vào: {selectedTrade.entry_price?.toLocaleString()}</span>
-                  {selectedTrade.exit_price && <span>Giá thoát: {selectedTrade.exit_price?.toLocaleString()}</span>}
+                  <span>{t('journal.trade_log.entry_price_label')}: {selectedTrade.entry_price?.toLocaleString()}</span>
+                  {selectedTrade.exit_price && <span>{t('journal.trade_log.exit_price_label')}: {selectedTrade.exit_price?.toLocaleString()}</span>}
                   {selectedTrade.net_pnl != null && (
                     <span className={selectedTrade.net_pnl >= 0 ? 'text-profit' : 'text-loss'}>
-                      P/L: {selectedTrade.net_pnl?.toLocaleString()}
+                      {t('journal.common.pnl_label')} {selectedTrade.net_pnl?.toLocaleString()}
                     </span>
                   )}
                 </div>
@@ -397,10 +399,10 @@ const TradeDiary = () => {
               {/* No Diary Yet */}
               {!diary && (
                 <div className="diary-create-section">
-                  <h3>Chưa có nhật ký cho giao dịch này</h3>
-                  <p>Tạo nhật ký theo phương pháp 3 trụ cột của Schwager.</p>
+                  <h3>{t('journal.trade_diary.no_diary_title')}</h3>
+                  <p>{t('journal.trade_diary.create_diary_hint')}</p>
                   <button className="btn-primary" onClick={handleCreateDiary}>
-                    <Plus size={16} /> Tạo nhật ký
+                    <Plus size={16} /> {t('journal.trade_diary.create_diary_btn')}
                   </button>
                 </div>
               )}
@@ -413,43 +415,43 @@ const TradeDiary = () => {
                     <button className="pillar-header" onClick={() => toggleSection('pillar1')}>
                       <div className="pillar-header-left">
                         <Brain size={18} className="pillar-icon pillar-icon-1" />
-                        <h4>Trụ 1: Lý do vào lệnh</h4>
+                        <h4>{t('journal.trade_diary.pillar_1_title')}</h4>
                       </div>
                       {expandedSection === 'pillar1' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                     </button>
                     {expandedSection === 'pillar1' && (
                       <div className="pillar-body">
                         <div className="form-group">
-                          <label>Lý do vào lệnh</label>
+                          <label>{t('journal.trade_diary.reasons_for_trade_label')}</label>
                           <textarea
                             value={diaryForm.reasons_for_trade}
                             onChange={e => setDiaryForm({ ...diaryForm, reasons_for_trade: e.target.value })}
                             rows={4}
-                            placeholder="Phân tích kỹ thuật, tín hiệu, setup pattern, xúc tác..."
+                            placeholder={t('journal.trade_diary.reasons_placeholder')}
                           />
                         </div>
                         <div className="form-row">
                           <div className="form-group">
-                            <label>Mẫu hình kỹ thuật</label>
+                            <label>{t('journal.trade_diary.chart_pattern_label')}</label>
                             <select
                               value={diaryForm.chart_pattern}
                               onChange={e => setDiaryForm({ ...diaryForm, chart_pattern: e.target.value })}
                             >
-                              <option value="">— Chọn —</option>
+                              <option value="">{t('journal.common.select_option')}</option>
                               {CHART_PATTERNS.map(p => (
-                                <option key={p.value} value={p.value}>{p.label}</option>
+                                <option key={p.value} value={p.value}>{p.labelKey ? t(p.labelKey) : p.label}</option>
                               ))}
                             </select>
                           </div>
                           <div className="form-group">
-                            <label>Tâm lý khi vào lệnh</label>
+                            <label>{t('journal.trade_diary.emotional_state_entry_label')}</label>
                             <select
                               value={diaryForm.emotional_state_entry}
                               onChange={e => setDiaryForm({ ...diaryForm, emotional_state_entry: e.target.value })}
                             >
-                              <option value="">— Chọn —</option>
+                              <option value="">{t('journal.common.select_option')}</option>
                               {EMOTIONAL_STATES.map(s => (
-                                <option key={s.value} value={s.value}>{s.emoji} {s.label}</option>
+                                <option key={s.value} value={s.value}>{s.emoji} {t(s.labelKey)}</option>
                               ))}
                             </select>
                           </div>
@@ -463,7 +465,7 @@ const TradeDiary = () => {
                     <button className="pillar-header" onClick={() => toggleSection('pillar2')}>
                       <div className="pillar-header-left">
                         <Heart size={18} className="pillar-icon pillar-icon-2" />
-                        <h4>Trụ 2: Kết quả giao dịch</h4>
+                        <h4>{t('journal.trade_diary.pillar_2_title')}</h4>
                         {isTradeOpen && <Lock size={14} className="pillar-lock" />}
                       </div>
                       {expandedSection === 'pillar2' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -473,29 +475,29 @@ const TradeDiary = () => {
                         {isTradeOpen && (
                           <div className="pillar-lock-notice">
                             <Lock size={14} />
-                            <span>Theo phương pháp Schwager: phần này chỉ điền sau khi đóng lệnh</span>
+                            <span>{t('journal.trade_diary.pillar_locked_hint')}</span>
                           </div>
                         )}
                         <div className="form-group">
-                          <label>Giao dịch diễn ra như thế nào?</label>
+                          <label>{t('journal.trade_diary.how_it_turned_out_label')}</label>
                           <textarea
                             value={diaryForm.how_it_turned_out}
                             onChange={e => setDiaryForm({ ...diaryForm, how_it_turned_out: e.target.value })}
                             rows={4}
-                            placeholder="Mô tả diễn biến giao dịch..."
+                            placeholder={t('journal.trade_diary.how_it_turned_out_placeholder')}
                             disabled={isTradeOpen}
                           />
                         </div>
                         <div className="form-group">
-                          <label>Tâm lý trong quá trình giao dịch</label>
+                          <label>{t('journal.trade_diary.emotional_state_during_label')}</label>
                           <select
                             value={diaryForm.emotional_state_during}
                             onChange={e => setDiaryForm({ ...diaryForm, emotional_state_during: e.target.value })}
                             disabled={isTradeOpen}
                           >
-                            <option value="">— Chọn —</option>
+                            <option value="">{t('journal.common.select_option')}</option>
                             {EMOTIONAL_STATES.map(s => (
-                              <option key={s.value} value={s.value}>{s.emoji} {s.label}</option>
+                              <option key={s.value} value={s.value}>{s.emoji} {t(s.labelKey)}</option>
                             ))}
                           </select>
                         </div>
@@ -508,7 +510,7 @@ const TradeDiary = () => {
                     <button className="pillar-header" onClick={() => toggleSection('pillar3')}>
                       <div className="pillar-header-left">
                         <AlertTriangle size={18} className="pillar-icon pillar-icon-3" />
-                        <h4>Trụ 3: Bài học & Sai lầm</h4>
+                        <h4>{t('journal.trade_diary.pillar_3_title')}</h4>
                         {isTradeOpen && <Lock size={14} className="pillar-lock" />}
                       </div>
                       {expandedSection === 'pillar3' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -518,29 +520,29 @@ const TradeDiary = () => {
                         {isTradeOpen && (
                           <div className="pillar-lock-notice">
                             <Lock size={14} />
-                            <span>Theo phương pháp Schwager: phần này chỉ điền sau khi đóng lệnh</span>
+                            <span>{t('journal.trade_diary.pillar_locked_hint')}</span>
                           </div>
                         )}
                         <div className="form-group">
-                          <label>Bài học và sai lầm</label>
+                          <label>{t('journal.trade_diary.lessons_and_mistakes_label')}</label>
                           <textarea
                             value={diaryForm.lessons_and_mistakes}
                             onChange={e => setDiaryForm({ ...diaryForm, lessons_and_mistakes: e.target.value })}
                             rows={4}
-                            placeholder="Bạn đã học được gì? Sai lầm nào cần tránh?..."
+                            placeholder={t('journal.trade_diary.lessons_placeholder')}
                             disabled={isTradeOpen}
                           />
                         </div>
                         <div className="form-group">
-                          <label>Tâm lý khi thoát lệnh</label>
+                          <label>{t('journal.trade_diary.emotional_state_exit_label')}</label>
                           <select
                             value={diaryForm.emotional_state_exit}
                             onChange={e => setDiaryForm({ ...diaryForm, emotional_state_exit: e.target.value })}
                             disabled={isTradeOpen}
                           >
-                            <option value="">— Chọn —</option>
+                            <option value="">{t('journal.common.select_option')}</option>
                             {EMOTIONAL_STATES.map(s => (
-                              <option key={s.value} value={s.value}>{s.emoji} {s.label}</option>
+                              <option key={s.value} value={s.value}>{s.emoji} {t(s.labelKey)}</option>
                             ))}
                           </select>
                         </div>
@@ -551,11 +553,11 @@ const TradeDiary = () => {
                   {/* Save Button */}
                   <div className="diary-save-bar">
                     <button className="btn-primary" onClick={handleSaveDiary}>
-                      <Save size={16} /> Lưu nhật ký
+                      <Save size={16} /> {t('journal.trade_diary.save_diary_btn')}
                     </button>
                     {diary.diary_complete && (
                       <span className="diary-complete-badge">
-                        <CheckCircle size={14} /> Nhật ký hoàn chỉnh
+                        <CheckCircle size={14} /> {t('journal.trade_diary.diary_complete_badge')}
                       </span>
                     )}
                   </div>
@@ -565,7 +567,7 @@ const TradeDiary = () => {
                     <div className="pillar-header" style={{ cursor: 'default' }}>
                       <div className="pillar-header-left">
                         <Image size={18} className="pillar-icon pillar-icon-chart" />
-                        <h4>Ảnh chụp biểu đồ</h4>
+                        <h4>{t('journal.trade_diary.charts_section')}</h4>
                       </div>
                     </div>
                     <div className="pillar-body">
@@ -602,7 +604,7 @@ const TradeDiary = () => {
                       <div className="diary-upload-form">
                         <div className="form-row">
                           <div className="form-group flex-2">
-                            <label>Chọn ảnh</label>
+                            <label>{t('journal.trade_diary.select_image_label')}</label>
                             <input
                               type="file"
                               accept="image/*"
@@ -611,26 +613,26 @@ const TradeDiary = () => {
                             />
                           </div>
                           <div className="form-group">
-                            <label>Loại biểu đồ</label>
+                            <label>{t('journal.trade_diary.chart_type_label')}</label>
                             <select
                               value={uploadChartType}
                               onChange={e => setUploadChartType(e.target.value)}
                             >
-                              <option value="">— Chọn —</option>
-                              {CHART_TYPES.map(t => (
-                                <option key={t.value} value={t.value}>{t.label}</option>
+                              <option value="">{t('journal.common.select_option')}</option>
+                              {CHART_TYPES.map(ct => (
+                                <option key={ct.value} value={ct.value}>{t(ct.labelKey)}</option>
                               ))}
                             </select>
                           </div>
                         </div>
                         <div className="form-row">
                           <div className="form-group flex-2">
-                            <label>Chú thích</label>
+                            <label>{t('journal.trade_diary.chart_caption_label')}</label>
                             <input
                               type="text"
                               value={uploadCaption}
                               onChange={e => setUploadCaption(e.target.value)}
-                              placeholder="VD: Breakout vùng kháng cự 50k..."
+                              placeholder={t('journal.trade_diary.chart_caption_placeholder')}
                             />
                           </div>
                           <div className="form-actions-inline">
@@ -639,7 +641,7 @@ const TradeDiary = () => {
                               onClick={handleUploadChart}
                               disabled={!uploadFile || uploading}
                             >
-                              <Upload size={14} /> {uploading ? 'Đang tải...' : 'Tải lên'}
+                              <Upload size={14} /> {uploading ? t('journal.trade_diary.uploading_chart') : t('journal.trade_diary.upload_chart_btn')}
                             </button>
                           </div>
                         </div>
@@ -656,12 +658,12 @@ const TradeDiary = () => {
       {/* Delete Chart Confirmation */}
       {confirmDeleteChart && (
         <ConfirmDialog
-          title="Xóa ảnh biểu đồ"
-          message="Bạn có chắc muốn xóa ảnh biểu đồ này?"
+          title={t('journal.trade_diary.delete_chart_confirm_title')}
+          message={t('journal.trade_diary.delete_chart_confirm_msg')}
           onConfirm={handleDeleteChart}
           onCancel={() => setConfirmDeleteChart(null)}
-          confirmText="Xóa"
-          cancelText="Hủy"
+          confirmText={t('journal.trade_diary.delete_chart_btn')}
+          cancelText={t('journal.trade_diary.cancel_delete_chart_btn')}
           variant="danger"
         />
       )}
