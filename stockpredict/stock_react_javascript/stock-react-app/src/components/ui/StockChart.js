@@ -1,26 +1,28 @@
 
-import React from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { format } from "d3-format";
 import { timeFormat } from "d3-time-format";
 import { getXAxisProps, getYAxisProps, chartColors, chartMargin } from "../../constants/chartTheme";
 import ChartWrapper from "./ChartWrapper";
 
 import {
-  elderRay,
   ema,
   sar,
+  rsi,
+  macd,
   discontinuousTimeScaleProviderBuilder,
   Chart,
   ChartCanvas,
-  CurrentCoordinate,
   BarSeries,
   CandlestickSeries,
   SARSeries,
-  ElderRaySeries,
   LineSeries,
+  RSISeries,
+  MACDSeries,
   MovingAverageTooltip,
   OHLCTooltip,
-  SingleValueTooltip,
+  RSITooltip,
+  MACDTooltip,
   lastVisibleItemBasedZoomAnchor,
   XAxis,
   YAxis,
@@ -31,21 +33,121 @@ import {
   ZoomButtons,
 } from "react-financial-charts";
 
+const MACD_APPEARANCE = {
+  strokeStyle: { macd: "#2196f3", signal: "#ff9800", zero: "#6B7280" },
+  fillStyle:   { divergence: "rgba(33,150,243,0.3)" },
+};
+
+const INDICATOR_OPTIONS = [
+  { key: "ema12",  label: "EMA 12" },
+  { key: "ema26",  label: "EMA 26" },
+  { key: "sar",    label: "Parabolic SAR" },
+  { key: "rsi",    label: "RSI (14)" },
+  { key: "macd",   label: "MACD (12,26,9)" },
+  { key: "volume", label: "Volume" },
+];
+
+// ── Inline styles for the indicator dropdown ─────────────────────────────────
+
+const dropdownStyles = {
+  wrapper: {
+    position: "absolute",
+    top: 8,
+    right: 72,   // outside the right Y-axis margin
+    zIndex: 20,
+  },
+  button: {
+    padding: "4px 10px",
+    fontSize: 12,
+    fontFamily: "Inter, sans-serif",
+    background: "#1F2937",
+    color: "#D1D5DB",
+    border: "1px solid #374151",
+    borderRadius: 4,
+    cursor: "pointer",
+    userSelect: "none",
+  },
+  panel: {
+    position: "absolute",
+    right: 0,
+    top: "calc(100% + 4px)",
+    background: "#1F2937",
+    border: "1px solid #374151",
+    borderRadius: 6,
+    padding: "8px 12px",
+    minWidth: 170,
+    boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+  },
+  row: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "4px 0",
+    cursor: "pointer",
+    color: "#D1D5DB",
+    fontSize: 12,
+    fontFamily: "Inter, sans-serif",
+    userSelect: "none",
+  },
+  checkbox: {
+    accentColor: "#3B82F6",
+    cursor: "pointer",
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function StockChart({ initialData }) {
-  const accelerationFactor = 0.02;
-  const maxAccelerationFactor = 0.2;
+  const containerRef   = useRef(null);
+  const dropdownRef    = useRef(null);
+  const [chartWidth,   setChartWidth]   = useState(900);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [indicators,   setIndicators]   = useState({
+    ema12:  true,
+    ema26:  true,
+    sar:    true,
+    rsi:    true,
+    macd:   true,
+    volume: true,
+  });
+
+  // Responsive width
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = Math.floor(entries[0].contentRect.width);
+      if (w > 0) setChartWidth(w);
+    });
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [dropdownOpen]);
+
+  const toggle = (key) => setIndicators((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  // ── Indicator calculators ───────────────────────────────────────────────────
+
   const ScaleProvider = discontinuousTimeScaleProviderBuilder().inputDateAccessor(
     (d) => new Date(d.time)
   );
 
-  const margin = chartMargin;
+  const margin = { ...chartMargin, right: 64 };
 
-  // Pane heights
   const priceHeight = 400;
-  const volumeHeight = 130;
-  const elderRayHeight = 136;
-  const height = priceHeight + volumeHeight + elderRayHeight + margin.top + margin.bottom;
-  const width = 1400;
+  const macdHeight  = indicators.macd   ? 100 : 0;
+  const volHeight   = indicators.volume ? 80  : 0;
+  const totalHeight = priceHeight + macdHeight + volHeight + margin.top + margin.bottom;
 
   const ema12 = ema()
     .id(1)
@@ -60,128 +162,195 @@ export default function StockChart({ initialData }) {
     .accessor((d) => d.ema26);
 
   const defaultSar = sar()
-    .options({ accelerationFactor, maxAccelerationFactor })
+    .options({ accelerationFactor: 0.02, maxAccelerationFactor: 0.2 })
     .merge((d, c) => { d.sar = c; })
     .accessor((d) => d.sar);
 
-  const elder = elderRay();
+  const rsiCalc = rsi()
+    .options({ windowSize: 14 })
+    .merge((d, c) => { d.rsi = c; })
+    .accessor((d) => d.rsi);
 
-  const calculatedData = defaultSar(elder(ema26(ema12(initialData))));
+  const macdCalc = macd()
+    .options({ fast: 12, slow: 26, signal: 9 })
+    .merge((d, c) => { d.macd = c; })
+    .accessor((d) => d.macd);
+
+  const calculatedData = macdCalc(rsiCalc(defaultSar(ema26(ema12(initialData)))));
   const { data, xScale, xAccessor, displayXAccessor } = ScaleProvider(calculatedData);
 
-  const pricesDisplayFormat = format(".2f");
+  const priceFormat  = format(".2f");
   const volumeFormat = format(".2s");
+  const dateFormat   = timeFormat("%d %b");
+
   const max = xAccessor(data[data.length - 1]);
   const min = xAccessor(data[Math.max(0, data.length - 100)]);
   const xExtents = [min, max + 5];
 
-  const dateTimeFormat = "%d %b";
-  const timeDisplayFormat = timeFormat(dateTimeFormat);
+  const volumeColor    = (d) => d.close > d.open ? chartColors.greenVolume  : chartColors.redVolume;
+  const openCloseColor = (d) => d.close > d.open ? chartColors.greenCandle  : chartColors.redCandle;
 
-  const volumeColor = (d) =>
-    d.close > d.open ? chartColors.greenVolume : chartColors.redVolume;
-
-  const openCloseColor = (d) =>
-    d.close > d.open ? chartColors.greenCandle : chartColors.redCandle;
+  // tooltip entries depend on which EMAs are active
+  const emaTooltipOptions = [
+    indicators.ema26 && { yAccessor: ema26.accessor(), type: "EMA", stroke: ema26.stroke(), windowSize: 26 },
+    indicators.ema12 && { yAccessor: ema12.accessor(), type: "EMA", stroke: ema12.stroke(), windowSize: 12 },
+  ].filter(Boolean);
 
   return (
-    <ChartWrapper yAxisTitle="Price (VND)" xAxisTitle="Date">
-      <ChartCanvas
-        height={height}
-        ratio={3}
-        width={width}
-        margin={margin}
-        data={data}
-        displayXAccessor={displayXAccessor}
-        seriesName="Data"
-        xScale={xScale}
-        xAccessor={xAccessor}
-        xExtents={xExtents}
-        zoomAnchor={lastVisibleItemBasedZoomAnchor}
-      >
-        {/* Pane 1: Price */}
-        <Chart
-          id={1}
-          height={priceHeight}
-          origin={[0, 0]}
-          yExtents={(d) => [d.high, d.low]}
-        >
-          <XAxis {...getXAxisProps({ showTickLabel: false })} />
-          <YAxis tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
-          <CandlestickSeries />
-          <LineSeries yAccessor={ema26.accessor()} strokeStyle={ema26.stroke()} />
-          <CurrentCoordinate yAccessor={ema26.accessor()} fillStyle={ema26.stroke()} />
-          <LineSeries yAccessor={ema12.accessor()} strokeStyle={ema12.stroke()} />
-          <CurrentCoordinate yAccessor={ema12.accessor()} fillStyle={ema12.stroke()} />
-          <MouseCoordinateY rectWidth={margin.right} displayFormat={pricesDisplayFormat} />
-          <EdgeIndicator
-            itemType="last"
-            rectWidth={margin.right}
-            fill={openCloseColor}
-            lineStroke={openCloseColor}
-            displayFormat={pricesDisplayFormat}
-            yAccessor={(d) => d.close}
-          />
-          <SARSeries yAccessor={(d) => d.sar} />
-          <MovingAverageTooltip
-            origin={[8, 24]}
-            options={[
-              {
-                yAccessor: ema26.accessor(),
-                type: "EMA",
-                stroke: ema26.stroke(),
-                windowSize: ema26.options().windowSize,
-              },
-              {
-                yAccessor: ema12.accessor(),
-                type: "EMA",
-                stroke: ema12.stroke(),
-                windowSize: ema12.options().windowSize,
-              },
-            ]}
-          />
-          <ZoomButtons />
-          <OHLCTooltip origin={[8, 16]} />
-        </Chart>
+    <div ref={containerRef} style={{ width: "100%", position: "relative" }}>
 
-        {/* Pane 2: Volume */}
-        <Chart
-          id={2}
-          height={volumeHeight}
-          origin={[0, priceHeight]}
-          yExtents={(d) => d.volume}
+      {/* ── Indicator toggle dropdown ───────────────────────────── */}
+      <div ref={dropdownRef} style={dropdownStyles.wrapper}>
+        <button
+          style={dropdownStyles.button}
+          onClick={() => setDropdownOpen((o) => !o)}
         >
-          <XAxis {...getXAxisProps({ showTickLabel: false })} />
-          <YAxis tickFormat={volumeFormat} {...getYAxisProps()} />
-          <BarSeries fillStyle={volumeColor} yAccessor={(d) => d.volume} />
-          <MouseCoordinateY rectWidth={margin.right} displayFormat={volumeFormat} />
-        </Chart>
+          Indicators {dropdownOpen ? "▲" : "▼"}
+        </button>
+        {dropdownOpen && (
+          <div style={dropdownStyles.panel}>
+            {INDICATOR_OPTIONS.map(({ key, label }) => (
+              <label key={key} style={dropdownStyles.row}>
+                <input
+                  type="checkbox"
+                  style={dropdownStyles.checkbox}
+                  checked={indicators[key]}
+                  onChange={() => toggle(key)}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
 
-        {/* Pane 3: Elder Ray */}
-        <Chart
-          id={3}
-          height={elderRayHeight}
-          origin={[0, priceHeight + volumeHeight]}
-          yExtents={[0, elder.accessor()]}
-          padding={{ top: 8, bottom: 8 }}
+      {/* ── Chart ──────────────────────────────────────────────── */}
+      <ChartWrapper yAxisTitle="Price (VND)" xAxisTitle="Date">
+        <ChartCanvas
+          height={totalHeight}
+          ratio={window.devicePixelRatio || 1}
+          width={chartWidth}
+          margin={margin}
+          data={data}
+          displayXAccessor={displayXAccessor}
+          seriesName="Data"
+          xScale={xScale}
+          xAccessor={xAccessor}
+          xExtents={xExtents}
+          zoomAnchor={lastVisibleItemBasedZoomAnchor}
         >
-          <XAxis {...getXAxisProps()} />
-          <YAxis ticks={4} tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
-          <MouseCoordinateX displayFormat={timeDisplayFormat} />
-          <MouseCoordinateY rectWidth={margin.right} displayFormat={pricesDisplayFormat} />
-          <ElderRaySeries yAccessor={elder.accessor()} />
-          <SingleValueTooltip
-            yAccessor={elder.accessor()}
-            yLabel="Elder Ray"
-            yDisplayFormat={(d) =>
-              `${pricesDisplayFormat(d.bullPower)}, ${pricesDisplayFormat(d.bearPower)}`
-            }
-            origin={[8, 16]}
-          />
-        </Chart>
+          {/* ── Price pane — left Y-axis (VND) ──────────────────── */}
+          <Chart
+            id={1}
+            height={priceHeight}
+            origin={[0, 0]}
+            yExtents={(d) => [d.high, d.low]}
+          >
+            <XAxis {...getXAxisProps({ showTickLabel: false })} />
+            <YAxis tickFormat={priceFormat} {...getYAxisProps()} />
+            <CandlestickSeries />
+            {indicators.ema26 && (
+              <LineSeries yAccessor={ema26.accessor()} strokeStyle={ema26.stroke()} />
+            )}
+            {indicators.ema12 && (
+              <LineSeries yAccessor={ema12.accessor()} strokeStyle={ema12.stroke()} />
+            )}
+            {indicators.sar && (
+              <SARSeries yAccessor={(d) => d.sar} />
+            )}
+            <MouseCoordinateY rectWidth={margin.right} displayFormat={priceFormat} />
+            <EdgeIndicator
+              itemType="last"
+              rectWidth={margin.right}
+              fill={openCloseColor}
+              lineStroke={openCloseColor}
+              displayFormat={priceFormat}
+              yAccessor={(d) => d.close}
+            />
+            {emaTooltipOptions.length > 0 && (
+              <MovingAverageTooltip origin={[8, 24]} options={emaTooltipOptions} />
+            )}
+            <ZoomButtons />
+            <OHLCTooltip origin={[8, 16]} />
+          </Chart>
 
-        <CrossHairCursor />
-      </ChartCanvas>
-    </ChartWrapper>
+          {/* ── RSI overlay — right Y-axis (0–100) ──────────────── */}
+          {indicators.rsi && (
+            <Chart
+              id={2}
+              height={priceHeight}
+              origin={[0, 0]}
+              yExtents={[0, 100]}
+            >
+              <YAxis
+                axisAt="right"
+                orient="right"
+                ticks={4}
+                tickValues={[30, 50, 70]}
+                tickFormat={(v) => v}
+                {...getYAxisProps({ showGridLines: false })}
+              />
+              <RSISeries
+                yAccessor={rsiCalc.accessor()}
+                overSold={30}
+                middle={50}
+                overBought={70}
+              />
+              <RSITooltip
+                origin={[8, 48]}
+                yAccessor={rsiCalc.accessor()}
+                options={rsiCalc.options()}
+                displayFormat={priceFormat}
+              />
+            </Chart>
+          )}
+
+          {/* ── MACD pane ────────────────────────────────────────── */}
+          {indicators.macd && (
+            <Chart
+              id={3}
+              height={macdHeight}
+              origin={[0, priceHeight]}
+              yExtents={macdCalc.accessor()}
+              padding={{ top: 8, bottom: 8 }}
+            >
+              <XAxis {...getXAxisProps({ showTickLabel: false })} />
+              <YAxis ticks={3} tickFormat={priceFormat} {...getYAxisProps()} />
+              <MACDSeries
+                yAccessor={macdCalc.accessor()}
+                strokeStyle={MACD_APPEARANCE.strokeStyle}
+                fillStyle={MACD_APPEARANCE.fillStyle}
+              />
+              <MACDTooltip
+                origin={[8, 16]}
+                yAccessor={macdCalc.accessor()}
+                options={macdCalc.options()}
+                appearance={MACD_APPEARANCE}
+                displayFormat={priceFormat}
+              />
+              <MouseCoordinateY rectWidth={margin.right} displayFormat={priceFormat} />
+            </Chart>
+          )}
+
+          {/* ── Volume pane (bottom) ─────────────────────────────── */}
+          {indicators.volume && (
+            <Chart
+              id={4}
+              height={volHeight}
+              origin={[0, priceHeight + macdHeight]}
+              yExtents={(d) => d.volume}
+            >
+              <XAxis {...getXAxisProps()} />
+              <YAxis ticks={2} tickFormat={volumeFormat} {...getYAxisProps()} />
+              <BarSeries fillStyle={volumeColor} yAccessor={(d) => d.volume} />
+              <MouseCoordinateX displayFormat={dateFormat} />
+              <MouseCoordinateY rectWidth={margin.right} displayFormat={volumeFormat} />
+            </Chart>
+          )}
+
+          <CrossHairCursor />
+        </ChartCanvas>
+      </ChartWrapper>
+    </div>
   );
 }
