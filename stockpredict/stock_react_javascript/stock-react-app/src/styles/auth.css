@@ -127,16 +127,15 @@
 .form-input {
   width: 100%;
   padding: 11px 14px;
-  border: 1px solid var(--line);
+  border: 1px solid #d0cdc4;
   border-radius: 8px;
   font-family: var(--font-sans);
   font-size: 14px;
-  color: var(--ink);
-  background-color: var(--panel);
+  color: #1a1812;
+  background-color: #ffffff;
   transition:
     border-color 0.15s ease-in-out,
-    box-shadow 0.15s ease-in-out,
-    background-color 0.15s ease-in-out;
+    box-shadow 0.15s ease-in-out;
 }
 
 .form-input.has-icon { padding-left: 38px; }
@@ -144,9 +143,9 @@
 
 .form-input:focus {
   outline: none;
-  border-color: var(--ink);
-  box-shadow: 0 0 0 3px rgba(26, 24, 16, 0.06);
-  background-color: var(--paper);
+  border-color: #1a1812;
+  box-shadow: 0 0 0 3px rgba(26, 24, 16, 0.08);
+  background-color: #ffffff;
 }
 
 .form-input:invalid:not(:placeholder-shown) {
