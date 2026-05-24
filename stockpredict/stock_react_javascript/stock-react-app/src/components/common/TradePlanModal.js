@@ -6,6 +6,7 @@
 //  F-092  Inline success confirmation (trade-log + diary navigation links)
 //  F-093  Removed alert() from onSaved callsite in DecisionConsole
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, AlertTriangle, CheckCircle, Target, Shield, BookOpen, List } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import journalService from '../../services/journalService';
@@ -43,30 +44,30 @@ const buildReasonsText = (rec) => {
 
 // ── Success view shown after saving ──────────────────────────────────────────
 
-const SuccessView = ({ tradeId, onNavigate, onClose }) => (
+const SuccessView = ({ tradeId, onNavigate, onClose, t }) => (
   <div style={styles.successBox}>
     <CheckCircle size={36} color="#10b981" style={{ marginBottom: 12 }} />
     <div style={{ fontSize: 16, fontWeight: 700, color: '#f9fafb', marginBottom: 4 }}>
-      Trade plan saved
+      {t('trade_plan.saved_title')}
     </div>
     <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 20 }}>
-      Trade #{tradeId} created with pre-filled diary entry.
+      {t('trade_plan.saved_subtitle', { id: tradeId })}
     </div>
     <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
       <button
         onClick={() => onNavigate('/trade-log')}
         style={{ ...styles.navBtn, background: '#374151' }}
       >
-        <List size={14} /> Trade Log
+        <List size={14} /> {t('trade_plan.trade_log_btn')}
       </button>
       <button
         onClick={() => onNavigate('/trade-diary')}
         style={{ ...styles.navBtn, background: '#3b82f6' }}
       >
-        <BookOpen size={14} /> Open Diary
+        <BookOpen size={14} /> {t('trade_plan.open_diary_btn')}
       </button>
       <button onClick={onClose} style={{ ...styles.navBtn, background: 'transparent', border: '1px solid #374151', color: '#6b7280' }}>
-        Close
+        {t('trade_plan.close_btn')}
       </button>
     </div>
   </div>
@@ -75,6 +76,7 @@ const SuccessView = ({ tradeId, onNavigate, onClose }) => (
 // ── Main modal ────────────────────────────────────────────────────────────────
 
 const TradePlanModal = ({ isOpen, onClose, recommendation, onSaved }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [form, setForm] = useState({
     entry_price: '',
@@ -198,6 +200,7 @@ const TradePlanModal = ({ isOpen, onClose, recommendation, onSaved }) => {
             tradeId={saved.tradeId}
             onNavigate={handleNavigate}
             onClose={onClose}
+            t={t}
           />
         ) : (
           <>
@@ -207,10 +210,10 @@ const TradePlanModal = ({ isOpen, onClose, recommendation, onSaved }) => {
                 <AlertTriangle size={16} style={{ flexShrink: 0 }} />
                 <span>
                   {stopMissing && targetMissing
-                    ? 'Stop-loss and target are required before saving this plan (Ch 17).'
+                    ? t('trade_plan.gate_both')
                     : stopMissing
-                      ? 'Stop-loss is required — you must know your exit before entering.'
-                      : 'Profit target is required — define your objective before entering.'}
+                      ? t('trade_plan.gate_stop')
+                      : t('trade_plan.gate_target')}
                 </span>
               </div>
             )}
@@ -219,14 +222,14 @@ const TradePlanModal = ({ isOpen, onClose, recommendation, onSaved }) => {
             <div style={styles.body}>
               {/* Account selector */}
               <div style={styles.field}>
-                <label style={styles.label}>Journal Account</label>
+                <label style={styles.label}>{t('trade_plan.account_label')}</label>
                 <select
                   value={selectedAccount}
                   onChange={e => setSelectedAccount(e.target.value)}
                   style={styles.input}
                 >
                   {accounts.length === 0
-                    ? <option value="">No accounts found</option>
+                    ? <option value="">{t('trade_plan.no_accounts')}</option>
                     : accounts.map(a => (
                         <option key={a.id} value={String(a.id)}>
                           {a.account_name || `Account ${a.id}`}
@@ -238,7 +241,7 @@ const TradePlanModal = ({ isOpen, onClose, recommendation, onSaved }) => {
               {/* Price fields */}
               <div style={styles.row}>
                 <div style={styles.field}>
-                  <label style={styles.label}>Entry Price</label>
+                  <label style={styles.label}>{t('trade_plan.entry_price')}</label>
                   <input
                     type="number" step="0.01" value={form.entry_price}
                     onChange={handleChange('entry_price')} style={styles.input}
@@ -246,7 +249,7 @@ const TradePlanModal = ({ isOpen, onClose, recommendation, onSaved }) => {
                 </div>
                 <div style={styles.field}>
                   <label style={{ ...styles.label, color: stopMissing ? '#ef4444' : '#d1d5db' }}>
-                    <Shield size={13} style={{ marginRight: 4 }} /> Stop-Loss *
+                    <Shield size={13} style={{ marginRight: 4 }} /> {t('trade_plan.stop_loss')}
                   </label>
                   <input
                     type="number" step="0.01" value={form.stop_price}
@@ -256,7 +259,7 @@ const TradePlanModal = ({ isOpen, onClose, recommendation, onSaved }) => {
                 </div>
                 <div style={styles.field}>
                   <label style={{ ...styles.label, color: targetMissing ? '#ef4444' : '#d1d5db' }}>
-                    <Target size={13} style={{ marginRight: 4 }} /> Target *
+                    <Target size={13} style={{ marginRight: 4 }} /> {t('trade_plan.target')}
                   </label>
                   <input
                     type="number" step="0.01" value={form.target_price}
@@ -265,7 +268,7 @@ const TradePlanModal = ({ isOpen, onClose, recommendation, onSaved }) => {
                   />
                 </div>
                 <div style={styles.field}>
-                  <label style={styles.label}>Shares</label>
+                  <label style={styles.label}>{t('trade_plan.shares')}</label>
                   <input
                     type="number" value={form.shares}
                     onChange={handleChange('shares')} style={styles.input}
@@ -279,14 +282,14 @@ const TradePlanModal = ({ isOpen, onClose, recommendation, onSaved }) => {
                   <CheckCircle size={14} color={riskReward >= 1.5 ? '#10b981' : '#f59e0b'} />
                   <span style={{ color: riskReward >= 1.5 ? '#10b981' : '#f59e0b', fontSize: 13 }}>
                     R:R = {riskReward.toFixed(2)}:1
-                    {riskReward < 1 && '  — below 1:1, reconsider'}
+                    {riskReward < 1 && `  ${t('trade_plan.rr_warn')}`}
                   </span>
                 </div>
               )}
 
               {/* Notes */}
               <div style={styles.field}>
-                <label style={styles.label}>Notes / Setup reason</label>
+                <label style={styles.label}>{t('trade_plan.notes_label')}</label>
                 <textarea
                   value={form.notes}
                   onChange={handleChange('notes')}
@@ -300,7 +303,7 @@ const TradePlanModal = ({ isOpen, onClose, recommendation, onSaved }) => {
               <div style={styles.diaryPreview}>
                 <BookOpen size={12} color="#a78bfa" style={{ flexShrink: 0, marginTop: 1 }} />
                 <span style={{ color: '#9ca3af', fontSize: 11 }}>
-                  A diary entry will be auto-created with signal context and reason chain.
+                  {t('trade_plan.diary_hint')}
                 </span>
               </div>
             </div>
@@ -308,7 +311,7 @@ const TradePlanModal = ({ isOpen, onClose, recommendation, onSaved }) => {
             {/* Footer */}
             {error && <div style={styles.errorMsg}>{error}</div>}
             <div style={styles.footer}>
-              <button onClick={onClose} style={styles.cancelBtn}>Cancel</button>
+              <button onClick={onClose} style={styles.cancelBtn}>{t('trade_plan.cancel_btn')}</button>
               <button
                 onClick={handleSave}
                 disabled={!canSave || saving || !isEntry}
@@ -318,7 +321,7 @@ const TradePlanModal = ({ isOpen, onClose, recommendation, onSaved }) => {
                   cursor: (!canSave || saving || !isEntry) ? 'not-allowed' : 'pointer',
                 }}
               >
-                {saving ? 'Saving…' : 'Save Trade Plan'}
+                {saving ? t('trade_plan.saving_btn') : t('trade_plan.save_btn')}
               </button>
             </div>
           </>

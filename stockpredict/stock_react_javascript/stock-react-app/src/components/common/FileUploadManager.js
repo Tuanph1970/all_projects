@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from 'react-i18next';
 import { Button, ButtonGroup } from "react-bootstrap";
 import fileService from "../../services/fileService";
 import { useErrorHandler } from "../../hooks";
@@ -6,6 +7,7 @@ import { DataTable, ErrorMessage, ConfirmDialog } from "../ui";
 import FileUploader from "../WebControl/FileUploader";
 
 const FileUploadManager = () => {
+  const { t } = useTranslation();
   const [fileListData, setFileListData] = useState([]);
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, fileId: null, fileName: '' });
   const [processingFile, setProcessingFile] = useState(null);
@@ -71,10 +73,10 @@ const FileUploadManager = () => {
 
   const getFileStatusText = (status) => {
     switch (status) {
-      case 0: return 'Pending';
-      case 1: return 'Processed';
-      case 2: return 'Error';
-      default: return 'Unknown';
+      case 0: return t('file_manager.status_pending');
+      case 1: return t('file_manager.status_processed');
+      case 2: return t('file_manager.status_error');
+      default: return t('file_manager.status_unknown');
     }
   };
 
@@ -89,7 +91,7 @@ const FileUploadManager = () => {
 
   const columns = [
     {
-      header: 'File Name',
+      header: t('file_manager.col_file_name'),
       key: 'file_name',
       render: (row) => (
         <div>
@@ -100,7 +102,7 @@ const FileUploadManager = () => {
       )
     },
     {
-      header: 'Status',
+      header: t('file_manager.col_status'),
       key: 'file_status',
       render: (row) => (
         <span className={`badge bg-${getFileStatusBadge(row.file_status)}`}>
@@ -109,7 +111,7 @@ const FileUploadManager = () => {
       )
     },
     {
-      header: 'Owner ID',
+      header: t('file_manager.col_owner'),
       key: 'owner_id'
     }
   ];
@@ -126,10 +128,10 @@ const FileUploadManager = () => {
           {processingFile === row.id ? (
             <>
               <span className="spinner-border spinner-border-sm me-1" />
-              Processing...
+              {t('file_manager.processing_btn')}
             </>
           ) : (
-            'Process'
+            t('file_manager.process_btn')
           )}
         </Button>
       )}
@@ -138,7 +140,7 @@ const FileUploadManager = () => {
         size="sm"
         onClick={() => showDeleteConfirm(row.id, row.file_name)}
       >
-        Delete
+        {t('file_manager.delete_btn')}
       </Button>
     </ButtonGroup>
   );
@@ -151,7 +153,7 @@ const FileUploadManager = () => {
   return (
     <div className="file-upload-manager">
       <div className="d-flex justify-content-between align-items-center mb-3">
-        <h5>File Management</h5>
+        <h5>{t('file_manager.title')}</h5>
         <FileUploader uploadHandler={handleUploadComplete} />
       </div>
 
@@ -171,17 +173,17 @@ const FileUploadManager = () => {
         loading={isLoading}
         error={null}
         onRetry={getFileUploadList}
-        emptyMessage="No files uploaded yet"
+        emptyMessage={t('file_manager.empty_msg')}
         actions={renderActions}
         className="mb-3"
       />
 
       <ConfirmDialog
         show={deleteConfirm.show}
-        title="Delete File"
-        message={`Are you sure you want to delete "${deleteConfirm.fileName}"? This action cannot be undone.`}
-        confirmText="Delete"
-        cancelText="Cancel"
+        title={t('file_manager.delete_title')}
+        message={t('file_manager.delete_confirm', { name: deleteConfirm.fileName })}
+        confirmText={t('file_manager.confirm_btn')}
+        cancelText={t('file_manager.cancel_btn')}
         variant="danger"
         onConfirm={() => handleDeleteFile(deleteConfirm.fileId)}
         onCancel={hideDeleteConfirm}

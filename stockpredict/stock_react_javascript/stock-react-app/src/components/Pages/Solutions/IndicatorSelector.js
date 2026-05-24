@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import indicatorService from '../../../services/indicatorService';
 import './IndicatorSelector.css';
 
 const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfig }) => {
+  const { t } = useTranslation();
   // modelCovariateConfig: { hasPastCovariate: boolean, hasFutureCovariate: boolean }
   // Determines which covariate options to show in dropdowns
 
@@ -223,7 +225,7 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
       }
 
       setError(null);
-      alert('Indicators saved successfully!');
+      alert(t('indicator_selector.save_success'));
     } catch (err) {
       setError('Failed to save indicators: ' + err.message);
     } finally {
@@ -259,20 +261,20 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
 
     if (hasPast && hasFuture) {
       // Model supports both - show all 3 options
-      options.push({ value: 'past', label: 'Past (Historical)', icon: '📊', help: 'Technical indicators use historical data' });
-      options.push({ value: 'future', label: 'Future (Scheduled Events)', icon: '📅', help: 'For known future events (earnings, calendar)' });
-      options.push({ value: 'both', label: 'Both (Dual)', icon: '🔄', help: 'Available in both historical and future' });
+      options.push({ value: 'past', label: t('indicator_selector.past_label'), icon: '📊', help: t('indicator_selector.past_help') });
+      options.push({ value: 'future', label: t('indicator_selector.future_label'), icon: '📅', help: t('indicator_selector.future_help') });
+      options.push({ value: 'both', label: t('indicator_selector.both_label'), icon: '🔄', help: t('indicator_selector.both_help') });
     } else if (hasPast) {
       // Only past covariate supported
-      options.push({ value: 'past', label: 'Past (Historical)', icon: '📊', help: 'Technical indicators use historical data' });
+      options.push({ value: 'past', label: t('indicator_selector.past_label'), icon: '📊', help: t('indicator_selector.past_help') });
     } else if (hasFuture) {
       // Only future covariate supported
-      options.push({ value: 'future', label: 'Future (Scheduled Events)', icon: '📅', help: 'For known future events (earnings, calendar)' });
+      options.push({ value: 'future', label: t('indicator_selector.future_label'), icon: '📅', help: t('indicator_selector.future_help') });
     } else {
       // No covariate config or model not selected - show both options with warning
       console.warn('No valid covariate config - model may not be selected');
-      options.push({ value: 'past', label: 'Past (Historical)', icon: '📊', help: 'Technical indicators use historical data' });
-      options.push({ value: 'future', label: 'Future (Scheduled Events)', icon: '📅', help: 'For known future events (earnings, calendar)' });
+      options.push({ value: 'past', label: t('indicator_selector.past_label'), icon: '📊', help: t('indicator_selector.past_help') });
+      options.push({ value: 'future', label: t('indicator_selector.future_label'), icon: '📅', help: t('indicator_selector.future_help') });
     }
 
     return options;
@@ -328,14 +330,14 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
   };
 
   if (loading) {
-    return <div className="indicator-selector-loading">Loading indicators...</div>;
+    return <div className="indicator-selector-loading">{t('indicator_selector.loading')}</div>;
   }
 
   return (
     <div className="indicator-selector">
-      <h3 className="selector-title">Select Technical Indicators</h3>
+      <h3 className="selector-title">{t('indicator_selector.title')}</h3>
       <p className="selector-subtitle">
-        Choose one indicator from each category to use as features for prediction
+        {t('indicator_selector.subtitle')}
       </p>
 
       {error && <div className="selector-error">{error}</div>}
@@ -348,8 +350,8 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
             <div key={type} className="indicator-category">
               <div className="category-header">
                 <span className="category-icon">{getCategoryIcon(type)}</span>
-                <h4>{type.charAt(0).toUpperCase() + type.slice(1)} Indicator</h4>
-                {selectedIndicators[type] && <span className="required-badge">✓ Selected</span>}
+                <h4>{type.charAt(0).toUpperCase() + type.slice(1)} {t('indicator_selector.indicator_label')}</h4>
+                {selectedIndicators[type] && <span className="required-badge">{t('indicator_selector.selected_badge')}</span>}
               </div>
 
               <select
@@ -357,7 +359,7 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
                 value={selectedIndicators[type] || ''}
                 onChange={(e) => handleIndicatorSelect(type, e.target.value)}
               >
-                <option value="">-- Select {type} indicator --</option>
+                <option value="">{t('indicator_selector.select_placeholder', { type })}</option>
                 {indicators[type]?.map((indicator) => (
                   <option key={indicator.id} value={indicator.id}>
                     {indicator.name} - {indicator.description}
@@ -367,7 +369,7 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
 
               {selectedIndicators[type] && (
                 <div className="covariate-type-selector">
-                  <label>Covariate Type:</label>
+                  <label>{t('indicator_selector.covariate_type')}</label>
                   {(() => {
                     const availableOptions = getAvailableCovariateOptions();
                     const currentOption = availableOptions.find(opt => opt.value === covariateTypes[type]) || availableOptions[0];
@@ -392,7 +394,7 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
                         </span>
                         {availableOptions.length === 1 && (
                           <span className="covariate-model-info">
-                            ℹ️ Model only supports {availableOptions[0]?.label.toLowerCase()}
+                            {t('indicator_selector.model_supports_only', { label: availableOptions[0]?.label.toLowerCase() })}
                           </span>
                         )}
                       </>
@@ -403,7 +405,7 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
 
               {selectedInd && selectedInd.default_parameters && Object.keys(selectedInd.default_parameters).length > 0 && (
                 <div className="parameter-inputs">
-                  <h5>Parameters:</h5>
+                  <h5>{t('indicator_selector.parameters_title')}</h5>
                   {Object.entries(selectedInd.default_parameters).map(([paramName, defaultValue]) => (
                     <div key={paramName} className="parameter-input">
                       <label>{paramName}:</label>
@@ -429,12 +431,12 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
           disabled={saving || !selectedIndicators.trend || !selectedIndicators.momentum ||
                     !selectedIndicators.volatility || !selectedIndicators.volume}
         >
-          {saving ? 'Saving...' : solutionId ? 'Save Indicators' : 'Set Indicators'}
+          {saving ? t('indicator_selector.saving_btn') : solutionId ? t('indicator_selector.save_btn') : t('indicator_selector.set_btn')}
         </button>
         {(!selectedIndicators.trend || !selectedIndicators.momentum ||
           !selectedIndicators.volatility || !selectedIndicators.volume) && (
           <p className="validation-message">
-            ⚠️ Please select one indicator from each category
+            {t('indicator_selector.validation_msg')}
           </p>
         )}
       </div>
