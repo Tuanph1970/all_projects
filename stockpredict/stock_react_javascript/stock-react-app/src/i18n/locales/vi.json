@@ -1389,6 +1389,27 @@
       "detail_low": "Thấp nhất",
       "detail_volume": "Khối lượng",
       "detail_technical": "Chỉ báo kỹ thuật"
+    },
+    "table": {
+      "col_ticker": "Mã CK",
+      "col_exchange": "Sàn",
+      "col_company": "Tên CT",
+      "col_market_cap": "Vốn TT",
+      "col_price": "Giá CP",
+      "col_change_pct": "Thay đổi (%)",
+      "col_industry": "Ngành",
+      "col_volume": "KL Giao dịch",
+      "col_pe_ratio": "P/E Ratio",
+      "col_rating": "Rating",
+      "col_analysis_count": "Số phân tích",
+      "col_target_price": "Giá đích",
+      "col_spread": "Chênh lệch",
+      "col_div_yield": "Cổ tức (%)",
+      "col_change_1w": "Thay đổi (%) 1T",
+      "col_change_1m": "Thay đổi (%) 1M",
+      "col_change_1y": "Thay đổi (%) 1N",
+      "ticker_search": "Tìm mã CK…",
+      "industry_title": "Ngành chứng khoán"
     }
   },
   "login": {

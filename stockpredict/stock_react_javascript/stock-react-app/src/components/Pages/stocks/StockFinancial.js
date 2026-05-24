@@ -2,7 +2,9 @@ import React from "react";
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import DataTable from 'react-data-table-component'
+import { useTranslation } from 'react-i18next';
 export const StockFinancial = ({data}) => {
+  const { t } = useTranslation();
   const [tableRowsData, setTableRowsData] = useState(data);
   const onChange = async (e) => {
     var searchData = data.filter((item) =>
@@ -17,73 +19,74 @@ export const StockFinancial = ({data}) => {
     {
       name: (
         <div>
-          Mã CK
+          {t('stocks.table.col_ticker')}
           <input
             type="text"
             onChange={onChange}
+            placeholder={t('stocks.table.ticker_search')}
             style={{ width: "50%", marginLeft: "10px" }}
           />
           </div>
-        ),  
-        selector: row => row.ticker, 
+        ),
+        selector: row => row.ticker,
         sortable:true,
         cell: row => (
           <Link to={{
             pathname: `../company/${row.ticker}`,
-          }}>{row.ticker}</Link>           
+          }}>{row.ticker}</Link>
         ),
     },
     {
-      name:'Sàn', 
-      selector:row => row.exchange, 
+      name: t('stocks.table.col_exchange'),
+      selector:row => row.exchange,
       sortable:true
   },
     {
-        name:'Tên CT', 
-        selector:row => row.short_name, 
+        name: t('stocks.table.col_company'),
+        selector:row => row.short_name,
         sortable:true
     },
     {
-      name:'Vốn TT', 
-      selector:row => row.MarketCap, 
+      name: t('stocks.table.col_market_cap'),
+      selector:row => row.MarketCap,
       sortable:true
     },
     {
-      name:'Giá CP', 
-      selector:row => row.close * 1000, 
+      name: t('stocks.table.col_price'),
+      selector:row => row.close * 1000,
       sortable:true
     },
     {
-        name:'Thay đổi(%)', 
-        selector:row => (row.close - row.open)/row.open*100, 
+        name: t('stocks.table.col_change_pct'),
+        selector:row => (row.close - row.open)/row.open*100,
         sortable:true
     },
     {
-      name:'Ngành', 
-      selector:row => row.industry, 
+      name: t('stocks.table.col_industry'),
+      selector:row => row.industry,
       sortable:true
-    },  
+    },
     {
-        name:'KL Giao dịch', 
-        selector:row => row.volume, 
+        name: t('stocks.table.col_volume'),
+        selector:row => row.volume,
         sortable:true
     },
     {
-      name:'P/E Ratio(%)', 
-      selector:row => row.PE, 
+      name: t('stocks.table.col_pe_ratio'),
+      selector:row => row.PE,
       sortable:true
     },
-    
+
   ]
   useEffect(() => {}, [tableRowsData]);
-  return (    
-    <table>        
+  return (
+    <table>
         <tr>
             <td>
         <DataTable
         columns = {general_columns}
         data = {tableRowsData}
-        defaultSortField="ticker"        
+        defaultSortField="ticker"
         pagination
         hightlightOnHover
         responsive
@@ -96,4 +99,3 @@ export const StockFinancial = ({data}) => {
     </table>
   );
 }
-

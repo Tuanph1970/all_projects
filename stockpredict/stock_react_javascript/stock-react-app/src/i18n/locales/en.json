@@ -1389,6 +1389,27 @@
       "detail_low": "Low",
       "detail_volume": "Volume",
       "detail_technical": "Technical indicators"
+    },
+    "table": {
+      "col_ticker": "Ticker",
+      "col_exchange": "Exchange",
+      "col_company": "Company",
+      "col_market_cap": "Market Cap",
+      "col_price": "Price",
+      "col_change_pct": "Change (%)",
+      "col_industry": "Industry",
+      "col_volume": "Volume",
+      "col_pe_ratio": "P/E Ratio",
+      "col_rating": "Rating",
+      "col_analysis_count": "Analysis Count",
+      "col_target_price": "Target Price",
+      "col_spread": "Spread",
+      "col_div_yield": "Div. Yield (%)",
+      "col_change_1w": "Change (%) 1W",
+      "col_change_1m": "Change (%) 1M",
+      "col_change_1y": "Change (%) 1Y",
+      "ticker_search": "Search ticker…",
+      "industry_title": "Stock Industry"
     }
   },
   "login": {
