@@ -71,86 +71,209 @@
     "watchlist": "Watchlist"
   },
   "page_titles": {
-    "dashboard":          { "title": "Dashboard",            "emphasis": "board" },
-    "priceboard":         { "title": "Price board",          "emphasis": "board" },
-    "stockscreener":      { "title": "Stock screener",       "emphasis": "screener" },
-    "byindustry":         { "title": "By industry",          "emphasis": "industry" },
-    "stocklist":          { "title": "Stock list",           "emphasis": "list" },
-    "topgainer":          { "title": "Top gainers",          "emphasis": "gainers" },
-    "toploser":           { "title": "Top losers",           "emphasis": "losers" },
-    "topactive":          { "title": "Most active",          "emphasis": "active" },
-    "timeseries":         { "title": "Time series",          "emphasis": "series" },
-    "models":             { "title": "Models",               "emphasis": "" },
-    "solutions":          { "title": "Solutions",            "emphasis": "" },
-    "indicators":         { "title": "Indicators",           "emphasis": "" },
-    "backtest":           { "title": "Backtest",             "emphasis": "" },
-    "simulation":         { "title": "Trading simulation",   "emphasis": "simulation" },
-    "chatbot":            { "title": "AI assistant",         "emphasis": "assistant" },
-    "knowledge-qa":       { "title": "Knowledge QA",         "emphasis": "QA" },
-    "technical":          { "title": "Technical analysis",   "emphasis": "analysis" },
-    "fundamental":        { "title": "Fundamental analysis", "emphasis": "analysis" },
-    "ai-insights":        { "title": "AI analysis",          "emphasis": "AI" },
-    "holdings":           { "title": "Holdings",             "emphasis": "" },
-    "performance":        { "title": "Performance",          "emphasis": "" },
-    "alerts":             { "title": "Price alerts",         "emphasis": "alerts" },
-    "journal-dashboard":  { "title": "Journal overview",     "emphasis": "overview" },
-    "journal-accounts":   { "title": "Accounts",             "emphasis": "" },
-    "trade-log":          { "title": "Trade log",            "emphasis": "log" },
-    "trade-diary":        { "title": "Trade diary",          "emphasis": "diary" },
-    "daily-planning":     { "title": "Daily planning",       "emphasis": "planning" },
-    "weekly-review":      { "title": "Weekly review",        "emphasis": "review" },
-    "decision-console":   { "title": "Decision Console",     "emphasis": "Console" },
-    "decision-board":     { "title": "Watchlist Board",      "emphasis": "Board" },
-    "backtest-studio":    { "title": "Backtest Studio",      "emphasis": "Studio" },
-    "discipline":         { "title": "Discipline",           "emphasis": "" },
-    "scheduled-runs":     { "title": "Scheduled Runs",       "emphasis": "Runs" },
-    "scanner":            { "title": "Scanner",              "emphasis": "" },
-    "analytics":          { "title": "Analytics",            "emphasis": "" },
-    "positions-open":     { "title": "Open Positions",       "emphasis": "Positions" },
-    "outcomes":           { "title": "Trade Outcomes",       "emphasis": "Outcomes" },
-    "risk-dashboard":     { "title": "Risk Dashboard",       "emphasis": "Dashboard" },
-    "watchlist-heatmap":  { "title": "Watchlist Heat Map",   "emphasis": "Heat Map" },
-    "calculator":         { "title": "Investment calculator","emphasis": "calculator" },
-    "watchlist":          { "title": "Watchlist",            "emphasis": "" },
-    "company":            { "title": "Stock details",        "emphasis": "details" }
+    "dashboard": {
+      "title": "Dashboard",
+      "emphasis": "board"
+    },
+    "priceboard": {
+      "title": "Price board",
+      "emphasis": "board"
+    },
+    "stockscreener": {
+      "title": "Stock screener",
+      "emphasis": "screener"
+    },
+    "byindustry": {
+      "title": "By industry",
+      "emphasis": "industry"
+    },
+    "stocklist": {
+      "title": "Stock list",
+      "emphasis": "list"
+    },
+    "topgainer": {
+      "title": "Top gainers",
+      "emphasis": "gainers"
+    },
+    "toploser": {
+      "title": "Top losers",
+      "emphasis": "losers"
+    },
+    "topactive": {
+      "title": "Most active",
+      "emphasis": "active"
+    },
+    "timeseries": {
+      "title": "Time series",
+      "emphasis": "series"
+    },
+    "models": {
+      "title": "Models",
+      "emphasis": ""
+    },
+    "solutions": {
+      "title": "Solutions",
+      "emphasis": ""
+    },
+    "indicators": {
+      "title": "Indicators",
+      "emphasis": ""
+    },
+    "backtest": {
+      "title": "Backtest",
+      "emphasis": ""
+    },
+    "simulation": {
+      "title": "Trading simulation",
+      "emphasis": "simulation"
+    },
+    "chatbot": {
+      "title": "AI assistant",
+      "emphasis": "assistant"
+    },
+    "knowledge-qa": {
+      "title": "Knowledge QA",
+      "emphasis": "QA"
+    },
+    "technical": {
+      "title": "Technical analysis",
+      "emphasis": "analysis"
+    },
+    "fundamental": {
+      "title": "Fundamental analysis",
+      "emphasis": "analysis"
+    },
+    "ai-insights": {
+      "title": "AI analysis",
+      "emphasis": "AI"
+    },
+    "holdings": {
+      "title": "Holdings",
+      "emphasis": ""
+    },
+    "performance": {
+      "title": "Performance",
+      "emphasis": ""
+    },
+    "alerts": {
+      "title": "Price alerts",
+      "emphasis": "alerts"
+    },
+    "journal-dashboard": {
+      "title": "Journal overview",
+      "emphasis": "overview"
+    },
+    "journal-accounts": {
+      "title": "Accounts",
+      "emphasis": ""
+    },
+    "trade-log": {
+      "title": "Trade log",
+      "emphasis": "log"
+    },
+    "trade-diary": {
+      "title": "Trade diary",
+      "emphasis": "diary"
+    },
+    "daily-planning": {
+      "title": "Daily planning",
+      "emphasis": "planning"
+    },
+    "weekly-review": {
+      "title": "Weekly review",
+      "emphasis": "review"
+    },
+    "decision-console": {
+      "title": "Decision Console",
+      "emphasis": "Console"
+    },
+    "decision-board": {
+      "title": "Watchlist Board",
+      "emphasis": "Board"
+    },
+    "backtest-studio": {
+      "title": "Backtest Studio",
+      "emphasis": "Studio"
+    },
+    "discipline": {
+      "title": "Discipline",
+      "emphasis": ""
+    },
+    "scheduled-runs": {
+      "title": "Scheduled Runs",
+      "emphasis": "Runs"
+    },
+    "scanner": {
+      "title": "Scanner",
+      "emphasis": ""
+    },
+    "analytics": {
+      "title": "Analytics",
+      "emphasis": ""
+    },
+    "positions-open": {
+      "title": "Open Positions",
+      "emphasis": "Positions"
+    },
+    "outcomes": {
+      "title": "Trade Outcomes",
+      "emphasis": "Outcomes"
+    },
+    "risk-dashboard": {
+      "title": "Risk Dashboard",
+      "emphasis": "Dashboard"
+    },
+    "watchlist-heatmap": {
+      "title": "Watchlist Heat Map",
+      "emphasis": "Heat Map"
+    },
+    "calculator": {
+      "title": "Investment calculator",
+      "emphasis": "calculator"
+    },
+    "watchlist": {
+      "title": "Watchlist",
+      "emphasis": ""
+    },
+    "company": {
+      "title": "Stock details",
+      "emphasis": "details"
+    }
   },
   "dashboard": {
-    "stat_total_value":       "Total value",
-    "stat_pnl":               "Profit / Loss",
-    "stat_holdings":          "Holdings",
-    "stat_day_change":        "Day change",
-    "stat_no_investments":    "No investments yet",
-    "stat_total_current":     "Current total",
-    "stat_today":             "Today",
-    "stat_holdings_count":    "{{count}} holding(s)",
-    "stat_index_change":      "VN-Index +0.42%",
-
-    "portfolio_eyebrow":      "Portfolio",
-    "portfolio_count":        "{{count}} holding(s)",
-    "portfolio_add":          "+ Add stock",
-    "col_symbol":             "Symbol",
-    "col_company":            "Company",
-    "col_shares":             "Shares",
-    "col_avg_price":          "Avg. price",
-    "col_current_price":      "Current",
-    "col_change":             "Change",
-    "col_value":              "Value",
-    "portfolio_empty_title":  "Your portfolio is empty",
-    "portfolio_empty_sub":    "Start adding stocks to track your portfolio's performance in real time.",
-    "portfolio_empty_cta":    "Explore recommended tickers →",
-
-    "ai_eyebrow":             "AI recommendations · {{count}}",
-    "ai_empty_title":         "No AI recommendations yet",
-    "ai_empty_sub":           "Check back later for fresh recommendations.",
-    "ai_confidence_label":    "CONFIDENCE",
-
-    "prospect_eyebrow":       "Promising stocks",
-    "prospect_subtitle":      "Based on fundamentals: positive news, attractive P/E, and 2-year earnings growth",
-    "prospect_empty_title":   "No promising stocks yet",
-    "prospect_empty_sub":     "The system is still analysing the market. Check back soon for suggested tickers.",
-    "prospect_metric_price":  "PRICE",
-    "prospect_metric_pe":     "P/E",
-    "prospect_metric_eps":    "EPS 2Y",
+    "stat_total_value": "Total value",
+    "stat_pnl": "Profit / Loss",
+    "stat_holdings": "Holdings",
+    "stat_day_change": "Day change",
+    "stat_no_investments": "No investments yet",
+    "stat_total_current": "Current total",
+    "stat_today": "Today",
+    "stat_holdings_count": "{{count}} holding(s)",
+    "stat_index_change": "VN-Index +0.42%",
+    "portfolio_eyebrow": "Portfolio",
+    "portfolio_count": "{{count}} holding(s)",
+    "portfolio_add": "+ Add stock",
+    "col_symbol": "Symbol",
+    "col_company": "Company",
+    "col_shares": "Shares",
+    "col_avg_price": "Avg. price",
+    "col_current_price": "Current",
+    "col_change": "Change",
+    "col_value": "Value",
+    "portfolio_empty_title": "Your portfolio is empty",
+    "portfolio_empty_sub": "Start adding stocks to track your portfolio's performance in real time.",
+    "portfolio_empty_cta": "Explore recommended tickers →",
+    "ai_eyebrow": "AI recommendations · {{count}}",
+    "ai_empty_title": "No AI recommendations yet",
+    "ai_empty_sub": "Check back later for fresh recommendations.",
+    "ai_confidence_label": "CONFIDENCE",
+    "prospect_eyebrow": "Promising stocks",
+    "prospect_subtitle": "Based on fundamentals: positive news, attractive P/E, and 2-year earnings growth",
+    "prospect_empty_title": "No promising stocks yet",
+    "prospect_empty_sub": "The system is still analysing the market. Check back soon for suggested tickers.",
+    "prospect_metric_price": "PRICE",
+    "prospect_metric_pe": "P/E",
+    "prospect_metric_eps": "EPS 2Y",
     "prospect_metric_profit": "NET PROFIT 2Y"
   },
   "market_movers": {
@@ -1301,5 +1424,332 @@
   "contact": {
     "author": "Pham Hoang Tuan",
     "email": "tuanph1970@gmail.com"
+  },
+  "decision_helper": {
+    "common": {
+      "regime_trend_up": "Trend ↑",
+      "regime_trend_down": "Trend ↓",
+      "regime_range": "Range",
+      "regime_undefined": "Undefined",
+      "analyzing": "Analyzing…",
+      "running": "Running…",
+      "scanning": "Scanning…",
+      "refresh": "Refresh",
+      "saving": "Saving…",
+      "save": "Save",
+      "cancel": "Cancel",
+      "loading": "Loading…"
+    },
+    "decision_console": {
+      "ticker_placeholder": "Ticker (e.g. VIC)",
+      "analyze": "Analyze",
+      "risk_prefs_title": "Risk preferences",
+      "confidence_label": "Confidence {{pct}}%",
+      "save_plan": "Save Plan",
+      "entry": "Entry",
+      "stop": "Stop",
+      "target": "Target",
+      "shares": "Shares",
+      "signal_label": "Signal",
+      "confirmed": "confirmed",
+      "state_label": "State",
+      "reason_chain": "Reason chain ({{count}} steps)",
+      "empty_hint": "Enter a ticker symbol and press Analyze to get a recommendation."
+    },
+    "pattern_panel": {
+      "title": "Chart Patterns",
+      "scanning": "scanning…",
+      "unavailable": "unavailable",
+      "detected": "{{count}} detected",
+      "none_detected": "none detected",
+      "no_patterns": "No chart patterns detected in the lookback window.",
+      "bullish": "Bullish",
+      "bearish": "Bearish",
+      "confidence": "Confidence",
+      "neckline": "Neckline / Breakout",
+      "measured_move": "Measured Move"
+    },
+    "risk_prefs": {
+      "title": "Risk Preferences",
+      "account_equity": "Account Equity",
+      "risk_per_trade": "Risk / Trade %",
+      "max_positions": "Max Positions",
+      "max_correlation": "Max Correlation",
+      "streak_cut": "Streak Cut Factor",
+      "streak_threshold": "Streak Threshold",
+      "journal_account": "Journal Account ID (optional — auto-sync trades)",
+      "journal_placeholder": "Leave blank to disable",
+      "saved": "Saved.",
+      "save_failed": "Save failed."
+    },
+    "decision_board": {
+      "title": "Decision Board",
+      "analyze_all": "Analyze All ({{count}})",
+      "ticker": "Ticker",
+      "regime": "Regime",
+      "action": "Action",
+      "confidence_short": "Conf.",
+      "entry": "Entry",
+      "stop": "Stop",
+      "target": "Target",
+      "shares": "Shares",
+      "recompute": "Recompute",
+      "save_plan": "Save plan",
+      "plan_saved": "Trade plan saved."
+    },
+    "backtest_studio": {
+      "title": "Backtest Studio",
+      "ticker": "Ticker",
+      "start_date": "Start date",
+      "end_date": "End date",
+      "initial_equity": "Initial equity",
+      "risk_per_trade": "Risk / trade %",
+      "fast_ma": "Fast MA",
+      "slow_ma": "Slow MA",
+      "breakout_n": "Breakout N",
+      "k_delay": "K delay",
+      "slippage": "Slippage (bps)",
+      "commission": "Commission ($)",
+      "walk_forward": "Walk-forward",
+      "wf_window": "WF window (days)",
+      "run": "Run Backtest",
+      "failed": "Backtest failed.",
+      "trades": "Trades",
+      "win_rate": "Win rate",
+      "net_pnl": "Net P&L",
+      "max_drawdown": "Max drawdown",
+      "expectancy": "Expectancy",
+      "sharpe": "Sharpe",
+      "profit_factor": "Profit factor",
+      "latency": "Latency",
+      "equity_curve": "Equity Curve — {{ticker}}",
+      "start_label": "Start",
+      "equity_label": "Equity",
+      "wf_windows": "Walk-Forward Windows ({{count}})",
+      "ledger": "Trade Ledger ({{count}} trades)",
+      "col_num": "#",
+      "col_start": "Start",
+      "col_end": "End",
+      "col_trades": "Trades",
+      "col_win_pct": "Win%",
+      "col_net_pnl": "Net P&L",
+      "col_max_dd": "Max DD",
+      "col_expectancy": "Expectancy",
+      "col_dir": "Dir",
+      "col_entry_date": "Entry date",
+      "col_entry_price": "Entry $",
+      "col_exit_date": "Exit date",
+      "col_exit_price": "Exit $",
+      "col_shares": "Shares",
+      "col_gross_pnl": "Gross P&L",
+      "col_exit_reason": "Exit reason"
+    },
+    "discipline": {
+      "title": "Discipline Dashboard",
+      "subtitle": "Schwager Ch 16–17",
+      "loss_streak": "Loss Streak",
+      "streak_active": "Streak Active",
+      "drawdown": "Drawdown",
+      "rules_triggered": "Rules Triggered",
+      "threshold": "Threshold: {{n}}",
+      "reduce_size": "Reduce position size",
+      "within_tolerance": "Within tolerance",
+      "peak": "Peak: {{n}}",
+      "no_equity": "No equity data",
+      "of_rules": "of {{total}} monitored rules",
+      "last_10_actions": "Last 10 Actions",
+      "active_violations": "Active Rule Violations",
+      "schwager_rules": "Schwager's 10 Key Rules (Ch 17)",
+      "no_data": "No discipline data available."
+    },
+    "scheduled_runs": {
+      "title": "Scheduled Runs",
+      "alert_one": "alert",
+      "alert_other": "alerts",
+      "alerts_only": "Alerts only",
+      "all_runs": "All runs",
+      "watchlist_title": "Watchlist ({{count}} tickers)",
+      "ticker_placeholder": "Ticker",
+      "note_placeholder": "Note (optional)",
+      "add": "Add",
+      "run_all": "Run All Now",
+      "no_tickers": "No tickers in watchlist. Add tickers above to enable daily recommendations.",
+      "recent_runs_title": "Recent Scheduled Runs",
+      "total": "({{n}} total)",
+      "no_runs": "No scheduled runs yet. Add tickers to your watchlist and click \"Run All Now\", or wait for the daily 15:30 ICT automatic run.",
+      "col_alert": "Alert",
+      "col_ticker": "Ticker",
+      "col_bar_date": "Bar Date",
+      "col_action": "Action",
+      "col_regime": "Regime",
+      "col_confidence": "Confidence",
+      "col_latency": "Latency",
+      "col_run_at": "Run At"
+    },
+    "scanner": {
+      "title": "Watchlist Scanner",
+      "scan_all": "Scan All",
+      "no_scan_title": "No scan run yet",
+      "no_scan_hint": "Press \"Scan All\" to run the decision engine across your entire watchlist.",
+      "scanned": "Scanned {{count}} tickers",
+      "no_results": "No results for this filter.",
+      "plan": "Plan",
+      "col_action": "Action",
+      "col_ticker": "Ticker",
+      "col_regime": "Regime",
+      "col_confidence": "Confidence",
+      "col_entry": "Entry",
+      "col_stop": "Stop",
+      "col_target": "Target",
+      "col_signal": "Signal",
+      "filter_all": "All",
+      "filter_actionable": "Actionable"
+    },
+    "heatmap": {
+      "title": "Watchlist Heat Map",
+      "scanned_summary": "{{count}} tickers scanned · {{actionable}} actionable · bar {{date}}",
+      "watchlist_hint": "{{count}} tickers in watchlist — click Scan to populate",
+      "scan_now": "⚡ Scan now",
+      "no_results_title": "No scan results yet",
+      "no_results_with_tickers": "Click \"Scan now\" to run the decision engine across {{count}} tickers.",
+      "no_results_empty": "Add tickers to your watchlist first, then click \"Scan now\".",
+      "scanning_progress": "Scanning {{count}} tickers…",
+      "no_filter_match": "No tickers match the current filter.",
+      "sort_label": "Sort:",
+      "sort_confidence": "Confidence ↓",
+      "sort_ticker": "Ticker A→Z",
+      "sort_action": "Action",
+      "sort_regime": "Regime",
+      "filter_all": "All",
+      "filter_actionable": "Actionable"
+    },
+    "analytics": {
+      "title": "Performance Analytics",
+      "total_decisions": "Total Decisions",
+      "actionable": "Actionable",
+      "top_signal": "Top Signal",
+      "top_regime": "Top Regime",
+      "last_n_days": "last {{n}} days",
+      "buy_sell_short": "BUY / SELL SHORT",
+      "confirm_rate": "confirm rate",
+      "decisions_label": "decisions",
+      "daily_signals_title": "Daily Actionable Signals (BUY + SELL SHORT)",
+      "action_distribution": "Action Distribution",
+      "confidence_distribution": "Confidence Distribution",
+      "regime_breakdown_title": "Regime Breakdown",
+      "signal_breakdown_title": "Signal Breakdown",
+      "top_tickers_title": "Top Tickers",
+      "loading": "Loading analytics…",
+      "no_signal_data": "No signal data yet.",
+      "no_ticker_data": "No ticker data yet.",
+      "no_data": "No data yet.",
+      "signals_label": "Signals",
+      "computed_at": "Computed at {{date}} · {{total}} decisions over {{days}} days",
+      "signal_col_kind": "Signal",
+      "signal_col_fires": "Fires",
+      "signal_col_confirmed": "Confirmed",
+      "signal_col_confirm_pct": "Confirm %",
+      "signal_col_avg_conf": "Avg Conf",
+      "ticker_col_ticker": "Ticker",
+      "ticker_col_decisions": "Decisions",
+      "ticker_col_buy": "BUY",
+      "ticker_col_sell_short": "SELL SHORT"
+    },
+    "positions": {
+      "title": "Open Positions",
+      "n_open": "{{count}} open",
+      "no_positions": "No open positions",
+      "no_positions_hint": "Run the Decision Console for a ticker to open a position.",
+      "update_stop_for": "Update stop for {{ticker}}",
+      "invalid_stop": "Enter a valid stop price",
+      "stop_failed": "Failed to update stop",
+      "analyze_hint": "Analyze in Decision Console",
+      "update_stop_hint": "Update stop",
+      "col_ticker": "Ticker",
+      "col_direction": "Direction",
+      "col_entry_date": "Entry Date",
+      "col_days": "Days",
+      "col_entry_price": "Entry Price",
+      "col_stop": "Stop",
+      "col_risk_pct": "Risk %",
+      "col_target": "Target",
+      "col_signal": "Signal"
+    },
+    "outcomes": {
+      "title": "Trade Outcomes",
+      "subtitle": "R-multiple log for closed positions",
+      "view_log": "📋 Log",
+      "view_attribution": "📊 Attribution",
+      "tagged_trades": "Tagged trades",
+      "win_rate": "Win rate",
+      "avg_r": "Avg R",
+      "expectancy": "Expectancy",
+      "last_n_days": "last {{n}} days",
+      "wl_summary": "{{wins}}W / {{losses}}L / {{breakevens}}E",
+      "per_trade": "per trade",
+      "no_outcomes": "No tagged outcomes yet. Outcomes are recorded automatically when a SELL/COVER/REVERSE decision closes a position.",
+      "ai_review_label": "AI Review:",
+      "generate_ai": "✦ Generate AI Review",
+      "generating_ai": "Generating…",
+      "ai_unavailable": "AI review unavailable — check ai-insights-service.",
+      "ai_failed": "Failed to generate review",
+      "col_ticker": "Ticker",
+      "col_entry_date": "Entry date",
+      "col_action": "Action",
+      "col_outcome": "Outcome",
+      "col_r": "R-multiple",
+      "col_entry": "Entry",
+      "col_stop": "Stop",
+      "col_exit": "Exit",
+      "col_signal": "Signal",
+      "col_regime": "Regime",
+      "col_ai": "AI",
+      "view_close": "▲ Close",
+      "attr_tagged_one": "{{count}} tagged trade · last {{days}} days",
+      "attr_tagged_other": "{{count}} tagged trades · last {{days}} days",
+      "attr_by_signal": "By signal type",
+      "attr_by_regime": "By market regime",
+      "attr_by_weekday": "By entry weekday",
+      "attr_by_hold": "By hold duration",
+      "attr_no_data": "No tagged outcomes yet — attribution will appear once trades are recorded.",
+      "attr_loading": "Loading attribution…",
+      "attr_col_category": "Category",
+      "attr_col_trades": "Trades",
+      "attr_col_win_pct": "Win%",
+      "attr_col_avg_r": "Avg R",
+      "attr_col_expectancy": "Expectancy"
+    },
+    "risk": {
+      "title": "Risk Dashboard",
+      "subtitle": "Portfolio exposure across open positions",
+      "open_positions": "Open positions",
+      "total_risk_pct": "Total risk %",
+      "net_exposure": "Net exposure",
+      "account_equity": "Account equity",
+      "long_short_count": "{{long}}L / {{short}}S",
+      "vnd_at_risk": "{{amount}} VND at risk",
+      "net_long_bias": "Net long bias",
+      "net_short_bias": "Net short bias",
+      "vnd": "VND",
+      "long_short_split": "Long / Short Split",
+      "worst_case": "Worst-case if all stops hit",
+      "drawdown_pct_equity": "−{{pct}}% of {{equity}} VND equity",
+      "drawdown_pct_no_equity": "−{{pct}}% of account equity",
+      "position_detail": "Position Detail",
+      "no_positions": "No open positions. Risk metrics will appear here once trades are active.",
+      "correlation_title": "Position correlation matrix",
+      "limit_breach": "⚠ Limit breach",
+      "corr_limit": "limit: {{n}}%",
+      "color_scale": "Color scale: red = high positive · purple = high negative · cells outlined in red breach the limit",
+      "col_ticker": "Ticker",
+      "col_direction": "Direction",
+      "col_entry": "Entry",
+      "col_stop": "Stop",
+      "col_shares": "Shares",
+      "col_risk_per_share": "Risk/Share",
+      "col_risk_amount": "Risk Amount",
+      "col_equity_pct": "Equity %",
+      "col_days": "Days"
+    }
   }
 }

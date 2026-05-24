@@ -5,6 +5,7 @@ import {
   ShieldAlert, TrendingDown, CheckCircle, XCircle,
   AlertTriangle, Info, RefreshCw, BookOpen,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import helperService from '../../../services/helperService';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -76,6 +77,7 @@ const RuleRow = ({ rule }) => {
 // ── main page ─────────────────────────────────────────────────────────────────
 
 const DisciplineDashboard = () => {
+  const { t } = useTranslation();
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -105,12 +107,12 @@ const DisciplineDashboard = () => {
       <div style={s.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <ShieldAlert size={22} color="#a78bfa" />
-          <span style={{ fontSize: 20, fontWeight: 800, color: '#f9fafb' }}>Discipline Dashboard</span>
-          <span style={s.subtitleChip}>Schwager Ch 16–17</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: '#f9fafb' }}>{t('decision_helper.discipline.title')}</span>
+          <span style={s.subtitleChip}>{t('decision_helper.discipline.subtitle')}</span>
         </div>
         <button onClick={load} disabled={loading} style={s.refreshBtn}>
           <RefreshCw size={14} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
-          Refresh
+          {t('decision_helper.common.refresh')}
         </button>
       </div>
 
@@ -125,27 +127,27 @@ const DisciplineDashboard = () => {
           {/* ── stat cards ── */}
           <div style={s.statsGrid}>
             <StatCard
-              label="Loss Streak"
+              label={t('decision_helper.discipline.loss_streak')}
               value={summary.recent_losses}
-              sub={`Threshold: ${summary.loss_streak_threshold}`}
+              sub={t('decision_helper.discipline.threshold', { n: summary.loss_streak_threshold })}
               warn={streakWarn}
             />
             <StatCard
-              label="Streak Active"
+              label={t('decision_helper.discipline.streak_active')}
               value={summary.streak_active ? 'YES' : 'No'}
-              sub={summary.streak_active ? 'Reduce position size' : 'Within tolerance'}
+              sub={summary.streak_active ? t('decision_helper.discipline.reduce_size') : t('decision_helper.discipline.within_tolerance')}
               warn={streakWarn}
             />
             <StatCard
-              label="Drawdown"
+              label={t('decision_helper.discipline.drawdown')}
               value={pct(summary.drawdown_pct)}
-              sub={summary.peak_equity ? `Peak: ${summary.peak_equity?.toLocaleString()}` : 'No equity data'}
+              sub={summary.peak_equity ? t('decision_helper.discipline.peak', { n: summary.peak_equity?.toLocaleString() }) : t('decision_helper.discipline.no_equity')}
               warn={ddWarn}
             />
             <StatCard
-              label="Rules Triggered"
+              label={t('decision_helper.discipline.rules_triggered')}
               value={triggered.length}
-              sub={`of ${summary.rule_advisories?.length || 0} monitored rules`}
+              sub={t('decision_helper.discipline.of_rules', { total: summary.rule_advisories?.length || 0 })}
               warn={triggered.length > 0}
             />
           </div>
@@ -153,7 +155,7 @@ const DisciplineDashboard = () => {
           {/* ── recent actions ── */}
           {summary.last_10_actions?.length > 0 && (
             <div style={s.section}>
-              <div style={s.sectionTitle}>Last 10 Actions</div>
+              <div style={s.sectionTitle}>{t('decision_helper.discipline.last_10_actions')}</div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {summary.last_10_actions.map((act, i) => {
                   const exitAct = ['SELL', 'COVER', 'REVERSE'].includes(act);
@@ -175,7 +177,7 @@ const DisciplineDashboard = () => {
           {triggered.length > 0 && (
             <div style={s.section}>
               <div style={s.sectionTitle}>
-                <AlertTriangle size={14} color="#f59e0b" /> Active Rule Violations
+                <AlertTriangle size={14} color="#f59e0b" /> {t('decision_helper.discipline.active_violations')}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {triggered.map((r, i) => (
@@ -192,7 +194,7 @@ const DisciplineDashboard = () => {
           {/* ── full rules panel ── */}
           <div style={s.section}>
             <div style={s.sectionTitle}>
-              <BookOpen size={14} color="#a78bfa" /> Schwager's 10 Key Rules (Ch 17)
+              <BookOpen size={14} color="#a78bfa" /> {t('decision_helper.discipline.schwager_rules')}
             </div>
             {summary.rule_advisories?.map((r, i) => (
               <RuleRow key={i} rule={r} />
@@ -202,7 +204,7 @@ const DisciplineDashboard = () => {
       )}
 
       {!summary && !loading && !error && (
-        <div style={s.empty}>No discipline data available.</div>
+        <div style={s.empty}>{t('decision_helper.discipline.no_data')}</div>
       )}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

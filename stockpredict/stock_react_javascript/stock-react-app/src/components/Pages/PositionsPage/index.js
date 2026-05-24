@@ -5,6 +5,7 @@ import {
   TrendingUp, TrendingDown, RefreshCw, AlertTriangle,
   Edit2, Check, X, Zap, Shield,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import helperService from '../../../services/helperService';
 
 const fmt = (v) => v != null
@@ -44,20 +45,21 @@ const DirectionBadge = ({ state }) => {
 // ── Inline stop editor ────────────────────────────────────────────────────────
 
 const StopEditor = ({ pos, onSaved, onCancel }) => {
+  const { t } = useTranslation();
   const [val, setVal] = useState(pos.current_stop != null ? String(pos.current_stop) : '');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
 
   const save = async () => {
     const n = parseFloat(val);
-    if (!n || n <= 0) { setErr('Enter a valid stop price'); return; }
+    if (!n || n <= 0) { setErr(t('decision_helper.positions.invalid_stop')); return; }
     setSaving(true);
     setErr(null);
     try {
       const updated = await helperService.updateStop(pos.ticker, n);
       onSaved(updated);
     } catch (e) {
-      setErr(e.response?.data?.detail || e.message || 'Failed to update stop');
+      setErr(e.response?.data?.detail || e.message || t('decision_helper.positions.stop_failed'));
     } finally {
       setSaving(false);
     }
@@ -69,7 +71,7 @@ const StopEditor = ({ pos, onSaved, onCancel }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <Shield size={14} color="#3b82f6" />
           <span style={{ fontSize: 13, color: '#93c5fd', fontWeight: 600 }}>
-            Update stop for {pos.ticker}
+            {t('decision_helper.positions.update_stop_for', { ticker: pos.ticker })}
           </span>
           <input
             type="number"
@@ -81,9 +83,9 @@ const StopEditor = ({ pos, onSaved, onCancel }) => {
           />
           <button onClick={save} disabled={saving} style={styles.saveBtn}>
             {saving ? <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={12} />}
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('decision_helper.common.saving') : t('decision_helper.common.save')}
           </button>
-          <button onClick={onCancel} style={styles.cancelBtn}><X size={12} /> Cancel</button>
+          <button onClick={onCancel} style={styles.cancelBtn}><X size={12} /> {t('decision_helper.common.cancel')}</button>
           {err && <span style={{ color: '#f87171', fontSize: 12 }}>{err}</span>}
         </div>
       </td>
@@ -94,6 +96,7 @@ const StopEditor = ({ pos, onSaved, onCancel }) => {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const PositionsPage = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [positions, setPositions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -131,9 +134,9 @@ const PositionsPage = () => {
       <div style={styles.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Shield size={18} color="#a78bfa" />
-          <span style={{ fontWeight: 700, fontSize: 16, color: '#f9fafb' }}>Open Positions</span>
+          <span style={{ fontWeight: 700, fontSize: 16, color: '#f9fafb' }}>{t('decision_helper.positions.title')}</span>
           {positions.length > 0 && (
-            <span style={styles.badge}>{positions.length} open</span>
+            <span style={styles.badge}>{t('decision_helper.positions.n_open', { count: positions.length })}</span>
           )}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -159,10 +162,8 @@ const PositionsPage = () => {
       {!loading && positions.length === 0 && !error && (
         <div style={styles.empty}>
           <Shield size={44} color="#374151" style={{ marginBottom: 12 }} />
-          <div style={{ fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>No open positions</div>
-          <div style={{ fontSize: 13, color: '#4b5563' }}>
-            Run the Decision Console for a ticker to open a position.
-          </div>
+          <div style={{ fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>{t('decision_helper.positions.no_positions')}</div>
+          <div style={{ fontSize: 13, color: '#4b5563' }}>{t('decision_helper.positions.no_positions_hint')}</div>
         </div>
       )}
 
@@ -171,8 +172,7 @@ const PositionsPage = () => {
           <table style={styles.table}>
             <thead>
               <tr>
-                {['Ticker', 'Direction', 'Entry Date', 'Days', 'Entry Price',
-                  'Stop', 'Risk %', 'Target', 'Signal', ''].map(h => (
+                {[t('decision_helper.positions.col_ticker'), t('decision_helper.positions.col_direction'), t('decision_helper.positions.col_entry_date'), t('decision_helper.positions.col_days'), t('decision_helper.positions.col_entry_price'), t('decision_helper.positions.col_stop'), t('decision_helper.positions.col_risk_pct'), t('decision_helper.positions.col_target'), t('decision_helper.positions.col_signal'), ''].map(h => (
                   <th key={h} style={styles.th}>{h}</th>
                 ))}
               </tr>
@@ -186,7 +186,7 @@ const PositionsPage = () => {
                       <button
                         onClick={() => navigate(`/decision-console?ticker=${pos.ticker}`)}
                         style={styles.tickerBtn}
-                        title="Analyze in Decision Console"
+                        title={t('decision_helper.positions.analyze_hint')}
                       >
                         {pos.ticker}
                         <Zap size={10} color="#a78bfa" />
@@ -227,7 +227,7 @@ const PositionsPage = () => {
                       <button
                         onClick={() => setEditing(editing === pos.ticker ? null : pos.ticker)}
                         style={styles.editBtn}
-                        title="Update stop"
+                        title={t('decision_helper.positions.update_stop_hint')}
                       >
                         <Edit2 size={13} />
                       </button>

@@ -1,27 +1,28 @@
 // F-220..F-223 — WatchlistHeatMap: live card grid for all watchlist tickers
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import helperService from '../../../services/helperService';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const REGIME = {
-  TREND_UP:   { label: 'Trend ↑', bg: '#d1fae5', border: '#6ee7b7', text: '#065f46', dot: '#10b981' },
-  TREND_DOWN: { label: 'Trend ↓', bg: '#fee2e2', border: '#fca5a5', text: '#991b1b', dot: '#ef4444' },
-  RANGE:      { label: 'Range',   bg: '#fef9c3', border: '#fde68a', text: '#92400e', dot: '#f59e0b' },
-  UNDEFINED:  { label: 'Undef',   bg: '#f3f4f6', border: '#e5e7eb', text: '#6b7280', dot: '#9ca3af' },
+  TREND_UP:   { labelKey: 'decision_helper.common.regime_trend_up',   bg: '#d1fae5', border: '#6ee7b7', text: '#065f46', dot: '#10b981' },
+  TREND_DOWN: { labelKey: 'decision_helper.common.regime_trend_down', bg: '#fee2e2', border: '#fca5a5', text: '#991b1b', dot: '#ef4444' },
+  RANGE:      { labelKey: 'decision_helper.common.regime_range',      bg: '#fef9c3', border: '#fde68a', text: '#92400e', dot: '#f59e0b' },
+  UNDEFINED:  { labelKey: null,                                        bg: '#f3f4f6', border: '#e5e7eb', text: '#6b7280', dot: '#9ca3af' },
 };
 
 const ACTION = {
-  BUY:        { label: 'BUY',        color: '#065f46', bg: '#d1fae5', ring: '#10b981' },
-  SELL_SHORT: { label: 'SHORT',      color: '#92400e', bg: '#fef3c7', ring: '#f59e0b' },
-  SELL:       { label: 'SELL',       color: '#991b1b', bg: '#fee2e2', ring: '#ef4444' },
-  COVER:      { label: 'COVER',      color: '#1e40af', bg: '#dbeafe', ring: '#3b82f6' },
-  REVERSE:    { label: 'REVERSE',    color: '#5b21b6', bg: '#ede9fe', ring: '#8b5cf6' },
-  HOLD:       { label: 'HOLD',       color: '#374151', bg: '#f3f4f6', ring: '#9ca3af' },
-  WAIT:       { label: 'WAIT',       color: '#6b7280', bg: '#f9fafb', ring: '#d1d5db' },
+  BUY:        { label: 'BUY',     color: '#065f46', bg: '#d1fae5', ring: '#10b981' },
+  SELL_SHORT: { label: 'SHORT',   color: '#92400e', bg: '#fef3c7', ring: '#f59e0b' },
+  SELL:       { label: 'SELL',    color: '#991b1b', bg: '#fee2e2', ring: '#ef4444' },
+  COVER:      { label: 'COVER',   color: '#1e40af', bg: '#dbeafe', ring: '#3b82f6' },
+  REVERSE:    { label: 'REVERSE', color: '#5b21b6', bg: '#ede9fe', ring: '#8b5cf6' },
+  HOLD:       { label: 'HOLD',    color: '#374151', bg: '#f3f4f6', ring: '#9ca3af' },
+  WAIT:       { label: 'WAIT',    color: '#6b7280', bg: '#f9fafb', ring: '#d1d5db' },
 };
 
-const SORTS = ['Confidence ↓', 'Ticker A→Z', 'Action', 'Regime'];
+const SORT_KEYS = ['confidence', 'ticker', 'action', 'regime'];
 
 const today = () => new Date().toISOString().split('T')[0];
 
@@ -41,6 +42,7 @@ const ConfidenceBar = ({ value }) => {
 };
 
 const TickerCard = ({ item, onDrillDown }) => {
+  const { t } = useTranslation();
   const regime = REGIME[item.regime] || REGIME.UNDEFINED;
   const action = ACTION[item.action] || ACTION.WAIT;
   const actionable = item.is_actionable;
@@ -78,7 +80,7 @@ const TickerCard = ({ item, onDrillDown }) => {
       <div style={{ fontSize: 11, color: regime.text, opacity: 0.8, marginBottom: 2 }}>
         <span style={{ marginRight: 6 }}>
           <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: regime.dot, marginRight: 4, verticalAlign: 'middle' }} />
-          {regime.label}
+          {regime.labelKey ? t(regime.labelKey) : '—'}
         </span>
         {item.signal_kind && (
           <span style={{ color: '#6b7280' }}>· {item.signal_kind.replace('_', ' ')}</span>
@@ -108,13 +110,14 @@ const TickerCard = ({ item, onDrillDown }) => {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const WatchlistHeatMap = () => {
+  const { t } = useTranslation();
   const [items, setItems] = useState([]);           // ScanResultItem[]
   const [watchlistTickers, setWatchlistTickers] = useState([]);
   const [scanning, setScanning] = useState(false);
   const [loadingWl, setLoadingWl] = useState(false);
   const [error, setError] = useState(null);
   const [lastScan, setLastScan] = useState(null);   // ISO date string
-  const [sort, setSort] = useState('Confidence ↓');
+  const [sort, setSort] = useState('confidence');
   const [filterAction, setFilterAction] = useState('All');
   const [barDate, setBarDate] = useState(today());
   const isMounted = useRef(true);
@@ -168,10 +171,10 @@ const WatchlistHeatMap = () => {
       : items.filter(i => i.action === filterAction);
 
   const sorted = [...filtered].sort((a, b) => {
-    if (sort === 'Confidence ↓') return (b.confidence ?? 0) - (a.confidence ?? 0);
-    if (sort === 'Ticker A→Z') return a.ticker.localeCompare(b.ticker);
-    if (sort === 'Action') return (a.action ?? '').localeCompare(b.action ?? '');
-    if (sort === 'Regime') return (a.regime ?? '').localeCompare(b.regime ?? '');
+    if (sort === 'confidence') return (b.confidence ?? 0) - (a.confidence ?? 0);
+    if (sort === 'ticker') return a.ticker.localeCompare(b.ticker);
+    if (sort === 'action') return (a.action ?? '').localeCompare(b.action ?? '');
+    if (sort === 'regime') return (a.regime ?? '').localeCompare(b.regime ?? '');
     return 0;
   });
 
@@ -185,11 +188,11 @@ const WatchlistHeatMap = () => {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Watchlist Heat Map</h2>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>{t('decision_helper.heatmap.title')}</h2>
           <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 13 }}>
             {hasScan
-              ? `${items.length} tickers scanned · ${actionable.length} actionable · bar ${lastScan}`
-              : `${watchlistTickers.length} tickers in watchlist — click Scan to populate`}
+              ? t('decision_helper.heatmap.scanned_summary', { count: items.length, actionable: actionable.length, date: lastScan })
+              : t('decision_helper.heatmap.watchlist_hint', { count: watchlistTickers.length })}
           </p>
         </div>
 
@@ -209,7 +212,7 @@ const WatchlistHeatMap = () => {
               color: scanning ? '#9ca3af' : '#fff',
               border: 'none', borderRadius: 6, cursor: scanning ? 'not-allowed' : 'pointer',
             }}
-          >{scanning ? 'Scanning…' : '⚡ Scan now'}</button>
+          >{scanning ? t('decision_helper.common.scanning') : t('decision_helper.heatmap.scan_now')}</button>
         </div>
       </div>
 
@@ -226,13 +229,13 @@ const WatchlistHeatMap = () => {
                 fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20,
               }}>
                 <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: rg.dot, marginRight: 5, verticalAlign: 'middle' }} />
-                {rg.label}: {count}
+                {rg.labelKey ? t(rg.labelKey) : r}: {count}
               </span>
             );
           })}
           {actionable.length > 0 && (
             <span style={{ background: '#ede9fe', color: '#5b21b6', fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20 }}>
-              ⚡ {actionable.length} actionable
+              ⚡ {actionable.length} {t('decision_helper.heatmap.filter_actionable').toLowerCase()}
             </span>
           )}
         </div>
@@ -254,7 +257,7 @@ const WatchlistHeatMap = () => {
                   color: filterAction === f ? '#4338ca' : '#374151',
                   borderRadius: 5, cursor: 'pointer',
                 }}
-              >{f}</button>
+              >{f === 'All' ? t('decision_helper.heatmap.filter_all') : f === 'Actionable' ? t('decision_helper.heatmap.filter_actionable') : f}</button>
             ))}
           </div>
 
@@ -262,21 +265,24 @@ const WatchlistHeatMap = () => {
 
           {/* Sort */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6b7280' }}>
-            Sort:
-            {SORTS.map(s => (
-              <button
-                key={s}
-                onClick={() => setSort(s)}
-                style={{
-                  padding: '3px 9px', fontSize: 11,
-                  border: '1px solid', borderColor: sort === s ? '#6366f1' : '#e5e7eb',
-                  background: sort === s ? '#eef2ff' : '#fff',
-                  color: sort === s ? '#4338ca' : '#374151',
-                  fontWeight: sort === s ? 700 : 400,
-                  borderRadius: 5, cursor: 'pointer',
-                }}
-              >{s}</button>
-            ))}
+            {t('decision_helper.heatmap.sort_label')}
+            {SORT_KEYS.map(sk => {
+              const sortLabel = t(`decision_helper.heatmap.sort_${sk}`);
+              return (
+                <button
+                  key={sk}
+                  onClick={() => setSort(sk)}
+                  style={{
+                    padding: '3px 9px', fontSize: 11,
+                    border: '1px solid', borderColor: sort === sk ? '#6366f1' : '#e5e7eb',
+                    background: sort === sk ? '#eef2ff' : '#fff',
+                    color: sort === sk ? '#4338ca' : '#374151',
+                    fontWeight: sort === sk ? 700 : 400,
+                    borderRadius: 5, cursor: 'pointer',
+                  }}
+                >{sortLabel}</button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -292,18 +298,18 @@ const WatchlistHeatMap = () => {
       {!hasScan && !scanning && !error && (
         <div style={{ padding: 60, textAlign: 'center', color: '#9ca3af' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#6b7280', marginBottom: 6 }}>No scan results yet</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#6b7280', marginBottom: 6 }}>{t('decision_helper.heatmap.no_results_title')}</div>
           <div style={{ fontSize: 12 }}>
             {watchlistTickers.length > 0
-              ? `Click "Scan now" to run the decision engine across ${watchlistTickers.length} tickers.`
-              : 'Add tickers to your watchlist first, then click "Scan now".'}
+              ? t('decision_helper.heatmap.no_results_with_tickers', { count: watchlistTickers.length })
+              : t('decision_helper.heatmap.no_results_empty')}
           </div>
         </div>
       )}
 
       {scanning && !hasScan && (
         <div style={{ padding: 60, textAlign: 'center', color: '#6b7280' }}>
-          <div style={{ fontSize: 14 }}>Scanning {watchlistTickers.length} tickers…</div>
+          <div style={{ fontSize: 14 }}>{t('decision_helper.heatmap.scanning_progress', { count: watchlistTickers.length })}</div>
         </div>
       )}
 
@@ -328,7 +334,7 @@ const WatchlistHeatMap = () => {
 
       {hasScan && sorted.length === 0 && (
         <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>
-          No tickers match the current filter.
+          {t('decision_helper.heatmap.no_filter_match')}
         </div>
       )}
     </div>

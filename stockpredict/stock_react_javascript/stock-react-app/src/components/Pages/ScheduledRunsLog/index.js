@@ -5,6 +5,7 @@ import {
   Clock, Plus, Trash2, Play, AlertTriangle, RefreshCw,
   CheckCircle, Bell, BellOff,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import helperService from '../../../services/helperService';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -21,16 +22,18 @@ const ACTION_COLOR = {
 
 const fmt = (v) => v != null ? `${(v * 100).toFixed(0)}%` : '—';
 
-const fmtDate = (iso) => {
+const fmtDate = (iso, lang) => {
   if (!iso) return '—';
   const d = new Date(iso);
-  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const locale = lang === 'vi' ? 'vi-VN' : 'en-GB';
+  return d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
-const fmtTs = (iso) => {
+const fmtTs = (iso, lang) => {
   if (!iso) return '—';
   const d = new Date(iso);
-  return d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const locale = lang === 'vi' ? 'vi-VN' : 'en-GB';
+  return d.toLocaleString(locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 };
 
 // ── sub-components ────────────────────────────────────────────────────────────
@@ -56,6 +59,7 @@ const AlertDot = ({ isAlert }) => isAlert ? (
 // ── WatchlistPanel ────────────────────────────────────────────────────────────
 
 const WatchlistPanel = ({ onRunAll, running }) => {
+  const { t } = useTranslation();
   const [entries, setEntries] = useState([]);
   const [tickerInput, setTickerInput] = useState('');
   const [noteInput, setNoteInput] = useState('');
@@ -101,7 +105,7 @@ const WatchlistPanel = ({ onRunAll, running }) => {
   return (
     <div style={s.panel}>
       <div style={s.panelTitle}>
-        <Clock size={14} color="#a78bfa" /> Watchlist ({entries.length} tickers)
+        <Clock size={14} color="#a78bfa" /> {t('decision_helper.scheduled_runs.watchlist_title', { count: entries.length })}
       </div>
 
       {/* Add row */}
@@ -110,23 +114,23 @@ const WatchlistPanel = ({ onRunAll, running }) => {
           value={tickerInput}
           onChange={e => setTickerInput(e.target.value.toUpperCase())}
           onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          placeholder="Ticker"
+          placeholder={t('decision_helper.scheduled_runs.ticker_placeholder')}
           style={s.tickerInput}
         />
         <input
           value={noteInput}
           onChange={e => setNoteInput(e.target.value)}
-          placeholder="Note (optional)"
+          placeholder={t('decision_helper.scheduled_runs.note_placeholder')}
           style={{ ...s.tickerInput, flex: 1, minWidth: 120 }}
         />
         <button onClick={handleAdd} disabled={busy || !tickerInput.trim()} style={s.addBtn}>
-          <Plus size={14} /> Add
+          <Plus size={14} /> {t('decision_helper.scheduled_runs.add')}
         </button>
         <button onClick={onRunAll} disabled={running} style={s.runBtn}>
           {running
             ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
             : <Play size={14} />}
-          {running ? 'Running…' : 'Run All Now'}
+          {running ? t('decision_helper.common.running') : t('decision_helper.scheduled_runs.run_all')}
         </button>
       </div>
 
@@ -138,7 +142,7 @@ const WatchlistPanel = ({ onRunAll, running }) => {
 
       {entries.length === 0 ? (
         <div style={{ color: '#6b7280', fontSize: 13, textAlign: 'center', padding: 16 }}>
-          No tickers in watchlist. Add tickers above to enable daily recommendations.
+          {t('decision_helper.scheduled_runs.no_tickers')}
         </div>
       ) : (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -164,11 +168,11 @@ const WatchlistPanel = ({ onRunAll, running }) => {
 // ── RunsTable ─────────────────────────────────────────────────────────────────
 
 const RunsTable = ({ runs }) => {
+  const { t, i18n } = useTranslation();
   if (runs.length === 0) {
     return (
       <div style={{ color: '#6b7280', textAlign: 'center', padding: 32, fontSize: 13 }}>
-        No scheduled runs yet. Add tickers to your watchlist and click "Run All Now", or wait for the
-        daily 15:30 ICT automatic run.
+        {t('decision_helper.scheduled_runs.no_runs')}
       </div>
     );
   }
@@ -177,7 +181,16 @@ const RunsTable = ({ runs }) => {
     <table style={s.table}>
       <thead>
         <tr>
-          {['Alert', 'Ticker', 'Bar Date', 'Action', 'Regime', 'Confidence', 'Latency', 'Run At'].map(h => (
+          {[
+            t('decision_helper.scheduled_runs.col_alert'),
+            t('decision_helper.scheduled_runs.col_ticker'),
+            t('decision_helper.scheduled_runs.col_bar_date'),
+            t('decision_helper.scheduled_runs.col_action'),
+            t('decision_helper.scheduled_runs.col_regime'),
+            t('decision_helper.scheduled_runs.col_confidence'),
+            t('decision_helper.scheduled_runs.col_latency'),
+            t('decision_helper.scheduled_runs.col_run_at'),
+          ].map(h => (
             <th key={h} style={s.th}>{h}</th>
           ))}
         </tr>
@@ -187,12 +200,12 @@ const RunsTable = ({ runs }) => {
           <tr key={r.id} style={{ borderBottom: '1px solid #1f2937' }}>
             <td style={s.td}><AlertDot isAlert={r.is_alert} /></td>
             <td style={{ ...s.td, fontWeight: 700, color: '#f9fafb' }}>{r.ticker}</td>
-            <td style={s.td}>{fmtDate(r.bar_date)}</td>
+            <td style={s.td}>{fmtDate(r.bar_date, i18n.language)}</td>
             <td style={s.td}><ActionBadge action={r.action} /></td>
             <td style={s.td}>{r.regime || '—'}</td>
             <td style={s.td}>{fmt(r.confidence)}</td>
             <td style={s.td}>{r.latency_ms != null ? `${r.latency_ms}ms` : '—'}</td>
-            <td style={s.td}>{fmtTs(r.created_at)}</td>
+            <td style={s.td}>{fmtTs(r.created_at, i18n.language)}</td>
           </tr>
         ))}
       </tbody>
@@ -203,6 +216,7 @@ const RunsTable = ({ runs }) => {
 // ── main page ─────────────────────────────────────────────────────────────────
 
 const ScheduledRunsLog = () => {
+  const { t } = useTranslation();
   const [runs, setRuns] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -246,9 +260,9 @@ const ScheduledRunsLog = () => {
       <div style={s.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Clock size={22} color="#a78bfa" />
-          <span style={{ fontSize: 20, fontWeight: 800, color: '#f9fafb' }}>Scheduled Runs</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: '#f9fafb' }}>{t('decision_helper.scheduled_runs.title')}</span>
           {alertCount > 0 && (
-            <span style={s.alertBadge}>{alertCount} alert{alertCount > 1 ? 's' : ''}</span>
+            <span style={s.alertBadge}>{alertCount} {t('decision_helper.scheduled_runs.alert', { count: alertCount })}</span>
           )}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -256,11 +270,11 @@ const ScheduledRunsLog = () => {
             onClick={() => setAlertsOnly(v => !v)}
             style={{ ...s.filterBtn, background: alertsOnly ? 'rgba(245,158,11,0.2)' : '#1f2937', color: alertsOnly ? '#f59e0b' : '#9ca3af', borderColor: alertsOnly ? '#f59e0b44' : '#374151' }}
           >
-            <Bell size={13} /> {alertsOnly ? 'Alerts only' : 'All runs'}
+            <Bell size={13} /> {alertsOnly ? t('decision_helper.scheduled_runs.alerts_only') : t('decision_helper.scheduled_runs.all_runs')}
           </button>
           <button onClick={loadRuns} disabled={loading} style={s.refreshBtn}>
             <RefreshCw size={13} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
-            Refresh
+            {t('decision_helper.common.refresh')}
           </button>
         </div>
       </div>
@@ -278,8 +292,8 @@ const ScheduledRunsLog = () => {
       <div style={s.section}>
         <div style={s.sectionTitle}>
           <CheckCircle size={14} color="#10b981" />
-          Recent Scheduled Runs
-          {total > 0 && <span style={{ color: '#6b7280', fontWeight: 400 }}>({total} total)</span>}
+          {t('decision_helper.scheduled_runs.recent_runs_title')}
+          {total > 0 && <span style={{ color: '#6b7280', fontWeight: 400 }}>{t('decision_helper.scheduled_runs.total', { n: total })}</span>}
         </div>
         <RunsTable runs={runs} />
       </div>

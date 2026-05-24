@@ -6,6 +6,7 @@ import {
   TrendingUp, TrendingDown, Minus, AlertTriangle, BookOpen,
   Zap, Settings,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import helperService from '../../../services/helperService';
 import TradePlanModal from '../../common/TradePlanModal';
 import RiskPrefsPanel from './RiskPrefsPanel';
@@ -16,10 +17,10 @@ import PatternPanel from './PatternPanel';
 const today = () => new Date().toISOString().split('T')[0];
 
 const REGIME_META = {
-  TREND_UP:   { label: 'Trend ↑',   color: '#10b981', icon: TrendingUp },
-  TREND_DOWN: { label: 'Trend ↓',   color: '#ef4444', icon: TrendingDown },
-  RANGE:      { label: 'Range',     color: '#f59e0b', icon: Minus },
-  UNDEFINED:  { label: 'Undefined', color: '#6b7280', icon: Minus },
+  TREND_UP:   { labelKey: 'decision_helper.common.regime_trend_up',   color: '#10b981', icon: TrendingUp },
+  TREND_DOWN: { labelKey: 'decision_helper.common.regime_trend_down', color: '#ef4444', icon: TrendingDown },
+  RANGE:      { labelKey: 'decision_helper.common.regime_range',      color: '#f59e0b', icon: Minus },
+  UNDEFINED:  { labelKey: 'decision_helper.common.regime_undefined',  color: '#6b7280', icon: Minus },
 };
 
 const ACTION_META = {
@@ -37,17 +38,19 @@ const fmt = (v) => v != null ? Number(v).toLocaleString('en', { minimumFractionD
 // ── sub-components ───────────────────────────────────────────────────────────
 
 const RegimePill = ({ regime }) => {
+  const { t } = useTranslation();
   const meta = REGIME_META[regime] || REGIME_META.UNDEFINED;
   const Icon = meta.icon;
   return (
     <span style={{ ...styles.pill, background: `${meta.color}22`, color: meta.color, border: `1px solid ${meta.color}44` }}>
       <Icon size={12} />
-      {meta.label}
+      {t(meta.labelKey)}
     </span>
   );
 };
 
 const ActionCard = ({ rec, onPlan }) => {
+  const { t } = useTranslation();
   const meta = ACTION_META[rec.action] || ACTION_META.WAIT;
   const isEntry = ['BUY', 'SELL_SHORT'].includes(rec.action);
   return (
@@ -57,21 +60,21 @@ const ActionCard = ({ rec, onPlan }) => {
           {meta.label}
         </span>
         <span style={styles.confidence}>
-          Confidence {(rec.confidence * 100).toFixed(0)}%
+          {t('decision_helper.decision_console.confidence_label', { pct: (rec.confidence * 100).toFixed(0) })}
         </span>
         {isEntry && (
           <button onClick={onPlan} style={styles.planBtn}>
             <BookOpen size={14} />
-            Save Plan
+            {t('decision_helper.decision_console.save_plan')}
           </button>
         )}
       </div>
 
       <div style={styles.priceGrid}>
-        <PriceBox label="Entry" value={fmt(rec.entry_price)} color="#f9fafb" />
-        <PriceBox label="Stop" value={fmt(rec.stop_price)} color="#ef4444" icon={Shield} />
-        <PriceBox label="Target" value={fmt(rec.target_price)} color="#10b981" icon={Target} />
-        <PriceBox label="Shares" value={rec.position_size ?? '—'} color="#f9fafb" />
+        <PriceBox label={t('decision_helper.decision_console.entry')} value={fmt(rec.entry_price)} color="#f9fafb" />
+        <PriceBox label={t('decision_helper.decision_console.stop')} value={fmt(rec.stop_price)} color="#ef4444" icon={Shield} />
+        <PriceBox label={t('decision_helper.decision_console.target')} value={fmt(rec.target_price)} color="#10b981" icon={Target} />
+        <PriceBox label={t('decision_helper.decision_console.shares')} value={rec.position_size ?? '—'} color="#f9fafb" />
       </div>
 
       {rec.stop_price && rec.entry_price && rec.target_price && (
@@ -79,9 +82,9 @@ const ActionCard = ({ rec, onPlan }) => {
       )}
 
       <div style={{ marginTop: 8, fontSize: 12, color: '#9ca3af' }}>
-        Signal: <span style={{ color: '#d1d5db' }}>{rec.signal_kind || '—'}</span>
-        {rec.signal_confirmed && <span style={styles.confirmedTag}>confirmed</span>}
-        &nbsp;· State: {rec.state_before} → {rec.state_after}
+        {t('decision_helper.decision_console.signal_label')}: <span style={{ color: '#d1d5db' }}>{rec.signal_kind || '—'}</span>
+        {rec.signal_confirmed && <span style={styles.confirmedTag}>{t('decision_helper.decision_console.confirmed')}</span>}
+        &nbsp;· {t('decision_helper.decision_console.state_label')}: {rec.state_before} → {rec.state_after}
       </div>
     </div>
   );
@@ -151,13 +154,14 @@ const DisciplinePanel = ({ violations }) => {
 };
 
 const ReasonChain = ({ steps }) => {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   if (!steps || steps.length === 0) return null;
   return (
     <div style={styles.card}>
       <button onClick={() => setOpen(o => !o)} style={styles.reasonToggle}>
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        Reason chain ({steps.length} steps)
+        {t('decision_helper.decision_console.reason_chain', { count: steps.length })}
       </button>
       {open && (
         <div style={{ marginTop: 10 }}>
@@ -176,6 +180,7 @@ const ReasonChain = ({ steps }) => {
 // ── main page ────────────────────────────────────────────────────────────────
 
 const DecisionConsole = () => {
+  const { t } = useTranslation();
   const [tickerInput, setTickerInput] = useState('');
   const [barDate, setBarDate] = useState(today());
   const [rec, setRec] = useState(null);
@@ -228,7 +233,7 @@ const DecisionConsole = () => {
             value={tickerInput}
             onChange={e => setTickerInput(e.target.value.toUpperCase())}
             onKeyDown={handleKey}
-            placeholder="Ticker (e.g. VIC)"
+            placeholder={t('decision_helper.decision_console.ticker_placeholder')}
             style={styles.tickerInput}
           />
           <input
@@ -241,10 +246,10 @@ const DecisionConsole = () => {
             {loading
               ? <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} />
               : <Zap size={15} />}
-            {loading ? 'Analyzing…' : 'Analyze'}
+            {loading ? t('decision_helper.common.analyzing') : t('decision_helper.decision_console.analyze')}
           </button>
         </div>
-        <button onClick={() => setShowPrefs(p => !p)} style={styles.iconBtn} title="Risk preferences">
+        <button onClick={() => setShowPrefs(p => !p)} style={styles.iconBtn} title={t('decision_helper.decision_console.risk_prefs_title')}>
           <Settings size={16} />
         </button>
       </div>
@@ -289,7 +294,7 @@ const DecisionConsole = () => {
 
       {!rec && !loading && !error && (
         <div style={styles.empty}>
-          Enter a ticker symbol and press Analyze to get a recommendation.
+          {t('decision_helper.decision_console.empty_hint')}
         </div>
       )}
 

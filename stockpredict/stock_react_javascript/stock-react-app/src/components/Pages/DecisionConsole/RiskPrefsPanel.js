@@ -1,9 +1,11 @@
 // Risk preferences inline panel — shown when user clicks the settings icon
 import React, { useState, useEffect } from 'react';
 import { X, Save } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import helperService from '../../../services/helperService';
 
 const RiskPrefsPanel = ({ onClose }) => {
+  const { t } = useTranslation();
   const [form, setForm] = useState({
     accountEquity: 100000,
     riskPerTradePct: 1.0,
@@ -41,10 +43,10 @@ const RiskPrefsPanel = ({ onClose }) => {
         ...form,
         journalAccountId: form.journalAccountId ? Number(form.journalAccountId) : null,
       });
-      setMsg('Saved.');
+      setMsg(t('decision_helper.risk_prefs.saved'));
       setTimeout(() => setMsg(''), 2000);
     } catch {
-      setMsg('Save failed.');
+      setMsg(t('decision_helper.risk_prefs.save_failed'));
     } finally {
       setSaving(false);
     }
@@ -53,30 +55,30 @@ const RiskPrefsPanel = ({ onClose }) => {
   return (
     <div style={styles.panel}>
       <div style={styles.header}>
-        <span style={{ fontWeight: 700, fontSize: 14 }}>Risk Preferences</span>
+        <span style={{ fontWeight: 700, fontSize: 14 }}>{t('decision_helper.risk_prefs.title')}</span>
         <button onClick={onClose} style={styles.closeBtn}><X size={14} /></button>
       </div>
       <div style={styles.grid}>
-        <Field label="Account Equity" value={form.accountEquity} onChange={set('accountEquity')} step={1000} />
-        <Field label="Risk / Trade %" value={form.riskPerTradePct} onChange={set('riskPerTradePct')} step={0.1} min={0.1} max={10} />
-        <Field label="Max Positions" value={form.maxConcurrentPositions} onChange={set('maxConcurrentPositions')} step={1} min={1} max={20} />
-        <Field label="Max Correlation" value={form.maxCorrelation} onChange={set('maxCorrelation')} step={0.05} min={0} max={1} />
-        <Field label="Streak Cut Factor" value={form.lossStreakSizeCut} onChange={set('lossStreakSizeCut')} step={0.1} min={0} max={1} />
-        <Field label="Streak Threshold" value={form.lossStreakThreshold} onChange={set('lossStreakThreshold')} step={1} min={1} max={10} />
+        <Field label={t('decision_helper.risk_prefs.account_equity')} value={form.accountEquity} onChange={set('accountEquity')} step={1000} />
+        <Field label={t('decision_helper.risk_prefs.risk_per_trade')} value={form.riskPerTradePct} onChange={set('riskPerTradePct')} step={0.1} min={0.1} max={10} />
+        <Field label={t('decision_helper.risk_prefs.max_positions')} value={form.maxConcurrentPositions} onChange={set('maxConcurrentPositions')} step={1} min={1} max={20} />
+        <Field label={t('decision_helper.risk_prefs.max_correlation')} value={form.maxCorrelation} onChange={set('maxCorrelation')} step={0.05} min={0} max={1} />
+        <Field label={t('decision_helper.risk_prefs.streak_cut')} value={form.lossStreakSizeCut} onChange={set('lossStreakSizeCut')} step={0.1} min={0} max={1} />
+        <Field label={t('decision_helper.risk_prefs.streak_threshold')} value={form.lossStreakThreshold} onChange={set('lossStreakThreshold')} step={1} min={1} max={10} />
       </div>
       <div style={{ marginTop: 10 }}>
         <label style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-          Journal Account ID (optional — auto-sync trades)
+          {t('decision_helper.risk_prefs.journal_account')}
         </label>
         <input
           type="number" value={form.journalAccountId} onChange={setStr('journalAccountId')}
-          placeholder="Leave blank to disable"
+          placeholder={t('decision_helper.risk_prefs.journal_placeholder')}
           style={{ display: 'block', width: '100%', marginTop: 4, background: '#111827', border: '1px solid #374151', borderRadius: 5, padding: '5px 8px', color: '#f9fafb', fontSize: 13, outline: 'none' }}
         />
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
         <button onClick={save} disabled={saving} style={styles.saveBtn}>
-          <Save size={13} />{saving ? 'Saving…' : 'Save'}
+          <Save size={13} />{saving ? t('decision_helper.common.saving') : t('decision_helper.common.save')}
         </button>
         {msg && <span style={{ fontSize: 12, color: '#10b981' }}>{msg}</span>}
       </div>

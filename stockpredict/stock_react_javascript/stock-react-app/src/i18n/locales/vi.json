@@ -38,7 +38,7 @@
     "simulation": "Mô phỏng giao dịch với AI",
     "chatbot": "Trợ lý AI",
     "chatbot_agent": "Trò chuyện AI",
-    "knowledge_qa": "Knowledge QA",
+    "knowledge_qa": "Hỏi đáp kiến thức",
     "analysis": "Phân tích",
     "technical": "Phân tích kỹ thuật",
     "fundamental": "Phân tích cơ bản",
@@ -54,103 +54,226 @@
     "trade_diary": "Nhật ký",
     "daily_planning": "Kế hoạch hàng ngày",
     "weekly_review": "Tổng kết tuần",
-    "decision_helper": "Decision Helper",
-    "decision_console": "Decision Console",
-    "decision_board": "Watchlist Board",
-    "backtest_studio": "Backtest Studio",
-    "discipline": "Discipline",
-    "scheduled_runs": "Scheduled Runs",
-    "scanner": "Scanner",
-    "watchlist_heatmap": "Heat Map",
-    "analytics": "Analytics",
-    "positions_open": "Open Positions",
-    "outcomes": "Trade Outcomes",
-    "risk_dashboard": "Risk Dashboard",
+    "decision_helper": "Công cụ hỗ trợ quyết định",
+    "decision_console": "Màn hình quyết định",
+    "decision_board": "Bảng quyết định Watchlist",
+    "backtest_studio": "Phòng thử nghiệm Backtest",
+    "discipline": "Kỷ luật giao dịch",
+    "scheduled_runs": "Chạy định kỳ",
+    "scanner": "Quét thị trường",
+    "watchlist_heatmap": "Bản đồ nhiệt Watchlist",
+    "analytics": "Phân tích hiệu suất",
+    "positions_open": "Vị thế đang mở",
+    "outcomes": "Kết quả giao dịch",
+    "risk_dashboard": "Bảng rủi ro",
     "tools": "Công cụ",
     "calculator": "Máy tính đầu tư",
     "watchlist": "Danh sách theo dõi"
   },
   "page_titles": {
-    "dashboard":          { "title": "Bảng điều khiển",      "emphasis": "khiển" },
-    "priceboard":         { "title": "Bảng giá",             "emphasis": "giá" },
-    "stockscreener":      { "title": "Lọc cổ phiếu",         "emphasis": "phiếu" },
-    "byindustry":         { "title": "Theo ngành",           "emphasis": "ngành" },
-    "stocklist":          { "title": "Danh sách cổ phiếu",   "emphasis": "phiếu" },
-    "topgainer":          { "title": "Tăng mạnh nhất",       "emphasis": "nhất" },
-    "toploser":           { "title": "Giảm mạnh nhất",       "emphasis": "nhất" },
-    "topactive":          { "title": "Giao dịch nhiều nhất", "emphasis": "nhất" },
-    "timeseries":         { "title": "Chuỗi thời gian",      "emphasis": "thời gian" },
-    "models":             { "title": "Mô hình",              "emphasis": "hình" },
-    "solutions":          { "title": "Giải pháp",            "emphasis": "pháp" },
-    "indicators":         { "title": "Chỉ báo",              "emphasis": "báo" },
-    "backtest":           { "title": "Backtest",             "emphasis": "" },
-    "simulation":         { "title": "Mô phỏng giao dịch",   "emphasis": "giao dịch" },
-    "chatbot":            { "title": "Trợ lý AI",            "emphasis": "AI" },
-    "knowledge-qa":       { "title": "Knowledge QA",         "emphasis": "QA" },
-    "technical":          { "title": "Phân tích kỹ thuật",   "emphasis": "thuật" },
-    "fundamental":        { "title": "Phân tích cơ bản",     "emphasis": "bản" },
-    "ai-insights":        { "title": "Phân tích AI",         "emphasis": "AI" },
-    "holdings":           { "title": "Cổ phiếu nắm giữ",     "emphasis": "giữ" },
-    "performance":        { "title": "Hiệu suất",            "emphasis": "suất" },
-    "alerts":             { "title": "Cảnh báo giá",         "emphasis": "giá" },
-    "journal-dashboard":  { "title": "Tổng quan nhật ký",    "emphasis": "nhật ký" },
-    "journal-accounts":   { "title": "Tài khoản",            "emphasis": "khoản" },
-    "trade-log":          { "title": "Sổ giao dịch",         "emphasis": "giao dịch" },
-    "trade-diary":        { "title": "Nhật ký giao dịch",    "emphasis": "giao dịch" },
-    "daily-planning":     { "title": "Kế hoạch hàng ngày",   "emphasis": "ngày" },
-    "weekly-review":      { "title": "Tổng kết tuần",        "emphasis": "tuần" },
-    "decision-console":   { "title": "Decision Console",     "emphasis": "Console" },
-    "decision-board":     { "title": "Watchlist Board",      "emphasis": "Board" },
-    "backtest-studio":    { "title": "Backtest Studio",      "emphasis": "Studio" },
-    "discipline":         { "title": "Discipline",           "emphasis": "" },
-    "scheduled-runs":     { "title": "Scheduled Runs",       "emphasis": "Runs" },
-    "scanner":            { "title": "Scanner",              "emphasis": "" },
-    "analytics":          { "title": "Analytics",            "emphasis": "" },
-    "positions-open":     { "title": "Open Positions",       "emphasis": "Positions" },
-    "outcomes":           { "title": "Trade Outcomes",       "emphasis": "Outcomes" },
-    "risk-dashboard":     { "title": "Risk Dashboard",       "emphasis": "Dashboard" },
-    "watchlist-heatmap":  { "title": "Watchlist Heat Map",   "emphasis": "Heat Map" },
-    "calculator":         { "title": "Máy tính đầu tư",      "emphasis": "đầu tư" },
-    "watchlist":          { "title": "Danh sách theo dõi",   "emphasis": "theo dõi" },
-    "company":            { "title": "Chi tiết cổ phiếu",    "emphasis": "cổ phiếu" }
+    "dashboard": {
+      "title": "Bảng điều khiển",
+      "emphasis": "khiển"
+    },
+    "priceboard": {
+      "title": "Bảng giá",
+      "emphasis": "giá"
+    },
+    "stockscreener": {
+      "title": "Lọc cổ phiếu",
+      "emphasis": "phiếu"
+    },
+    "byindustry": {
+      "title": "Theo ngành",
+      "emphasis": "ngành"
+    },
+    "stocklist": {
+      "title": "Danh sách cổ phiếu",
+      "emphasis": "phiếu"
+    },
+    "topgainer": {
+      "title": "Tăng mạnh nhất",
+      "emphasis": "nhất"
+    },
+    "toploser": {
+      "title": "Giảm mạnh nhất",
+      "emphasis": "nhất"
+    },
+    "topactive": {
+      "title": "Giao dịch nhiều nhất",
+      "emphasis": "nhất"
+    },
+    "timeseries": {
+      "title": "Chuỗi thời gian",
+      "emphasis": "thời gian"
+    },
+    "models": {
+      "title": "Mô hình",
+      "emphasis": "hình"
+    },
+    "solutions": {
+      "title": "Giải pháp",
+      "emphasis": "pháp"
+    },
+    "indicators": {
+      "title": "Chỉ báo",
+      "emphasis": "báo"
+    },
+    "backtest": {
+      "title": "Backtest",
+      "emphasis": ""
+    },
+    "simulation": {
+      "title": "Mô phỏng giao dịch",
+      "emphasis": "giao dịch"
+    },
+    "chatbot": {
+      "title": "Trợ lý AI",
+      "emphasis": "AI"
+    },
+    "knowledge-qa": {
+      "title": "Knowledge QA",
+      "emphasis": "QA"
+    },
+    "technical": {
+      "title": "Phân tích kỹ thuật",
+      "emphasis": "thuật"
+    },
+    "fundamental": {
+      "title": "Phân tích cơ bản",
+      "emphasis": "bản"
+    },
+    "ai-insights": {
+      "title": "Phân tích AI",
+      "emphasis": "AI"
+    },
+    "holdings": {
+      "title": "Cổ phiếu nắm giữ",
+      "emphasis": "giữ"
+    },
+    "performance": {
+      "title": "Hiệu suất",
+      "emphasis": "suất"
+    },
+    "alerts": {
+      "title": "Cảnh báo giá",
+      "emphasis": "giá"
+    },
+    "journal-dashboard": {
+      "title": "Tổng quan nhật ký",
+      "emphasis": "nhật ký"
+    },
+    "journal-accounts": {
+      "title": "Tài khoản",
+      "emphasis": "khoản"
+    },
+    "trade-log": {
+      "title": "Sổ giao dịch",
+      "emphasis": "giao dịch"
+    },
+    "trade-diary": {
+      "title": "Nhật ký giao dịch",
+      "emphasis": "giao dịch"
+    },
+    "daily-planning": {
+      "title": "Kế hoạch hàng ngày",
+      "emphasis": "ngày"
+    },
+    "weekly-review": {
+      "title": "Tổng kết tuần",
+      "emphasis": "tuần"
+    },
+    "decision-console": {
+      "title": "Decision Console",
+      "emphasis": "Console"
+    },
+    "decision-board": {
+      "title": "Watchlist Board",
+      "emphasis": "Board"
+    },
+    "backtest-studio": {
+      "title": "Backtest Studio",
+      "emphasis": "Studio"
+    },
+    "discipline": {
+      "title": "Discipline",
+      "emphasis": ""
+    },
+    "scheduled-runs": {
+      "title": "Scheduled Runs",
+      "emphasis": "Runs"
+    },
+    "scanner": {
+      "title": "Scanner",
+      "emphasis": ""
+    },
+    "analytics": {
+      "title": "Analytics",
+      "emphasis": ""
+    },
+    "positions-open": {
+      "title": "Open Positions",
+      "emphasis": "Positions"
+    },
+    "outcomes": {
+      "title": "Trade Outcomes",
+      "emphasis": "Outcomes"
+    },
+    "risk-dashboard": {
+      "title": "Risk Dashboard",
+      "emphasis": "Dashboard"
+    },
+    "watchlist-heatmap": {
+      "title": "Watchlist Heat Map",
+      "emphasis": "Heat Map"
+    },
+    "calculator": {
+      "title": "Máy tính đầu tư",
+      "emphasis": "đầu tư"
+    },
+    "watchlist": {
+      "title": "Danh sách theo dõi",
+      "emphasis": "theo dõi"
+    },
+    "company": {
+      "title": "Chi tiết cổ phiếu",
+      "emphasis": "cổ phiếu"
+    }
   },
   "dashboard": {
-    "stat_total_value":       "Tổng giá trị",
-    "stat_pnl":               "Lãi / Lỗ",
-    "stat_holdings":          "Cổ phiếu nắm giữ",
-    "stat_day_change":        "Thay đổi trong ngày",
-    "stat_no_investments":    "Chưa có khoản đầu tư",
-    "stat_total_current":     "Tổng hiện tại",
-    "stat_today":             "Hôm nay",
-    "stat_holdings_count":    "{{count}} mã đang nắm",
-    "stat_index_change":      "VN-Index +0.42%",
-
-    "portfolio_eyebrow":      "Danh mục đầu tư",
-    "portfolio_count":        "{{count}} mã đang nắm giữ",
-    "portfolio_add":          "+ Thêm cổ phiếu",
-    "col_symbol":             "Mã CP",
-    "col_company":            "Công ty",
-    "col_shares":             "Số lượng",
-    "col_avg_price":          "Giá TB",
-    "col_current_price":      "Giá hiện tại",
-    "col_change":             "Thay đổi",
-    "col_value":              "Giá trị",
-    "portfolio_empty_title":  "Danh mục của bạn đang trống",
-    "portfolio_empty_sub":    "Bắt đầu thêm cổ phiếu để theo dõi hiệu suất danh mục của bạn theo thời gian thực",
-    "portfolio_empty_cta":    "Khám phá mã được khuyến nghị →",
-
-    "ai_eyebrow":             "Khuyến nghị AI · {{count}} mã",
-    "ai_empty_title":         "Chưa có khuyến nghị AI",
-    "ai_empty_sub":           "Vui lòng quay lại sau để xem khuyến nghị mới.",
-    "ai_confidence_label":    "ĐỘ TIN CẬY",
-
-    "prospect_eyebrow":       "Cổ phiếu tiềm năng",
-    "prospect_subtitle":      "Dựa trên phân tích cơ bản: tin tức tích cực, tỷ số P/E hấp dẫn và tăng trưởng lợi nhuận 2 năm",
-    "prospect_empty_title":   "Chưa có cổ phiếu tiềm năng",
-    "prospect_empty_sub":     "Hệ thống đang phân tích thị trường. Vui lòng quay lại sau để xem các mã được đề xuất.",
-    "prospect_metric_price":  "GIÁ",
-    "prospect_metric_pe":     "P/E",
-    "prospect_metric_eps":    "EPS 2 NĂM",
+    "stat_total_value": "Tổng giá trị",
+    "stat_pnl": "Lãi / Lỗ",
+    "stat_holdings": "Cổ phiếu nắm giữ",
+    "stat_day_change": "Thay đổi trong ngày",
+    "stat_no_investments": "Chưa có khoản đầu tư",
+    "stat_total_current": "Tổng hiện tại",
+    "stat_today": "Hôm nay",
+    "stat_holdings_count": "{{count}} mã đang nắm",
+    "stat_index_change": "VN-Index +0.42%",
+    "portfolio_eyebrow": "Danh mục đầu tư",
+    "portfolio_count": "{{count}} mã đang nắm giữ",
+    "portfolio_add": "+ Thêm cổ phiếu",
+    "col_symbol": "Mã CP",
+    "col_company": "Công ty",
+    "col_shares": "Số lượng",
+    "col_avg_price": "Giá TB",
+    "col_current_price": "Giá hiện tại",
+    "col_change": "Thay đổi",
+    "col_value": "Giá trị",
+    "portfolio_empty_title": "Danh mục của bạn đang trống",
+    "portfolio_empty_sub": "Bắt đầu thêm cổ phiếu để theo dõi hiệu suất danh mục của bạn theo thời gian thực",
+    "portfolio_empty_cta": "Khám phá mã được khuyến nghị →",
+    "ai_eyebrow": "Khuyến nghị AI · {{count}} mã",
+    "ai_empty_title": "Chưa có khuyến nghị AI",
+    "ai_empty_sub": "Vui lòng quay lại sau để xem khuyến nghị mới.",
+    "ai_confidence_label": "ĐỘ TIN CẬY",
+    "prospect_eyebrow": "Cổ phiếu tiềm năng",
+    "prospect_subtitle": "Dựa trên phân tích cơ bản: tin tức tích cực, tỷ số P/E hấp dẫn và tăng trưởng lợi nhuận 2 năm",
+    "prospect_empty_title": "Chưa có cổ phiếu tiềm năng",
+    "prospect_empty_sub": "Hệ thống đang phân tích thị trường. Vui lòng quay lại sau để xem các mã được đề xuất.",
+    "prospect_metric_price": "GIÁ",
+    "prospect_metric_pe": "P/E",
+    "prospect_metric_eps": "EPS 2 NĂM",
     "prospect_metric_profit": "LNST 2 NĂM"
   },
   "market_movers": {
@@ -1301,5 +1424,332 @@
   "contact": {
     "author": "Phạm Hoàng Tuấn",
     "email": "tuanph1970@gmail.com"
+  },
+  "decision_helper": {
+    "common": {
+      "regime_trend_up": "Xu hướng ↑",
+      "regime_trend_down": "Xu hướng ↓",
+      "regime_range": "Tích lũy",
+      "regime_undefined": "Không xác định",
+      "analyzing": "Đang phân tích…",
+      "running": "Đang chạy…",
+      "scanning": "Đang quét…",
+      "refresh": "Làm mới",
+      "saving": "Đang lưu…",
+      "save": "Lưu",
+      "cancel": "Hủy",
+      "loading": "Đang tải…"
+    },
+    "decision_console": {
+      "ticker_placeholder": "Mã CK (vd: VIC)",
+      "analyze": "Phân tích",
+      "risk_prefs_title": "Cài đặt rủi ro",
+      "confidence_label": "Độ tin cậy {{pct}}%",
+      "save_plan": "Lưu kế hoạch",
+      "entry": "Vào lệnh",
+      "stop": "Cắt lỗ",
+      "target": "Mục tiêu",
+      "shares": "Số CP",
+      "signal_label": "Tín hiệu",
+      "confirmed": "đã xác nhận",
+      "state_label": "Trạng thái",
+      "reason_chain": "Chuỗi lý do ({{count}} bước)",
+      "empty_hint": "Nhập mã cổ phiếu và nhấn Phân tích để nhận khuyến nghị."
+    },
+    "pattern_panel": {
+      "title": "Mẫu biểu đồ",
+      "scanning": "đang quét…",
+      "unavailable": "không khả dụng",
+      "detected": "{{count}} mẫu",
+      "none_detected": "không phát hiện",
+      "no_patterns": "Không phát hiện mẫu biểu đồ trong khoảng nhìn lại.",
+      "bullish": "Tăng giá",
+      "bearish": "Giảm giá",
+      "confidence": "Độ tin cậy",
+      "neckline": "Đường cổ / Điểm bứt phá",
+      "measured_move": "Mục tiêu đo lường"
+    },
+    "risk_prefs": {
+      "title": "Cài đặt rủi ro",
+      "account_equity": "Vốn tài khoản",
+      "risk_per_trade": "Rủi ro / Giao dịch %",
+      "max_positions": "Số vị thế tối đa",
+      "max_correlation": "Tương quan tối đa",
+      "streak_cut": "Hệ số cắt chuỗi thua",
+      "streak_threshold": "Ngưỡng chuỗi thua",
+      "journal_account": "ID tài khoản nhật ký (tuỳ chọn — tự đồng bộ GD)",
+      "journal_placeholder": "Để trống để tắt",
+      "saved": "Đã lưu.",
+      "save_failed": "Lưu thất bại."
+    },
+    "decision_board": {
+      "title": "Bảng quyết định",
+      "analyze_all": "Phân tích tất cả ({{count}})",
+      "ticker": "Mã CK",
+      "regime": "Xu hướng",
+      "action": "Hành động",
+      "confidence_short": "Tin cậy",
+      "entry": "Vào lệnh",
+      "stop": "Cắt lỗ",
+      "target": "Mục tiêu",
+      "shares": "Số CP",
+      "recompute": "Tính lại",
+      "save_plan": "Lưu kế hoạch",
+      "plan_saved": "Đã lưu kế hoạch giao dịch."
+    },
+    "backtest_studio": {
+      "title": "Phòng thử nghiệm Backtest",
+      "ticker": "Mã CK",
+      "start_date": "Ngày bắt đầu",
+      "end_date": "Ngày kết thúc",
+      "initial_equity": "Vốn ban đầu",
+      "risk_per_trade": "Rủi ro / giao dịch %",
+      "fast_ma": "MA nhanh",
+      "slow_ma": "MA chậm",
+      "breakout_n": "Breakout N",
+      "k_delay": "K delay",
+      "slippage": "Trượt giá (bps)",
+      "commission": "Hoa hồng ($)",
+      "walk_forward": "Tối ưu hoá tiến",
+      "wf_window": "Cửa sổ tối ưu (ngày)",
+      "run": "Chạy Backtest",
+      "failed": "Backtest thất bại.",
+      "trades": "Giao dịch",
+      "win_rate": "Tỷ lệ thắng",
+      "net_pnl": "Lãi/Lỗ ròng",
+      "max_drawdown": "Drawdown tối đa",
+      "expectancy": "Kỳ vọng",
+      "sharpe": "Sharpe",
+      "profit_factor": "Hệ số lợi nhuận",
+      "latency": "Độ trễ",
+      "equity_curve": "Đường vốn — {{ticker}}",
+      "start_label": "Bắt đầu",
+      "equity_label": "Vốn",
+      "wf_windows": "Cửa sổ tối ưu hoá tiến ({{count}})",
+      "ledger": "Sổ giao dịch ({{count}} lệnh)",
+      "col_num": "#",
+      "col_start": "Bắt đầu",
+      "col_end": "Kết thúc",
+      "col_trades": "GD",
+      "col_win_pct": "Thắng%",
+      "col_net_pnl": "Lãi/Lỗ",
+      "col_max_dd": "DD tối đa",
+      "col_expectancy": "Kỳ vọng",
+      "col_dir": "Chiều",
+      "col_entry_date": "Ngày vào",
+      "col_entry_price": "Giá vào",
+      "col_exit_date": "Ngày ra",
+      "col_exit_price": "Giá ra",
+      "col_shares": "Số CP",
+      "col_gross_pnl": "Lãi/Lỗ gộp",
+      "col_exit_reason": "Lý do ra"
+    },
+    "discipline": {
+      "title": "Bảng kỷ luật",
+      "subtitle": "Schwager Ch 16–17",
+      "loss_streak": "Chuỗi thua",
+      "streak_active": "Đang chuỗi thua",
+      "drawdown": "Drawdown",
+      "rules_triggered": "Quy tắc vi phạm",
+      "threshold": "Ngưỡng: {{n}}",
+      "reduce_size": "Giảm khối lượng vị thế",
+      "within_tolerance": "Trong giới hạn cho phép",
+      "peak": "Đỉnh: {{n}}",
+      "no_equity": "Không có dữ liệu vốn",
+      "of_rules": "trên {{total}} quy tắc theo dõi",
+      "last_10_actions": "10 hành động gần nhất",
+      "active_violations": "Vi phạm quy tắc đang hoạt động",
+      "schwager_rules": "10 quy tắc chính của Schwager (Ch 17)",
+      "no_data": "Không có dữ liệu kỷ luật."
+    },
+    "scheduled_runs": {
+      "title": "Chạy định kỳ",
+      "alert_one": "cảnh báo",
+      "alert_other": "cảnh báo",
+      "alerts_only": "Chỉ cảnh báo",
+      "all_runs": "Tất cả",
+      "watchlist_title": "Danh sách theo dõi ({{count}} mã)",
+      "ticker_placeholder": "Mã CK",
+      "note_placeholder": "Ghi chú (tuỳ chọn)",
+      "add": "Thêm",
+      "run_all": "Chạy tất cả ngay",
+      "no_tickers": "Chưa có mã trong danh sách. Thêm mã ở trên để bật khuyến nghị hàng ngày.",
+      "recent_runs_title": "Lịch sử chạy định kỳ",
+      "total": "(tổng {{n}})",
+      "no_runs": "Chưa có lần chạy nào. Thêm mã và nhấn \"Chạy tất cả ngay\", hoặc chờ đến 15:30 ICT.",
+      "col_alert": "Cảnh báo",
+      "col_ticker": "Mã CK",
+      "col_bar_date": "Ngày bar",
+      "col_action": "Hành động",
+      "col_regime": "Xu hướng",
+      "col_confidence": "Độ tin cậy",
+      "col_latency": "Độ trễ",
+      "col_run_at": "Thời gian chạy"
+    },
+    "scanner": {
+      "title": "Quét Watchlist",
+      "scan_all": "Quét tất cả",
+      "no_scan_title": "Chưa có kết quả quét",
+      "no_scan_hint": "Nhấn \"Quét tất cả\" để chạy engine quyết định trên toàn bộ danh sách theo dõi.",
+      "scanned": "Đã quét {{count}} mã",
+      "no_results": "Không có kết quả cho bộ lọc này.",
+      "plan": "Kế hoạch",
+      "col_action": "Hành động",
+      "col_ticker": "Mã CK",
+      "col_regime": "Xu hướng",
+      "col_confidence": "Độ tin cậy",
+      "col_entry": "Vào lệnh",
+      "col_stop": "Cắt lỗ",
+      "col_target": "Mục tiêu",
+      "col_signal": "Tín hiệu",
+      "filter_all": "Tất cả",
+      "filter_actionable": "Có tín hiệu"
+    },
+    "heatmap": {
+      "title": "Bản đồ nhiệt Watchlist",
+      "scanned_summary": "{{count}} mã đã quét · {{actionable}} có tín hiệu · bar {{date}}",
+      "watchlist_hint": "{{count}} mã trong danh sách — nhấn Quét để hiển thị",
+      "scan_now": "⚡ Quét ngay",
+      "no_results_title": "Chưa có kết quả quét",
+      "no_results_with_tickers": "Nhấn \"Quét ngay\" để chạy engine trên {{count}} mã.",
+      "no_results_empty": "Thêm mã vào danh sách trước, rồi nhấn \"Quét ngay\".",
+      "scanning_progress": "Đang quét {{count}} mã…",
+      "no_filter_match": "Không có mã nào khớp bộ lọc hiện tại.",
+      "sort_label": "Sắp xếp:",
+      "sort_confidence": "Tin cậy ↓",
+      "sort_ticker": "Mã A→Z",
+      "sort_action": "Hành động",
+      "sort_regime": "Xu hướng",
+      "filter_all": "Tất cả",
+      "filter_actionable": "Có tín hiệu"
+    },
+    "analytics": {
+      "title": "Phân tích hiệu suất",
+      "total_decisions": "Tổng quyết định",
+      "actionable": "Có tín hiệu",
+      "top_signal": "Tín hiệu hàng đầu",
+      "top_regime": "Xu hướng hàng đầu",
+      "last_n_days": "{{n}} ngày gần nhất",
+      "buy_sell_short": "MUA / BÁN KHỐNG",
+      "confirm_rate": "tỷ lệ xác nhận",
+      "decisions_label": "quyết định",
+      "daily_signals_title": "Tín hiệu hàng ngày (MUA + BÁN KHỐNG)",
+      "action_distribution": "Phân bổ hành động",
+      "confidence_distribution": "Phân bổ độ tin cậy",
+      "regime_breakdown_title": "Phân tích xu hướng",
+      "signal_breakdown_title": "Phân tích tín hiệu",
+      "top_tickers_title": "Mã nổi bật",
+      "loading": "Đang tải phân tích…",
+      "no_signal_data": "Chưa có dữ liệu tín hiệu.",
+      "no_ticker_data": "Chưa có dữ liệu mã.",
+      "no_data": "Chưa có dữ liệu.",
+      "signals_label": "Tín hiệu",
+      "computed_at": "Tính lúc {{date}} · {{total}} quyết định trong {{days}} ngày",
+      "signal_col_kind": "Tín hiệu",
+      "signal_col_fires": "Số lần",
+      "signal_col_confirmed": "Đã xác nhận",
+      "signal_col_confirm_pct": "XN %",
+      "signal_col_avg_conf": "Tin cậy TB",
+      "ticker_col_ticker": "Mã CK",
+      "ticker_col_decisions": "Quyết định",
+      "ticker_col_buy": "MUA",
+      "ticker_col_sell_short": "BÁN KHỐNG"
+    },
+    "positions": {
+      "title": "Vị thế đang mở",
+      "n_open": "{{count}} đang mở",
+      "no_positions": "Không có vị thế đang mở",
+      "no_positions_hint": "Chạy Decision Console cho một mã để mở vị thế.",
+      "update_stop_for": "Cập nhật cắt lỗ cho {{ticker}}",
+      "invalid_stop": "Nhập giá cắt lỗ hợp lệ",
+      "stop_failed": "Cập nhật cắt lỗ thất bại",
+      "analyze_hint": "Phân tích trong Decision Console",
+      "update_stop_hint": "Cập nhật cắt lỗ",
+      "col_ticker": "Mã CK",
+      "col_direction": "Chiều",
+      "col_entry_date": "Ngày vào",
+      "col_days": "Ngày",
+      "col_entry_price": "Giá vào",
+      "col_stop": "Cắt lỗ",
+      "col_risk_pct": "Rủi ro %",
+      "col_target": "Mục tiêu",
+      "col_signal": "Tín hiệu"
+    },
+    "outcomes": {
+      "title": "Kết quả giao dịch",
+      "subtitle": "Nhật ký bội số R của vị thế đã đóng",
+      "view_log": "📋 Nhật ký",
+      "view_attribution": "📊 Phân bổ",
+      "tagged_trades": "Giao dịch đã gắn nhãn",
+      "win_rate": "Tỷ lệ thắng",
+      "avg_r": "R trung bình",
+      "expectancy": "Kỳ vọng",
+      "last_n_days": "{{n}} ngày gần nhất",
+      "wl_summary": "{{wins}} thắng / {{losses}} thua / {{breakevens}} hoà",
+      "per_trade": "mỗi giao dịch",
+      "no_outcomes": "Chưa có kết quả. Kết quả được ghi tự động khi SELL/COVER/REVERSE đóng vị thế.",
+      "ai_review_label": "Đánh giá AI:",
+      "generate_ai": "✦ Tạo đánh giá AI",
+      "generating_ai": "Đang tạo…",
+      "ai_unavailable": "Đánh giá AI không khả dụng — kiểm tra ai-insights-service.",
+      "ai_failed": "Tạo đánh giá thất bại",
+      "col_ticker": "Mã CK",
+      "col_entry_date": "Ngày vào",
+      "col_action": "Hành động",
+      "col_outcome": "Kết quả",
+      "col_r": "Bội số R",
+      "col_entry": "Giá vào",
+      "col_stop": "Cắt lỗ",
+      "col_exit": "Giá ra",
+      "col_signal": "Tín hiệu",
+      "col_regime": "Xu hướng",
+      "col_ai": "AI",
+      "view_close": "▲ Đóng",
+      "attr_tagged_one": "{{count}} giao dịch đã gắn nhãn · {{days}} ngày",
+      "attr_tagged_other": "{{count}} giao dịch đã gắn nhãn · {{days}} ngày",
+      "attr_by_signal": "Theo loại tín hiệu",
+      "attr_by_regime": "Theo xu hướng",
+      "attr_by_weekday": "Theo ngày vào lệnh",
+      "attr_by_hold": "Theo thời gian nắm giữ",
+      "attr_no_data": "Chưa có kết quả — sẽ hiển thị khi có giao dịch được gắn nhãn.",
+      "attr_loading": "Đang tải phân bổ…",
+      "attr_col_category": "Danh mục",
+      "attr_col_trades": "Giao dịch",
+      "attr_col_win_pct": "Thắng %",
+      "attr_col_avg_r": "R TB",
+      "attr_col_expectancy": "Kỳ vọng"
+    },
+    "risk": {
+      "title": "Bảng rủi ro",
+      "subtitle": "Mức độ rủi ro danh mục trên các vị thế đang mở",
+      "open_positions": "Vị thế đang mở",
+      "total_risk_pct": "Tổng rủi ro %",
+      "net_exposure": "Exposure ròng",
+      "account_equity": "Vốn tài khoản",
+      "long_short_count": "{{long}} Dài / {{short}} Ngắn",
+      "vnd_at_risk": "{{amount}} VNĐ đang rủi ro",
+      "net_long_bias": "Thiên về mua",
+      "net_short_bias": "Thiên về bán",
+      "vnd": "VNĐ",
+      "long_short_split": "Tỷ lệ Mua / Bán",
+      "worst_case": "Trường hợp xấu nhất khi hit stop",
+      "drawdown_pct_equity": "−{{pct}}% trên {{equity}} VNĐ vốn",
+      "drawdown_pct_no_equity": "−{{pct}}% trên vốn tài khoản",
+      "position_detail": "Chi tiết vị thế",
+      "no_positions": "Không có vị thế đang mở. Chỉ số rủi ro sẽ hiển thị khi có giao dịch.",
+      "correlation_title": "Ma trận tương quan vị thế",
+      "limit_breach": "⚠ Vượt giới hạn",
+      "corr_limit": "giới hạn: {{n}}%",
+      "color_scale": "Màu: đỏ = tương quan dương cao · tím = âm cao · viền đỏ = vượt giới hạn",
+      "col_ticker": "Mã CK",
+      "col_direction": "Chiều",
+      "col_entry": "Giá vào",
+      "col_stop": "Cắt lỗ",
+      "col_shares": "Số CP",
+      "col_risk_per_share": "RR/CP",
+      "col_risk_amount": "Số tiền RR",
+      "col_equity_pct": "% Vốn",
+      "col_days": "Ngày"
+    }
   }
 }

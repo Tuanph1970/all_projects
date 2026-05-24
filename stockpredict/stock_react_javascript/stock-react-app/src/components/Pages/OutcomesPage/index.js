@@ -1,5 +1,6 @@
 // F-161..F-163, F-190..F-193, F-210..F-213 — OutcomesPage: trade outcome log + AI review + attribution
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import helperService from '../../../services/helperService';
 
 // ── Sub-components ──────────────────────────────────────────────────────────
@@ -75,6 +76,7 @@ const SummaryCard = ({ label, value, sub, color }) => (
 // ── AI review panel ──────────────────────────────────────────────────────────
 
 const ReviewPanel = ({ runId, cachedReview }) => {
+  const { t } = useTranslation();
   const [review, setReview] = useState(cachedReview || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -86,9 +88,9 @@ const ReviewPanel = ({ runId, cachedReview }) => {
       const res = await helperService.generateReview(runId);
       const d = res.data || res;
       setReview(d.ai_review || null);
-      if (!d.ai_review) setError('AI review unavailable — check ai-insights-service.');
+      if (!d.ai_review) setError(t('decision_helper.outcomes.ai_unavailable'));
     } catch (err) {
-      setError(err?.response?.data?.detail || err.message || 'Failed to generate review');
+      setError(err?.response?.data?.detail || err.message || t('decision_helper.outcomes.ai_failed'));
     } finally {
       setLoading(false);
     }
@@ -101,7 +103,7 @@ const ReviewPanel = ({ runId, cachedReview }) => {
   if (review) {
     return (
       <div style={{ padding: '10px 14px', background: '#f0f9ff', borderRadius: 6, fontSize: 12, color: '#1e40af', lineHeight: 1.6 }}>
-        <span style={{ fontWeight: 700, color: '#1d4ed8', marginRight: 6 }}>AI Review:</span>
+        <span style={{ fontWeight: 700, color: '#1d4ed8', marginRight: 6 }}>{t('decision_helper.outcomes.ai_review_label')}</span>
         {review}
       </div>
     );
@@ -118,7 +120,7 @@ const ReviewPanel = ({ runId, cachedReview }) => {
           color: loading ? '#9ca3af' : '#1d4ed8',
           border: '1px solid #bfdbfe', borderRadius: 5, cursor: loading ? 'not-allowed' : 'pointer',
         }}
-      >{loading ? 'Generating…' : '✦ Generate AI Review'}</button>
+      >{loading ? t('decision_helper.outcomes.generating_ai') : t('decision_helper.outcomes.generate_ai')}</button>
       {error && <span style={{ fontSize: 11, color: '#ef4444' }}>{error}</span>}
     </div>
   );
@@ -134,6 +136,7 @@ const winRateColor = (wr) => {
 };
 
 const AttributionTable = ({ title, rows }) => {
+  const { t } = useTranslation();
   if (!rows || rows.length === 0) return null;
   const maxCount = Math.max(...rows.map(r => r.count), 1);
   return (
@@ -142,7 +145,7 @@ const AttributionTable = ({ title, rows }) => {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr style={{ borderBottom: '1px solid #f3f4f6' }}>
-            {['Category', 'Trades', 'Win%', 'Avg R', 'Expectancy', ''].map(h => (
+            {[t('decision_helper.outcomes.attr_col_category'), t('decision_helper.outcomes.attr_col_trades'), t('decision_helper.outcomes.attr_col_win_pct'), t('decision_helper.outcomes.attr_col_avg_r'), t('decision_helper.outcomes.attr_col_expectancy'), ''].map(h => (
               <th key={h} style={{ padding: '4px 10px', textAlign: h === '' ? 'left' : 'right', color: '#6b7280', fontWeight: 600, whiteSpace: 'nowrap' }}>{h}</th>
             ))}
           </tr>
@@ -179,6 +182,7 @@ const AttributionTable = ({ title, rows }) => {
 };
 
 const AttributionView = ({ days }) => {
+  const { t } = useTranslation();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -192,23 +196,23 @@ const AttributionView = ({ days }) => {
       .finally(() => setLoading(false));
   }, [days]);
 
-  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>Loading attribution…</div>;
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>{t('decision_helper.outcomes.attr_loading')}</div>;
   if (error) return <div style={{ padding: 16, background: '#fee2e2', borderRadius: 8, color: '#991b1b' }}>{error}</div>;
   if (!data || data.total_tagged === 0) return (
     <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>
-      No tagged outcomes yet — attribution will appear once trades are recorded.
+      {t('decision_helper.outcomes.attr_no_data')}
     </div>
   );
 
   return (
     <div>
       <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 14 }}>
-        {data.total_tagged} tagged trade{data.total_tagged !== 1 ? 's' : ''} · last {days} days
+        {t('decision_helper.outcomes.attr_tagged', { count: data.total_tagged, days })}
       </div>
-      <AttributionTable title="By signal type" rows={data.by_signal} />
-      <AttributionTable title="By market regime" rows={data.by_regime} />
-      <AttributionTable title="By entry weekday" rows={data.by_weekday} />
-      <AttributionTable title="By hold duration" rows={data.by_hold_duration} />
+      <AttributionTable title={t('decision_helper.outcomes.attr_by_signal')} rows={data.by_signal} />
+      <AttributionTable title={t('decision_helper.outcomes.attr_by_regime')} rows={data.by_regime} />
+      <AttributionTable title={t('decision_helper.outcomes.attr_by_weekday')} rows={data.by_weekday} />
+      <AttributionTable title={t('decision_helper.outcomes.attr_by_hold')} rows={data.by_hold_duration} />
     </div>
   );
 };
@@ -217,6 +221,7 @@ const AttributionView = ({ days }) => {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const OutcomesPage = () => {
+  const { t } = useTranslation();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -254,9 +259,9 @@ const OutcomesPage = () => {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Trade Outcomes</h2>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>{t('decision_helper.outcomes.title')}</h2>
           <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 13 }}>
-            R-multiple log for closed positions
+            {t('decision_helper.outcomes.subtitle')}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -274,7 +279,7 @@ const OutcomesPage = () => {
                 fontWeight: view === v ? 700 : 400,
                 cursor: 'pointer', fontSize: 12,
               }}
-            >{v === 'log' ? '📋 Log' : '📊 Attribution'}</button>
+            >{v === 'log' ? t('decision_helper.outcomes.view_log') : t('decision_helper.outcomes.view_attribution')}</button>
           ))}
           <div style={{ width: 1, height: 20, background: '#e5e7eb', margin: '0 4px' }} />
           {DAY_OPTS.map(d => (
@@ -312,25 +317,25 @@ const OutcomesPage = () => {
       {/* Summary cards */}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
         <SummaryCard
-          label="Tagged trades"
+          label={t('decision_helper.outcomes.tagged_trades')}
           value={summary.total_tagged ?? 0}
-          sub={`last ${days} days`}
+          sub={t('decision_helper.outcomes.last_n_days', { n: days })}
         />
         <SummaryCard
-          label="Win rate"
+          label={t('decision_helper.outcomes.win_rate')}
           value={summary.total_tagged ? `${(summary.win_rate * 100).toFixed(1)}%` : '—'}
-          sub={`${summary.wins ?? 0}W / ${summary.losses ?? 0}L / ${summary.breakevens ?? 0}E`}
+          sub={t('decision_helper.outcomes.wl_summary', { wins: summary.wins ?? 0, losses: summary.losses ?? 0, breakevens: summary.breakevens ?? 0 })}
           color={summary.win_rate >= 0.5 ? '#10b981' : '#ef4444'}
         />
         <SummaryCard
-          label="Avg R"
+          label={t('decision_helper.outcomes.avg_r')}
           value={summary.avg_r != null ? (summary.avg_r > 0 ? '+' : '') + summary.avg_r.toFixed(2) + 'R' : '—'}
           color={summary.avg_r > 0 ? '#10b981' : summary.avg_r < 0 ? '#ef4444' : '#111827'}
         />
         <SummaryCard
-          label="Expectancy"
+          label={t('decision_helper.outcomes.expectancy')}
           value={summary.expectancy != null ? (summary.expectancy > 0 ? '+' : '') + summary.expectancy.toFixed(2) + 'R' : '—'}
-          sub="per trade"
+          sub={t('decision_helper.outcomes.per_trade')}
           color={summary.expectancy > 0 ? '#10b981' : summary.expectancy < 0 ? '#ef4444' : '#111827'}
         />
       </div>
@@ -371,7 +376,7 @@ const OutcomesPage = () => {
 
       {!loading && !error && records.length === 0 && (
         <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>
-          No tagged outcomes yet. Outcomes are recorded automatically when a SELL/COVER/REVERSE decision closes a position.
+          {t('decision_helper.outcomes.no_outcomes')}
         </div>
       )}
 
@@ -381,7 +386,7 @@ const OutcomesPage = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                {['Ticker', 'Entry date', 'Action', 'Outcome', 'R-multiple', 'Entry', 'Stop', 'Exit', 'Signal', 'Regime', 'AI'].map(h => (
+                {[t('decision_helper.outcomes.col_ticker'), t('decision_helper.outcomes.col_entry_date'), t('decision_helper.outcomes.col_action'), t('decision_helper.outcomes.col_outcome'), t('decision_helper.outcomes.col_r'), t('decision_helper.outcomes.col_entry'), t('decision_helper.outcomes.col_stop'), t('decision_helper.outcomes.col_exit'), t('decision_helper.outcomes.col_signal'), t('decision_helper.outcomes.col_regime'), t('decision_helper.outcomes.col_ai')].map(h => (
                   <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -425,7 +430,7 @@ const OutcomesPage = () => {
                               borderColor: isExpanded ? '#bfdbfe' : '#e5e7eb',
                               borderRadius: 5, cursor: 'pointer',
                             }}
-                          >{isExpanded ? '▲ Close' : (rec.ai_review ? '✦ View' : '✦ AI')}</button>
+                          >{isExpanded ? t('decision_helper.outcomes.view_close') : (rec.ai_review ? '✦ View' : '✦ AI')}</button>
                         )}
                       </td>
                     </tr>
@@ -445,7 +450,7 @@ const OutcomesPage = () => {
       )}
 
       {loading && (
-        <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>Loading…</div>
+        <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>{t('decision_helper.common.loading')}</div>
       )}
 
       </>}

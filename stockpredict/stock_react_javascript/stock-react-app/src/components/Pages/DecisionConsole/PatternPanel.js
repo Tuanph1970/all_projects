@@ -1,10 +1,12 @@
 // F-101 — PatternPanel: chart-pattern overlay for Decision Console
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 // ── PatternCard ──────────────────────────────────────────────────────────────
 
 const PatternCard = ({ pattern }) => {
+  const { t } = useTranslation();
   const isBullish = pattern.pattern_type === 'bullish';
   const color = isBullish ? '#10b981' : '#ef4444';
   const bg = isBullish ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)';
@@ -20,13 +22,13 @@ const PatternCard = ({ pattern }) => {
           {pattern.pattern_name}
         </span>
         <span style={{ fontSize: 11, fontWeight: 600, color, background: `${color}22`, padding: '2px 7px', borderRadius: 4 }}>
-          {isBullish ? 'Bullish' : 'Bearish'}
+          {isBullish ? t('decision_helper.pattern_panel.bullish') : t('decision_helper.pattern_panel.bearish')}
         </span>
       </div>
 
       {/* Confidence bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-        <span style={{ fontSize: 10, color: '#9ca3af', width: 68, flexShrink: 0 }}>Confidence</span>
+        <span style={{ fontSize: 10, color: '#9ca3af', width: 68, flexShrink: 0 }}>{t('decision_helper.pattern_panel.confidence')}</span>
         <div style={{ flex: 1, height: 5, background: '#374151', borderRadius: 3, overflow: 'hidden' }}>
           <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 3 }} />
         </div>
@@ -37,7 +39,7 @@ const PatternCard = ({ pattern }) => {
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         {pattern.neckline != null && (
           <div style={styles.priceCell}>
-            <span style={styles.priceLabel}>Neckline / Breakout</span>
+            <span style={styles.priceLabel}>{t('decision_helper.pattern_panel.neckline')}</span>
             <span style={{ ...styles.priceValue, color: '#f59e0b' }}>
               {Number(pattern.neckline).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
@@ -45,7 +47,7 @@ const PatternCard = ({ pattern }) => {
         )}
         {pattern.measured_move_target != null && (
           <div style={styles.priceCell}>
-            <span style={styles.priceLabel}>Measured Move</span>
+            <span style={styles.priceLabel}>{t('decision_helper.pattern_panel.measured_move')}</span>
             <span style={{ ...styles.priceValue, color }}>
               {Number(pattern.measured_move_target).toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
@@ -59,6 +61,7 @@ const PatternCard = ({ pattern }) => {
 // ── PatternPanel ─────────────────────────────────────────────────────────────
 
 const PatternPanel = ({ patterns, loading, error }) => {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(true);
 
   const found = patterns ? patterns.filter(p => p.found) : [];
@@ -67,8 +70,8 @@ const PatternPanel = ({ patterns, loading, error }) => {
     return (
       <div style={styles.shell}>
         <div style={styles.header}>
-          <span style={styles.title}>Chart Patterns</span>
-          <span style={{ fontSize: 11, color: '#6b7280' }}>scanning…</span>
+          <span style={styles.title}>{t('decision_helper.pattern_panel.title')}</span>
+          <span style={{ fontSize: 11, color: '#6b7280' }}>{t('decision_helper.pattern_panel.scanning')}</span>
         </div>
       </div>
     );
@@ -78,8 +81,8 @@ const PatternPanel = ({ patterns, loading, error }) => {
     return (
       <div style={styles.shell}>
         <div style={styles.header}>
-          <span style={styles.title}>Chart Patterns</span>
-          <span style={{ fontSize: 11, color: '#6b7280' }}>unavailable</span>
+          <span style={styles.title}>{t('decision_helper.pattern_panel.title')}</span>
+          <span style={{ fontSize: 11, color: '#6b7280' }}>{t('decision_helper.pattern_panel.unavailable')}</span>
         </div>
       </div>
     );
@@ -91,11 +94,11 @@ const PatternPanel = ({ patterns, loading, error }) => {
     <div style={styles.shell}>
       <button onClick={() => setOpen(o => !o)} style={styles.toggleBtn}>
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        <span style={styles.title}>Chart Patterns</span>
+        <span style={styles.title}>{t('decision_helper.pattern_panel.title')}</span>
         {found.length > 0 ? (
-          <span style={styles.badge}>{found.length} detected</span>
+          <span style={styles.badge}>{t('decision_helper.pattern_panel.detected', { count: found.length })}</span>
         ) : (
-          <span style={{ fontSize: 11, color: '#6b7280', marginLeft: 6 }}>none detected</span>
+          <span style={{ fontSize: 11, color: '#6b7280', marginLeft: 6 }}>{t('decision_helper.pattern_panel.none_detected')}</span>
         )}
       </button>
 
@@ -107,7 +110,7 @@ const PatternPanel = ({ patterns, loading, error }) => {
 
       {open && found.length === 0 && (
         <div style={{ color: '#6b7280', fontSize: 12, marginTop: 8, paddingLeft: 4 }}>
-          No chart patterns detected in the lookback window.
+          {t('decision_helper.pattern_panel.no_patterns')}
         </div>
       )}
     </div>

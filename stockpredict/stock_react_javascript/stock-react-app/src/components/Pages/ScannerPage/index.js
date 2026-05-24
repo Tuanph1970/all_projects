@@ -4,6 +4,7 @@ import {
   Scan, RefreshCw, TrendingUp, TrendingDown, Minus,
   AlertTriangle, BookOpen, Shield, Target, CheckCircle,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import helperService from '../../../services/helperService';
 import TradePlanModal from '../../common/TradePlanModal';
 
@@ -24,10 +25,10 @@ const ACTION_META = {
 };
 
 const REGIME_META = {
-  TREND_UP:   { label: 'Trend ↑', color: '#10b981', Icon: TrendingUp },
-  TREND_DOWN: { label: 'Trend ↓', color: '#ef4444', Icon: TrendingDown },
-  RANGE:      { label: 'Range',   color: '#f59e0b', Icon: Minus },
-  UNDEFINED:  { label: 'Undef',   color: '#6b7280', Icon: Minus },
+  TREND_UP:   { labelKey: 'decision_helper.common.regime_trend_up',   color: '#10b981', Icon: TrendingUp },
+  TREND_DOWN: { labelKey: 'decision_helper.common.regime_trend_down', color: '#ef4444', Icon: TrendingDown },
+  RANGE:      { labelKey: 'decision_helper.common.regime_range',      color: '#f59e0b', Icon: Minus },
+  UNDEFINED:  { labelKey: null,                                        color: '#6b7280', Icon: Minus },
 };
 
 const FILTERS = ['All', 'Actionable', 'BUY', 'SELL_SHORT', 'HOLD', 'WAIT'];
@@ -47,6 +48,7 @@ const ActionBadge = ({ action }) => {
 };
 
 const RegimePill = ({ regime }) => {
+  const { t } = useTranslation();
   const m = REGIME_META[regime] || REGIME_META.UNDEFINED;
   const { Icon } = m;
   return (
@@ -57,7 +59,7 @@ const RegimePill = ({ regime }) => {
       border: `1px solid ${m.color}33`,
     }}>
       <Icon size={10} />
-      {m.label}
+      {m.labelKey ? t(m.labelKey) : '—'}
     </span>
   );
 };
@@ -78,12 +80,13 @@ const ConfBar = ({ value }) => {
 // ── SummaryBar ────────────────────────────────────────────────────────────────
 
 const SummaryBar = ({ result }) => {
+  const { t } = useTranslation();
   const buys = result.results.filter(r => r.action === 'BUY').length;
   const shorts = result.results.filter(r => r.action === 'SELL_SHORT').length;
   return (
     <div style={styles.summaryBar}>
       <span style={styles.summaryItem}>
-        Scanned <strong>{result.ticker_count}</strong> tickers
+        {t('decision_helper.scanner.scanned', { count: result.ticker_count })}
       </span>
       <span style={{ color: '#6b7280' }}>·</span>
       <span style={styles.summaryItem}>
@@ -102,6 +105,7 @@ const SummaryBar = ({ result }) => {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const ScannerPage = () => {
+  const { t } = useTranslation();
   const [barDate, setBarDate] = useState(today());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -154,7 +158,7 @@ const ScannerPage = () => {
       <div style={styles.toolbar}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Scan size={18} color="#a78bfa" />
-          <span style={{ fontWeight: 700, fontSize: 16, color: '#f9fafb' }}>Watchlist Scanner</span>
+          <span style={{ fontWeight: 700, fontSize: 16, color: '#f9fafb' }}>{t('decision_helper.scanner.title')}</span>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto' }}>
           <input
@@ -167,7 +171,7 @@ const ScannerPage = () => {
             {loading
               ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
               : <Scan size={14} />}
-            {loading ? 'Scanning…' : 'Scan All'}
+            {loading ? t('decision_helper.common.scanning') : t('decision_helper.scanner.scan_all')}
           </button>
         </div>
       </div>
@@ -182,10 +186,8 @@ const ScannerPage = () => {
       {!result && !loading && !error && (
         <div style={styles.empty}>
           <Scan size={40} color="#374151" style={{ marginBottom: 12 }} />
-          <div style={{ fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>No scan run yet</div>
-          <div style={{ fontSize: 13, color: '#4b5563' }}>
-            Press "Scan All" to run the decision engine across your entire watchlist.
-          </div>
+          <div style={{ fontWeight: 600, color: '#6b7280', marginBottom: 4 }}>{t('decision_helper.scanner.no_scan_title')}</div>
+          <div style={{ fontSize: 13, color: '#4b5563' }}>{t('decision_helper.scanner.no_scan_hint')}</div>
         </div>
       )}
 
@@ -210,7 +212,7 @@ const ScannerPage = () => {
                     borderColor: filter === f ? '#4b5563' : 'transparent',
                   }}
                 >
-                  {f} {count > 0 && <span style={styles.filterCount}>{count}</span>}
+                  {f === 'All' ? t('decision_helper.scanner.filter_all') : f === 'Actionable' ? t('decision_helper.scanner.filter_actionable') : f} {count > 0 && <span style={styles.filterCount}>{count}</span>}
                 </button>
               );
             })}
@@ -219,14 +221,14 @@ const ScannerPage = () => {
           {/* ── Results table ── */}
           {filtered.length === 0 ? (
             <div style={{ ...styles.empty, marginTop: 24 }}>
-              <div style={{ color: '#6b7280', fontSize: 13 }}>No results for this filter.</div>
+              <div style={{ color: '#6b7280', fontSize: 13 }}>{t('decision_helper.scanner.no_results')}</div>
             </div>
           ) : (
             <div style={styles.tableWrap}>
               <table style={styles.table}>
                 <thead>
                   <tr>
-                    {['Action', 'Ticker', 'Regime', 'Confidence', 'Entry', 'Stop', 'Target', 'Signal', ''].map(h => (
+                    {[t('decision_helper.scanner.col_action'), t('decision_helper.scanner.col_ticker'), t('decision_helper.scanner.col_regime'), t('decision_helper.scanner.col_confidence'), t('decision_helper.scanner.col_entry'), t('decision_helper.scanner.col_stop'), t('decision_helper.scanner.col_target'), t('decision_helper.scanner.col_signal'), ''].map(h => (
                       <th key={h} style={styles.th}>{h}</th>
                     ))}
                   </tr>
@@ -276,7 +278,7 @@ const ScannerPage = () => {
                             onClick={() => setPlanRec(buildRec(item))}
                             style={styles.planBtn}
                           >
-                            <BookOpen size={12} /> Plan
+                            <BookOpen size={12} /> {t('decision_helper.scanner.plan')}
                           </button>
                         )}
                       </td>

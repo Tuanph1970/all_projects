@@ -1,5 +1,6 @@
 // F-181..F-183, F-200..F-203 — RiskDashboard: portfolio-level risk overview + correlation matrix
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import helperService from '../../../services/helperService';
 
 // ── Utility ──────────────────────────────────────────────────────────────────
@@ -65,12 +66,13 @@ const ExposureBar = ({ label, pct, amount, direction, maxPct }) => {
 };
 
 const LongShortGauge = ({ longPct, shortPct }) => {
+  const { t } = useTranslation();
   const total = longPct + shortPct || 1;
   const longW = Math.round(longPct / total * 100);
   const shortW = 100 - longW;
   return (
     <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 18px' }}>
-      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10, color: '#374151' }}>Long / Short Split</div>
+      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 10, color: '#374151' }}>{t('decision_helper.risk.long_short_split')}</div>
       <div style={{ display: 'flex', height: 20, borderRadius: 6, overflow: 'hidden', marginBottom: 8 }}>
         <div style={{ width: `${longW}%`, background: '#10b981', transition: 'width 0.4s' }} />
         <div style={{ width: `${shortW}%`, background: '#ef4444', transition: 'width 0.4s' }} />
@@ -84,6 +86,7 @@ const LongShortGauge = ({ longPct, shortPct }) => {
 };
 
 const DrawdownCard = ({ scenario, pct, equity }) => {
+  const { t } = useTranslation();
   const critical = pct >= 5;
   return (
     <div style={{
@@ -93,27 +96,28 @@ const DrawdownCard = ({ scenario, pct, equity }) => {
       padding: '14px 18px',
     }}>
       <div style={{ fontSize: 11, color: critical ? '#991b1b' : '#065f46', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-        Worst-case if all stops hit
+        {t('decision_helper.risk.worst_case')}
       </div>
       <div style={{ fontSize: 24, fontWeight: 800, color: critical ? '#dc2626' : '#059669' }}>
         −{fmt(scenario, 0)} VND
       </div>
       <div style={{ fontSize: 12, color: '#6b7280', marginTop: 3 }}>
-        −{fmt(pct)}% of {equity ? fmt(equity, 0) + ' VND equity' : 'account equity'}
+        {equity ? t('decision_helper.risk.drawdown_pct_equity', { pct: fmt(pct), equity: fmt(equity, 0) }) : t('decision_helper.risk.drawdown_pct_no_equity', { pct: fmt(pct) })}
       </div>
     </div>
   );
 };
 
 const PositionTable = ({ positions }) => {
+  const { t } = useTranslation();
   if (!positions?.length) return null;
   return (
     <div style={{ overflowX: 'auto', marginTop: 20 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Position Detail</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 10 }}>{t('decision_helper.risk.position_detail')}</div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-            {['Ticker', 'Direction', 'Entry', 'Stop', 'Shares', 'Risk/Share', 'Risk Amount', 'Equity %', 'Days'].map(h => (
+            {[t('decision_helper.risk.col_ticker'), t('decision_helper.risk.col_direction'), t('decision_helper.risk.col_entry'), t('decision_helper.risk.col_stop'), t('decision_helper.risk.col_shares'), t('decision_helper.risk.col_risk_per_share'), t('decision_helper.risk.col_risk_amount'), t('decision_helper.risk.col_equity_pct'), t('decision_helper.risk.col_days')].map(h => (
               <th key={h} style={{ padding: '7px 12px', textAlign: 'left', fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' }}>{h}</th>
             ))}
           </tr>
@@ -165,6 +169,7 @@ const corrColor = (r) => {
 };
 
 const CorrelationMatrix = ({ tickers, pairs, maxCorrelation, anyBreach }) => {
+  const { t } = useTranslation();
   if (!tickers || tickers.length < 2) return null;
 
   const lookup = {};
@@ -177,14 +182,14 @@ const CorrelationMatrix = ({ tickers, pairs, maxCorrelation, anyBreach }) => {
     <div style={{ background: '#fff', border: `1px solid ${anyBreach ? '#fca5a5' : '#e5e7eb'}`, borderRadius: 10, padding: '16px 20px', marginBottom: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: '#374151' }}>
-          Position correlation matrix
+          {t('decision_helper.risk.correlation_title')}
           {anyBreach && (
             <span style={{ marginLeft: 10, fontSize: 11, background: '#fee2e2', color: '#991b1b', padding: '2px 7px', borderRadius: 4, fontWeight: 700 }}>
-              ⚠ Limit breach
+              {t('decision_helper.risk.limit_breach')}
             </span>
           )}
         </div>
-        <span style={{ fontSize: 11, color: '#9ca3af' }}>limit: {(maxCorrelation * 100).toFixed(0)}%</span>
+        <span style={{ fontSize: 11, color: '#9ca3af' }}>{t('decision_helper.risk.corr_limit', { n: (maxCorrelation * 100).toFixed(0) })}</span>
       </div>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ borderCollapse: 'collapse', fontSize: 12 }}>
@@ -228,7 +233,7 @@ const CorrelationMatrix = ({ tickers, pairs, maxCorrelation, anyBreach }) => {
         </table>
       </div>
       <div style={{ marginTop: 8, fontSize: 11, color: '#9ca3af' }}>
-        Color scale: red = high positive · purple = high negative · cells outlined in red breach the limit
+        {t('decision_helper.risk.color_scale')}
       </div>
     </div>
   );
@@ -236,6 +241,7 @@ const CorrelationMatrix = ({ tickers, pairs, maxCorrelation, anyBreach }) => {
 
 
 const RiskDashboard = () => {
+  const { t } = useTranslation();
   const [data, setData] = useState(null);
   const [corrData, setCorrData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -270,9 +276,9 @@ const RiskDashboard = () => {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Risk Dashboard</h2>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>{t('decision_helper.risk.title')}</h2>
           <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 13 }}>
-            Portfolio exposure across open positions
+            {t('decision_helper.risk.subtitle')}
           </p>
         </div>
         <button
@@ -282,7 +288,7 @@ const RiskDashboard = () => {
             padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6,
             background: '#f9fafb', cursor: loading ? 'not-allowed' : 'pointer', fontSize: 12,
           }}
-        >{loading ? '…' : '↻ Refresh'}</button>
+        >{loading ? '…' : `↻ ${t('decision_helper.common.refresh')}`}</button>
       </div>
 
       {error && (
@@ -292,7 +298,7 @@ const RiskDashboard = () => {
       )}
 
       {loading && !data && (
-        <div style={{ padding: 60, textAlign: 'center', color: '#6b7280' }}>Loading…</div>
+        <div style={{ padding: 60, textAlign: 'center', color: '#6b7280' }}>{t('decision_helper.common.loading')}</div>
       )}
 
       {data && (
@@ -300,26 +306,26 @@ const RiskDashboard = () => {
           {/* Summary cards */}
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
             <SummaryCard
-              label="Open positions"
+              label={t('decision_helper.risk.open_positions')}
               value={data.total_positions}
-              sub={`${data.long_count}L / ${data.short_count}S`}
+              sub={t('decision_helper.risk.long_short_count', { long: data.long_count, short: data.short_count })}
             />
             <SummaryCard
-              label="Total risk %"
+              label={t('decision_helper.risk.total_risk_pct')}
               value={`${fmt(data.total_risk_pct)}%`}
-              sub={`${fmt(data.total_risk_amount, 0)} VND at risk`}
+              sub={t('decision_helper.risk.vnd_at_risk', { amount: fmt(data.total_risk_amount, 0) })}
               color={pctColor(data.total_risk_pct)}
             />
             <SummaryCard
-              label="Net exposure"
+              label={t('decision_helper.risk.net_exposure')}
               value={`${data.net_exposure_pct >= 0 ? '+' : ''}${fmt(data.net_exposure_pct)}%`}
-              sub={data.net_exposure_pct >= 0 ? 'Net long bias' : 'Net short bias'}
+              sub={data.net_exposure_pct >= 0 ? t('decision_helper.risk.net_long_bias') : t('decision_helper.risk.net_short_bias')}
               color={data.net_exposure_pct >= 0 ? '#10b981' : '#ef4444'}
             />
             <SummaryCard
-              label="Account equity"
+              label={t('decision_helper.risk.account_equity')}
               value={data.account_equity ? `${fmt(data.account_equity, 0)}` : '—'}
-              sub="VND"
+              sub={t('decision_helper.risk.vnd')}
             />
           </div>
 
@@ -340,7 +346,7 @@ const RiskDashboard = () => {
           {positions.length > 0 && (
             <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '16px 20px', marginBottom: 20 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 14 }}>
-                Per-position exposure
+                {t('decision_helper.risk.position_detail')}
               </div>
               {positions.map(p => (
                 <ExposureBar
@@ -357,7 +363,7 @@ const RiskDashboard = () => {
 
           {positions.length === 0 && (
             <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>
-              No open positions. Risk metrics will appear here once trades are active.
+              {t('decision_helper.risk.no_positions')}
             </div>
           )}
 

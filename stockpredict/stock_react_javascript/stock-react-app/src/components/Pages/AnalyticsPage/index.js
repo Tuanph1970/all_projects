@@ -5,6 +5,7 @@ import {
   Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import { BarChart2, RefreshCw, TrendingUp, Zap, CheckCircle, Clock } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import helperService from '../../../services/helperService';
 
 // ── palette ──────────────────────────────────────────────────────────────────
@@ -38,15 +39,16 @@ const StatCard = ({ label, value, sub, color, icon: Icon }) => (
 // ── Signal breakdown table ────────────────────────────────────────────────────
 
 const SignalTable = ({ rows }) => {
+  const { t } = useTranslation();
   if (!rows || rows.length === 0) return (
-    <div style={styles.emptyCell}>No signal data yet.</div>
+    <div style={styles.emptyCell}>{t('decision_helper.analytics.no_signal_data')}</div>
   );
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={styles.table}>
         <thead>
           <tr>
-            {['Signal', 'Fires', 'Confirmed', 'Confirm %', 'Avg Conf'].map(h => (
+            {[t('decision_helper.analytics.signal_col_kind'), t('decision_helper.analytics.signal_col_fires'), t('decision_helper.analytics.signal_col_confirmed'), t('decision_helper.analytics.signal_col_confirm_pct'), t('decision_helper.analytics.signal_col_avg_conf')].map(h => (
               <th key={h} style={styles.th}>{h}</th>
             ))}
           </tr>
@@ -72,15 +74,16 @@ const SignalTable = ({ rows }) => {
 // ── Top tickers table ─────────────────────────────────────────────────────────
 
 const TopTickersTable = ({ rows }) => {
+  const { t } = useTranslation();
   if (!rows || rows.length === 0) return (
-    <div style={styles.emptyCell}>No ticker data yet.</div>
+    <div style={styles.emptyCell}>{t('decision_helper.analytics.no_ticker_data')}</div>
   );
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={styles.table}>
         <thead>
           <tr>
-            {['Ticker', 'Decisions', 'BUY', 'SELL SHORT'].map(h => (
+            {[t('decision_helper.analytics.ticker_col_ticker'), t('decision_helper.analytics.ticker_col_decisions'), t('decision_helper.analytics.ticker_col_buy'), t('decision_helper.analytics.ticker_col_sell_short')].map(h => (
               <th key={h} style={styles.th}>{h}</th>
             ))}
           </tr>
@@ -119,6 +122,7 @@ const ChartTooltip = ({ active, payload, label }) => {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const AnalyticsPage = () => {
+  const { t } = useTranslation();
   const [days, setDays] = useState(90);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -154,7 +158,7 @@ const AnalyticsPage = () => {
       <div style={styles.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <BarChart2 size={18} color="#a78bfa" />
-          <span style={{ fontWeight: 700, fontSize: 16, color: '#f9fafb' }}>Performance Analytics</span>
+          <span style={{ fontWeight: 700, fontSize: 16, color: '#f9fafb' }}>{t('decision_helper.analytics.title')}</span>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {DAY_OPTIONS.map(d => (
@@ -178,7 +182,7 @@ const AnalyticsPage = () => {
       {loading && !data && (
         <div style={styles.loadingBox}>
           <RefreshCw size={24} color="#a78bfa" style={{ animation: 'spin 1s linear infinite' }} />
-          <span style={{ color: '#9ca3af', marginTop: 10 }}>Loading analytics…</span>
+          <span style={{ color: '#9ca3af', marginTop: 10 }}>{t('decision_helper.analytics.loading')}</span>
         </div>
       )}
 
@@ -186,23 +190,23 @@ const AnalyticsPage = () => {
         <>
           {/* ── Summary cards ── */}
           <div style={styles.statsRow}>
-            <StatCard label="Total Decisions" value={data.total_decisions} icon={Zap}
-              sub={`last ${data.days} days`} />
-            <StatCard label="Actionable" value={`${actionablePct}%`}
+            <StatCard label={t('decision_helper.analytics.total_decisions')} value={data.total_decisions} icon={Zap}
+              sub={t('decision_helper.analytics.last_n_days', { n: data.days })} />
+            <StatCard label={t('decision_helper.analytics.actionable')} value={`${actionablePct}%`}
               color={parseFloat(actionablePct) >= 20 ? '#10b981' : '#f59e0b'}
               icon={TrendingUp}
-              sub={`${data.actionable_count} BUY / SELL SHORT`} />
-            <StatCard label="Top Signal" value={topSignal} icon={CheckCircle} color="#a78bfa"
-              sub={`${fmtPct(data.signal_breakdown?.[0]?.confirmation_rate)} confirm rate`} />
-            <StatCard label="Top Regime" value={topRegime} icon={Clock}
+              sub={`${data.actionable_count} ${t('decision_helper.analytics.buy_sell_short')}`} />
+            <StatCard label={t('decision_helper.analytics.top_signal')} value={topSignal} icon={CheckCircle} color="#a78bfa"
+              sub={`${fmtPct(data.signal_breakdown?.[0]?.confirmation_rate)} ${t('decision_helper.analytics.confirm_rate')}`} />
+            <StatCard label={t('decision_helper.analytics.top_regime')} value={topRegime} icon={Clock}
               color={REGIME_COLORS[topRegime] || '#6b7280'}
-              sub={`${data.regime_breakdown?.[0]?.total ?? 0} decisions`} />
+              sub={`${data.regime_breakdown?.[0]?.total ?? 0} ${t('decision_helper.analytics.decisions_label')}`} />
           </div>
 
           {/* ── Daily actionable trend ── */}
           {data.daily_actionable?.length > 0 && (
             <div style={styles.section}>
-              <div style={styles.sectionTitle}>Daily Actionable Signals (BUY + SELL SHORT)</div>
+              <div style={styles.sectionTitle}>{t('decision_helper.analytics.daily_signals_title')}</div>
               <ResponsiveContainer width="100%" height={180}>
                 <AreaChart data={data.daily_actionable} margin={{ top: 6, right: 16, left: 0, bottom: 0 }}>
                   <defs>
@@ -216,7 +220,7 @@ const AnalyticsPage = () => {
                     tickFormatter={d => d?.slice(5)} interval="preserveStartEnd" />
                   <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} width={28} allowDecimals={false} />
                   <Tooltip content={<ChartTooltip />} />
-                  <Area type="monotone" dataKey="count" name="Signals"
+                  <Area type="monotone" dataKey="count" name={t('decision_helper.analytics.signals_label')}
                     stroke="#a78bfa" strokeWidth={2} fill="url(#grad)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -227,7 +231,7 @@ const AnalyticsPage = () => {
           <div style={styles.twoCol}>
             {/* Action breakdown */}
             <div style={styles.section}>
-              <div style={styles.sectionTitle}>Action Distribution</div>
+              <div style={styles.sectionTitle}>{t('decision_helper.analytics.action_distribution')}</div>
               {data.action_breakdown?.length > 0 ? (
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={data.action_breakdown} layout="vertical"
@@ -237,7 +241,7 @@ const AnalyticsPage = () => {
                     <YAxis type="category" dataKey="action" width={72}
                       tick={{ fill: '#d1d5db', fontSize: 11, fontWeight: 600 }} />
                     <Tooltip content={<ChartTooltip />} />
-                    <Bar dataKey="count" name="Decisions" radius={[0, 4, 4, 0]}>
+                    <Bar dataKey="count" name={t('decision_helper.analytics.decisions_label')} radius={[0, 4, 4, 0]}>
                       {data.action_breakdown.map(entry => (
                         <Cell key={entry.action}
                           fill={ACTION_COLORS[entry.action] || '#6b7280'} />
@@ -245,12 +249,12 @@ const AnalyticsPage = () => {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-              ) : <div style={styles.emptyCell}>No data yet.</div>}
+              ) : <div style={styles.emptyCell}>{t('decision_helper.analytics.no_data')}</div>}
             </div>
 
             {/* Confidence histogram */}
             <div style={styles.section}>
-              <div style={styles.sectionTitle}>Confidence Distribution</div>
+              <div style={styles.sectionTitle}>{t('decision_helper.analytics.confidence_distribution')}</div>
               {data.confidence_histogram?.some(b => b.count > 0) ? (
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={data.confidence_histogram}
@@ -260,7 +264,7 @@ const AnalyticsPage = () => {
                       angle={-30} textAnchor="end" height={40} />
                     <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} width={28} allowDecimals={false} />
                     <Tooltip content={<ChartTooltip />} />
-                    <Bar dataKey="count" name="Decisions" fill="#7c3aed" radius={[3, 3, 0, 0]}>
+                    <Bar dataKey="count" name={t('decision_helper.analytics.decisions_label')} fill="#7c3aed" radius={[3, 3, 0, 0]}>
                       {data.confidence_histogram.map((b, i) => {
                         const pct = parseInt(b.bucket);
                         const c = pct >= 70 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#6b7280';
@@ -269,14 +273,14 @@ const AnalyticsPage = () => {
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-              ) : <div style={styles.emptyCell}>No data yet.</div>}
+              ) : <div style={styles.emptyCell}>{t('decision_helper.analytics.no_data')}</div>}
             </div>
           </div>
 
           {/* ── Regime breakdown ── */}
           {data.regime_breakdown?.length > 0 && (
             <div style={styles.section}>
-              <div style={styles.sectionTitle}>Regime Breakdown</div>
+              <div style={styles.sectionTitle}>{t('decision_helper.analytics.regime_breakdown_title')}</div>
               <ResponsiveContainer width="100%" height={160}>
                 <BarChart data={data.regime_breakdown}
                   margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
@@ -295,17 +299,17 @@ const AnalyticsPage = () => {
           {/* ── Two-column: signal breakdown + top tickers ── */}
           <div style={styles.twoCol}>
             <div style={styles.section}>
-              <div style={styles.sectionTitle}>Signal Breakdown</div>
+              <div style={styles.sectionTitle}>{t('decision_helper.analytics.signal_breakdown_title')}</div>
               <SignalTable rows={data.signal_breakdown} />
             </div>
             <div style={styles.section}>
-              <div style={styles.sectionTitle}>Top Tickers</div>
+              <div style={styles.sectionTitle}>{t('decision_helper.analytics.top_tickers_title')}</div>
               <TopTickersTable rows={data.top_tickers} />
             </div>
           </div>
 
           <div style={{ fontSize: 11, color: '#4b5563', textAlign: 'right', marginTop: 4 }}>
-            Computed at {new Date(data.computed_at).toLocaleString()} · {data.total_decisions} decisions over {data.days} days
+            {t('decision_helper.analytics.computed_at', { date: new Date(data.computed_at).toLocaleString(), total: data.total_decisions, days: data.days })}
           </div>
         </>
       )}

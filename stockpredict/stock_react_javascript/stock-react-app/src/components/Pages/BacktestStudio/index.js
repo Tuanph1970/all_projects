@@ -5,6 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { Play, BarChart2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import helperService from '../../../services/helperService';
 
 const today = () => new Date().toISOString().split('T')[0];
@@ -42,6 +43,7 @@ const StatCard = ({ label, value, color }) => (
 );
 
 const BacktestStudio = () => {
+  const { t } = useTranslation();
   const [cfg, setCfg] = useState(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -64,7 +66,7 @@ const BacktestStudio = () => {
       const res = await helperService.runBacktest(cfg);
       setResult(res);
     } catch (err) {
-      setError(err?.message || 'Backtest failed.');
+      setError(err?.message || t('decision_helper.backtest_studio.failed'));
     } finally {
       setLoading(false);
     }
@@ -78,24 +80,24 @@ const BacktestStudio = () => {
       <div style={s.panel}>
         <div style={s.panelHeader}>
           <BarChart2 size={16} style={{ color: '#6366f1' }} />
-          <span style={{ fontWeight: 700, fontSize: 14 }}>Backtest Studio</span>
+          <span style={{ fontWeight: 700, fontSize: 14 }}>{t('decision_helper.backtest_studio.title')}</span>
         </div>
 
         <div style={s.configGrid}>
-          <Field label="Ticker" value={cfg.ticker} onChange={set('ticker')} type="text" />
-          <Field label="Start date" value={cfg.startDate} onChange={set('startDate')} type="date" />
-          <Field label="End date" value={cfg.endDate} onChange={set('endDate')} type="date" />
-          <Field label="Initial equity" value={cfg.initialEquity} onChange={set('initialEquity')} type="number" step={10000} />
-          <Field label="Risk / trade %" value={cfg.riskPerTradePct} onChange={set('riskPerTradePct')} type="number" step={0.1} min={0.1} max={10} />
-          <Field label="Fast MA" value={cfg.fastMa} onChange={set('fastMa')} type="number" step={1} min={2} max={50} />
-          <Field label="Slow MA" value={cfg.slowMa} onChange={set('slowMa')} type="number" step={5} min={10} max={200} />
-          <Field label="Breakout N" value={cfg.breakoutN} onChange={set('breakoutN')} type="number" step={1} min={5} max={100} />
-          <Field label="K delay" value={cfg.kDelay} onChange={set('kDelay')} type="number" step={1} min={1} max={5} />
-          <Field label="Slippage (bps)" value={cfg.slippageBps} onChange={set('slippageBps')} type="number" step={1} min={0} />
-          <Field label="Commission ($)" value={cfg.commission} onChange={set('commission')} type="number" step={1} min={0} />
+          <Field label={t('decision_helper.backtest_studio.ticker')} value={cfg.ticker} onChange={set('ticker')} type="text" />
+          <Field label={t('decision_helper.backtest_studio.start_date')} value={cfg.startDate} onChange={set('startDate')} type="date" />
+          <Field label={t('decision_helper.backtest_studio.end_date')} value={cfg.endDate} onChange={set('endDate')} type="date" />
+          <Field label={t('decision_helper.backtest_studio.initial_equity')} value={cfg.initialEquity} onChange={set('initialEquity')} type="number" step={10000} />
+          <Field label={t('decision_helper.backtest_studio.risk_per_trade')} value={cfg.riskPerTradePct} onChange={set('riskPerTradePct')} type="number" step={0.1} min={0.1} max={10} />
+          <Field label={t('decision_helper.backtest_studio.fast_ma')} value={cfg.fastMa} onChange={set('fastMa')} type="number" step={1} min={2} max={50} />
+          <Field label={t('decision_helper.backtest_studio.slow_ma')} value={cfg.slowMa} onChange={set('slowMa')} type="number" step={5} min={10} max={200} />
+          <Field label={t('decision_helper.backtest_studio.breakout_n')} value={cfg.breakoutN} onChange={set('breakoutN')} type="number" step={1} min={5} max={100} />
+          <Field label={t('decision_helper.backtest_studio.k_delay')} value={cfg.kDelay} onChange={set('kDelay')} type="number" step={1} min={1} max={5} />
+          <Field label={t('decision_helper.backtest_studio.slippage')} value={cfg.slippageBps} onChange={set('slippageBps')} type="number" step={1} min={0} />
+          <Field label={t('decision_helper.backtest_studio.commission')} value={cfg.commission} onChange={set('commission')} type="number" step={1} min={0} />
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
             <label style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Walk-forward
+              {t('decision_helper.backtest_studio.walk_forward')}
             </label>
             <input
               type="checkbox"
@@ -105,7 +107,7 @@ const BacktestStudio = () => {
             />
           </div>
           {cfg.walkForward && (
-            <Field label="WF window (days)" value={cfg.wfWindowDays} onChange={set('wfWindowDays')} type="number" step={30} min={10} max={365} />
+            <Field label={t('decision_helper.backtest_studio.wf_window')} value={cfg.wfWindowDays} onChange={set('wfWindowDays')} type="number" step={30} min={10} max={365} />
           )}
         </div>
 
@@ -113,7 +115,7 @@ const BacktestStudio = () => {
           {loading
             ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
             : <Play size={14} />}
-          {loading ? 'Running…' : 'Run Backtest'}
+          {loading ? t('decision_helper.common.running') : t('decision_helper.backtest_studio.run')}
         </button>
 
         {error && <div style={s.error}>{error}</div>}
@@ -124,20 +126,20 @@ const BacktestStudio = () => {
         <>
           {/* Stats row */}
           <div style={s.statsRow}>
-            <StatCard label="Trades" value={stats.num_trades} />
-            <StatCard label="Win rate" value={fmtPct(stats.win_rate)} color={stats.win_rate >= 0.5 ? '#10b981' : '#ef4444'} />
-            <StatCard label="Net P&L" value={`$${fmt2(stats.total_net_pnl)}`} color={stats.total_net_pnl >= 0 ? '#10b981' : '#ef4444'} />
-            <StatCard label="Max drawdown" value={fmtPctRaw(stats.max_drawdown_pct * 100)} color={stats.max_drawdown_pct > 0.2 ? '#ef4444' : '#f59e0b'} />
-            <StatCard label="Expectancy" value={`$${fmt2(stats.expectancy)}`} color={stats.expectancy >= 0 ? '#10b981' : '#ef4444'} />
-            {stats.sharpe_ratio != null && <StatCard label="Sharpe" value={stats.sharpe_ratio.toFixed(2)} color={stats.sharpe_ratio >= 1 ? '#10b981' : '#9ca3af'} />}
-            {stats.profit_factor != null && <StatCard label="Profit factor" value={stats.profit_factor.toFixed(2)} color={stats.profit_factor >= 1.5 ? '#10b981' : '#9ca3af'} />}
-            <StatCard label="Latency" value={`${result.latency_ms}ms`} />
+            <StatCard label={t('decision_helper.backtest_studio.trades')} value={stats.num_trades} />
+            <StatCard label={t('decision_helper.backtest_studio.win_rate')} value={fmtPct(stats.win_rate)} color={stats.win_rate >= 0.5 ? '#10b981' : '#ef4444'} />
+            <StatCard label={t('decision_helper.backtest_studio.net_pnl')} value={`$${fmt2(stats.total_net_pnl)}`} color={stats.total_net_pnl >= 0 ? '#10b981' : '#ef4444'} />
+            <StatCard label={t('decision_helper.backtest_studio.max_drawdown')} value={fmtPctRaw(stats.max_drawdown_pct * 100)} color={stats.max_drawdown_pct > 0.2 ? '#ef4444' : '#f59e0b'} />
+            <StatCard label={t('decision_helper.backtest_studio.expectancy')} value={`$${fmt2(stats.expectancy)}`} color={stats.expectancy >= 0 ? '#10b981' : '#ef4444'} />
+            {stats.sharpe_ratio != null && <StatCard label={t('decision_helper.backtest_studio.sharpe')} value={stats.sharpe_ratio.toFixed(2)} color={stats.sharpe_ratio >= 1 ? '#10b981' : '#9ca3af'} />}
+            {stats.profit_factor != null && <StatCard label={t('decision_helper.backtest_studio.profit_factor')} value={stats.profit_factor.toFixed(2)} color={stats.profit_factor >= 1.5 ? '#10b981' : '#9ca3af'} />}
+            <StatCard label={t('decision_helper.backtest_studio.latency')} value={`${result.latency_ms}ms`} />
           </div>
 
           {/* Equity curve */}
           {result.equity_curve?.length > 0 && (
             <div style={s.chartPanel}>
-              <div style={s.chartTitle}>Equity Curve — {result.ticker}</div>
+              <div style={s.chartTitle}>{t('decision_helper.backtest_studio.equity_curve', { ticker: result.ticker })}</div>
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={result.equity_curve} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
@@ -154,14 +156,14 @@ const BacktestStudio = () => {
                   />
                   <Tooltip
                     contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: 6, fontSize: 12 }}
-                    formatter={(v) => [`$${fmt2(v)}`, 'Equity']}
+                    formatter={(v) => [`$${fmt2(v)}`, t('decision_helper.backtest_studio.equity_label')]}
                     labelStyle={{ color: '#9ca3af' }}
                   />
                   <ReferenceLine
                     y={cfg.initialEquity}
                     stroke="#374151"
                     strokeDasharray="4 4"
-                    label={{ value: 'Start', fill: '#6b7280', fontSize: 10 }}
+                    label={{ value: t('decision_helper.backtest_studio.start_label'), fill: '#6b7280', fontSize: 10 }}
                   />
                   <Line
                     type="monotone"
@@ -180,7 +182,7 @@ const BacktestStudio = () => {
           {result.walk_forward_windows?.length > 0 && (
             <div style={s.section}>
               <button onClick={() => setShowWF(p => !p)} style={s.collapseBtn}>
-                Walk-Forward Windows ({result.walk_forward_windows.length})
+                {t('decision_helper.backtest_studio.wf_windows', { count: result.walk_forward_windows.length })}
                 {showWF ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </button>
               {showWF && (
@@ -199,7 +201,16 @@ const BacktestStudio = () => {
                     <table style={s.table}>
                       <thead>
                         <tr>
-                          {['#', 'Start', 'End', 'Trades', 'Win%', 'Net P&L', 'Max DD', 'Expectancy'].map(h => (
+                          {[
+                            t('decision_helper.backtest_studio.col_num'),
+                            t('decision_helper.backtest_studio.col_start'),
+                            t('decision_helper.backtest_studio.col_end'),
+                            t('decision_helper.backtest_studio.col_trades'),
+                            t('decision_helper.backtest_studio.col_win_pct'),
+                            t('decision_helper.backtest_studio.col_net_pnl'),
+                            t('decision_helper.backtest_studio.col_max_dd'),
+                            t('decision_helper.backtest_studio.col_expectancy'),
+                          ].map(h => (
                             <th key={h} style={s.th}>{h}</th>
                           ))}
                         </tr>
@@ -235,7 +246,7 @@ const BacktestStudio = () => {
           {result.trade_ledger?.length > 0 && (
             <div style={s.section}>
               <button onClick={() => setShowLedger(p => !p)} style={s.collapseBtn}>
-                Trade Ledger ({result.trade_ledger.length} trades)
+                {t('decision_helper.backtest_studio.ledger', { count: result.trade_ledger.length })}
                 {showLedger ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </button>
               {showLedger && (
@@ -243,7 +254,17 @@ const BacktestStudio = () => {
                   <table style={s.table}>
                     <thead>
                       <tr>
-                        {['Dir', 'Entry date', 'Entry $', 'Exit date', 'Exit $', 'Shares', 'Gross P&L', 'Net P&L', 'Exit reason'].map(h => (
+                        {[
+                          t('decision_helper.backtest_studio.col_dir'),
+                          t('decision_helper.backtest_studio.col_entry_date'),
+                          t('decision_helper.backtest_studio.col_entry_price'),
+                          t('decision_helper.backtest_studio.col_exit_date'),
+                          t('decision_helper.backtest_studio.col_exit_price'),
+                          t('decision_helper.backtest_studio.col_shares'),
+                          t('decision_helper.backtest_studio.col_gross_pnl'),
+                          t('decision_helper.backtest_studio.col_net_pnl'),
+                          t('decision_helper.backtest_studio.col_exit_reason'),
+                        ].map(h => (
                           <th key={h} style={s.th}>{h}</th>
                         ))}
                       </tr>

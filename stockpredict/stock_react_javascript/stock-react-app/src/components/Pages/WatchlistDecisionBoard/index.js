@@ -7,6 +7,7 @@ import {
   RefreshCw, TrendingUp, TrendingDown, Minus, Zap,
   BookOpen, ChevronUp, ChevronDown as ChevDown,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import httpClient from '../../../services/httpClient';
 import helperService from '../../../services/helperService';
 import { API_ENDPOINTS } from '../../../constants/api';
@@ -15,10 +16,10 @@ import TradePlanModal from '../../common/TradePlanModal';
 const today = () => new Date().toISOString().split('T')[0];
 
 const REGIME_META = {
-  TREND_UP:   { label: 'Trend ↑', color: '#10b981', Icon: TrendingUp },
-  TREND_DOWN: { label: 'Trend ↓', color: '#ef4444', Icon: TrendingDown },
-  RANGE:      { label: 'Range',   color: '#f59e0b', Icon: Minus },
-  UNDEFINED:  { label: '—',       color: '#6b7280', Icon: Minus },
+  TREND_UP:   { labelKey: 'decision_helper.common.regime_trend_up',   color: '#10b981', Icon: TrendingUp },
+  TREND_DOWN: { labelKey: 'decision_helper.common.regime_trend_down', color: '#ef4444', Icon: TrendingDown },
+  RANGE:      { labelKey: 'decision_helper.common.regime_range',      color: '#f59e0b', Icon: Minus },
+  UNDEFINED:  { labelKey: null,                                        color: '#6b7280', Icon: Minus },
 };
 
 const ACTION_META = {
@@ -36,6 +37,7 @@ const fmt = (v) => v != null
   : '—';
 
 const WatchlistDecisionBoard = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [barDate, setBarDate] = useState(today());
   const [rows, setRows] = useState([]);        // { ticker, status, rec }
@@ -108,7 +110,7 @@ const WatchlistDecisionBoard = () => {
     <div style={styles.page}>
       {/* toolbar */}
       <div style={styles.toolbar}>
-        <h2 style={styles.title}>Decision Board</h2>
+        <h2 style={styles.title}>{t('decision_helper.decision_board.title')}</h2>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
             type="date" value={barDate}
@@ -119,7 +121,7 @@ const WatchlistDecisionBoard = () => {
             {analyzing
               ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
               : <Zap size={14} />}
-            Analyze All ({rows.length})
+            {t('decision_helper.decision_board.analyze_all', { count: rows.length })}
           </button>
         </div>
       </div>
@@ -144,19 +146,19 @@ const WatchlistDecisionBoard = () => {
           <thead>
             <tr>
               {[
-                ['ticker', 'Ticker'],
-                ['regime', 'Regime'],
-                ['action', 'Action'],
-                ['confidence', 'Conf.'],
+                ['ticker', t('decision_helper.decision_board.ticker')],
+                ['regime', t('decision_helper.decision_board.regime')],
+                ['action', t('decision_helper.decision_board.action')],
+                ['confidence', t('decision_helper.decision_board.confidence_short')],
               ].map(([k, label]) => (
                 <th key={k} onClick={() => handleSort(k)} style={styles.th}>
                   {label} <SortIcon k={k} />
                 </th>
               ))}
-              <th style={styles.th}>Entry</th>
-              <th style={styles.th}>Stop</th>
-              <th style={styles.th}>Target</th>
-              <th style={styles.th}>Shares</th>
+              <th style={styles.th}>{t('decision_helper.decision_board.entry')}</th>
+              <th style={styles.th}>{t('decision_helper.decision_board.stop')}</th>
+              <th style={styles.th}>{t('decision_helper.decision_board.target')}</th>
+              <th style={styles.th}>{t('decision_helper.decision_board.shares')}</th>
               <th style={styles.th}></th>
             </tr>
           </thead>
@@ -177,7 +179,7 @@ const WatchlistDecisionBoard = () => {
                   </td>
                   <td style={styles.td}>
                     {regime
-                      ? <span style={{ color: regime.color, fontSize: 12, fontWeight: 600 }}>{regime.label}</span>
+                      ? <span style={{ color: regime.color, fontSize: 12, fontWeight: 600 }}>{regime.labelKey ? t(regime.labelKey) : '—'}</span>
                       : <span style={{ color: '#6b7280' }}>—</span>}
                   </td>
                   <td style={styles.td}>
@@ -200,7 +202,7 @@ const WatchlistDecisionBoard = () => {
                         onClick={() => analyzeOne(ticker)}
                         disabled={status === 'loading'}
                         style={styles.iconBtn}
-                        title="Recompute"
+                        title={t('decision_helper.decision_board.recompute')}
                       >
                         <RefreshCw size={12} style={status === 'loading' ? { animation: 'spin 1s linear infinite' } : {}} />
                       </button>
@@ -208,7 +210,7 @@ const WatchlistDecisionBoard = () => {
                         <button
                           onClick={() => setPlanRec(rec)}
                           style={{ ...styles.iconBtn, color: '#3b82f6' }}
-                          title="Save plan"
+                          title={t('decision_helper.decision_board.save_plan')}
                         >
                           <BookOpen size={12} />
                         </button>
@@ -226,7 +228,7 @@ const WatchlistDecisionBoard = () => {
         isOpen={!!planRec}
         onClose={() => setPlanRec(null)}
         recommendation={planRec}
-        onSaved={() => { setPlanRec(null); alert('Trade plan saved.'); }}
+        onSaved={() => { setPlanRec(null); alert(t('decision_helper.decision_board.plan_saved')); }}
       />
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
