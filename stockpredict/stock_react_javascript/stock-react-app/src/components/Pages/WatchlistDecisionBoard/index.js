@@ -180,14 +180,14 @@ const WatchlistDecisionBoard = () => {
                   <td style={styles.td}>
                     {regime
                       ? <span style={{ color: regime.color, fontSize: 12, fontWeight: 600 }}>{regime.labelKey ? t(regime.labelKey) : '—'}</span>
-                      : <span style={{ color: '#6b7280' }}>—</span>}
+                      : <span style={{ color: '#9ca3af' }}>—</span>}
                   </td>
                   <td style={styles.td}>
                     {action
                       ? <span style={{ ...styles.actionTag, background: action.bg, color: action.color }}>
                           {rec.action}
                         </span>
-                      : <span style={{ color: '#6b7280' }}>—</span>}
+                      : <span style={{ color: '#9ca3af' }}>—</span>}
                   </td>
                   <td style={styles.td}>
                     {rec ? `${(rec.confidence * 100).toFixed(0)}%` : '—'}
@@ -237,15 +237,15 @@ const WatchlistDecisionBoard = () => {
 };
 
 const styles = {
-  page: { padding: 20, color: '#f9fafb' },
+  page: { padding: 20, color: '#111827' },
   toolbar: {
     display: 'flex', justifyContent: 'space-between',
     alignItems: 'center', marginBottom: 14,
   },
   title: { fontSize: 20, fontWeight: 800, margin: 0 },
   dateInput: {
-    background: '#1f2937', border: '1px solid #374151', borderRadius: 7,
-    padding: '7px 10px', color: '#f9fafb', fontSize: 13, outline: 'none',
+    background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 7,
+    padding: '7px 10px', color: '#111827', fontSize: 13, outline: 'none',
   },
   analyzeAllBtn: {
     background: '#3b82f6', border: 'none', borderRadius: 7,
@@ -259,15 +259,15 @@ const styles = {
   tableWrap: { overflowX: 'auto' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
   th: {
-    background: '#1f2937', padding: '10px 12px', textAlign: 'left',
-    color: '#9ca3af', fontWeight: 600, fontSize: 11, textTransform: 'uppercase',
+    background: '#f9fafb', padding: '10px 12px', textAlign: 'left',
+    color: '#6b7280', fontWeight: 600, fontSize: 11, textTransform: 'uppercase',
     letterSpacing: 0.5, cursor: 'pointer', userSelect: 'none',
-    borderBottom: '1px solid #374151',
+    borderBottom: '1px solid #e5e7eb',
   },
-  tr: { borderBottom: '1px solid #1f2937', ':hover': { background: '#1f2937' } },
-  td: { padding: '10px 12px', color: '#d1d5db', verticalAlign: 'middle' },
+  tr: { borderBottom: '1px solid #f3f4f6' },
+  td: { padding: '10px 12px', color: '#374151', verticalAlign: 'middle' },
   tickerLink: {
-    background: 'none', border: 'none', color: '#60a5fa',
+    background: 'none', border: 'none', color: '#2563eb',
     fontWeight: 700, fontSize: 14, cursor: 'pointer', padding: 0,
   },
   actionTag: {
@@ -275,8 +275,8 @@ const styles = {
     letterSpacing: 0.5,
   },
   iconBtn: {
-    background: '#374151', border: 'none', borderRadius: 5,
-    padding: '4px 6px', color: '#9ca3af', cursor: 'pointer',
+    background: '#f3f4f6', border: 'none', borderRadius: 5,
+    padding: '4px 6px', color: '#6b7280', cursor: 'pointer',
     display: 'flex', alignItems: 'center',
   },
 };

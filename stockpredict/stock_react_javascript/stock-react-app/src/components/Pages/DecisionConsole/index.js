@@ -81,8 +81,8 @@ const ActionCard = ({ rec, onPlan }) => {
         <RRBar entry={rec.entry_price} stop={rec.stop_price} target={rec.target_price} />
       )}
 
-      <div style={{ marginTop: 8, fontSize: 12, color: '#9ca3af' }}>
-        {t('decision_helper.decision_console.signal_label')}: <span style={{ color: '#d1d5db' }}>{rec.signal_kind || '—'}</span>
+      <div style={{ marginTop: 8, fontSize: 12, color: '#6b7280' }}>
+        {t('decision_helper.decision_console.signal_label')}: <span style={{ color: '#374151' }}>{rec.signal_kind || '—'}</span>
         {rec.signal_confirmed && <span style={styles.confirmedTag}>{t('decision_helper.decision_console.confirmed')}</span>}
         &nbsp;· {t('decision_helper.decision_console.state_label')}: {rec.state_before} → {rec.state_after}
       </div>
@@ -95,7 +95,7 @@ const PriceBox = ({ label, value, color, icon: Icon }) => (
     <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 3 }}>
       {Icon && <Icon size={10} />} {label}
     </div>
-    <div style={{ fontSize: 16, fontWeight: 700, color }}>{value}</div>
+    <div style={{ fontSize: 16, fontWeight: 700, color: color === '#f9fafb' ? '#111827' : color }}>{value}</div>
   </div>
 );
 
@@ -104,8 +104,8 @@ const RRBar = ({ entry, stop, target }) => {
   const good = rr >= 1.5;
   return (
     <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-      <span style={{ color: '#6b7280' }}>R:R</span>
-      <div style={{ flex: 1, height: 6, background: '#374151', borderRadius: 3, overflow: 'hidden' }}>
+      <span style={{ color: '#9ca3af' }}>R:R</span>
+      <div style={{ flex: 1, height: 6, background: '#e5e7eb', borderRadius: 3, overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${Math.min(rr / 3 * 100, 100)}%`, background: good ? '#10b981' : '#f59e0b', borderRadius: 3 }} />
       </div>
       <span style={{ color: good ? '#10b981' : '#f59e0b', fontWeight: 600 }}>
@@ -131,7 +131,7 @@ const DisciplinePanel = ({ violations }) => {
             <span style={{ color: '#ef4444', fontWeight: 700, fontSize: 12, marginRight: 6 }}>
               BLOCK [{v.rule_id}]
             </span>
-            <span style={{ color: '#fca5a5', fontSize: 12 }}>{v.message}</span>
+            <span style={{ color: '#dc2626', fontSize: 12 }}>{v.message}</span>
           </div>
         </div>
       ))}
@@ -145,7 +145,7 @@ const DisciplinePanel = ({ violations }) => {
             <span style={{ color: '#f59e0b', fontWeight: 700, fontSize: 12, marginRight: 6 }}>
               WARN [{v.rule_id}]
             </span>
-            <span style={{ color: '#fcd34d', fontSize: 12 }}>{v.message}</span>
+            <span style={{ color: '#b45309', fontSize: 12 }}>{v.message}</span>
           </div>
         </div>
       ))}
@@ -168,7 +168,7 @@ const ReasonChain = ({ steps }) => {
           {steps.map((s, i) => (
             <div key={i} style={styles.reasonStep}>
               <span style={styles.stageTag}>{s.stage}</span>
-              <span style={{ color: '#d1d5db', fontSize: 12 }}>{s.message}</span>
+              <span style={{ color: '#374151', fontSize: 12 }}>{s.message}</span>
             </div>
           ))}
         </div>
@@ -269,7 +269,7 @@ const DecisionConsole = () => {
           <div style={styles.headerRow}>
             <span style={styles.tickerLabel}>{rec.ticker}</span>
             <RegimePill regime={rec.regime} />
-            <span style={{ color: '#6b7280', fontSize: 12 }}>
+            <span style={{ color: '#9ca3af', fontSize: 12 }}>
               {rec.bar_date} · {rec.latency_ms}ms
             </span>
           </div>
@@ -311,16 +311,16 @@ const DecisionConsole = () => {
 };
 
 const styles = {
-  page: { padding: 20, maxWidth: 720, margin: '0 auto', color: '#f9fafb' },
+  page: { padding: 20, maxWidth: 720, margin: '0 auto', color: '#111827' },
   toolbar: { display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16 },
   tickerInput: {
-    background: '#1f2937', border: '1px solid #374151', borderRadius: 8,
-    padding: '9px 14px', color: '#f9fafb', fontSize: 15, fontWeight: 700,
+    background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 8,
+    padding: '9px 14px', color: '#111827', fontSize: 15, fontWeight: 700,
     width: 130, outline: 'none', textTransform: 'uppercase',
   },
   dateInput: {
-    background: '#1f2937', border: '1px solid #374151', borderRadius: 8,
-    padding: '9px 12px', color: '#f9fafb', fontSize: 13, outline: 'none',
+    background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 8,
+    padding: '9px 12px', color: '#111827', fontSize: 13, outline: 'none',
   },
   runBtn: {
     background: '#3b82f6', border: 'none', borderRadius: 8,
@@ -328,32 +328,32 @@ const styles = {
     cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
   },
   iconBtn: {
-    background: '#1f2937', border: '1px solid #374151', borderRadius: 8,
-    padding: '8px 10px', color: '#9ca3af', cursor: 'pointer',
+    background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 8,
+    padding: '8px 10px', color: '#6b7280', cursor: 'pointer',
     display: 'flex', alignItems: 'center',
   },
   errorBanner: {
-    background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-    borderRadius: 8, padding: '10px 14px', color: '#fca5a5',
+    background: '#fee2e2', border: '1px solid #fca5a5',
+    borderRadius: 8, padding: '10px 14px', color: '#dc2626',
     display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginBottom: 12,
   },
   content: { display: 'flex', flexDirection: 'column', gap: 12 },
   headerRow: { display: 'flex', alignItems: 'center', gap: 10 },
-  tickerLabel: { fontSize: 22, fontWeight: 800, color: '#f9fafb' },
+  tickerLabel: { fontSize: 22, fontWeight: 800, color: '#111827' },
   pill: {
     display: 'inline-flex', alignItems: 'center', gap: 5,
     padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
   },
   card: {
-    background: '#1f2937', borderRadius: 10,
-    border: '1px solid #374151', padding: 16,
+    background: '#ffffff', borderRadius: 10,
+    border: '1px solid #e5e7eb', padding: 16,
   },
   actionRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 },
   actionBadge: {
     padding: '5px 14px', borderRadius: 8, fontWeight: 700,
     fontSize: 14, letterSpacing: 1,
   },
-  confidence: { fontSize: 12, color: '#9ca3af', flex: 1 },
+  confidence: { fontSize: 12, color: '#6b7280', flex: 1 },
   planBtn: {
     background: '#3b82f6', border: 'none', borderRadius: 7,
     padding: '6px 14px', color: '#fff', fontWeight: 600, fontSize: 13,
@@ -363,24 +363,24 @@ const styles = {
     display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12,
   },
   priceBox: {
-    background: '#111827', borderRadius: 8, padding: '10px 12px',
+    background: '#f9fafb', borderRadius: 8, padding: '10px 12px',
   },
   confirmedTag: {
-    background: 'rgba(16,185,129,0.15)', color: '#10b981',
+    background: 'rgba(16,185,129,0.15)', color: '#059669',
     borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 600,
     marginLeft: 4,
   },
   reasonToggle: {
-    background: 'none', border: 'none', color: '#9ca3af',
+    background: 'none', border: 'none', color: '#6b7280',
     cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 5,
     padding: 0,
   },
   reasonStep: {
     display: 'flex', gap: 8, alignItems: 'flex-start',
-    padding: '6px 0', borderBottom: '1px solid #1f2937',
+    padding: '6px 0', borderBottom: '1px solid #f3f4f6',
   },
   stageTag: {
-    background: '#374151', color: '#9ca3af', borderRadius: 4,
+    background: '#f3f4f6', color: '#6b7280', borderRadius: 4,
     padding: '1px 6px', fontSize: 10, fontWeight: 600,
     whiteSpace: 'nowrap', flexShrink: 0,
   },

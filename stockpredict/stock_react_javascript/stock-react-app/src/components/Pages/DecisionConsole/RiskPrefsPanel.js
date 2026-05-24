@@ -67,13 +67,13 @@ const RiskPrefsPanel = ({ onClose }) => {
         <Field label={t('decision_helper.risk_prefs.streak_threshold')} value={form.lossStreakThreshold} onChange={set('lossStreakThreshold')} step={1} min={1} max={10} />
       </div>
       <div style={{ marginTop: 10 }}>
-        <label style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        <label style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>
           {t('decision_helper.risk_prefs.journal_account')}
         </label>
         <input
           type="number" value={form.journalAccountId} onChange={setStr('journalAccountId')}
           placeholder={t('decision_helper.risk_prefs.journal_placeholder')}
-          style={{ display: 'block', width: '100%', marginTop: 4, background: '#111827', border: '1px solid #374151', borderRadius: 5, padding: '5px 8px', color: '#f9fafb', fontSize: 13, outline: 'none' }}
+          style={{ display: 'block', width: '100%', marginTop: 4, background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 5, padding: '5px 8px', color: '#111827', fontSize: 13, outline: 'none' }}
         />
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
@@ -88,23 +88,23 @@ const RiskPrefsPanel = ({ onClose }) => {
 
 const Field = ({ label, value, onChange, step, min, max }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-    <label style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</label>
+    <label style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</label>
     <input
       type="number" value={value} onChange={onChange} step={step} min={min} max={max}
-      style={{ background: '#111827', border: '1px solid #374151', borderRadius: 5, padding: '5px 8px', color: '#f9fafb', fontSize: 13, outline: 'none' }}
+      style={{ background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 5, padding: '5px 8px', color: '#111827', fontSize: 13, outline: 'none' }}
     />
   </div>
 );
 
 const styles = {
   panel: {
-    background: '#1f2937', border: '1px solid #374151', borderRadius: 10,
+    background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 10,
     padding: 16, marginBottom: 14,
   },
   header: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12,
   },
-  closeBtn: { background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' },
+  closeBtn: { background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 },
   saveBtn: {
     background: '#3b82f6', border: 'none', borderRadius: 6,

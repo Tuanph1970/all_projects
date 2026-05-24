@@ -18,7 +18,7 @@ const PatternCard = ({ pattern }) => {
     <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: 8, padding: '10px 13px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <Icon size={13} color={color} style={{ flexShrink: 0 }} />
-        <span style={{ fontWeight: 700, fontSize: 13, color: '#f9fafb', flex: 1 }}>
+        <span style={{ fontWeight: 700, fontSize: 13, color: '#111827', flex: 1 }}>
           {pattern.pattern_name}
         </span>
         <span style={{ fontSize: 11, fontWeight: 600, color, background: `${color}22`, padding: '2px 7px', borderRadius: 4 }}>
@@ -28,8 +28,8 @@ const PatternCard = ({ pattern }) => {
 
       {/* Confidence bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-        <span style={{ fontSize: 10, color: '#9ca3af', width: 68, flexShrink: 0 }}>{t('decision_helper.pattern_panel.confidence')}</span>
-        <div style={{ flex: 1, height: 5, background: '#374151', borderRadius: 3, overflow: 'hidden' }}>
+        <span style={{ fontSize: 10, color: '#6b7280', width: 68, flexShrink: 0 }}>{t('decision_helper.pattern_panel.confidence')}</span>
+        <div style={{ flex: 1, height: 5, background: '#e5e7eb', borderRadius: 3, overflow: 'hidden' }}>
           <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 3 }} />
         </div>
         <span style={{ fontSize: 11, color, fontWeight: 600, width: 32, textAlign: 'right' }}>{pct}%</span>
@@ -109,7 +109,7 @@ const PatternPanel = ({ patterns, loading, error }) => {
       )}
 
       {open && found.length === 0 && (
-        <div style={{ color: '#6b7280', fontSize: 12, marginTop: 8, paddingLeft: 4 }}>
+        <div style={{ color: '#9ca3af', fontSize: 12, marginTop: 8, paddingLeft: 4 }}>
           {t('decision_helper.pattern_panel.no_patterns')}
         </div>
       )}
@@ -119,15 +119,15 @@ const PatternPanel = ({ patterns, loading, error }) => {
 
 const styles = {
   shell: {
-    background: '#1f2937', borderRadius: 10,
-    border: '1px solid #374151', padding: 14,
+    background: '#ffffff', borderRadius: 10,
+    border: '1px solid #e5e7eb', padding: 14,
   },
   header: { display: 'flex', alignItems: 'center', gap: 8 },
   toggleBtn: {
     background: 'none', border: 'none', padding: 0, cursor: 'pointer',
     display: 'flex', alignItems: 'center', gap: 6, width: '100%',
   },
-  title: { fontSize: 13, fontWeight: 600, color: '#d1d5db' },
+  title: { fontSize: 13, fontWeight: 600, color: '#374151' },
   badge: {
     background: 'rgba(139,92,246,0.2)', color: '#a78bfa',
     fontSize: 11, fontWeight: 600, padding: '1px 8px', borderRadius: 4, marginLeft: 6,

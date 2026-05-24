@@ -20,11 +20,11 @@ const pct = (v) => v != null ? `${Number(v).toFixed(1)}%` : '—';
 
 // ── sub-components ────────────────────────────────────────────────────────────
 
-const StatCard = ({ label, value, sub, color = '#f9fafb', warn = false }) => (
-  <div style={{ ...s.statCard, borderColor: warn ? '#f59e0b44' : '#37415144' }}>
-    <div style={{ fontSize: 11, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+const StatCard = ({ label, value, sub, color = '#111827', warn = false }) => (
+  <div style={{ ...s.statCard, borderColor: warn ? '#f59e0b44' : '#e5e7eb' }}>
+    <div style={{ fontSize: 11, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
     <div style={{ fontSize: 28, fontWeight: 800, color: warn ? '#f59e0b' : color, lineHeight: 1.2 }}>{value}</div>
-    {sub && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{sub}</div>}
+    {sub && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{sub}</div>}
   </div>
 );
 
@@ -38,7 +38,7 @@ const ViolationBadge = ({ v }) => {
         <span style={{ color: meta.color, fontWeight: 700, fontSize: 12, marginRight: 8 }}>
           [{v.rule_id}] {v.severity}
         </span>
-        <span style={{ color: '#d1d5db', fontSize: 12 }}>{v.message}</span>
+        <span style={{ color: '#374151', fontSize: 12 }}>{v.message}</span>
       </div>
     </div>
   );
@@ -52,18 +52,18 @@ const RuleRow = ({ rule }) => {
   return (
     <div style={{
       display: 'flex', gap: 10, alignItems: 'flex-start',
-      padding: '8px 0', borderBottom: '1px solid #1f2937',
+      padding: '8px 0', borderBottom: '1px solid #f3f4f6',
       opacity: rule.triggered ? 1 : 0.6,
     }}>
-      <Icon size={14} style={{ color: rule.triggered ? meta.color : '#374151', marginTop: 2, flexShrink: 0 }} />
+      <Icon size={14} style={{ color: rule.triggered ? meta.color : '#d1d5db', marginTop: 2, flexShrink: 0 }} />
       <div style={{ flex: 1 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontWeight: 600, fontSize: 12, color: rule.triggered ? meta.color : '#9ca3af' }}>
+          <span style={{ fontWeight: 600, fontSize: 12, color: rule.triggered ? meta.color : '#d1d5db' }}>
             {rule.rule_id}
           </span>
           <span style={{ fontSize: 11, color: '#6b7280' }}>{rule.chapter}</span>
         </div>
-        <div style={{ fontSize: 12, color: rule.triggered ? '#f9fafb' : '#6b7280', marginTop: 2 }}>
+        <div style={{ fontSize: 12, color: rule.triggered ? '#111827' : '#9ca3af', marginTop: 2 }}>
           {rule.rule_text}
         </div>
         {rule.triggered && rule.detail && (
@@ -107,7 +107,7 @@ const DisciplineDashboard = () => {
       <div style={s.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <ShieldAlert size={22} color="#a78bfa" />
-          <span style={{ fontSize: 20, fontWeight: 800, color: '#f9fafb' }}>{t('decision_helper.discipline.title')}</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: '#111827' }}>{t('decision_helper.discipline.title')}</span>
           <span style={s.subtitleChip}>{t('decision_helper.discipline.subtitle')}</span>
         </div>
         <button onClick={load} disabled={loading} style={s.refreshBtn}>
@@ -213,45 +213,45 @@ const DisciplineDashboard = () => {
 };
 
 const s = {
-  page: { padding: 20, maxWidth: 800, margin: '0 auto', color: '#f9fafb' },
+  page: { padding: 20, maxWidth: 800, margin: '0 auto', color: '#111827' },
   header: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20,
   },
   subtitleChip: {
-    background: 'rgba(167,139,250,0.15)', color: '#a78bfa',
+    background: 'rgba(167,139,250,0.15)', color: '#7c3aed',
     border: '1px solid rgba(167,139,250,0.3)',
     borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 600,
   },
   refreshBtn: {
-    background: '#1f2937', border: '1px solid #374151', borderRadius: 8,
-    padding: '7px 14px', color: '#9ca3af', cursor: 'pointer',
+    background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 8,
+    padding: '7px 14px', color: '#6b7280', cursor: 'pointer',
     display: 'flex', alignItems: 'center', gap: 6, fontSize: 13,
   },
   errorBanner: {
-    background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-    borderRadius: 8, padding: '10px 14px', color: '#fca5a5',
+    background: '#fee2e2', border: '1px solid #fca5a5',
+    borderRadius: 8, padding: '10px 14px', color: '#dc2626',
     display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginBottom: 14,
   },
   statsGrid: {
     display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20,
   },
   statCard: {
-    background: '#1f2937', borderRadius: 10, border: '1px solid',
+    background: '#ffffff', borderRadius: 10, border: '1px solid',
     padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 4,
   },
   section: {
-    background: '#1f2937', borderRadius: 10, border: '1px solid #374151',
+    background: '#ffffff', borderRadius: 10, border: '1px solid #e5e7eb',
     padding: 16, marginBottom: 14,
   },
   sectionTitle: {
-    fontSize: 13, fontWeight: 700, color: '#d1d5db',
+    fontSize: 13, fontWeight: 700, color: '#374151',
     marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6,
   },
   violationRow: {
     display: 'flex', gap: 10, alignItems: 'flex-start',
     padding: '10px 12px', borderRadius: 8, border: '1px solid',
   },
-  empty: { color: '#6b7280', textAlign: 'center', padding: 40 },
+  empty: { color: '#9ca3af', textAlign: 'center', padding: 40 },
 };
 
 export default DisciplineDashboard;
