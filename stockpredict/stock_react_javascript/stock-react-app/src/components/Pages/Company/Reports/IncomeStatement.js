@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import DataTable from "react-data-table-component";
+import { useTranslation } from 'react-i18next';
 import httpClient from "../../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../../constants/api";
 import { Receipt } from "lucide-react";
@@ -11,6 +12,7 @@ import {
 } from "./tableStyles";
 
 export default function IncomeStatement({ symbol }) {
+  const { t } = useTranslation();
   const [tableRowsData, setTableRowsData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -24,7 +26,7 @@ export default function IncomeStatement({ symbol }) {
 
   const columns = [
     {
-      name: "Year",
+      name: t('company_page.income_col_year'),
       selector: (row) => row.report_year,
       sortable: true,
       width: "100px",
@@ -33,7 +35,7 @@ export default function IncomeStatement({ symbol }) {
       ),
     },
     {
-      name: "Revenue",
+      name: t('company_page.income_col_revenue'),
       selector: (row) => row.revenue,
       sortable: true,
       cell: (row) => (
@@ -43,7 +45,7 @@ export default function IncomeStatement({ symbol }) {
       ),
     },
     {
-      name: "Sales",
+      name: t('company_page.income_col_sales'),
       selector: (row) => row.sales,
       sortable: true,
       cell: (row) => (
@@ -51,7 +53,7 @@ export default function IncomeStatement({ symbol }) {
       ),
     },
     {
-      name: "Net Profit",
+      name: t('company_page.income_col_net_profit'),
       selector: (row) => row.net_profit,
       sortable: true,
       cell: (row) => (
@@ -61,7 +63,7 @@ export default function IncomeStatement({ symbol }) {
       ),
     },
     {
-      name: "Profit Before Tax",
+      name: t('company_page.income_col_profit_before_tax'),
       selector: (row) => row.profit_before_tax,
       sortable: true,
       cell: (row) => (
@@ -71,7 +73,7 @@ export default function IncomeStatement({ symbol }) {
       ),
     },
     {
-      name: "Net Profit (Year)",
+      name: t('company_page.income_col_net_profit_year'),
       selector: (row) => row.net_profit_for_the_year,
       sortable: true,
       cell: (row) => (
@@ -81,7 +83,7 @@ export default function IncomeStatement({ symbol }) {
       ),
     },
     {
-      name: "Dividend Received",
+      name: t('company_page.income_col_div_received'),
       selector: (row) => row.dividend_receive,
       sortable: true,
       cell: (row) => (
@@ -91,7 +93,7 @@ export default function IncomeStatement({ symbol }) {
       ),
     },
     {
-      name: "EPS (Basic)",
+      name: t('company_page.income_col_eps_basic'),
       selector: (row) => row.eps_basis,
       sortable: true,
       cell: (row) => (
@@ -134,10 +136,10 @@ export default function IncomeStatement({ symbol }) {
             <Receipt className="w-6 h-6 text-white" />
             <div>
               <h3 className="text-lg font-semibold text-white">
-                Income Statement
+                {t('company_page.income_title')}
               </h3>
               <p className="text-orange-100 text-sm">
-                Revenue, profit, and earnings analysis
+                {t('company_page.income_subtitle')}
               </p>
             </div>
           </div>

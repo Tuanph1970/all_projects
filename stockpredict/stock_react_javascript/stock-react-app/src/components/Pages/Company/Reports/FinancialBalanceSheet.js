@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import DataTable from "react-data-table-component";
+import { useTranslation } from 'react-i18next';
 import httpClient from "../../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../../constants/api";
 import { Scale } from "lucide-react";
@@ -11,12 +12,13 @@ import {
 } from "./tableStyles";
 
 export default function FinancialBalanceSheet({ symbol }) {
+  const { t } = useTranslation();
   const [tableRowsData, setTableRowsData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const columns = [
     {
-      name: "Year",
+      name: t('company_page.balance_col_year'),
       selector: (row) => row.report_year,
       sortable: true,
       width: "100px",
@@ -25,7 +27,7 @@ export default function FinancialBalanceSheet({ symbol }) {
       ),
     },
     {
-      name: "Current Assets",
+      name: t('company_page.balance_col_current_assets'),
       selector: (row) => row.current_assets,
       sortable: true,
       cell: (row) => (
@@ -35,7 +37,7 @@ export default function FinancialBalanceSheet({ symbol }) {
       ),
     },
     {
-      name: "Cash",
+      name: t('company_page.balance_col_cash'),
       selector: (row) => row.cash,
       sortable: true,
       cell: (row) => (
@@ -45,13 +47,13 @@ export default function FinancialBalanceSheet({ symbol }) {
       ),
     },
     {
-      name: "Short-term Investments",
+      name: t('company_page.balance_col_st_investments'),
       selector: (row) => row.short_term_investments,
       sortable: true,
       cell: (row) => <span>{formatNumber(row.short_term_investments)}</span>,
     },
     {
-      name: "Long-term Assets",
+      name: t('company_page.balance_col_lt_assets'),
       selector: (row) => row.long_term_assets,
       sortable: true,
       cell: (row) => (
@@ -61,13 +63,13 @@ export default function FinancialBalanceSheet({ symbol }) {
       ),
     },
     {
-      name: "Fixed Assets",
+      name: t('company_page.balance_col_fixed_assets'),
       selector: (row) => row.fixed_assets,
       sortable: true,
       cell: (row) => <span>{formatNumber(row.fixed_assets)}</span>,
     },
     {
-      name: "Total Assets",
+      name: t('company_page.balance_col_total_assets'),
       selector: (row) => row.total_assets,
       sortable: true,
       cell: (row) => (
@@ -77,7 +79,7 @@ export default function FinancialBalanceSheet({ symbol }) {
       ),
     },
     {
-      name: "Total Resources",
+      name: t('company_page.balance_col_total_resources'),
       selector: (row) => row.total_resources,
       sortable: true,
       cell: (row) => (
@@ -85,7 +87,7 @@ export default function FinancialBalanceSheet({ symbol }) {
       ),
     },
     {
-      name: "Capital & Reserves",
+      name: t('company_page.balance_col_capital_reserves'),
       selector: (row) => row.capital_and_reserves,
       sortable: true,
       cell: (row) => (
@@ -119,9 +121,9 @@ export default function FinancialBalanceSheet({ symbol }) {
           <div className="flex items-center gap-3">
             <Scale className="w-6 h-6 text-white" />
             <div>
-              <h3 className="text-lg font-semibold text-white">Balance Sheet</h3>
+              <h3 className="text-lg font-semibold text-white">{t('company_page.balance_title')}</h3>
               <p className="text-emerald-100 text-sm">
-                Assets, liabilities, and equity overview
+                {t('company_page.balance_subtitle')}
               </p>
             </div>
           </div>

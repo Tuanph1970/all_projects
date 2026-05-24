@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import DataTable from "react-data-table-component";
+import { useTranslation } from 'react-i18next';
 import httpClient from "../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../constants/api";
 import { Newspaper, ExternalLink, TrendingUp, TrendingDown } from "lucide-react";
@@ -11,6 +12,7 @@ import {
 } from "./Reports/tableStyles";
 
 export default function CompanyNew({ symbol }) {
+  const { t } = useTranslation();
   const [tableRowsData, setTableRowsData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -39,7 +41,7 @@ export default function CompanyNew({ symbol }) {
 
   const columns = [
     {
-      name: "Title",
+      name: t('company_page.news_col_title'),
       selector: (row) => row.title,
       sortable: true,
       grow: 3,
@@ -50,7 +52,7 @@ export default function CompanyNew({ symbol }) {
       ),
     },
     {
-      name: "Published",
+      name: t('company_page.news_col_published'),
       selector: (row) => row.publishDate,
       sortable: true,
       width: "120px",
@@ -61,7 +63,7 @@ export default function CompanyNew({ symbol }) {
       ),
     },
     {
-      name: "Price",
+      name: t('company_page.news_col_price'),
       selector: (row) => row.price,
       sortable: true,
       width: "100px",
@@ -72,7 +74,7 @@ export default function CompanyNew({ symbol }) {
       ),
     },
     {
-      name: "Change",
+      name: t('company_page.news_col_change'),
       selector: (row) => row.change,
       sortable: true,
       width: "100px",
@@ -90,7 +92,7 @@ export default function CompanyNew({ symbol }) {
       ),
     },
     {
-      name: "Change %",
+      name: t('company_page.news_col_change_pct'),
       selector: (row) => row.changePercent,
       sortable: true,
       width: "110px",
@@ -103,7 +105,7 @@ export default function CompanyNew({ symbol }) {
       ),
     },
     {
-      name: "Source",
+      name: t('company_page.news_col_source'),
       selector: (row) => row.source,
       sortable: true,
       grow: 2,
@@ -115,7 +117,7 @@ export default function CompanyNew({ symbol }) {
           className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded-full text-xs text-blue-600 hover:text-blue-800 transition-colors"
         >
           <ExternalLink className="w-3 h-3" />
-          View Source
+          {t('company_page.news_view_source')}
         </a>
       ),
     },
@@ -144,9 +146,9 @@ export default function CompanyNew({ symbol }) {
           <div className="flex items-center gap-3">
             <Newspaper className="w-6 h-6 text-white" />
             <div>
-              <h3 className="text-lg font-semibold text-white">Company News</h3>
+              <h3 className="text-lg font-semibold text-white">{t('company_page.news_title')}</h3>
               <p className="text-rose-100 text-sm">
-                Latest news and price impact analysis
+                {t('company_page.news_subtitle')}
               </p>
             </div>
           </div>

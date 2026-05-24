@@ -1,4 +1,5 @@
 import {React,useState,useEffect} from 'react';
+import { useTranslation } from 'react-i18next';
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
 import 'react-tabs/style/react-tabs.css';
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -33,6 +34,7 @@ export async function getTimeSeries(){
 }
 
 const SolutionAddNew = ()=>{
+    const { t } = useTranslation();
     const [tickerList,setTickerList ] = useState([])
     const [modelList,setModelList] = useState([])
     const [timeSeries,setTimeSeries] = useState([])
@@ -62,7 +64,7 @@ const SolutionAddNew = ()=>{
     if (isLoading){
         return(
         <div className='services'>
-            <p> Loading data...</p>;
+            <p>{t('solutions.loading_data')}</p>
         </div>
         )
     }
@@ -72,11 +74,11 @@ const SolutionAddNew = ()=>{
         return (
             <div className="services">
                 <div className="alert alert-warning" role="alert">
-                    <h4 className="alert-heading">No Stocks in Portfolio</h4>
-                    <p>You need to add stocks to your portfolio before creating a solution.</p>
+                    <h4 className="alert-heading">{t('solutions.no_portfolio_title')}</h4>
+                    <p>{t('solutions.no_portfolio_msg')}</p>
                     <hr />
                     <p className="mb-0">
-                        Go to <a href="/portfolio">Portfolio</a> to add stocks first.
+                        Go to <a href="/portfolio">{t('solutions.no_portfolio_link_text')}</a> to add stocks first.
                     </p>
                 </div>
             </div>
@@ -87,9 +89,9 @@ const SolutionAddNew = ()=>{
         <div className="services">
             <Tabs>
             <TabList>
-              <Tab>General Infomation</Tab>
-              <Tab>Train</Tab>
-              <Tab>Predict</Tab>
+              <Tab>{t('solutions.tab_general')}</Tab>
+              <Tab>{t('solutions.tab_train')}</Tab>
+              <Tab>{t('solutions.tab_predict')}</Tab>
             </TabList>
 
             <TabPanel>
@@ -98,11 +100,11 @@ const SolutionAddNew = ()=>{
              }
             </TabPanel>
             <TabPanel>
-               <p> This info will show when new solution </p>
+               <p>{t('solutions.train_placeholder')}</p>
 
             </TabPanel>
             <TabPanel>
-                <p> Testing Param</p>
+                <p>{t('solutions.predict_placeholder')}</p>
 
             </TabPanel>
 

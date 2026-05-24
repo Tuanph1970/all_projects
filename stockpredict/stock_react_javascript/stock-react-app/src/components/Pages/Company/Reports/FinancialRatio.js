@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import DataTable from "react-data-table-component";
+import { useTranslation } from 'react-i18next';
 import httpClient from "../../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../../constants/api";
 import { TrendingUp } from "lucide-react";
@@ -12,12 +13,13 @@ import {
 } from "./tableStyles";
 
 export default function FinancialRatio({ symbol }) {
+  const { t } = useTranslation();
   const [tableRowsData, setTableRowsData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const columns = [
     {
-      name: "Year",
+      name: t('company_page.ratio_col_year'),
       selector: (row) => row.metayearreport,
       sortable: true,
       width: "100px",
@@ -28,13 +30,13 @@ export default function FinancialRatio({ symbol }) {
       ),
     },
     {
-      name: "P/B",
+      name: t('company_page.ratio_col_pb'),
       selector: (row) => row.p_b,
       sortable: true,
       cell: (row) => <span>{formatNumber(row.p_b)}</span>,
     },
     {
-      name: "Market Cap",
+      name: t('company_page.ratio_col_market_cap'),
       selector: (row) => row.market_capital,
       sortable: true,
       cell: (row) => (
@@ -42,7 +44,7 @@ export default function FinancialRatio({ symbol }) {
       ),
     },
     {
-      name: "P/E",
+      name: t('company_page.ratio_col_pe'),
       selector: (row) => row.p_e,
       sortable: true,
       cell: (row) => (
@@ -60,19 +62,19 @@ export default function FinancialRatio({ symbol }) {
       ),
     },
     {
-      name: "P/S",
+      name: t('company_page.ratio_col_ps'),
       selector: (row) => row.p_s,
       sortable: true,
       cell: (row) => <span>{formatNumber(row.p_s)}</span>,
     },
     {
-      name: "P/Cash Flow",
+      name: t('company_page.ratio_col_pcashflow'),
       selector: (row) => row.p_cash_flow,
       sortable: true,
       cell: (row) => <span>{formatNumber(row.p_cash_flow)}</span>,
     },
     {
-      name: "EPS",
+      name: t('company_page.ratio_col_eps'),
       selector: (row) => row.eps,
       sortable: true,
       cell: (row) => (
@@ -90,7 +92,7 @@ export default function FinancialRatio({ symbol }) {
       ),
     },
     {
-      name: "ROE",
+      name: t('company_page.ratio_col_roe'),
       selector: (row) => row.roe,
       sortable: true,
       cell: (row) => (
@@ -108,7 +110,7 @@ export default function FinancialRatio({ symbol }) {
       ),
     },
     {
-      name: "ROIC",
+      name: t('company_page.ratio_col_roic'),
       selector: (row) => row.roic,
       sortable: true,
       cell: (row) => (
@@ -151,10 +153,10 @@ export default function FinancialRatio({ symbol }) {
             <TrendingUp className="w-6 h-6 text-white" />
             <div>
               <h3 className="text-lg font-semibold text-white">
-                Financial Ratios
+                {t('company_page.ratio_title')}
               </h3>
               <p className="text-indigo-100 text-sm">
-                Key valuation and profitability metrics
+                {t('company_page.ratio_subtitle')}
               </p>
             </div>
           </div>

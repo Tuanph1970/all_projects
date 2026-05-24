@@ -1,4 +1,5 @@
 import React,{useEffect,useState} from "react";
+import { useTranslation } from 'react-i18next';
 import DatePicker from "react-datepicker";
 
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -24,6 +25,7 @@ export async function getAgents(){
 }
 
 export const Agent = () => {
+  const { t } = useTranslation();
   const [statistic,setStatistic] = useState([])
   const [startDate,setStartDate] = useState(new Date());
   const [endDate,setEndDate] = useState(new Date())
@@ -100,7 +102,7 @@ export const Agent = () => {
   }, []);
   if(isLoading) {
      return (
-        <p> Page agent is loading... </p>
+        <p>{t('agent.loading')}</p>
      )
   } else {
   return (
@@ -114,23 +116,23 @@ export const Agent = () => {
                    <td >
                       <table >
                       <tr>
-                        <td> <label> start date</label></td>
+                        <td> <label>{t('agent.start_date')}</label></td>
                         <td> <DatePicker id="start_date" selected={startDate} dateFormat={"yyyy-MM-dd"} onChange={(date)=>setStartDate(new Date(date))}  /></td>
                       </tr>
-                      <tr>  
-                        <td> <label> end date</label></td>
+                      <tr>
+                        <td> <label>{t('agent.end_date')}</label></td>
                         <td> <DatePicker id="end_date" selected={endDate} dateFormat={"yyyy-MM-dd"} onChange={(date)=>setEndDate(new Date(date))}  /></td>
                       </tr>
                       <tr>
                       <td>
-                            <label >Ticker</label>
+                            <label>{t('agent.ticker_label')}</label>
                             </td>
                             <td>
-                            <select {...register("ticker")} 
+                            <select {...register("ticker")}
                                 value={ticker}
                                 onChange={(e)=>setTicker(e.target.value)}
                             >
-                            <option value={null}> select ticker </option>  
+                            <option value={null}>{t('agent.select_ticker')}</option>
                             {tickers.map((option_item) => (
                             <option value={option_item['ticker']}>
                                 {option_item['ticker']}
@@ -141,14 +143,14 @@ export const Agent = () => {
                       </tr>
                       <tr>
                       <td>
-                            <label >Agent</label>
+                            <label>{t('agent.agent_label')}</label>
                             </td>
                             <td>
-                            <select {...register("agent_name")} 
+                            <select {...register("agent_name")}
                                 value={agentName}
                                 onChange={(e)=>handleAgentSelect(e.target.value)}
                             >
-                            <option value={null}> select agent </option>  
+                            <option value={null}>{t('agent.select_agent')}</option>
                             {agents.map((option_item) => (
                             <option value={option_item['agent_name']}>
                                 {option_item['agent_name']}
@@ -159,7 +161,7 @@ export const Agent = () => {
                       </tr>
                       <tr>
                       <td>
-                            <label >Initial money</label>
+                            <label>{t('agent.initial_money')}</label>
                             </td>
                             <td>
                               <input type="text" {...register("initial_money")} defaultValue={10000000} ></input>
@@ -177,7 +179,7 @@ export const Agent = () => {
                     }
                     <tr>
                       <td colSpan={2}>
-                        <button type="submit" className="btn btn-primary">Run Agent</button>
+                        <button type="submit" className="btn btn-primary">{t('agent.run_btn')}</button>
                       </td>
                     </tr>
                     </table>

@@ -1,4 +1,5 @@
 import React,{useEffect,useState,useRef} from "react";
+import { useTranslation } from 'react-i18next';
 import DatePicker from "react-datepicker";
 
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -8,6 +9,7 @@ import httpClient from "../../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../../constants/api";
 
 const TrainingSolution = (props)=>{
+    const { t } = useTranslation();
     const [startDate,setStartDate] = useState(new Date(props.solution['start_training_date']));
     const [endDate,setEndDate] = useState(new Date(props.solution['end_training_date']))
     const [validation,setValidation] = useState(true)
@@ -44,7 +46,7 @@ const TrainingSolution = (props)=>{
         // forgot about us. Surface as a recoverable error rather than spin.
         if (pollAttemptsRef.current > MAX_POLL_ATTEMPTS) {
             stopPolling();
-            setTrainingStatus('Training timed out. Please retry or contact support.');
+            setTrainingStatus(t('solutions.training_timeout'));
             return;
         }
 
@@ -66,7 +68,7 @@ const TrainingSolution = (props)=>{
                 } else if (trainingResult && trainingResult.RMSE !== undefined) {
                     setRmseValue(trainingResult.RMSE);
                 }
-                setTrainingStatus('Training completed successfully!');
+                setTrainingStatus(t('solutions.training_complete'));
 
                 if (props.onTrainingComplete && trainingResult) {
                     props.onTrainingComplete(trainingResult);
@@ -79,7 +81,7 @@ const TrainingSolution = (props)=>{
                 // dict was reset (service restart) or the request silently dropped.
                 // Stop polling so the user can retry.
                 stopPolling();
-                setTrainingStatus('Training session not found on server. Please retry.');
+                setTrainingStatus(t('solutions.training_not_found'));
             } else if (statusData.status === 'training') {
                 const pct = typeof statusData.progress === 'number' ? statusData.progress : 0;
                 setTrainingProgress(pct);
@@ -110,7 +112,7 @@ const TrainingSolution = (props)=>{
             end_date:endDate.toISOString().split('T')[0]
         }
 
-        setTrainingStatus('Training in progress...')
+        setTrainingStatus(t('solutions.training_in_progress'))
         setTrainingProgress(0)
         setRmseValue(null)
         setIsPolling(true)
@@ -122,7 +124,7 @@ const TrainingSolution = (props)=>{
             if (response.success && response.data?.rmse !== undefined) {
                 // Legacy synchronous training — done in one shot.
                 setRmseValue(response.data.rmse);
-                setTrainingStatus('Training completed successfully!');
+                setTrainingStatus(t('solutions.training_complete'));
                 setTrainingProgress(100);
                 stopPolling();
 
@@ -131,7 +133,7 @@ const TrainingSolution = (props)=>{
                 }
             } else if (response.success && response.data?.RMSE !== undefined) {
                 setRmseValue(response.data.RMSE);
-                setTrainingStatus('Training completed successfully!');
+                setTrainingStatus(t('solutions.training_complete'));
                 setTrainingProgress(100);
                 stopPolling();
 
@@ -162,7 +164,7 @@ const TrainingSolution = (props)=>{
                     {/* Compact Training Configuration Section */}
                     <div className="row mb-3">
                         <div className="col-md-12">
-                            <h6 className="text-muted mb-3">Training Configuration</h6>
+                            <h6 className="text-muted mb-3">{t('solutions.training_config')}</h6>
                         </div>
                     </div>
 
@@ -170,7 +172,7 @@ const TrainingSolution = (props)=>{
                     <div className="row g-2 mb-3">
                         {/* Date Range Section */}
                         <div className="col-md-3">
-                            <label className="form-label form-label-sm mb-1"><small>Start Date</small></label>
+                            <label className="form-label form-label-sm mb-1"><small>{t('solutions.date_start')}</small></label>
                             <DatePicker
                                 id="start_date"
                                 selected={startDate}
@@ -180,7 +182,7 @@ const TrainingSolution = (props)=>{
                             />
                         </div>
                         <div className="col-md-3">
-                            <label className="form-label form-label-sm mb-1"><small>End Date</small></label>
+                            <label className="form-label form-label-sm mb-1"><small>{t('solutions.date_end')}</small></label>
                             <DatePicker
                                 id="end_date"
                                 selected={endDate}
@@ -192,7 +194,7 @@ const TrainingSolution = (props)=>{
 
                         {/* Validation Controls */}
                         <div className="col-md-2">
-                            <label className="form-label form-label-sm mb-1"><small>Validation Ratio</small></label>
+                            <label className="form-label form-label-sm mb-1"><small>{t('solutions.validation_ratio')}</small></label>
                             <input
                                 type="number"
                                 step="0.01"
@@ -213,7 +215,7 @@ const TrainingSolution = (props)=>{
                                     id="validationCheck"
                                 />
                                 <label className="form-check-label" htmlFor="validationCheck">
-                                    <small>Enable Validation</small>
+                                    <small>{t('solutions.enable_validation')}</small>
                                 </label>
                             </div>
                         </div>
@@ -225,7 +227,7 @@ const TrainingSolution = (props)=>{
                                 className="btn btn-primary btn-sm w-100"
                                 disabled={isPolling}
                             >
-                                {isPolling ? 'Training...' : 'Train Model'}
+                                {isPolling ? t('solutions.training_btn') : t('solutions.train_btn')}
                             </button>
                         </div>
                     </div>
@@ -282,13 +284,13 @@ const TrainingSolution = (props)=>{
                         <div className="col-md-12">
                             <div className="card border shadow-sm">
                                 <div className="card-header bg-light py-2">
-                                    <h6 className="mb-0"><small>Training Results Visualization</small></h6>
+                                    <h6 className="mb-0"><small>{t('solutions.training_results_title')}</small></h6>
                                 </div>
                                 <div className="card-body p-3" style={{minHeight: '400px', backgroundColor: '#f8f9fa'}}>
                                     {/* Chart will be rendered here */}
                                     <div id="training-chart-container" style={{width: '100%', height: '380px'}}>
                                         <div className="d-flex align-items-center justify-content-center h-100 text-muted">
-                                            <small>Chart will be displayed after training completion</small>
+                                            <small>{t('solutions.chart_pending')}</small>
                                         </div>
                                     </div>
                                 </div>

@@ -1,5 +1,6 @@
 import React,{useEffect,useState} from "react";
 import StockChart from "../../ui/StockChart";
+import { useTranslation } from 'react-i18next';
 import httpClient from "../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../constants/api";
 import { Button } from "react-bootstrap";
@@ -7,7 +8,8 @@ import { ButtonGroup } from "react-bootstrap";
 import Select from "react-dropdown-select";
 import '../../../../node_modules/bootstrap/dist/css/bootstrap.min.css';
 
-export default function CompanyCharts({symbol}) { 
+export default function CompanyCharts({symbol}) {
+  const { t } = useTranslation(); 
     const [stockData, setStockData] = useState([]);
     const [isLoading, setIsLoading] = useState([]);
     const [periodStockData,setPeriodStockData] = useState([]);
@@ -73,18 +75,18 @@ export default function CompanyCharts({symbol}) {
       // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [symbol]);
       if (isLoading) {
-        return <p>Loading data...</p>;
+        return <p>{t('company_page.charts_loading')}</p>;
       }
       else {
         return (    
           <div>
              <div>
                  <ButtonGroup>
-                    <Button onClick={oneWeekClick} >1w</Button>
-                    <Button onClick={oneMonthClick}>1m</Button> 
-                    <Button onClick={oneYearClick}>1y</Button>
-                    <Button onClick={fiveYearClick}>5y</Button>                    
-                    <Button onClick={allRangeClick}>All</Button>
+                    <Button onClick={oneWeekClick}>{t('company_page.charts_btn_1w')}</Button>
+                    <Button onClick={oneMonthClick}>{t('company_page.charts_btn_1m')}</Button>
+                    <Button onClick={oneYearClick}>{t('company_page.charts_btn_1y')}</Button>
+                    <Button onClick={fiveYearClick}>{t('company_page.charts_btn_5y')}</Button>
+                    <Button onClick={allRangeClick}>{t('company_page.charts_btn_all')}</Button>
                     <div style={{width: '500px'}}>
                     <Select
                         menuPlacement="auto"

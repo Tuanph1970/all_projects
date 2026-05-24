@@ -6,10 +6,12 @@ import {
   Briefcase,
   PieChart,
 } from "lucide-react";
+import { useTranslation } from 'react-i18next';
 import httpClient from "../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../constants/api";
 
 export default function CompanyOverView({ symbol }) {
+  const { t } = useTranslation();
   const [overViewData, setOverViewData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -52,7 +54,7 @@ export default function CompanyOverView({ symbol }) {
   if (!overViewData) {
     return (
       <div className="p-6 text-center text-gray-500">
-        No overview data available
+        {t('company_page.overview_no_data')}
       </div>
     );
   }
@@ -89,7 +91,7 @@ export default function CompanyOverView({ symbol }) {
                 </div>
               </div>
               <div className="text-right bg-white/10 backdrop-blur-sm rounded-xl p-3">
-                <p className="text-white/70 text-xs font-medium">Charter Capital</p>
+                <p className="text-white/70 text-xs font-medium">{t('company_page.overview_charter_capital')}</p>
                 <p className="text-white text-lg font-bold">
                   {overViewData.charterCapital ? formatNumber(overViewData.charterCapital / 1000000000) + "B" : "N/A"}
                 </p>
@@ -103,7 +105,7 @@ export default function CompanyOverView({ symbol }) {
           {/* Issue Share */}
           <div className="min-w-[120px] flex-1 rounded-xl p-4 bg-blue-50 border border-blue-200 shadow-sm hover:shadow-lg transition-all">
             <div className="flex flex-col items-center text-center">
-              <span className="text-xs text-blue-500 font-semibold uppercase tracking-wide mb-2">Issue Share</span>
+              <span className="text-xs text-blue-500 font-semibold uppercase tracking-wide mb-2">{t('company_page.overview_issue_share')}</span>
               <span className="text-xl font-bold text-blue-700">
                 {overViewData.issueShare ? formatNumber(overViewData.issueShare / 1000000) + "M" : "N/A"}
               </span>
@@ -113,7 +115,7 @@ export default function CompanyOverView({ symbol }) {
           {/* Outstanding Share */}
           <div className="min-w-[120px] flex-1 rounded-xl p-4 bg-green-50 border border-green-200 shadow-sm hover:shadow-lg transition-all">
             <div className="flex flex-col items-center text-center">
-              <span className="text-xs text-green-500 font-semibold uppercase tracking-wide mb-2">Outstanding</span>
+              <span className="text-xs text-green-500 font-semibold uppercase tracking-wide mb-2">{t('company_page.overview_outstanding')}</span>
               <span className="text-xl font-bold text-green-700">
                 {overViewData.outstandingShare ? formatNumber(overViewData.outstandingShare / 1000000) + "M" : "N/A"}
               </span>
@@ -123,7 +125,7 @@ export default function CompanyOverView({ symbol }) {
           {/* Foreign % */}
           <div className="min-w-[120px] flex-1 rounded-xl p-4 bg-purple-50 border border-purple-200 shadow-sm hover:shadow-lg transition-all">
             <div className="flex flex-col items-center text-center">
-              <span className="text-xs text-purple-500 font-semibold uppercase tracking-wide mb-2">Foreign %</span>
+              <span className="text-xs text-purple-500 font-semibold uppercase tracking-wide mb-2">{t('company_page.overview_foreign_pct')}</span>
               <span className="text-xl font-bold text-purple-700">
                 {overViewData.foreignPercent != null ? (overViewData.foreignPercent * 100).toFixed(1) + "%" : "N/A"}
               </span>
@@ -140,23 +142,23 @@ export default function CompanyOverView({ symbol }) {
             <div className="p-2 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg shadow-md">
               <PieChart className="w-4 h-4 text-white" />
             </div>
-            <h3 className="font-semibold text-violet-900 text-sm">Shares</h3>
+            <h3 className="font-semibold text-violet-900 text-sm">{t('company_page.overview_shares_card')}</h3>
           </div>
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-xs text-violet-600">Outstanding</span>
+              <span className="text-xs text-violet-600">{t('company_page.overview_outstanding')}</span>
               <span className="text-sm font-bold text-violet-900 bg-violet-100 px-2 py-0.5 rounded">
                 {overViewData.outstandingShare ? formatNumber(overViewData.outstandingShare / 1000000) + "M" : "N/A"}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs text-violet-600">Issued</span>
+              <span className="text-xs text-violet-600">{t('company_page.overview_issued')}</span>
               <span className="text-sm font-bold text-violet-900 bg-violet-100 px-2 py-0.5 rounded">
                 {overViewData.issueShare ? formatNumber(overViewData.issueShare / 1000000) + "M" : "N/A"}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs text-violet-600">Free Float</span>
+              <span className="text-xs text-violet-600">{t('company_page.overview_free_float')}</span>
               <span className="text-sm font-bold text-violet-900 bg-violet-100 px-2 py-0.5 rounded">
                 {overViewData.freeFloatRate != null ? (overViewData.freeFloatRate * 100).toFixed(1) + "%" : "N/A"}
               </span>
@@ -170,17 +172,17 @@ export default function CompanyOverView({ symbol }) {
             <div className="p-2 bg-gradient-to-br from-sky-500 to-blue-600 rounded-lg shadow-md">
               <Users className="w-4 h-4 text-white" />
             </div>
-            <h3 className="font-semibold text-sky-900 text-sm">People</h3>
+            <h3 className="font-semibold text-sky-900 text-sm">{t('company_page.overview_people_card')}</h3>
           </div>
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-xs text-sky-600">Shareholders</span>
+              <span className="text-xs text-sky-600">{t('company_page.overview_shareholders')}</span>
               <span className="text-sm font-bold text-sky-900 bg-sky-100 px-2 py-0.5 rounded">
                 {overViewData.noShareholders ? formatNumber(overViewData.noShareholders) : "N/A"}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs text-sky-600">Employees</span>
+              <span className="text-xs text-sky-600">{t('company_page.overview_employees')}</span>
               <span className="text-sm font-bold text-sky-900 bg-sky-100 px-2 py-0.5 rounded">
                 {overViewData.noEmployees ? formatNumber(overViewData.noEmployees) : "N/A"}
               </span>
@@ -194,17 +196,17 @@ export default function CompanyOverView({ symbol }) {
             <div className="p-2 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg shadow-md">
               <Briefcase className="w-4 h-4 text-white" />
             </div>
-            <h3 className="font-semibold text-emerald-900 text-sm">Industry</h3>
+            <h3 className="font-semibold text-emerald-900 text-sm">{t('company_page.overview_industry_card')}</h3>
           </div>
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-xs text-emerald-600">Level 1</span>
+              <span className="text-xs text-emerald-600">{t('company_page.overview_level_1')}</span>
               <span className="text-sm font-bold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded truncate max-w-[100px]" title={overViewData.industry}>
                 {overViewData.industry || "N/A"}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs text-emerald-600">Level 2</span>
+              <span className="text-xs text-emerald-600">{t('company_page.overview_level_2')}</span>
               <span className="text-sm font-bold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded truncate max-w-[100px]" title={overViewData.industryL2}>
                 {overViewData.industryL2 || "N/A"}
               </span>
@@ -218,17 +220,17 @@ export default function CompanyOverView({ symbol }) {
             <div className="p-2 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg shadow-md">
               <BarChart3 className="w-4 h-4 text-white" />
             </div>
-            <h3 className="font-semibold text-amber-900 text-sm">Capital</h3>
+            <h3 className="font-semibold text-amber-900 text-sm">{t('company_page.overview_capital_card')}</h3>
           </div>
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-xs text-amber-600">Charter</span>
+              <span className="text-xs text-amber-600">{t('company_page.overview_charter')}</span>
               <span className="text-sm font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
                 {overViewData.charterCapital ? formatNumber(overViewData.charterCapital / 1000000000) + "B" : "N/A"}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs text-amber-600">Foreign %</span>
+              <span className="text-xs text-amber-600">{t('company_page.overview_foreign_pct')}</span>
               <span className="text-sm font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
                 {overViewData.foreignPercent != null ? (overViewData.foreignPercent * 100).toFixed(1) + "%" : "N/A"}
               </span>
@@ -242,7 +244,7 @@ export default function CompanyOverView({ symbol }) {
             <div className="p-2 bg-gradient-to-br from-cyan-500 to-teal-600 rounded-lg shadow-md">
               <Building2 className="w-4 h-4 text-white" />
             </div>
-            <h3 className="font-semibold text-cyan-900 text-sm">Sector Detail</h3>
+            <h3 className="font-semibold text-cyan-900 text-sm">{t('company_page.overview_sector_detail')}</h3>
           </div>
           <div className="text-center">
             <p className="text-sm font-bold text-cyan-900 leading-tight" title={overViewData.industryL3}>

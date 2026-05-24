@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import DataTable from "react-data-table-component";
+import { useTranslation } from 'react-i18next';
 import httpClient from "../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../constants/api";
 import { Calendar, Activity } from "lucide-react";
@@ -11,6 +12,7 @@ import {
 } from "./Reports/tableStyles";
 
 export default function CompanyEvents({ symbol }) {
+  const { t } = useTranslation();
   const [tableRowsData, setTableRowsData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -49,7 +51,7 @@ export default function CompanyEvents({ symbol }) {
 
   const columns = [
     {
-      name: "Event",
+      name: t('company_page.events_col_event'),
       selector: (row) => row.title,
       sortable: true,
       grow: 2,
@@ -65,7 +67,7 @@ export default function CompanyEvents({ symbol }) {
       ),
     },
     {
-      name: "Type",
+      name: t('company_page.events_col_type'),
       selector: (row) => row.eventType,
       sortable: true,
       width: "150px",
@@ -74,7 +76,7 @@ export default function CompanyEvents({ symbol }) {
       ),
     },
     {
-      name: "Publish Date",
+      name: t('company_page.events_col_publish_date'),
       selector: (row) => row.publishDate,
       sortable: true,
       width: "120px",
@@ -86,7 +88,7 @@ export default function CompanyEvents({ symbol }) {
       ),
     },
     {
-      name: "Record Date",
+      name: t('company_page.events_col_record_date'),
       selector: (row) => row.recordDate,
       sortable: true,
       width: "120px",
@@ -95,7 +97,7 @@ export default function CompanyEvents({ symbol }) {
       ),
     },
     {
-      name: "Ex-Right Date",
+      name: t('company_page.events_col_exright_date'),
       selector: (row) => row.exrightDate,
       sortable: true,
       width: "120px",
@@ -104,7 +106,7 @@ export default function CompanyEvents({ symbol }) {
       ),
     },
     {
-      name: "Ratio",
+      name: t('company_page.events_col_ratio'),
       selector: (row) => row.ratio,
       sortable: true,
       width: "100px",
@@ -115,7 +117,7 @@ export default function CompanyEvents({ symbol }) {
       ),
     },
     {
-      name: "Value",
+      name: t('company_page.events_col_value'),
       selector: (row) => row.value,
       sortable: true,
       width: "110px",
@@ -126,7 +128,7 @@ export default function CompanyEvents({ symbol }) {
       ),
     },
     {
-      name: "Source",
+      name: t('company_page.events_col_source'),
       selector: (row) => row.source,
       sortable: false,
       width: "80px",
@@ -169,10 +171,10 @@ export default function CompanyEvents({ symbol }) {
             <Calendar className="w-6 h-6 text-white" />
             <div>
               <h3 className="text-lg font-semibold text-white">
-                Company Events
+                {t('company_page.events_title')}
               </h3>
               <p className="text-violet-100 text-sm">
-                Corporate events and market indicators
+                {t('company_page.events_subtitle')}
               </p>
             </div>
           </div>

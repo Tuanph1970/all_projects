@@ -1,4 +1,5 @@
 import React,{useEffect,useState} from "react";
+import { useTranslation } from 'react-i18next';
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
 import 'react-tabs/style/react-tabs.css';
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -43,6 +44,7 @@ export async function getTimeSeries(){
 }
 
 const SolutionEdit = ()=>{
+    const { t } = useTranslation();
     const location = useLocation();
     const [isLoading,setIsLoading] = useState(true)
     const [solution,setSolution] = useState(null)
@@ -105,7 +107,7 @@ const SolutionEdit = ()=>{
     if (isLoading){
         return(
         <div className='services'>
-            <p> Loading data...</p>;
+            <p>{t('solutions.loading_data')}</p>
         </div>
         )
 
@@ -114,9 +116,9 @@ const SolutionEdit = ()=>{
             <div className="services">
                 <Tabs>
             <TabList>
-              <Tab>General Infomation</Tab>
-              <Tab>Train</Tab>
-              <Tab>Predict</Tab>
+              <Tab>{t('solutions.tab_general')}</Tab>
+              <Tab>{t('solutions.tab_train')}</Tab>
+              <Tab>{t('solutions.tab_predict')}</Tab>
             </TabList>
             <TabPanel>
                 {solution && solution["model_id"] > 0 ?

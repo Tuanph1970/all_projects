@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import DataTable from "react-data-table-component";
+import { useTranslation } from 'react-i18next';
 import httpClient from "../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../constants/api";
 import { Coins, Calendar, Percent, CreditCard, Banknote } from "lucide-react";
@@ -11,6 +12,7 @@ import {
 } from "./Reports/tableStyles";
 
 export default function CompanyDividents({ symbol }) {
+  const { t } = useTranslation();
   const [tableRowsData, setTableRowsData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -41,7 +43,7 @@ export default function CompanyDividents({ symbol }) {
 
   const columns = [
     {
-      name: "Title",
+      name: t('company_page.div_col_title'),
       selector: (row) => row.title,
       sortable: true,
       grow: 2,
@@ -52,7 +54,7 @@ export default function CompanyDividents({ symbol }) {
       ),
     },
     {
-      name: "Ex-Right Date",
+      name: t('company_page.div_col_exright_date'),
       selector: (row) => row.exrightDate,
       sortable: true,
       width: "130px",
@@ -64,7 +66,7 @@ export default function CompanyDividents({ symbol }) {
       ),
     },
     {
-      name: "Year",
+      name: t('company_page.div_col_year'),
       selector: (row) => row.issueDate,
       sortable: true,
       width: "100px",
@@ -75,7 +77,7 @@ export default function CompanyDividents({ symbol }) {
       ),
     },
     {
-      name: "Dividend Ratio",
+      name: t('company_page.div_col_ratio'),
       selector: (row) => row.ratio,
       sortable: true,
       width: "140px",
@@ -89,7 +91,7 @@ export default function CompanyDividents({ symbol }) {
       ),
     },
     {
-      name: "Value (VND)",
+      name: t('company_page.div_col_value'),
       selector: (row) => row.value,
       sortable: true,
       width: "130px",
@@ -103,7 +105,7 @@ export default function CompanyDividents({ symbol }) {
       ),
     },
     {
-      name: "Type",
+      name: t('company_page.div_col_type'),
       selector: (row) => row.eventType,
       sortable: true,
       width: "150px",
@@ -154,7 +156,7 @@ export default function CompanyDividents({ symbol }) {
               </div>
               <div>
                 <p className="text-sm text-green-600 font-medium">
-                  Total Dividend Records
+                  {t('company_page.div_card_total')}
                 </p>
                 <p className="text-2xl font-bold text-green-700">
                   {tableRowsData.length}
@@ -170,7 +172,7 @@ export default function CompanyDividents({ symbol }) {
               </div>
               <div>
                 <p className="text-sm text-blue-600 font-medium">
-                  Average Dividend
+                  {t('company_page.div_card_avg')}
                 </p>
                 <p className="text-2xl font-bold text-blue-700">
                   {avgDividend.toFixed(2)}%
@@ -186,7 +188,7 @@ export default function CompanyDividents({ symbol }) {
               </div>
               <div>
                 <p className="text-sm text-purple-600 font-medium">
-                  Latest Year
+                  {t('company_page.div_card_latest_year')}
                 </p>
                 <p className="text-2xl font-bold text-purple-700">
                   {tableRowsData[0]?.issueDate ? new Date(tableRowsData[0].issueDate).getFullYear() : "-"}
@@ -204,10 +206,10 @@ export default function CompanyDividents({ symbol }) {
             <Coins className="w-6 h-6 text-white" />
             <div>
               <h3 className="text-lg font-semibold text-white">
-                Dividend History
+                {t('company_page.div_title')}
               </h3>
               <p className="text-green-100 text-sm">
-                Historical dividend payments and yields
+                {t('company_page.div_subtitle')}
               </p>
             </div>
           </div>

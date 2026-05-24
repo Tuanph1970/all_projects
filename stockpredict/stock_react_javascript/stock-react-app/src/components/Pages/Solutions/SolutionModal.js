@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Form, Row, Col, Alert, Spinner } from 'react-bootstrap';
 import DatePicker from 'react-datepicker';
 import { format } from "d3-format";
@@ -793,6 +794,7 @@ const FinancialTrainingChart = ({ data, ticker }) => {
 };
 
 const SolutionModal = ({ show, onHide, solution, onSave }) => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('general');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -1062,7 +1064,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
           await indicatorService.setSolutionIndicators(result.data.id, indicators);
         }
 
-        setSuccess('Solution saved successfully!');
+        setSuccess(t('solutions.save_success'));
         if (onSave) {
           onSave(result.data);
         }
@@ -1250,7 +1252,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
 
   const handleTrain = async () => {
     if (!solution || !solution.id) {
-      setError('Please save the solution first before training');
+      setError(t('solutions.save_first_train'));
       return;
     }
 
@@ -1258,7 +1260,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
       setLoading(true);
       setError(null);
       setTrainingSuggestions([]);
-      setTrainingStatus('Training in progress...');
+      setTrainingStatus(t('solutions.training_in_progress'));
 
       const data = {
         id: solution.id,
@@ -1277,7 +1279,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
         if (response.data.status === 'training') {
           // Training is asynchronous - poll for results
           console.log('Training started asynchronously, polling for results...');
-          setTrainingStatus('Training in progress... (this may take a few minutes)');
+          setTrainingStatus(t('solutions.training_in_progress'));
 
           // Poll every 3 seconds for training completion
           const pollInterval = setInterval(async () => {
@@ -1292,7 +1294,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                   // FIXED: Access 'result' (singular) not 'results' (plural) from backend
                   const trainingResult = statusResponse.data.result;
                   setTrainingResult(trainingResult);
-                  setTrainingStatus('Training completed successfully!');
+                  setTrainingStatus(t('solutions.training_complete'));
                   setSuccess('Training completed with RMSE: ' + (trainingResult?.rmse || 'N/A'));
 
                   console.log('📦 Training result received from backend:', trainingResult);
@@ -1350,7 +1352,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
             clearInterval(pollInterval);
             if (loading) {
               setError('Training timeout - please check backend logs');
-              setTrainingStatus('Training timeout');
+              setTrainingStatus(t('solutions.training_timeout'));
               setLoading(false);
             }
           }, 600000); // 10 minutes
@@ -1987,7 +1989,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
 
   const handlePredict = async () => {
     if (!solution || !solution.id) {
-      setError('Please save the solution first before predicting');
+      setError(t('solutions.save_first_predict'));
       return;
     }
 
@@ -2037,7 +2039,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
         }
 
         setPredictionChartData(chartData);
-        setSuccess('Prediction completed successfully!');
+        setSuccess(t('solutions.predict_success'));
       } else {
         throw new Error(response.error?.message || 'Prediction failed');
       }
@@ -2069,7 +2071,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
         <div className="custom-modal-content">
           <div className="custom-modal-header">
             <h4 className="custom-modal-title">
-              {solution ? 'Edit Solution' : 'Add New Solution'}
+              {solution ? t('solutions.modal_title_edit') : t('solutions.modal_title_add')}
             </h4>
             <button
               type="button"
@@ -2093,7 +2095,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
               onClick={() => setActiveTab('general')}
               type="button"
             >
-              General Information
+              {t('solutions.tab_general')}
             </button>
           </li>
           <li className="nav-item">
@@ -2103,7 +2105,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
               type="button"
               disabled={!solution || !solution.id}
             >
-              Training
+              {t('solutions.tab_training')}
             </button>
           </li>
           <li className="nav-item">
@@ -2113,7 +2115,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
               type="button"
               disabled={!solution || !solution.id}
             >
-              Prediction
+              {t('solutions.tab_prediction')}
             </button>
           </li>
         </ul>
@@ -2127,10 +2129,10 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
               <Row className="mb-3">
                 <Col md={6}>
                   <Form.Group>
-                    <Form.Label>Solution Name *</Form.Label>
+                    <Form.Label>{t('solutions.sol_name_required')}</Form.Label>
                     <Form.Control
                       type="text"
-                      placeholder="Enter solution name"
+                      placeholder={t('solutions.sol_name_placeholder')}
                       value={solutionName}
                       onChange={(e) => setSolutionName(e.target.value)}
                       required
@@ -2139,16 +2141,16 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                 </Col>
                 <Col md={6}>
                   <Form.Group>
-                    <Form.Label>Symbol (Ticker) *</Form.Label>
+                    <Form.Label>{t('solutions.symbol_label')}</Form.Label>
                     <Form.Select
                       value={ticker}
                       onChange={(e) => setTicker(e.target.value)}
                       required
                     >
-                      <option value="">Select Ticker</option>
-                      {tickers.map((t) => (
-                        <option key={t.ticker} value={t.ticker}>
-                          {t.ticker}
+                      <option value="">{t('solutions.select_ticker')}</option>
+                      {tickers.map((tkr) => (
+                        <option key={tkr.ticker} value={tkr.ticker}>
+                          {tkr.ticker}
                         </option>
                       ))}
                     </Form.Select>
@@ -2159,13 +2161,13 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
               <Row className="mb-3">
                 <Col md={6}>
                   <Form.Group>
-                    <Form.Label>Training/Prediction Model *</Form.Label>
+                    <Form.Label>{t('solutions.model_label_required')}</Form.Label>
                     <Form.Select
                       value={modelId}
                       onChange={handleModelChange}
                       required
                     >
-                      <option value="">Select Model</option>
+                      <option value="">{t('solutions.select_model')}</option>
                       {models.map((model) => (
                         <option key={model.id} value={model.id}>
                           {model.model_name} - {model.model_type}/{model.model_sub_type}
@@ -2176,14 +2178,14 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                 </Col>
                 <Col md={6}>
                   <Form.Group>
-                    <Form.Label>Target Predict *</Form.Label>
+                    <Form.Label>{t('solutions.target_required')}</Form.Label>
                     <Form.Select
                       value={target}
                       onChange={(e) => setTarget(e.target.value)}
                       required
                     >
-                      <option value="close">Close</option>
-                      <option value="open">Open</option>
+                      <option value="close">{t('solutions.target_close')}</option>
+                      <option value="open">{t('solutions.target_open')}</option>
                     </Form.Select>
                   </Form.Group>
                 </Col>
@@ -2193,7 +2195,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                 <Row className="mb-3">
                   <Col>
                     <div className="model-parameters-readonly">
-                      <h6>Model Parameters (Read-Only)</h6>
+                      <h6>{t('solutions.model_params_title')}</h6>
                       <div className="param-grid">
                         <div><strong>Model Type:</strong> {selectedModel.model_type}</div>
                         <div><strong>Sub-Type:</strong> {selectedModel.model_sub_type}</div>
@@ -2207,7 +2209,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
 
               <Row>
                 <Col>
-                  <h6 className="mt-3 mb-3">Technical Indicators</h6>
+                  <h6 className="mt-3 mb-3">{t('solutions.tech_indicators')}</h6>
                   <IndicatorSelector
                     solutionId={solution?.id}
                     onIndicatorsChange={handleIndicatorsChange}
@@ -2219,7 +2221,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                   {selectedModel && (
                     <div className="covariate-model-summary mt-2">
                       <small className="text-muted">
-                        <strong>Model Covariate Support:</strong>{' '}
+                        <strong>{t('solutions.model_covariate_support')}</strong>{' '}
                         {selectedModel.past_covariate && selectedModel.future_covariate && (
                           <span className="badge bg-success me-1">Past + Future + Both</span>
                         )}
@@ -2244,7 +2246,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                   onClick={handleSaveGeneral}
                   disabled={loading || !solutionName || !ticker || !modelId}
                 >
-                  {loading ? <><Spinner size="sm" /> Saving...</> : 'Save Solution'}
+                  {loading ? <><Spinner size="sm" /> {t('solutions.saving_btn')}</> : t('solutions.save_solution_btn')}
                 </Button>
               </div>
             </Form>
@@ -2257,14 +2259,14 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
             <Form>
               {/* Compact Training Configuration */}
               <div className="mb-2">
-                <h6 className="text-muted mb-2" style={{fontSize: '0.9rem'}}>Training Configuration</h6>
+                <h6 className="text-muted mb-2" style={{fontSize: '0.9rem'}}>{t('solutions.training_config')}</h6>
               </div>
 
               {/* Compact Form Controls in Single Row */}
               <Row className="mb-2 g-2 align-items-start">
                 <Col md={3}>
                   <Form.Group>
-                    <Form.Label style={{fontSize: '0.85rem', marginBottom: '2px'}}>End Date *</Form.Label>
+                    <Form.Label style={{fontSize: '0.85rem', marginBottom: '2px'}}>{t('solutions.end_date_required')}</Form.Label>
                     <DatePicker
                       selected={trainEndDate}
                       onChange={handleTrainEndDateChange}
@@ -2274,7 +2276,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                     />
                     {!modelId && (
                       <Form.Text style={{fontSize: '0.75rem'}}>
-                        Please select a model first
+                        {t('solutions.select_model_first')}
                       </Form.Text>
                     )}
                   </Form.Group>
@@ -2300,7 +2302,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                 </Col>
                 <Col md={2}>
                   <Form.Group>
-                    <Form.Label style={{fontSize: '0.85rem', marginBottom: '2px'}}>Train Ratio</Form.Label>
+                    <Form.Label style={{fontSize: '0.85rem', marginBottom: '2px'}}>{t('solutions.train_ratio_label')}</Form.Label>
                     <Form.Control
                       size="sm"
                       type="number"
@@ -2316,7 +2318,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                   <Form.Group>
                     <Form.Check
                       type="checkbox"
-                      label={<span style={{fontSize: '0.85rem'}}>Enable Validation</span>}
+                      label={<span style={{fontSize: '0.85rem'}}>{t('solutions.enable_validation')}</span>}
                       checked={validation}
                       onChange={(e) => setValidation(e.target.checked)}
                     />
@@ -2330,7 +2332,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                     disabled={loading}
                     className="w-100"
                   >
-                    {loading ? <><Spinner size="sm" /> Training...</> : 'Train Model'}
+                    {loading ? <><Spinner size="sm" /> {t('solutions.training_btn')}</> : t('solutions.train_btn')}
                   </Button>
                 </Col>
               </Row>
@@ -2453,7 +2455,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                       <div className="d-flex align-items-center justify-content-center text-muted" style={{minHeight: '400px'}}>
                         <div className="text-center" style={{maxWidth: '600px', padding: '20px'}}>
                           <div className="mb-3" style={{fontSize: '3rem', opacity: 0.3}}>📊</div>
-                          <small>Professional trading charts will display after training completion</small>
+                          <small>{t('solutions.pro_chart_hint')}</small>
                           <div className="mt-2" style={{fontSize: '0.75rem', opacity: 0.7}}>
                             Including: Price predictions, Volume analysis, RSI, MACD and more
                           </div>
@@ -2532,9 +2534,9 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
               {predictionModelInfo && predictionModelInfo.training_end_date && (
                 <Alert variant="info" className="py-2 mb-3">
                   <small>
-                    <strong>Model Ready:</strong> Trained until {predictionModelInfo.training_end_date}
+                    <strong>{t('solutions.model_ready_prefix')}</strong> Trained until {predictionModelInfo.training_end_date}
                     {predictionModelInfo.output_chunk_length && (
-                      <span> | <strong>Max prediction: {predictionModelInfo.output_chunk_length} days</strong> (auto-adjusted if exceeded)</span>
+                      <span> | <strong>{t('solutions.max_prediction_prefix')} {predictionModelInfo.output_chunk_length} {t('solutions.days_unit')}</strong> {t('solutions.auto_adjusted')}</span>
                     )}
                   </small>
                 </Alert>
@@ -2543,7 +2545,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
               <Row className="mb-3">
                 <Col md={5}>
                   <Form.Group>
-                    <Form.Label>Start Date</Form.Label>
+                    <Form.Label>{t('solutions.date_start')}</Form.Label>
                     <DatePicker
                       selected={predictStartDate}
                       onChange={(date) => setPredictStartDate(date)}
@@ -2554,7 +2556,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                 </Col>
                 <Col md={5}>
                   <Form.Group>
-                    <Form.Label>End Date</Form.Label>
+                    <Form.Label>{t('solutions.date_end')}</Form.Label>
                     <div className="d-flex">
                       <DatePicker
                         selected={predictEndDate}
@@ -2583,7 +2585,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                     disabled={loading}
                     className="w-100"
                   >
-                    {loading ? <><Spinner size="sm" /> Predicting...</> : 'Predict'}
+                    {loading ? <><Spinner size="sm" /> {t('solutions.predicting_btn')}</> : t('solutions.predict_btn')}
                   </Button>
                 </Col>
               </Row>
@@ -2610,8 +2612,8 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                       <div className="d-flex align-items-center justify-content-center text-muted" style={{minHeight: '300px'}}>
                         <div className="text-center">
                           <div className="mb-3" style={{fontSize: '3rem', opacity: 0.3}}>📊</div>
-                          <p className="mb-2">No prediction data yet</p>
-                          <small>Select date range and click "Predict" to generate predictions</small>
+                          <p className="mb-2">{t('solutions.no_prediction_yet')}</p>
+                          <small>{t('solutions.select_predict_hint')}</small>
                         </div>
                       </div>
                     )}
@@ -2627,7 +2629,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
 
           <div className="custom-modal-footer">
             <Button variant="secondary" onClick={handleClose}>
-              Close
+              {t('solutions.close_btn')}
             </Button>
           </div>
         </div>

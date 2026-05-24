@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import DataTable from "react-data-table-component";
+import { useTranslation } from 'react-i18next';
 import httpClient from "../../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../../constants/api";
 import { Banknote } from "lucide-react";
@@ -11,6 +12,7 @@ import {
 } from "./tableStyles";
 
 export default function FinancialCashFlow({ symbol }) {
+  const { t } = useTranslation();
   const [tableRowsData, setTableRowsData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -24,7 +26,7 @@ export default function FinancialCashFlow({ symbol }) {
 
   const columns = [
     {
-      name: "Year",
+      name: t('company_page.cashflow_col_year'),
       selector: (row) => row.report_year,
       sortable: true,
       width: "100px",
@@ -33,7 +35,7 @@ export default function FinancialCashFlow({ symbol }) {
       ),
     },
     {
-      name: "Cash",
+      name: t('company_page.cashflow_col_cash'),
       selector: (row) => row.cash,
       sortable: true,
       cell: (row) => (
@@ -43,7 +45,7 @@ export default function FinancialCashFlow({ symbol }) {
       ),
     },
     {
-      name: "Operating Activities",
+      name: t('company_page.cashflow_col_operating'),
       selector: (row) => row.cash_from_operating_activities,
       sortable: true,
       cell: (row) => (
@@ -53,7 +55,7 @@ export default function FinancialCashFlow({ symbol }) {
       ),
     },
     {
-      name: "Dividends Paid",
+      name: t('company_page.cashflow_col_div_paid'),
       selector: (row) => row.dividends_paid,
       sortable: true,
       cell: (row) => (
@@ -63,7 +65,7 @@ export default function FinancialCashFlow({ symbol }) {
       ),
     },
     {
-      name: "Net Change in Cash",
+      name: t('company_page.cashflow_col_net_change'),
       selector: (row) => row.net_change_in_cash,
       sortable: true,
       cell: (row) => (
@@ -73,7 +75,7 @@ export default function FinancialCashFlow({ symbol }) {
       ),
     },
     {
-      name: "Dividend Gain",
+      name: t('company_page.cashflow_col_div_gain'),
       selector: (row) => row.gain_on_dividend,
       sortable: true,
       cell: (row) => (
@@ -83,7 +85,7 @@ export default function FinancialCashFlow({ symbol }) {
       ),
     },
     {
-      name: "Charter Capital Increase",
+      name: t('company_page.cashflow_col_charter_increase'),
       selector: (row) => row.increase_in_charter_captial,
       sortable: true,
       cell: (row) => (
@@ -118,10 +120,10 @@ export default function FinancialCashFlow({ symbol }) {
             <Banknote className="w-6 h-6 text-white" />
             <div>
               <h3 className="text-lg font-semibold text-white">
-                Cash Flow Statement
+                {t('company_page.cashflow_title')}
               </h3>
               <p className="text-cyan-100 text-sm">
-                Cash inflows and outflows analysis
+                {t('company_page.cashflow_subtitle')}
               </p>
             </div>
           </div>

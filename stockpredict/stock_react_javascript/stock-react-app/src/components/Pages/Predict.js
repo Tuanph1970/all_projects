@@ -1,11 +1,13 @@
 import React from "react";
+import { useTranslation } from 'react-i18next';
 import TimeSeriesList from "./TimeSeries/TimeSeriesList";
 import ModelList from "./models/ModelList";
 import SolutionList from "./Solutions/SolutionList";
 export const Predict = () => {
+  const { t } = useTranslation();
   return (
       <div className="content-container">
-          <h1> Predict </h1>
+          <h1>{t('solutions.tab_predict')}</h1>
       </div>
   );
 };

@@ -1,4 +1,5 @@
 import React,{useEffect,useState} from "react";
+import { useTranslation } from 'react-i18next';
 import DatePicker from "react-datepicker";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { useForm } from "react-hook-form"
@@ -6,6 +7,7 @@ import httpClient from "../../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../../constants/api";
 
 const PredictSolution = (props)=>{
+    const { t } = useTranslation();
     const [startDate, setStartDate] = useState(new Date());
     const [endDate, setEndDate] = useState(new Date());
     const [predictions, setPredictions] = useState(null);
@@ -136,7 +138,7 @@ const PredictSolution = (props)=>{
                     {/* Header */}
                     <div className="row mb-3">
                         <div className="col-md-12">
-                            <h6 className="text-muted mb-3">Prediction Configuration</h6>
+                            <h6 className="text-muted mb-3">{t('solutions.predict_config')}</h6>
                         </div>
                     </div>
 
@@ -146,9 +148,9 @@ const PredictSolution = (props)=>{
                             <div className="col-md-12">
                                 <div className="alert alert-info py-2">
                                     <small>
-                                        <strong>Model Ready:</strong> Trained until {modelInfo.training_end_date}
+                                        <strong>{t('solutions.model_ready_prefix')}</strong> Trained until {modelInfo.training_end_date}
                                         {modelInfo.output_chunk_length && (
-                                            <span> | <strong>Max prediction: {modelInfo.output_chunk_length} days</strong> (auto-adjusted if exceeded)</span>
+                                            <span> | <strong>{t('solutions.max_prediction_prefix')} {modelInfo.output_chunk_length} {t('solutions.days_unit')}</strong> {t('solutions.auto_adjusted')}</span>
                                         )}
                                         {modelInfo.rmse && (
                                             <span> | RMSE: {typeof modelInfo.rmse === 'number' ? modelInfo.rmse.toFixed(6) : modelInfo.rmse}</span>
@@ -162,7 +164,7 @@ const PredictSolution = (props)=>{
                     {/* Date Range Controls */}
                     <div className="row g-2 mb-3">
                         <div className="col-md-3">
-                            <label className="form-label form-label-sm mb-1"><small>Start Date</small></label>
+                            <label className="form-label form-label-sm mb-1"><small>{t('solutions.date_start')}</small></label>
                             <DatePicker
                                 id="start_date"
                                 selected={startDate}
@@ -172,7 +174,7 @@ const PredictSolution = (props)=>{
                             />
                         </div>
                         <div className="col-md-3">
-                            <label className="form-label form-label-sm mb-1"><small>End Date</small></label>
+                            <label className="form-label form-label-sm mb-1"><small>{t('solutions.date_end')}</small></label>
                             <div className="input-group input-group-sm">
                                 <DatePicker
                                     id="end_date"
@@ -199,7 +201,7 @@ const PredictSolution = (props)=>{
                                 className="btn btn-success btn-sm w-100"
                                 disabled={isLoading}
                             >
-                                {isLoading ? 'Predicting...' : 'Predict'}
+                                {isLoading ? t('solutions.predicting_btn') : t('solutions.predict_btn')}
                             </button>
                         </div>
                     </div>
@@ -221,9 +223,9 @@ const PredictSolution = (props)=>{
                             <div className="col-md-12">
                                 <div className="alert alert-success py-2">
                                     <small>
-                                        <strong>Prediction Complete:</strong>
+                                        <strong>{t('solutions.predict_complete')}</strong>
                                         {predictions.predict && predictions.predict.length > 0 && (
-                                            <span> {predictions.predict.length} prediction points generated</span>
+                                            <span> {predictions.predict.length} {t('solutions.prediction_points')}</span>
                                         )}
                                     </small>
                                 </div>
@@ -236,7 +238,7 @@ const PredictSolution = (props)=>{
                         <div className="col-md-12">
                             <div className="card border shadow-sm">
                                 <div className="card-header bg-light py-2">
-                                    <h6 className="mb-0"><small>Prediction Results</small></h6>
+                                    <h6 className="mb-0"><small>{t('solutions.predict_results_title')}</small></h6>
                                 </div>
                                 <div className="card-body p-3" style={{minHeight: '400px', backgroundColor: '#f8f9fa'}}>
                                     <div id="prediction-chart-container" style={{width: '100%', height: '380px'}}>
@@ -254,8 +256,8 @@ const PredictSolution = (props)=>{
                                                         <table className="table table-sm table-striped">
                                                             <thead className="sticky-top bg-white">
                                                                 <tr>
-                                                                    <th>Date</th>
-                                                                    <th>Predicted Price</th>
+                                                                    <th>{t('solutions.pred_col_date')}</th>
+                                                                    <th>{t('solutions.pred_col_price')}</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody>
@@ -274,8 +276,8 @@ const PredictSolution = (props)=>{
                                             <div className="d-flex align-items-center justify-content-center h-100 text-muted">
                                                 <small>
                                                     {props.predictionDates
-                                                        ? 'Dates auto-filled from training. Click "Predict" to generate predictions.'
-                                                        : 'Complete training first, then prediction dates will be auto-filled.'}
+                                                        ? t('solutions.hint_dates_ready')
+                                                        : t('solutions.hint_no_dates')}
                                                 </small>
                                             </div>
                                         )}

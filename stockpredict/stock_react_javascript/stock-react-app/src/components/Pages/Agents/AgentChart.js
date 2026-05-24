@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from 'react-i18next';
 import { format } from "d3-format";
 import { timeFormat } from "d3-time-format";
 import { getXAxisProps, getYAxisProps, chartColors, chartMargin } from "../../../constants/chartTheme";
@@ -31,6 +32,7 @@ import {
 } from "react-financial-charts";
 
 const AgentChart = ({ initialData }) => {
+  const { t } = useTranslation();
   const accelerationFactor = 0.02;
   const maxAccelerationFactor = 0.2;
   const ScaleProvider = discontinuousTimeScaleProviderBuilder().inputDateAccessor(
@@ -84,7 +86,7 @@ const AgentChart = ({ initialData }) => {
     d.close > d.open ? chartColors.greenCandle : chartColors.redCandle;
 
   return (
-    <ChartWrapper yAxisTitle="Price (VND)" xAxisTitle="Date">
+    <ChartWrapper yAxisTitle={t('agent.chart_y_axis')} xAxisTitle={t('agent.chart_x_axis')}>
       <ChartCanvas
         height={height}
         ratio={3}

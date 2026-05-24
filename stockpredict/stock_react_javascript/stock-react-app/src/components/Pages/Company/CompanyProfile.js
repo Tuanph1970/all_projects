@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import companyService from "../../../services/companyService";
+import { useTranslation } from 'react-i18next';
 import {
   Building2,
   FileText,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 
 export default function CompanyProfile({ symbol }) {
+  const { t } = useTranslation();
   const [profileData, setProfileData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -24,7 +26,7 @@ export default function CompanyProfile({ symbol }) {
 
   const loadCompanyProfile = async () => {
     if (!companyService.isValidSymbol(symbol)) {
-      setError("Invalid company symbol");
+      setError(t('company_page.profile_invalid_symbol'));
       return;
     }
 
@@ -46,7 +48,7 @@ export default function CompanyProfile({ symbol }) {
         setError(result.error);
       }
     } catch (err) {
-      setError("Failed to load company profile");
+      setError(t('company_page.profile_load_error'));
     } finally {
       setIsLoading(false);
     }
@@ -61,31 +63,31 @@ export default function CompanyProfile({ symbol }) {
 
   const profileFields = [
     {
-      label: "Company Profile",
+      label: t('company_page.profile_section_profile'),
       key: "companyProfile",
       icon: FileText,
       color: "indigo",
     },
     {
-      label: "History & Development",
+      label: t('company_page.profile_section_history'),
       key: "history",
       icon: History,
       color: "purple",
     },
     {
-      label: "Industry",
+      label: t('company_page.profile_section_industry'),
       key: "industry",
       icon: Building2,
       color: "blue",
     },
     {
-      label: "Industry Level 2",
+      label: t('company_page.profile_section_industry_l2'),
       key: "industryL2",
       icon: Target,
       color: "cyan",
     },
     {
-      label: "Industry Level 3",
+      label: t('company_page.profile_section_industry_l3'),
       key: "industryL3",
       icon: Lightbulb,
       color: "amber",
@@ -178,7 +180,7 @@ export default function CompanyProfile({ symbol }) {
       <div className="p-6">
         <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center">
           <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">No profile data available</p>
+          <p className="text-gray-500">{t('company_page.profile_no_data')}</p>
         </div>
       </div>
     );
@@ -195,7 +197,7 @@ export default function CompanyProfile({ symbol }) {
               {profileData.ticker || symbol}
             </h2>
             <p className="text-slate-300 text-sm">
-              Comprehensive company profile and analysis
+              {t('company_page.profile_subtitle')}
             </p>
           </div>
         </div>

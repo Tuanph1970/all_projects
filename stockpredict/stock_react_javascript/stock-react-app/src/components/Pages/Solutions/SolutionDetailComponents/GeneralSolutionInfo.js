@@ -1,9 +1,11 @@
 import React,{useEffect,useState} from "react";
+import { useTranslation } from 'react-i18next';
 import { useForm } from "react-hook-form"
 import httpClient from "../../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../../constants/api";
 import { useNavigate } from "react-router-dom";
 const GeneralSollutionInfo = (props) =>{
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const [showPastCovariate,setShowPastCovariate] = useState(false)
     const [showFutureCovariate,setShowFutureCovariate] = useState(false)
@@ -115,13 +117,13 @@ const GeneralSollutionInfo = (props) =>{
         return (
             <div className="container">
                 <div className="card border-0 shadow p-3 text-center">
-                    <p>No models found. Please create a model first before creating a solution.</p>
+                    <p>{t('solutions.no_models_msg')}</p>
                     <button
                         type="button"
                         className="btn btn-primary"
                         onClick={() => navigate('/models')}
                     >
-                        Go to Models
+                        {t('solutions.go_to_models_btn')}
                     </button>
                 </div>
             </div>
@@ -136,18 +138,18 @@ const GeneralSollutionInfo = (props) =>{
                     <table>
                         <tr>
                             <td>
-                                <label>Solution Name </label>
+                                <label>{t('solutions.sol_name_label')}</label>
                             </td>
                             <td>
-                            <input id="solution_name" {...register('solution_name',{required: true})}                             
+                            <input id="solution_name" {...register('solution_name',{required: true})}
                             type="text"
-                            defaultValue= {solution_name}  
-                            placeholder="Enter Name" 
+                            defaultValue= {solution_name}
+                            placeholder={t('solutions.sol_name_placeholder')}
                             onChange={(e)=>setSolutionName(e.target.value)}
                             />
                             </td>
                             <td>
-                                <label >Ticker</label>
+                                <label>{t('solutions.ticker_label')}</label>
                             </td>
                             <td>
                             <select {...register("ticker")} 
@@ -164,10 +166,10 @@ const GeneralSollutionInfo = (props) =>{
                         </tr>
                         <tr>
                         <td>
-                            <label >Model</label>
+                            <label>{t('solutions.model_label')}</label>
                             </td>
                             <td>
-                            <select {...register("model_id")} 
+                            <select {...register("model_id")}
                             value={modelId}
                             onChange={(e) => {
                                 const model_id = e.target.value;
@@ -182,7 +184,7 @@ const GeneralSollutionInfo = (props) =>{
                             </select>
                             </td>
                             <td>
-                                <label >Target</label>
+                                <label>{t('solutions.target_label')}</label>
                             </td>
                             <td>
                             <select {...register("target")} 
@@ -201,7 +203,7 @@ const GeneralSollutionInfo = (props) =>{
                             <td colSpan={2}>
                                {showPastCovariate &&
                                 <fieldset>
-                                <legend>Past Covariates</legend>                                
+                                <legend>{t('solutions.past_covariates')}</legend>                                
                                 <table>                                    
                                 {props.timeseies.map((series) => ( 
                                     <tr>
@@ -224,9 +226,9 @@ const GeneralSollutionInfo = (props) =>{
                             
                             </td>
                             <td colSpan={2}>
-                            {showFutureCovariate &&    
+                            {showFutureCovariate &&
                             <fieldset>
-                                <legend>Future Covariates</legend>                                
+                                <legend>{t('solutions.future_covariates')}</legend>                                
                                 <table>                                    
                                 {props.timeseies.map((series) => ( 
                                     <tr>
@@ -250,7 +252,7 @@ const GeneralSollutionInfo = (props) =>{
                         </tr>
                     </table>
                                                         
-                    <button type="submit" className="btn btn-primary">Save</button>
+                    <button type="submit" className="btn btn-primary">{t('solutions.save_btn')}</button>
                 </form>
             </div>
         </div>
