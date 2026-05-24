@@ -149,6 +149,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       labelKey: 'sidebar.decision_helper',
       icon: Crosshair,
       submenu: [
+        { key: 'decision-helper-overview', labelKey: 'sidebar.decision_helper_overview', route: 'decision-helper-overview' },
         { key: 'decision-console',  labelKey: 'sidebar.decision_console',  route: 'decision-console' },
         { key: 'decision-board',    labelKey: 'sidebar.decision_board',    route: 'decision-board' },
         { key: 'backtest-studio',   labelKey: 'sidebar.backtest_studio',   route: 'backtest-studio' },

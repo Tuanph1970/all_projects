@@ -53,6 +53,7 @@ import PositionsPage from '../Pages/PositionsPage';
 import OutcomesPage from '../Pages/OutcomesPage';
 import RiskDashboard from '../Pages/RiskDashboard';
 import WatchlistHeatMap from '../Pages/WatchlistHeatMap';
+import DecisionHelperOverview from '../Pages/DecisionHelperOverview';
 import AlertCenter from '../common/AlertToast';
 import { useAlertStream } from '../../hooks/useAlertStream';
 
@@ -158,6 +159,7 @@ const MainLayout = () => {
             <Route path="/weekly-review" element={<WeeklyReview />} />
 
             {/* Decision Helper — Phase D / F */}
+            <Route path="/decision-helper-overview" element={<DecisionHelperOverview />} />
             <Route path="/decision-console" element={<DecisionConsole />} />
             <Route path="/decision-board" element={<WatchlistDecisionBoard />} />
             <Route path="/backtest-studio" element={<BacktestStudio />} />
