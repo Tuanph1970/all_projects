@@ -146,6 +146,19 @@
   border-color: #1a1812;
   box-shadow: 0 0 0 3px rgba(26, 24, 16, 0.08);
   background-color: #ffffff;
+  color: #1a1812;
+}
+
+/* Override browser autofill styles (Chrome/Safari inject their own
+   background + text colour when a saved credential is suggested) */
+.form-input:-webkit-autofill,
+.form-input:-webkit-autofill:hover,
+.form-input:-webkit-autofill:focus,
+.form-input:-webkit-autofill:active {
+  -webkit-text-fill-color: #1a1812;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+  box-shadow: 0 0 0 1000px #ffffff inset;
+  caret-color: #1a1812;
 }
 
 .form-input:invalid:not(:placeholder-shown) {
