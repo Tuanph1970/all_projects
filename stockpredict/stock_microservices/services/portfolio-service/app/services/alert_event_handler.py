@@ -67,7 +67,14 @@ async def stop_alert_consumer() -> None:
 
 
 def _alert_should_fire(alert: PriceAlert, new_price: float, prev_price: Optional[float]) -> bool:
-    """Match the alert's trigger semantics. Returns True iff this tick crosses."""
+    """Match the alert's trigger semantics. Returns True iff this tick crosses.
+
+    Unit contract: both `new_price` and `alert.target_price` are expected in
+    actual VND. The `stock.price.updated` event carries `matchPrice` from the
+    Vietcap priceboard, which is already in actual VND — do not multiply.
+    (Note: the historical OHLC API stores `close` in thousands-quote; if you
+    ever feed alerts from that path, multiply by 1000 at the boundary.)
+    """
     if alert.alert_type == AlertType.ABOVE:
         return alert.target_price is not None and new_price >= alert.target_price
     if alert.alert_type == AlertType.BELOW:

@@ -112,6 +112,14 @@ class TransactionResponse(BaseModel):
 
 
 # Price Alert Schemas
+#
+# Unit convention for price fields on this model and all alert-related code:
+#   target_price  — actual VND (e.g. 73900 = 73,900 VND/share), matching what
+#                   the user types into the Add-Alert form.
+#   current_price — actual VND on the wire to the UI; the GET /alerts handler
+#                   multiplies stock_prices.close (thousands-quote) by 1000
+#                   before populating this field.
+#
 class AlertCreate(BaseModel):
     symbol: str = Field(..., max_length=20)
     alert_type: Optional[AlertType] = Field(default=None, alias="condition")

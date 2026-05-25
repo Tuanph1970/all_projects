@@ -373,7 +373,23 @@ class PortfolioService:
             logger.warning(f"Failed to trigger ensure-and-sync for {symbol}: {e}")
 
     async def check_alerts(self, user_id: int, price_data: dict) -> List[AlertResponse]:
-        """Check and trigger alerts based on current prices"""
+        """Check and trigger alerts based on current prices.
+
+        Unit contract — IMPORTANT:
+            price_data values MUST be in the same unit as alert.target_price,
+            which is whatever the user typed into the Add-Alert form (actual
+            VND in the current UI — e.g. 73900, not 73.9).
+
+            Two upstream Vietcap feeds carry different units:
+              * tbl_price_board.match_price → actual VND  (USE THIS)
+              * stock_prices.close          → thousands-quote (multiply by
+                1000 before passing in)
+
+        Not invoked in production today; the live alert path is the
+        event-driven `_handle_price_update` in alert_event_handler.py, which
+        subscribes to stock.price.updated events sourced from the priceboard
+        (already in actual VND).
+        """
         alerts = await self.repo.get_alerts_by_user(user_id, active_only=True)
         triggered = []
 
