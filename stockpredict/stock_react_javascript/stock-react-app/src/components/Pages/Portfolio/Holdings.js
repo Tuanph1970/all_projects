@@ -179,11 +179,13 @@ const Holdings = () => {
     
     if (symbol) {
       const stock = stockOptions.find(s => s.symbol === symbol);
+      // stock.price arrives in thousands-quote (e.g. 73.5 = 73,500 VND/share).
+      // The price input stores actual VND end-to-end, so convert at the boundary.
       setFormData({
         symbol: stock.symbol,
         companyName: stock.name,
         shares: '',
-        price: stock.price.toString()
+        price: ((stock.price || 0) * 1000).toString()
       });
     } else {
       setFormData({ symbol: '', companyName: '', shares: '', price: '' });
@@ -368,7 +370,7 @@ const Holdings = () => {
               {formData.symbol && (
                 <div className="stock-info-card">
                   <h3>{formData.symbol} - {formData.companyName}</h3>
-                  <p>{t('portfolio.holdings.current_price_label')}<strong>{formatStockPrice(formData.price)}</strong></p>
+                  <p>{t('portfolio.holdings.current_price_label')}<strong>{formatVND(formData.price)}</strong></p>
                 </div>
               )}
 
