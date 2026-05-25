@@ -12,6 +12,8 @@ import {
   rsi,
   macd,
   bollingerBand,
+  stochasticOscillator,
+  atr,
   discontinuousTimeScaleProviderBuilder,
   Chart,
   ChartCanvas,
@@ -22,11 +24,14 @@ import {
   RSISeries,
   MACDSeries,
   BollingerSeries,
+  StochasticSeries,
   MovingAverageTooltip,
   OHLCTooltip,
   RSITooltip,
   MACDTooltip,
   BollingerBandTooltip,
+  StochasticTooltip,
+  SingleValueTooltip,
   lastVisibleItemBasedZoomAnchor,
   XAxis,
   YAxis,
@@ -49,9 +54,21 @@ const BB_APPEARANCE = {
 
 const VWAP_STROKE = "#fbbf24";
 const SMA_STROKE  = "#10b981";
+const ATR_STROKE  = "#06b6d4";
 
 const SMA_MIN = 2;
 const SMA_MAX = 200;
+
+// Pane heights for sub-panes below the price pane.
+// Render order top→bottom is the order of keys in this object.
+const SUB_PANE_HEIGHTS = {
+  macd:   100,
+  stoch:  100,
+  atr:    80,
+  volume: 80,
+};
+
+const SUB_PANE_ORDER = Object.keys(SUB_PANE_HEIGHTS);
 
 const INDICATOR_OPTIONS = [
   { key: "ema12",  label: "EMA 12" },
@@ -59,6 +76,8 @@ const INDICATOR_OPTIONS = [
   { key: "sar",    label: "Parabolic SAR" },
   { key: "rsi",    label: "RSI (14)" },
   { key: "macd",   label: "MACD (12,26,9)" },
+  { key: "stoch",  label: "Stochastic (12,3,3)" },
+  { key: "atr",    label: "ATR (14)" },
   { key: "bb",     label: "Bollinger Bands (20,2)" },
   { key: "vwap",   label: "VWAP" },
   { key: "sma",    label: "SMA" },
@@ -137,6 +156,8 @@ export default function StockChart({ initialData }) {
     sar:    true,
     rsi:    true,
     macd:   true,
+    stoch:  false,
+    atr:    false,
     bb:     false,
     vwap:   false,
     sma:    false,
@@ -178,9 +199,21 @@ export default function StockChart({ initialData }) {
   const margin = { ...chartMargin, right: 64 };
 
   const priceHeight = 400;
-  const macdHeight  = indicators.macd   ? 100 : 0;
-  const volHeight   = indicators.volume ? 80  : 0;
-  const totalHeight = priceHeight + macdHeight + volHeight + margin.top + margin.bottom;
+
+  // Sub-pane layout: compute origin y-offsets and total height from the
+  // currently-enabled sub-panes, in SUB_PANE_ORDER. The bottom-most enabled
+  // sub-pane is the one that shows the X-axis tick labels.
+  const paneOrigin = {};
+  let _paneY = priceHeight;
+  let lastEnabledSubPaneKey = null;
+  for (const key of SUB_PANE_ORDER) {
+    if (!indicators[key]) continue;
+    paneOrigin[key] = _paneY;
+    _paneY += SUB_PANE_HEIGHTS[key];
+    lastEnabledSubPaneKey = key;
+  }
+  const totalHeight = _paneY + margin.top + margin.bottom;
+  const isBottomSubPane = (key) => key === lastEnabledSubPaneKey;
 
   const ema12 = ema()
     .id(1)
@@ -222,8 +255,18 @@ export default function StockChart({ initialData }) {
     .merge((d, c) => { d.smaCustom = c; })
     .accessor((d) => d.smaCustom);
 
-  const calculatedData = smaCalc(
-    bbCalc(macdCalc(rsiCalc(defaultSar(ema26(ema12(initialData))))))
+  const stochCalc = stochasticOscillator()
+    .options({ windowSize: 12, kWindowSize: 3, dWindowSize: 3 })
+    .merge((d, c) => { d.stoch = c; })
+    .accessor((d) => d.stoch);
+
+  const atrCalc = atr()
+    .options({ windowSize: 14 })
+    .merge((d, c) => { d.atr = c; })
+    .accessor((d) => d.atr);
+
+  const calculatedData = atrCalc(
+    stochCalc(smaCalc(bbCalc(macdCalc(rsiCalc(defaultSar(ema26(ema12(initialData))))))))
   );
 
   // VWAP — anchored cumulative from start of dataset (typical price * volume)
@@ -420,12 +463,12 @@ export default function StockChart({ initialData }) {
           {indicators.macd && (
             <Chart
               id={3}
-              height={macdHeight}
-              origin={[0, priceHeight]}
+              height={SUB_PANE_HEIGHTS.macd}
+              origin={[0, paneOrigin.macd]}
               yExtents={macdCalc.accessor()}
               padding={{ top: 8, bottom: 8 }}
             >
-              <XAxis {...getXAxisProps({ showTickLabel: false })} />
+              <XAxis {...getXAxisProps({ showTickLabel: isBottomSubPane("macd") })} />
               <YAxis ticks={3} tickFormat={priceFormat} {...getYAxisProps()} />
               <MACDSeries
                 yAccessor={macdCalc.accessor()}
@@ -439,6 +482,70 @@ export default function StockChart({ initialData }) {
                 appearance={MACD_APPEARANCE}
                 displayFormat={priceFormat}
               />
+              {isBottomSubPane("macd") && (
+                <MouseCoordinateX displayFormat={dateFormat} />
+              )}
+              <MouseCoordinateY rectWidth={margin.right} displayFormat={priceFormat} />
+            </Chart>
+          )}
+
+          {/* ── Stochastic Oscillator pane ───────────────────────── */}
+          {indicators.stoch && (
+            <Chart
+              id={5}
+              height={SUB_PANE_HEIGHTS.stoch}
+              origin={[0, paneOrigin.stoch]}
+              yExtents={[0, 100]}
+              padding={{ top: 8, bottom: 8 }}
+            >
+              <XAxis {...getXAxisProps({ showTickLabel: isBottomSubPane("stoch") })} />
+              <YAxis
+                ticks={2}
+                tickValues={[20, 80]}
+                tickFormat={(v) => v}
+                {...getYAxisProps()}
+              />
+              <StochasticSeries
+                yAccessor={stochCalc.accessor()}
+                overSold={20}
+                middle={50}
+                overBought={80}
+              />
+              <StochasticTooltip
+                origin={[8, 16]}
+                yAccessor={stochCalc.accessor()}
+                options={stochCalc.options()}
+                appearance={StochasticSeries.defaultProps}
+                label="Stoch"
+              />
+              {isBottomSubPane("stoch") && (
+                <MouseCoordinateX displayFormat={dateFormat} />
+              )}
+              <MouseCoordinateY rectWidth={margin.right} displayFormat={priceFormat} />
+            </Chart>
+          )}
+
+          {/* ── ATR pane ─────────────────────────────────────────── */}
+          {indicators.atr && (
+            <Chart
+              id={6}
+              height={SUB_PANE_HEIGHTS.atr}
+              origin={[0, paneOrigin.atr]}
+              yExtents={atrCalc.accessor()}
+              padding={{ top: 8, bottom: 8 }}
+            >
+              <XAxis {...getXAxisProps({ showTickLabel: isBottomSubPane("atr") })} />
+              <YAxis ticks={2} tickFormat={priceFormat} {...getYAxisProps()} />
+              <LineSeries yAccessor={atrCalc.accessor()} strokeStyle={ATR_STROKE} />
+              <SingleValueTooltip
+                origin={[8, 16]}
+                yAccessor={atrCalc.accessor()}
+                yLabel="ATR (14)"
+                yDisplayFormat={priceFormat}
+              />
+              {isBottomSubPane("atr") && (
+                <MouseCoordinateX displayFormat={dateFormat} />
+              )}
               <MouseCoordinateY rectWidth={margin.right} displayFormat={priceFormat} />
             </Chart>
           )}
@@ -447,14 +554,16 @@ export default function StockChart({ initialData }) {
           {indicators.volume && (
             <Chart
               id={4}
-              height={volHeight}
-              origin={[0, priceHeight + macdHeight]}
+              height={SUB_PANE_HEIGHTS.volume}
+              origin={[0, paneOrigin.volume]}
               yExtents={(d) => d.volume}
             >
-              <XAxis {...getXAxisProps()} />
+              <XAxis {...getXAxisProps({ showTickLabel: isBottomSubPane("volume") })} />
               <YAxis ticks={2} tickFormat={volumeFormat} {...getYAxisProps()} />
               <BarSeries fillStyle={volumeColor} yAccessor={(d) => d.volume} />
-              <MouseCoordinateX displayFormat={dateFormat} />
+              {isBottomSubPane("volume") && (
+                <MouseCoordinateX displayFormat={dateFormat} />
+              )}
               <MouseCoordinateY rectWidth={margin.right} displayFormat={volumeFormat} />
             </Chart>
           )}
