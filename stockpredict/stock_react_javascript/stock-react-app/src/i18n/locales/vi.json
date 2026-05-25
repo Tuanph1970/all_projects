@@ -1645,7 +1645,6 @@
     "error_password_mismatch": "Mật khẩu không khớp",
     "error_new_password_mismatch": "Mật khẩu mới không khớp",
     "success_register": "Đăng ký thành công! Vui lòng đăng nhập.",
-    "demo_account": "Tài khoản demo: tên đăng nhập \"demo\", mật khẩu \"password\"",
     "show_password": "Hiện mật khẩu",
     "hide_password": "Ẩn mật khẩu"
   },

@@ -281,12 +281,6 @@ const LoginForm = () => {
             </button>
           )}
         </div>
-
-        <div className="auth-demo">
-          <p className="auth-demo-text">
-            {t('login.demo_account')}
-          </p>
-        </div>
       </div>
     </div>
   );

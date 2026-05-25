@@ -1645,7 +1645,6 @@
     "error_password_mismatch": "Passwords do not match",
     "error_new_password_mismatch": "New passwords do not match",
     "success_register": "Account created! You can now sign in.",
-    "demo_account": "Demo account: username \"demo\", password \"password\"",
     "show_password": "Show password",
     "hide_password": "Hide password"
   },
