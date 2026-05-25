@@ -580,7 +580,7 @@ export default function StockChart({ initialData, symbol }) {
       </div>
 
       {/* ── Chart ──────────────────────────────────────────────── */}
-      <ChartWrapper yAxisTitle="Price (VND)" xAxisTitle="Date">
+      <ChartWrapper yAxisTitle="Price (×1,000 VND)" xAxisTitle="Date">
         <ChartCanvas
           height={totalHeight}
           ratio={window.devicePixelRatio || 1}
