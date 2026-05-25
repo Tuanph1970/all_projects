@@ -103,7 +103,7 @@ export default function CompanyCharts({symbol}) {
                  </ButtonGroup>
              </div>
              <div>
-              <StockChart initialData={periodStockData}/>
+              <StockChart initialData={periodStockData} symbol={symbol}/>
             </div>
           </div> 
         );

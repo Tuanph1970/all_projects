@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useMemo } from "react";
 import { format } from "d3-format";
 import { timeFormat } from "d3-time-format";
 import { getXAxisProps, getYAxisProps, chartColors, chartMargin } from "../../constants/chartTheme";
@@ -19,6 +19,7 @@ import {
   ChartCanvas,
   BarSeries,
   CandlestickSeries,
+  OHLCSeries,
   SARSeries,
   LineSeries,
   RSISeries,
@@ -32,6 +33,7 @@ import {
   BollingerBandTooltip,
   StochasticTooltip,
   SingleValueTooltip,
+  HoverTooltip,
   lastVisibleItemBasedZoomAnchor,
   XAxis,
   YAxis,
@@ -69,6 +71,38 @@ const SUB_PANE_HEIGHTS = {
 };
 
 const SUB_PANE_ORDER = Object.keys(SUB_PANE_HEIGHTS);
+
+// Timeframe tabs — slice the most-recent N rows from initialData.
+// Approx trading days per period (252 sessions/year).
+const TIMEFRAME_OPTIONS = [
+  { key: "1M",  rows: 22  },
+  { key: "3M",  rows: 66  },
+  { key: "6M",  rows: 132 },
+  { key: "1Y",  rows: 252 },
+  { key: "All", rows: null },
+];
+
+const CANDLE_TYPES = [
+  { key: "candle",     label: "Candle" },
+  { key: "heikinAshi", label: "Heikin-Ashi" },
+  { key: "ohlc",       label: "OHLC Bar" },
+];
+
+const INDICATOR_DEFAULTS = {
+  ema12:  true,
+  ema26:  true,
+  sar:    true,
+  rsi:    true,
+  macd:   true,
+  stoch:  false,
+  atr:    false,
+  bb:     false,
+  vwap:   false,
+  sma:    false,
+  volume: true,
+};
+
+const LS_KEY_PREFIX = "stockchart_prefs_";
 
 const INDICATOR_OPTIONS = [
   { key: "ema12",  label: "EMA 12" },
@@ -143,27 +177,76 @@ const dropdownStyles = {
   },
 };
 
+const headerStyles = {
+  bar: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    zIndex: 20,
+    display: "flex",
+    gap: 12,
+    alignItems: "center",
+    fontFamily: "Inter, sans-serif",
+  },
+  group: {
+    display: "flex",
+    gap: 2,
+    background: "#1F2937",
+    border: "1px solid #374151",
+    borderRadius: 4,
+    padding: 2,
+  },
+  tab: (active) => ({
+    padding: "3px 8px",
+    fontSize: 11,
+    background: active ? "#3B82F6" : "transparent",
+    color: active ? "#F9FAFB" : "#9CA3AF",
+    border: "none",
+    borderRadius: 3,
+    cursor: "pointer",
+    userSelect: "none",
+  }),
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function StockChart({ initialData }) {
+export default function StockChart({ initialData, symbol }) {
   const containerRef   = useRef(null);
   const dropdownRef    = useRef(null);
+  const hydratedRef    = useRef(false);
   const [chartWidth,   setChartWidth]   = useState(900);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [indicators,   setIndicators]   = useState({
-    ema12:  true,
-    ema26:  true,
-    sar:    true,
-    rsi:    true,
-    macd:   true,
-    stoch:  false,
-    atr:    false,
-    bb:     false,
-    vwap:   false,
-    sma:    false,
-    volume: true,
-  });
-  const [smaPeriod, setSmaPeriod] = useState(20);
+  const [indicators,   setIndicators]   = useState(INDICATOR_DEFAULTS);
+  const [smaPeriod,    setSmaPeriod]    = useState(20);
+  const [timeframe,    setTimeframe]    = useState("All");
+  const [candleType,   setCandleType]   = useState("candle");
+
+  const lsKey = `${LS_KEY_PREFIX}${symbol || "default"}`;
+
+  // Load saved prefs when symbol (and thus lsKey) changes.
+  useEffect(() => {
+    hydratedRef.current = false;
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(lsKey) || "null"); } catch { /* ignore */ }
+    setIndicators(saved?.indicators
+      ? { ...INDICATOR_DEFAULTS, ...saved.indicators }
+      : INDICATOR_DEFAULTS
+    );
+    setSmaPeriod(Number.isFinite(saved?.smaPeriod) ? saved.smaPeriod : 20);
+    setTimeframe(saved?.timeframe || "All");
+    setCandleType(saved?.candleType || "candle");
+    hydratedRef.current = true;
+  }, [lsKey]);
+
+  // Persist whenever any pref changes (after the initial hydrate has run).
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    try {
+      localStorage.setItem(lsKey, JSON.stringify({
+        indicators, smaPeriod, timeframe, candleType,
+      }));
+    } catch { /* ignore quota errors */ }
+  }, [lsKey, indicators, smaPeriod, timeframe, candleType]);
 
   // Responsive width
   useEffect(() => {
@@ -265,11 +348,19 @@ export default function StockChart({ initialData }) {
     .merge((d, c) => { d.atr = c; })
     .accessor((d) => d.atr);
 
+  // Timeframe slice — take the most-recent N rows (or all).
+  const sourceData = useMemo(() => {
+    const tf = TIMEFRAME_OPTIONS.find((t) => t.key === timeframe);
+    if (!tf || tf.rows == null || !initialData?.length) return initialData || [];
+    return initialData.slice(Math.max(0, initialData.length - tf.rows));
+  }, [initialData, timeframe]);
+
   const calculatedData = atrCalc(
-    stochCalc(smaCalc(bbCalc(macdCalc(rsiCalc(defaultSar(ema26(ema12(initialData))))))))
+    stochCalc(smaCalc(bbCalc(macdCalc(rsiCalc(defaultSar(ema26(ema12(sourceData))))))))
   );
 
   // VWAP — anchored cumulative from start of dataset (typical price * volume)
+  // Compute against real OHLC so HA mode doesn't distort the anchor.
   let cumPV = 0;
   let cumV  = 0;
   for (const row of calculatedData) {
@@ -280,18 +371,47 @@ export default function StockChart({ initialData }) {
     row.vwap = cumV > 0 ? cumPV / cumV : tp;
   }
 
+  // Heikin-Ashi values — computed from real OHLC and stored in separate
+  // fields so toggling between candle types is non-destructive. Standard
+  // formulas: haClose = avg of OHLC; haOpen seeded with (open+close)/2.
+  let prevHaOpen = 0, prevHaClose = 0;
+  for (let i = 0; i < calculatedData.length; i++) {
+    const d = calculatedData[i];
+    const haClose = (d.open + d.high + d.low + d.close) / 4;
+    const haOpen  = i === 0 ? (d.open + d.close) / 2 : (prevHaOpen + prevHaClose) / 2;
+    d.haOpen  = haOpen;
+    d.haClose = haClose;
+    d.haHigh  = Math.max(d.high, haOpen, haClose);
+    d.haLow   = Math.min(d.low,  haOpen, haClose);
+    prevHaOpen  = haOpen;
+    prevHaClose = haClose;
+  }
+
   const { data, xScale, xAccessor, displayXAccessor } = ScaleProvider(calculatedData);
 
   const priceFormat  = format(".2f");
   const volumeFormat = format(".2s");
   const dateFormat   = timeFormat("%d %b");
 
+  // When a specific timeframe is selected, fit the whole sliced range into the
+  // initial view. For "All", fall back to the most-recent 100-row window.
+  const initialWindow = timeframe === "All" ? 100 : data.length;
   const max = xAccessor(data[data.length - 1]);
-  const min = xAccessor(data[Math.max(0, data.length - 100)]);
+  const min = xAccessor(data[Math.max(0, data.length - initialWindow)]);
   const xExtents = [min, max + 5];
 
+  // Visible OHLC depends on candleType — Heikin-Ashi uses computed HA fields,
+  // everything else reads the real OHLC.
+  const isHA = candleType === "heikinAshi";
+  const visibleOHLC = isHA
+    ? (d) => ({ open: d.haOpen, high: d.haHigh, low: d.haLow, close: d.haClose })
+    : (d) => ({ open: d.open,   high: d.high,   low: d.low,   close: d.close });
+
   const volumeColor    = (d) => d.close > d.open ? chartColors.greenVolume  : chartColors.redVolume;
-  const openCloseColor = (d) => d.close > d.open ? chartColors.greenCandle  : chartColors.redCandle;
+  const openCloseColor = (d) => {
+    const o = visibleOHLC(d);
+    return o.close > o.open ? chartColors.greenCandle : chartColors.redCandle;
+  };
 
   // tooltip entries depend on which moving averages are active
   const maTooltipOptions = [
@@ -300,8 +420,79 @@ export default function StockChart({ initialData }) {
     indicators.sma   && { yAccessor: smaCalc.accessor(), type: "SMA", stroke: SMA_STROKE, windowSize: smaPeriod },
   ].filter(Boolean);
 
+  // ── Unified hover tooltip content ─────────────────────────────────────────
+  const hoverTooltipContent = ({ currentItem, xAccessor }) => {
+    if (!currentItem) return { x: "", y: [] };
+    const o = visibleOHLC(currentItem);
+    const lines = [
+      { label: "Open",  value: priceFormat(o.open) },
+      { label: "High",  value: priceFormat(o.high) },
+      { label: "Low",   value: priceFormat(o.low) },
+      { label: "Close", value: priceFormat(o.close), stroke: openCloseColor(currentItem) },
+    ];
+    if (indicators.ema12 && Number.isFinite(currentItem.ema12))
+      lines.push({ label: "EMA 12", value: priceFormat(currentItem.ema12), stroke: ema12.stroke() });
+    if (indicators.ema26 && Number.isFinite(currentItem.ema26))
+      lines.push({ label: "EMA 26", value: priceFormat(currentItem.ema26), stroke: ema26.stroke() });
+    if (indicators.sma && Number.isFinite(currentItem.smaCustom))
+      lines.push({ label: `SMA ${smaPeriod}`, value: priceFormat(currentItem.smaCustom), stroke: SMA_STROKE });
+    if (indicators.vwap && Number.isFinite(currentItem.vwap))
+      lines.push({ label: "VWAP", value: priceFormat(currentItem.vwap), stroke: VWAP_STROKE });
+    if (indicators.bb && currentItem.bb)
+      lines.push({
+        label: "BB U/M/L",
+        value: `${priceFormat(currentItem.bb.top)} / ${priceFormat(currentItem.bb.middle)} / ${priceFormat(currentItem.bb.bottom)}`,
+        stroke: BB_APPEARANCE.stroke.middle,
+      });
+    if (indicators.rsi && Number.isFinite(currentItem.rsi))
+      lines.push({ label: "RSI", value: priceFormat(currentItem.rsi) });
+    if (indicators.macd && currentItem.macd)
+      lines.push({
+        label: "MACD",
+        value: `${priceFormat(currentItem.macd.macd)} / sig ${priceFormat(currentItem.macd.signal)}`,
+        stroke: MACD_APPEARANCE.strokeStyle.macd,
+      });
+    if (indicators.stoch && currentItem.stoch)
+      lines.push({
+        label: "Stoch %K/%D",
+        value: `${priceFormat(currentItem.stoch.K)} / ${priceFormat(currentItem.stoch.D)}`,
+      });
+    if (indicators.atr && Number.isFinite(currentItem.atr))
+      lines.push({ label: "ATR", value: priceFormat(currentItem.atr), stroke: ATR_STROKE });
+    if (indicators.volume && Number.isFinite(currentItem.volume))
+      lines.push({ label: "Vol", value: volumeFormat(currentItem.volume) });
+
+    return { x: dateFormat(xAccessor(currentItem)), y: lines };
+  };
+
   return (
     <div ref={containerRef} style={{ width: "100%", position: "relative" }}>
+
+      {/* ── Header: timeframe tabs + candle-type group ──────────── */}
+      <div style={headerStyles.bar}>
+        <div style={headerStyles.group}>
+          {TIMEFRAME_OPTIONS.map(({ key }) => (
+            <button
+              key={key}
+              style={headerStyles.tab(timeframe === key)}
+              onClick={() => setTimeframe(key)}
+            >
+              {key}
+            </button>
+          ))}
+        </div>
+        <div style={headerStyles.group}>
+          {CANDLE_TYPES.map(({ key, label }) => (
+            <button
+              key={key}
+              style={headerStyles.tab(candleType === key)}
+              onClick={() => setCandleType(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* ── Indicator toggle dropdown ───────────────────────────── */}
       <div ref={dropdownRef} style={dropdownStyles.wrapper}>
@@ -366,8 +557,9 @@ export default function StockChart({ initialData }) {
             height={priceHeight}
             origin={[0, 0]}
             yExtents={(d) => {
-              const lows  = [d.low];
-              const highs = [d.high];
+              const o = visibleOHLC(d);
+              const lows  = [o.low];
+              const highs = [o.high];
               if (indicators.bb && d.bb) {
                 lows.push(d.bb.bottom);
                 highs.push(d.bb.top);
@@ -381,7 +573,11 @@ export default function StockChart({ initialData }) {
           >
             <XAxis {...getXAxisProps({ showTickLabel: false })} />
             <YAxis tickFormat={priceFormat} {...getYAxisProps()} />
-            <CandlestickSeries />
+            {candleType === "ohlc" ? (
+              <OHLCSeries yAccessor={visibleOHLC} stroke={openCloseColor} />
+            ) : (
+              <CandlestickSeries yAccessor={visibleOHLC} />
+            )}
             {indicators.bb && (
               <BollingerSeries
                 yAccessor={bbCalc.accessor()}
@@ -426,6 +622,12 @@ export default function StockChart({ initialData }) {
             )}
             <ZoomButtons />
             <OHLCTooltip origin={[8, 16]} />
+            <HoverTooltip
+              yAccessor={(d) => visibleOHLC(d).close}
+              tooltip={{ content: hoverTooltipContent }}
+              fontSize={11}
+              fontFamily="Inter, sans-serif"
+            />
           </Chart>
 
           {/* ── RSI overlay — right Y-axis (0–100) ──────────────── */}
