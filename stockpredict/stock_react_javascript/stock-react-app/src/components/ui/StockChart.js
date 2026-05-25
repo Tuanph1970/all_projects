@@ -4,6 +4,7 @@ import { format } from "d3-format";
 import { timeFormat } from "d3-time-format";
 import { getXAxisProps, getYAxisProps, chartColors, chartMargin } from "../../constants/chartTheme";
 import ChartWrapper from "./ChartWrapper";
+import DrawingToolbar from "./DrawingToolbar";
 
 import {
   ema,
@@ -34,6 +35,9 @@ import {
   StochasticTooltip,
   SingleValueTooltip,
   HoverTooltip,
+  TrendLine,
+  FibonacciRetracement,
+  InteractiveYCoordinate,
   lastVisibleItemBasedZoomAnchor,
   XAxis,
   YAxis,
@@ -102,7 +106,10 @@ const INDICATOR_DEFAULTS = {
   volume: true,
 };
 
-const LS_KEY_PREFIX = "stockchart_prefs_";
+const LS_KEY_PREFIX     = "stockchart_prefs_";
+const LS_DRAWINGS_PREFIX = "stockchart_drawings_";
+
+const EMPTY_DRAWINGS = { trends: [], hlines: [], fibs: [] };
 
 const INDICATOR_OPTIONS = [
   { key: "ema12",  label: "EMA 12" },
@@ -220,8 +227,12 @@ export default function StockChart({ initialData, symbol }) {
   const [smaPeriod,    setSmaPeriod]    = useState(20);
   const [timeframe,    setTimeframe]    = useState("All");
   const [candleType,   setCandleType]   = useState("candle");
+  const [activeTool,   setActiveTool]   = useState("cursor");
+  const [drawings,     setDrawings]     = useState(EMPTY_DRAWINGS);
+  const drawingsHydratedRef = useRef(false);
 
-  const lsKey = `${LS_KEY_PREFIX}${symbol || "default"}`;
+  const lsKey         = `${LS_KEY_PREFIX}${symbol || "default"}`;
+  const lsDrawingsKey = `${LS_DRAWINGS_PREFIX}${symbol || "default"}`;
 
   // Load saved prefs when symbol (and thus lsKey) changes.
   useEffect(() => {
@@ -247,6 +258,32 @@ export default function StockChart({ initialData, symbol }) {
       }));
     } catch { /* ignore quota errors */ }
   }, [lsKey, indicators, smaPeriod, timeframe, candleType]);
+
+  // Drawings: load per-symbol on symbol change, save on change.
+  useEffect(() => {
+    drawingsHydratedRef.current = false;
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(lsDrawingsKey) || "null"); } catch { /* ignore */ }
+    setDrawings(saved
+      ? {
+          trends: saved.trends || [],
+          hlines: saved.hlines || [],
+          fibs:   saved.fibs   || [],
+        }
+      : EMPTY_DRAWINGS
+    );
+    drawingsHydratedRef.current = true;
+  }, [lsDrawingsKey]);
+
+  useEffect(() => {
+    if (!drawingsHydratedRef.current) return;
+    try {
+      localStorage.setItem(lsDrawingsKey, JSON.stringify(drawings));
+    } catch { /* ignore quota errors */ }
+  }, [lsDrawingsKey, drawings]);
+
+  const hasDrawings = drawings.trends.length + drawings.hlines.length + drawings.fibs.length > 0;
+  const clearAllDrawings = () => setDrawings(EMPTY_DRAWINGS);
 
   // Responsive width
   useEffect(() => {
@@ -492,6 +529,12 @@ export default function StockChart({ initialData, symbol }) {
             </button>
           ))}
         </div>
+        <DrawingToolbar
+          activeTool={activeTool}
+          onSelectTool={setActiveTool}
+          onClearAll={clearAllDrawings}
+          hasDrawings={hasDrawings}
+        />
       </div>
 
       {/* ── Indicator toggle dropdown ───────────────────────────── */}
@@ -627,6 +670,40 @@ export default function StockChart({ initialData, symbol }) {
               tooltip={{ content: hoverTooltipContent }}
               fontSize={11}
               fontFamily="Inter, sans-serif"
+            />
+            <TrendLine
+              enabled={activeTool === "trend"}
+              type="LINE"
+              snap={false}
+              snapTo={(d) => [d.high, d.low]}
+              trends={drawings.trends}
+              onComplete={(_e, newTrends) =>
+                setDrawings((prev) => ({ ...prev, trends: newTrends }))
+              }
+            />
+            <InteractiveYCoordinate
+              enabled={activeTool === "hline"}
+              yCoordinateList={drawings.hlines}
+              onChoosePosition={(_e, newCoord) =>
+                setDrawings((prev) => ({ ...prev, hlines: [...prev.hlines, newCoord] }))
+              }
+              onDragComplete={(_e, newList) =>
+                setDrawings((prev) => ({ ...prev, hlines: newList }))
+              }
+              onDelete={(_e, coord) =>
+                setDrawings((prev) => ({
+                  ...prev,
+                  hlines: prev.hlines.filter((h) => h.id !== coord.id),
+                }))
+              }
+            />
+            <FibonacciRetracement
+              enabled={activeTool === "fib"}
+              type="BOUND"
+              retracements={drawings.fibs}
+              onComplete={(_e, newFibs) =>
+                setDrawings((prev) => ({ ...prev, fibs: newFibs }))
+              }
             />
           </Chart>
 
