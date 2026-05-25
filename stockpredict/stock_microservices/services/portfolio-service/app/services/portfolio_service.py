@@ -324,9 +324,27 @@ class PortfolioService:
         return AlertResponse.model_validate(alert)
 
     async def get_alerts(self, user_id: int, active_only: bool = True) -> List[AlertResponse]:
-        """Get user's price alerts"""
+        """Get user's price alerts, enriched with each symbol's latest close.
+
+        The stock_prices table stores prices in the Vietnamese thousands-quote
+        unit (e.g. 73.5 for 73,500 VND/share). User-entered target_price is in
+        actual VND, so we multiply by 1000 here to keep both columns on the
+        same axis in the UI.
+        """
         alerts = await self.repo.get_alerts_by_user(user_id, active_only)
-        return [AlertResponse.model_validate(a) for a in alerts]
+        if not alerts:
+            return []
+
+        symbols = list({a.symbol for a in alerts})
+        latest_prices = await self.repo.get_latest_prices_for_symbols(symbols)
+
+        responses: List[AlertResponse] = []
+        for a in alerts:
+            resp = AlertResponse.model_validate(a)
+            quote = latest_prices.get(a.symbol)
+            resp.current_price = quote * 1000 if quote is not None else None
+            responses.append(resp)
+        return responses
 
     async def update_alert(self, alert_id: int, user_id: int, data: AlertUpdate) -> Optional[AlertResponse]:
         """Update a price alert"""

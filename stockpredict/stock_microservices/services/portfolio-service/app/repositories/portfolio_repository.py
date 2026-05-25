@@ -1,7 +1,7 @@
 """Portfolio Repository - Database Operations"""
 from typing import Optional, List
 from datetime import datetime
-from sqlalchemy import select, update, delete, and_, func
+from sqlalchemy import select, update, delete, and_, func, text, bindparam
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -199,6 +199,28 @@ class PortfolioRepository:
         await self.session.commit()
         await self.session.refresh(alert)
         return alert
+
+    async def get_latest_prices_for_symbols(self, symbols: List[str]) -> dict:
+        """
+        Return {symbol: latest_close} for the given symbols by joining the
+        stock-data-service tables (companies + stock_prices) that live in the
+        same MySQL instance. Values are in the thousands-quote unit used by
+        the Vietnamese board (e.g. 73.5 means 73,500 VND/share). Callers are
+        responsible for converting to actual VND if needed.
+        """
+        if not symbols:
+            return {}
+        query = text("""
+            SELECT c.symbol, s.close
+            FROM companies c
+            JOIN stock_prices s ON s.company_id = c.id
+            WHERE c.symbol IN :symbols
+              AND s.date = (
+                SELECT MAX(date) FROM stock_prices WHERE company_id = c.id
+              )
+        """).bindparams(bindparam("symbols", expanding=True))
+        result = await self.session.execute(query, {"symbols": symbols})
+        return {row.symbol: float(row.close) for row in result if row.close is not None}
 
     async def get_alerts_by_user(self, user_id: int, active_only: bool = True) -> List[PriceAlert]:
         query = select(PriceAlert).where(PriceAlert.user_id == user_id)

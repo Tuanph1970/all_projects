@@ -143,6 +143,7 @@ class AlertResponse(BaseModel):
     alert_type: AlertType
     target_price: Optional[float]
     target_percent: Optional[float]
+    current_price: Optional[float] = None
     is_active: bool
     is_triggered: bool
     triggered_at: Optional[datetime]
