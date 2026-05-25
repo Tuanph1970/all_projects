@@ -231,7 +231,7 @@ const Holdings = () => {
       render: (value) => (
         <span className="price-value">
           <Coins size={14} style={{ color: '#0d9488' }} />
-          {formatStockPrice(typeof value === 'number' ? value : 0)}
+          {formatVND(typeof value === 'number' ? value : 0)}
         </span>
       )
     },
@@ -241,7 +241,7 @@ const Holdings = () => {
       render: (value, row) => (
         <span className="total-value-badge">
           <DollarSign size={14} className="currency-icon" />
-          {formatVND((row.shares || 0) * (row.avgPrice || 0) * 1000)}
+          {formatVND((row.shares || 0) * (row.avgPrice || 0))}
         </span>
       )
     },
@@ -309,7 +309,7 @@ const Holdings = () => {
             <DollarSign className="summary-icon" />
             <div>
               <h3>{t('portfolio.holdings.summary_total_value')}</h3>
-              <p className="summary-value">{formatVND(typeof summary.total_value === 'number' ? summary.total_value * 1000 : 0)}</p>
+              <p className="summary-value">{formatVND(typeof summary.total_value === 'number' ? summary.total_value : 0)}</p>
             </div>
           </div>
           <div className="summary-item">

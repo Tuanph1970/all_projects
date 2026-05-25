@@ -4,7 +4,7 @@ import { LoadingSpinner, ErrorMessage, DataTable, ConfirmDialog } from '../../ui
 import { Bell, BellOff, Plus, Trash2, Edit, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
 import { alertsAPI } from '../../../services/api';
 import portfolioService from '../../../services/portfolioService';
-import { formatStockPrice } from '../../../utils/currencyFormatter';
+import { formatVND } from '../../../utils/currencyFormatter';
 import '../../../styles/alerts.css';
 
 const Alerts = () => {
@@ -235,7 +235,7 @@ const Alerts = () => {
           color: '#92400e',
           border: '1px solid #fcd34d'
         }}>
-          {formatStockPrice(typeof value === 'number' ? value : 0)}
+          {formatVND(typeof value === 'number' ? value : 0)}
         </span>
       )
     },
@@ -256,7 +256,7 @@ const Alerts = () => {
           color: '#4338ca',
           border: '1px solid #a5b4fc'
         }}>
-          {formatStockPrice(typeof value === 'number' ? value : 0)}
+          {formatVND(typeof value === 'number' ? value : 0)}
         </span>
       )
     },

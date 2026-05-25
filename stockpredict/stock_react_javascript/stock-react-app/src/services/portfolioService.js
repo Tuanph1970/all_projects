@@ -1,6 +1,6 @@
 // Portfolio Service - API calls for portfolio management
 import { stockAPI } from './api';
-import { formatVND, formatStockPrice } from '../utils/currencyFormatter';
+import { formatVND } from '../utils/currencyFormatter';
 
 class PortfolioService {
   
@@ -108,8 +108,8 @@ class PortfolioService {
     return portfolio.map(stock => ({
       ...stock,
       total_value: (stock.shares || 0) * (stock.price || 0),
-      formattedPrice: formatStockPrice(stock.price || 0),
-      formattedTotalValue: formatVND(((stock.shares || 0) * (stock.price || 0)) * 1000)
+      formattedPrice: formatVND(stock.price || 0),
+      formattedTotalValue: formatVND((stock.shares || 0) * (stock.price || 0))
     }));
   }
 }
