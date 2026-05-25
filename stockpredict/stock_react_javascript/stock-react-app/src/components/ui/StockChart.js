@@ -7,9 +7,11 @@ import ChartWrapper from "./ChartWrapper";
 
 import {
   ema,
+  sma,
   sar,
   rsi,
   macd,
+  bollingerBand,
   discontinuousTimeScaleProviderBuilder,
   Chart,
   ChartCanvas,
@@ -19,10 +21,12 @@ import {
   LineSeries,
   RSISeries,
   MACDSeries,
+  BollingerSeries,
   MovingAverageTooltip,
   OHLCTooltip,
   RSITooltip,
   MACDTooltip,
+  BollingerBandTooltip,
   lastVisibleItemBasedZoomAnchor,
   XAxis,
   YAxis,
@@ -38,12 +42,26 @@ const MACD_APPEARANCE = {
   fillStyle:   { divergence: "rgba(33,150,243,0.3)" },
 };
 
+const BB_APPEARANCE = {
+  stroke:  { top: "#a78bfa", middle: "#8b5cf6", bottom: "#a78bfa" },
+  fill:    "rgba(167,139,250,0.10)",
+};
+
+const VWAP_STROKE = "#fbbf24";
+const SMA_STROKE  = "#10b981";
+
+const SMA_MIN = 2;
+const SMA_MAX = 200;
+
 const INDICATOR_OPTIONS = [
   { key: "ema12",  label: "EMA 12" },
   { key: "ema26",  label: "EMA 26" },
   { key: "sar",    label: "Parabolic SAR" },
   { key: "rsi",    label: "RSI (14)" },
   { key: "macd",   label: "MACD (12,26,9)" },
+  { key: "bb",     label: "Bollinger Bands (20,2)" },
+  { key: "vwap",   label: "VWAP" },
+  { key: "sma",    label: "SMA" },
   { key: "volume", label: "Volume" },
 ];
 
@@ -93,6 +111,17 @@ const dropdownStyles = {
     accentColor: "#3B82F6",
     cursor: "pointer",
   },
+  periodInput: {
+    width: 48,
+    marginLeft: "auto",
+    background: "#111827",
+    color: "#D1D5DB",
+    border: "1px solid #374151",
+    borderRadius: 3,
+    padding: "1px 4px",
+    fontSize: 11,
+    fontFamily: "Inter, sans-serif",
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -108,8 +137,12 @@ export default function StockChart({ initialData }) {
     sar:    true,
     rsi:    true,
     macd:   true,
+    bb:     false,
+    vwap:   false,
+    sma:    false,
     volume: true,
   });
+  const [smaPeriod, setSmaPeriod] = useState(20);
 
   // Responsive width
   useEffect(() => {
@@ -176,7 +209,34 @@ export default function StockChart({ initialData }) {
     .merge((d, c) => { d.macd = c; })
     .accessor((d) => d.macd);
 
-  const calculatedData = macdCalc(rsiCalc(defaultSar(ema26(ema12(initialData)))));
+  const bbCalc = bollingerBand()
+    .options({ windowSize: 20, multiplier: 2, movingAverageType: "sma", sourcePath: "close" })
+    .merge((d, c) => { d.bb = c; })
+    .accessor((d) => d.bb)
+    .stroke(BB_APPEARANCE.stroke)
+    .fill(BB_APPEARANCE.fill);
+
+  const smaCalc = sma()
+    .id(99)
+    .options({ windowSize: smaPeriod, sourcePath: "close" })
+    .merge((d, c) => { d.smaCustom = c; })
+    .accessor((d) => d.smaCustom);
+
+  const calculatedData = smaCalc(
+    bbCalc(macdCalc(rsiCalc(defaultSar(ema26(ema12(initialData))))))
+  );
+
+  // VWAP — anchored cumulative from start of dataset (typical price * volume)
+  let cumPV = 0;
+  let cumV  = 0;
+  for (const row of calculatedData) {
+    const tp  = (row.high + row.low + row.close) / 3;
+    const vol = row.volume || 0;
+    cumPV += tp * vol;
+    cumV  += vol;
+    row.vwap = cumV > 0 ? cumPV / cumV : tp;
+  }
+
   const { data, xScale, xAccessor, displayXAccessor } = ScaleProvider(calculatedData);
 
   const priceFormat  = format(".2f");
@@ -190,10 +250,11 @@ export default function StockChart({ initialData }) {
   const volumeColor    = (d) => d.close > d.open ? chartColors.greenVolume  : chartColors.redVolume;
   const openCloseColor = (d) => d.close > d.open ? chartColors.greenCandle  : chartColors.redCandle;
 
-  // tooltip entries depend on which EMAs are active
-  const emaTooltipOptions = [
+  // tooltip entries depend on which moving averages are active
+  const maTooltipOptions = [
     indicators.ema26 && { yAccessor: ema26.accessor(), type: "EMA", stroke: ema26.stroke(), windowSize: 26 },
     indicators.ema12 && { yAccessor: ema12.accessor(), type: "EMA", stroke: ema12.stroke(), windowSize: 12 },
+    indicators.sma   && { yAccessor: smaCalc.accessor(), type: "SMA", stroke: SMA_STROKE, windowSize: smaPeriod },
   ].filter(Boolean);
 
   return (
@@ -218,6 +279,23 @@ export default function StockChart({ initialData }) {
                   onChange={() => toggle(key)}
                 />
                 {label}
+                {key === "sma" && (
+                  <input
+                    type="number"
+                    min={SMA_MIN}
+                    max={SMA_MAX}
+                    value={smaPeriod}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value, 10);
+                      if (Number.isFinite(v)) {
+                        setSmaPeriod(Math.max(SMA_MIN, Math.min(SMA_MAX, v)));
+                      }
+                    }}
+                    style={dropdownStyles.periodInput}
+                    aria-label="SMA period"
+                  />
+                )}
               </label>
             ))}
           </div>
@@ -244,16 +322,41 @@ export default function StockChart({ initialData }) {
             id={1}
             height={priceHeight}
             origin={[0, 0]}
-            yExtents={(d) => [d.high, d.low]}
+            yExtents={(d) => {
+              const lows  = [d.low];
+              const highs = [d.high];
+              if (indicators.bb && d.bb) {
+                lows.push(d.bb.bottom);
+                highs.push(d.bb.top);
+              }
+              if (indicators.vwap && Number.isFinite(d.vwap)) {
+                lows.push(d.vwap);
+                highs.push(d.vwap);
+              }
+              return [Math.max(...highs), Math.min(...lows)];
+            }}
           >
             <XAxis {...getXAxisProps({ showTickLabel: false })} />
             <YAxis tickFormat={priceFormat} {...getYAxisProps()} />
             <CandlestickSeries />
+            {indicators.bb && (
+              <BollingerSeries
+                yAccessor={bbCalc.accessor()}
+                strokeStyle={BB_APPEARANCE.stroke}
+                fillStyle={BB_APPEARANCE.fill}
+              />
+            )}
             {indicators.ema26 && (
               <LineSeries yAccessor={ema26.accessor()} strokeStyle={ema26.stroke()} />
             )}
             {indicators.ema12 && (
               <LineSeries yAccessor={ema12.accessor()} strokeStyle={ema12.stroke()} />
+            )}
+            {indicators.sma && (
+              <LineSeries yAccessor={smaCalc.accessor()} strokeStyle={SMA_STROKE} />
+            )}
+            {indicators.vwap && (
+              <LineSeries yAccessor={(d) => d.vwap} strokeStyle={VWAP_STROKE} />
             )}
             {indicators.sar && (
               <SARSeries yAccessor={(d) => d.sar} />
@@ -267,8 +370,16 @@ export default function StockChart({ initialData }) {
               displayFormat={priceFormat}
               yAccessor={(d) => d.close}
             />
-            {emaTooltipOptions.length > 0 && (
-              <MovingAverageTooltip origin={[8, 24]} options={emaTooltipOptions} />
+            {maTooltipOptions.length > 0 && (
+              <MovingAverageTooltip origin={[8, 24]} options={maTooltipOptions} />
+            )}
+            {indicators.bb && (
+              <BollingerBandTooltip
+                origin={[8, 40]}
+                yAccessor={bbCalc.accessor()}
+                options={bbCalc.options()}
+                displayFormat={priceFormat}
+              />
             )}
             <ZoomButtons />
             <OHLCTooltip origin={[8, 16]} />
