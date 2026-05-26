@@ -53,17 +53,16 @@ const RuleRow = ({ rule }) => {
     <div style={{
       display: 'flex', gap: 10, alignItems: 'flex-start',
       padding: '8px 0', borderBottom: '1px solid #f3f4f6',
-      opacity: rule.triggered ? 1 : 0.6,
     }}>
-      <Icon size={14} style={{ color: rule.triggered ? meta.color : '#d1d5db', marginTop: 2, flexShrink: 0 }} />
+      <Icon size={14} style={{ color: rule.triggered ? meta.color : '#6b7280', marginTop: 2, flexShrink: 0 }} />
       <div style={{ flex: 1 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontWeight: 600, fontSize: 12, color: rule.triggered ? meta.color : '#d1d5db' }}>
+          <span style={{ fontWeight: 700, fontSize: 12, color: rule.triggered ? meta.color : '#374151' }}>
             {rule.rule_id}
           </span>
           <span style={{ fontSize: 11, color: '#6b7280' }}>{rule.chapter}</span>
         </div>
-        <div style={{ fontSize: 12, color: rule.triggered ? '#111827' : '#9ca3af', marginTop: 2 }}>
+        <div style={{ fontSize: 12, color: rule.triggered ? '#111827' : '#374151', marginTop: 2 }}>
           {rule.rule_text}
         </div>
         {rule.triggered && rule.detail && (
@@ -85,14 +84,13 @@ const DisciplineDashboard = () => {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try {
-      const data = await helperService.getDisciplineSummary();
-      setSummary(data);
-    } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Failed to load discipline summary');
-    } finally {
-      setLoading(false);
+    const res = await helperService.getDisciplineSummary();
+    if (res?.success) {
+      setSummary(res.data);
+    } else {
+      setError(res?.error?.message || 'Failed to load discipline summary');
     }
+    setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
