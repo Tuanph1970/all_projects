@@ -28,7 +28,7 @@ const ACTION_META = {
   SELL_SHORT: { color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
   COVER:      { color: '#3b82f6', bg: 'rgba(59,130,246,0.15)' },
   HOLD:       { color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)' },
-  WAIT:       { color: '#6b7280', bg: 'rgba(107,114,128,0.15)' },
+  WAIT:       { color: '#374151', bg: '#e5e7eb' },
   REVERSE:    { color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)' },
 };
 
@@ -41,34 +41,57 @@ const WatchlistDecisionBoard = () => {
   const navigate = useNavigate();
   const [barDate, setBarDate] = useState(today());
   const [rows, setRows] = useState([]);        // { ticker, status, rec }
+  const [holdingsMap, setHoldingsMap] = useState({}); // symbol → held quantity
   const [analyzing, setAnalyzing] = useState(false);
   const [sortKey, setSortKey] = useState('ticker');
   const [sortAsc, setSortAsc] = useState(true);
   const [planRec, setPlanRec] = useState(null);
 
-  // Load watchlist tickers from portfolio-service
+  // Load tickers from portfolio holdings + watchlist (same logic as DecisionConsole)
   useEffect(() => {
-    httpClient.get(API_ENDPOINTS.WATCHLIST)
-      .then(data => {
-        const list = Array.isArray(data) ? data : (data.watchlist || data.items || []);
-        setRows(list.map(item => ({
-          ticker: item.symbol || item.ticker || item,
-          status: 'idle',
-          rec: null,
-        })));
-      })
-      .catch(() => {
-        // fallback: a few common VN tickers
-        setRows(['VIC', 'VNM', 'VCB', 'FPT', 'HPG'].map(t => ({ ticker: t, status: 'idle', rec: null })));
-      });
+    const load = async () => {
+      try {
+        const portfolioRes = await httpClient.get(API_ENDPOINTS.PORTFOLIO_DEFAULT);
+        const portfolioId = portfolioRes.success ? portfolioRes.data?.id : null;
+
+        const [holdingsRes, watchlistRes] = await Promise.allSettled([
+          portfolioId
+            ? httpClient.get(API_ENDPOINTS.PORTFOLIO_HOLDINGS(portfolioId))
+            : Promise.resolve({ success: true, data: [] }),
+          httpClient.get(API_ENDPOINTS.WATCHLIST),
+        ]);
+
+        const holdings = holdingsRes.status === 'fulfilled' && holdingsRes.value?.success
+          ? (holdingsRes.value.data || []) : [];
+        const watchlist = watchlistRes.status === 'fulfilled' && watchlistRes.value?.success
+          ? (watchlistRes.value.data || []) : [];
+
+        const seen = new Set();
+        const merged = [...holdings, ...watchlist].filter(item => {
+          if (!item.symbol || seen.has(item.symbol)) return false;
+          seen.add(item.symbol);
+          return true;
+        });
+
+        setRows(merged.map(item => ({ ticker: item.symbol, status: 'idle', rec: null })));
+
+        // Build symbol → held quantity map from portfolio holdings
+        const map = {};
+        holdings.forEach(h => { map[h.symbol] = h.quantity || 0; });
+        setHoldingsMap(map);
+      } catch {
+        setRows([]);
+      }
+    };
+    load();
   }, []);
 
   const analyzeOne = useCallback(async (ticker) => {
     setRows(prev => prev.map(r => r.ticker === ticker ? { ...r, status: 'loading' } : r));
-    try {
-      const rec = await helperService.recommend({ ticker, barDate });
-      setRows(prev => prev.map(r => r.ticker === ticker ? { ...r, status: 'done', rec } : r));
-    } catch {
+    const result = await helperService.recommend({ ticker, barDate });
+    if (result?.success) {
+      setRows(prev => prev.map(r => r.ticker === ticker ? { ...r, status: 'done', rec: result.data } : r));
+    } else {
       setRows(prev => prev.map(r => r.ticker === ticker ? { ...r, status: 'error', rec: null } : r));
     }
   }, [barDate]);
@@ -195,7 +218,11 @@ const WatchlistDecisionBoard = () => {
                   <td style={styles.td}>{fmt(rec?.entry_price)}</td>
                   <td style={{ ...styles.td, color: '#ef4444' }}>{fmt(rec?.stop_price)}</td>
                   <td style={{ ...styles.td, color: '#10b981' }}>{fmt(rec?.target_price)}</td>
-                  <td style={styles.td}>{rec?.position_size ?? '—'}</td>
+                  <td style={styles.td}>
+                    {holdingsMap[ticker] != null
+                      ? holdingsMap[ticker].toLocaleString()
+                      : (rec?.position_size ?? '—')}
+                  </td>
                   <td style={styles.td}>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button
