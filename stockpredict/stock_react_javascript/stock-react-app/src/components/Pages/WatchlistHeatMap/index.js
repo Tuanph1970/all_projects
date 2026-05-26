@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import helperService from '../../../services/helperService';
+import httpClient from '../../../services/httpClient';
+import { API_ENDPOINTS } from '../../../constants/api';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -120,6 +122,7 @@ const WatchlistHeatMap = () => {
   const [sort, setSort] = useState('confidence');
   const [filterAction, setFilterAction] = useState('All');
   const [barDate, setBarDate] = useState(today());
+  const [autoNote, setAutoNote] = useState(null);
   const isMounted = useRef(true);
 
   useEffect(() => {
@@ -141,23 +144,50 @@ const WatchlistHeatMap = () => {
     }
   }, []);
 
-  // Run scan
+  // Run scan — auto-populates the helper watchlist from portfolio holdings if empty
   const runScan = useCallback(async () => {
     setScanning(true);
     setError(null);
-    try {
-      const res = await helperService.scan(barDate);
-      const d = res.data || res;
-      if (isMounted.current) {
-        setItems(d.results || []);
-        setLastScan(d.bar_date || barDate);
+    setAutoNote(null);
+
+    const wlRes = await helperService.getWatchlist();
+    if (wlRes?.success && (wlRes.data || []).length === 0) {
+      const portfolioRes = await httpClient.get(API_ENDPOINTS.PORTFOLIO_DEFAULT);
+      const portfolioId = portfolioRes.success ? portfolioRes.data?.id : null;
+      const [holdingsRes, watchlistRes] = await Promise.allSettled([
+        portfolioId
+          ? httpClient.get(API_ENDPOINTS.PORTFOLIO_HOLDINGS(portfolioId))
+          : Promise.resolve({ success: true, data: [] }),
+        httpClient.get(API_ENDPOINTS.WATCHLIST),
+      ]);
+      const holdings = holdingsRes.status === 'fulfilled' && holdingsRes.value?.success
+        ? (holdingsRes.value.data || []) : [];
+      const watchlist = watchlistRes.status === 'fulfilled' && watchlistRes.value?.success
+        ? (watchlistRes.value.data || []) : [];
+
+      const seen = new Set();
+      const tickers = [...holdings, ...watchlist]
+        .map(item => item.symbol)
+        .filter(sym => sym && !seen.has(sym) && seen.add(sym));
+
+      if (tickers.length > 0) {
+        await Promise.all(tickers.map(ticker => helperService.addWatchlist({ ticker })));
+        if (isMounted.current) {
+          setWatchlistTickers(tickers);
+          setAutoNote(`Auto-added ${tickers.join(', ')} from your portfolio.`);
+        }
       }
-    } catch (err) {
-      if (isMounted.current) {
-        setError(err?.response?.data?.detail || err.message || 'Scan failed');
+    }
+
+    const res = await helperService.scan(barDate);
+    const d = res?.data || res;
+    if (isMounted.current) {
+      setItems(d?.results || []);
+      setLastScan(d?.bar_date || barDate);
+      if (!res?.success && !d?.results) {
+        setError(res?.error?.message || 'Scan failed');
       }
-    } finally {
-      if (isMounted.current) setScanning(false);
+      setScanning(false);
     }
   }, [barDate]);
 
@@ -284,6 +314,13 @@ const WatchlistHeatMap = () => {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Auto-populate note */}
+      {autoNote && (
+        <div style={{ padding: '10px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, color: '#1d4ed8', marginBottom: 14, fontSize: 13, display: 'flex', gap: 8, alignItems: 'center' }}>
+          ℹ️ {autoNote}
         </div>
       )}
 

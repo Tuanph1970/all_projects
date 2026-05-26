@@ -2,10 +2,12 @@
 import React, { useState } from 'react';
 import {
   Scan, RefreshCw, TrendingUp, TrendingDown, Minus,
-  AlertTriangle, BookOpen, Shield, Target, CheckCircle,
+  AlertTriangle, BookOpen, Shield, Target, CheckCircle, Info,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import helperService from '../../../services/helperService';
+import httpClient from '../../../services/httpClient';
+import { API_ENDPOINTS } from '../../../constants/api';
 import TradePlanModal from '../../common/TradePlanModal';
 
 const today = () => new Date().toISOString().split('T')[0];
@@ -112,11 +114,41 @@ const ScannerPage = () => {
   const [result, setResult] = useState(null);
   const [filter, setFilter] = useState('All');
   const [planRec, setPlanRec] = useState(null);
+  const [autoNote, setAutoNote] = useState(null);
 
   const run = async () => {
     setLoading(true);
     setError(null);
     setResult(null);
+    setAutoNote(null);
+
+    // If helper watchlist is empty, auto-populate from portfolio holdings + watchlist
+    const wlRes = await helperService.getWatchlist();
+    if (wlRes?.success && (wlRes.data || []).length === 0) {
+      const portfolioRes = await httpClient.get(API_ENDPOINTS.PORTFOLIO_DEFAULT);
+      const portfolioId = portfolioRes.success ? portfolioRes.data?.id : null;
+      const [holdingsRes, watchlistRes] = await Promise.allSettled([
+        portfolioId
+          ? httpClient.get(API_ENDPOINTS.PORTFOLIO_HOLDINGS(portfolioId))
+          : Promise.resolve({ success: true, data: [] }),
+        httpClient.get(API_ENDPOINTS.WATCHLIST),
+      ]);
+      const holdings = holdingsRes.status === 'fulfilled' && holdingsRes.value?.success
+        ? (holdingsRes.value.data || []) : [];
+      const watchlist = watchlistRes.status === 'fulfilled' && watchlistRes.value?.success
+        ? (watchlistRes.value.data || []) : [];
+
+      const seen = new Set();
+      const tickers = [...holdings, ...watchlist]
+        .map(item => item.symbol)
+        .filter(sym => sym && !seen.has(sym) && seen.add(sym));
+
+      if (tickers.length > 0) {
+        await Promise.all(tickers.map(ticker => helperService.addWatchlist({ ticker })));
+        setAutoNote(`Auto-added ${tickers.join(', ')} from your portfolio to the scanner watchlist.`);
+      }
+    }
+
     const res = await helperService.scan(barDate);
     if (res?.success) {
       setResult(res.data);
@@ -178,6 +210,13 @@ const ScannerPage = () => {
         <div style={styles.errorBanner}>
           <AlertTriangle size={14} />
           {error}
+        </div>
+      )}
+
+      {autoNote && (
+        <div style={styles.infoBanner}>
+          <Info size={14} />
+          {autoNote}
         </div>
       )}
 
@@ -316,6 +355,11 @@ const styles = {
   errorBanner: {
     background: '#fee2e2', border: '1px solid #fca5a5',
     borderRadius: 8, padding: '10px 14px', color: '#dc2626',
+    display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginBottom: 12,
+  },
+  infoBanner: {
+    background: '#eff6ff', border: '1px solid #bfdbfe',
+    borderRadius: 8, padding: '10px 14px', color: '#1d4ed8',
     display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginBottom: 12,
   },
   empty: {
