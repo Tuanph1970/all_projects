@@ -1,6 +1,6 @@
 // F-031 / F-102 — DecisionConsole
 // Per-symbol: regime ribbon · signal card · action recommendation · stop/target/size · reason chain · pattern overlay
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   RefreshCw, ChevronDown, ChevronRight, Shield, Target,
   TrendingUp, TrendingDown, Minus, AlertTriangle, BookOpen,
@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import helperService from '../../../services/helperService';
+import httpClient from '../../../services/httpClient';
+import { API_ENDPOINTS } from '../../../constants/api';
 import TradePlanModal from '../../common/TradePlanModal';
 import RiskPrefsPanel from './RiskPrefsPanel';
 import PatternPanel from './PatternPanel';
@@ -191,6 +193,41 @@ const DecisionConsole = () => {
   const [patterns, setPatterns] = useState(null);
   const [patternsLoading, setPatternsLoading] = useState(false);
   const [patternsError, setPatternsError] = useState(null);
+  const [portfolioTickers, setPortfolioTickers] = useState([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        // httpClient.get always returns { success, data } — unwrap carefully
+        const portfolioRes = await httpClient.get(API_ENDPOINTS.PORTFOLIO_DEFAULT);
+        const portfolioId = portfolioRes.success ? portfolioRes.data?.id : null;
+
+        const [holdingsRes, watchlistRes] = await Promise.allSettled([
+          portfolioId
+            ? httpClient.get(API_ENDPOINTS.PORTFOLIO_HOLDINGS(portfolioId))
+            : Promise.resolve({ success: true, data: [] }),
+          httpClient.get(API_ENDPOINTS.WATCHLIST),
+        ]);
+
+        const holdings = holdingsRes.status === 'fulfilled' && holdingsRes.value?.success
+          ? (holdingsRes.value.data || []) : [];
+        const watchlist = watchlistRes.status === 'fulfilled' && watchlistRes.value?.success
+          ? (watchlistRes.value.data || []) : [];
+
+        // Merge, dedup by symbol
+        const seen = new Set();
+        const merged = [...holdings, ...watchlist].filter(item => {
+          if (!item.symbol || seen.has(item.symbol)) return false;
+          seen.add(item.symbol);
+          return true;
+        });
+        setPortfolioTickers(merged);
+      } catch {
+        setPortfolioTickers([]);
+      }
+    };
+    load();
+  }, []);
 
   const run = useCallback(async () => {
     const ticker = tickerInput.trim().toUpperCase();
@@ -206,13 +243,17 @@ const DecisionConsole = () => {
         helperService.recommend({ ticker, barDate }),
         helperService.getPatterns(ticker),
       ]);
-      if (recResult.status === 'fulfilled') {
-        setRec(recResult.value);
+      if (recResult.status === 'fulfilled' && recResult.value?.success) {
+        setRec(recResult.value.data);
       } else {
-        setError(recResult.reason?.response?.data?.detail || recResult.reason?.message || 'Request failed');
+        const errDetail = recResult.value?.error?.message
+          || recResult.reason?.response?.data?.detail
+          || recResult.reason?.message
+          || 'Request failed';
+        setError(errDetail);
       }
-      if (patternResult.status === 'fulfilled') {
-        setPatterns(patternResult.value?.patterns ?? []);
+      if (patternResult.status === 'fulfilled' && patternResult.value?.success) {
+        setPatterns(patternResult.value.data?.patterns ?? []);
       } else {
         setPatternsError(true);
       }
@@ -222,20 +263,21 @@ const DecisionConsole = () => {
     }
   }, [tickerInput, barDate]);
 
-  const handleKey = (e) => { if (e.key === 'Enter') run(); };
-
   return (
     <div style={styles.page}>
       {/* ── toolbar ── */}
       <div style={styles.toolbar}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1 }}>
-          <input
+          <select
             value={tickerInput}
-            onChange={e => setTickerInput(e.target.value.toUpperCase())}
-            onKeyDown={handleKey}
-            placeholder={t('decision_helper.decision_console.ticker_placeholder')}
-            style={styles.tickerInput}
-          />
+            onChange={e => setTickerInput(e.target.value)}
+            style={styles.tickerSelect}
+          >
+            <option value="">{t('decision_helper.decision_console.ticker_placeholder')}</option>
+            {portfolioTickers.map(h => (
+              <option key={h.symbol} value={h.symbol}>{h.symbol}</option>
+            ))}
+          </select>
           <input
             type="date"
             value={barDate}
@@ -313,10 +355,10 @@ const DecisionConsole = () => {
 const styles = {
   page: { padding: 20, maxWidth: 720, margin: '0 auto', color: '#111827' },
   toolbar: { display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16 },
-  tickerInput: {
+  tickerSelect: {
     background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 8,
-    padding: '9px 14px', color: '#111827', fontSize: 15, fontWeight: 700,
-    width: 130, outline: 'none', textTransform: 'uppercase',
+    padding: '9px 14px', color: '#111827', fontSize: 14, fontWeight: 600,
+    minWidth: 200, outline: 'none', cursor: 'pointer',
   },
   dateInput: {
     background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 8,

@@ -1668,7 +1668,7 @@
       "loading": "Loading…"
     },
     "decision_console": {
-      "ticker_placeholder": "Ticker (e.g. VIC)",
+      "ticker_placeholder": "Select ticker…",
       "analyze": "Analyze",
       "risk_prefs_title": "Risk preferences",
       "confidence_label": "Confidence {{pct}}%",

@@ -1668,7 +1668,7 @@
       "loading": "Đang tải…"
     },
     "decision_console": {
-      "ticker_placeholder": "Mã CK (vd: VIC)",
+      "ticker_placeholder": "Chọn mã cổ phiếu…",
       "analyze": "Phân tích",
       "risk_prefs_title": "Cài đặt rủi ro",
       "confidence_label": "Độ tin cậy {{pct}}%",
