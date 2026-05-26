@@ -68,8 +68,8 @@ const WatchlistPanel = ({ onRunAll, running }) => {
 
   const load = useCallback(async () => {
     try {
-      const data = await helperService.getWatchlist();
-      setEntries(data);
+      const res = await helperService.getWatchlist();
+      setEntries(res?.data || []);
     } catch { /* watchlist empty or not authenticated — no-op */ }
   }, []);
 
@@ -135,7 +135,7 @@ const WatchlistPanel = ({ onRunAll, running }) => {
       </div>
 
       {err && (
-        <div style={{ color: '#fca5a5', fontSize: 12, marginBottom: 8 }}>
+        <div style={{ color: '#dc2626', fontSize: 12, marginBottom: 8 }}>
           <AlertTriangle size={12} /> {err}
         </div>
       )}
@@ -148,7 +148,7 @@ const WatchlistPanel = ({ onRunAll, running }) => {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {entries.map(e => (
             <div key={e.ticker} style={s.chip}>
-              <span style={{ fontWeight: 700, fontSize: 12, color: '#f9fafb' }}>{e.ticker}</span>
+              <span style={{ fontWeight: 700, fontSize: 12, color: '#111827' }}>{e.ticker}</span>
               {e.note && <span style={{ fontSize: 10, color: '#6b7280', marginLeft: 4 }}>{e.note}</span>}
               <button
                 onClick={() => handleRemove(e.ticker)}
@@ -197,9 +197,9 @@ const RunsTable = ({ runs }) => {
       </thead>
       <tbody>
         {runs.map(r => (
-          <tr key={r.id} style={{ borderBottom: '1px solid #1f2937' }}>
+          <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
             <td style={s.td}><AlertDot isAlert={r.is_alert} /></td>
-            <td style={{ ...s.td, fontWeight: 700, color: '#f9fafb' }}>{r.ticker}</td>
+            <td style={{ ...s.td, fontWeight: 700, color: '#111827' }}>{r.ticker}</td>
             <td style={s.td}>{fmtDate(r.bar_date, i18n.language)}</td>
             <td style={s.td}><ActionBadge action={r.action} /></td>
             <td style={s.td}>{r.regime || '—'}</td>
@@ -227,15 +227,14 @@ const ScheduledRunsLog = () => {
   const loadRuns = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try {
-      const data = await helperService.getScheduledRuns({ limit: 100, alertsOnly });
-      setRuns(data.runs || []);
-      setTotal(data.total || 0);
-    } catch (e) {
-      setError(e.response?.data?.detail || e.message || 'Failed to load scheduled runs');
-    } finally {
-      setLoading(false);
+    const res = await helperService.getScheduledRuns({ limit: 100, alertsOnly });
+    if (res?.success) {
+      setRuns(res.data?.runs || []);
+      setTotal(res.data?.total || 0);
+    } else {
+      setError(res?.error?.message || 'Failed to load scheduled runs');
     }
+    setLoading(false);
   }, [alertsOnly]);
 
   useEffect(() => { loadRuns(); }, [loadRuns]);
@@ -260,7 +259,7 @@ const ScheduledRunsLog = () => {
       <div style={s.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Clock size={22} color="#a78bfa" />
-          <span style={{ fontSize: 20, fontWeight: 800, color: '#f9fafb' }}>{t('decision_helper.scheduled_runs.title')}</span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: '#111827' }}>{t('decision_helper.scheduled_runs.title')}</span>
           {alertCount > 0 && (
             <span style={s.alertBadge}>{alertCount} {t('decision_helper.scheduled_runs.alert', { count: alertCount })}</span>
           )}
@@ -268,7 +267,7 @@ const ScheduledRunsLog = () => {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button
             onClick={() => setAlertsOnly(v => !v)}
-            style={{ ...s.filterBtn, background: alertsOnly ? 'rgba(245,158,11,0.2)' : '#1f2937', color: alertsOnly ? '#f59e0b' : '#9ca3af', borderColor: alertsOnly ? '#f59e0b44' : '#374151' }}
+            style={{ ...s.filterBtn, background: alertsOnly ? 'rgba(245,158,11,0.12)' : '#ffffff', color: alertsOnly ? '#f59e0b' : '#6b7280', borderColor: alertsOnly ? '#f59e0b44' : '#e5e7eb' }}
           >
             <Bell size={13} /> {alertsOnly ? t('decision_helper.scheduled_runs.alerts_only') : t('decision_helper.scheduled_runs.all_runs')}
           </button>
@@ -304,7 +303,7 @@ const ScheduledRunsLog = () => {
 };
 
 const s = {
-  page: { padding: 20, maxWidth: 960, margin: '0 auto', color: '#f9fafb' },
+  page: { padding: 20, maxWidth: 960, margin: '0 auto', color: '#111827' },
   header: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20,
   },
@@ -318,31 +317,31 @@ const s = {
     cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontSize: 12,
   },
   refreshBtn: {
-    background: '#1f2937', border: '1px solid #374151', borderRadius: 8,
-    padding: '6px 12px', color: '#9ca3af', cursor: 'pointer',
+    background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 8,
+    padding: '6px 12px', color: '#6b7280', cursor: 'pointer',
     display: 'flex', alignItems: 'center', gap: 5, fontSize: 12,
   },
   errorBanner: {
-    background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-    borderRadius: 8, padding: '10px 14px', color: '#fca5a5',
+    background: '#fee2e2', border: '1px solid #fca5a5',
+    borderRadius: 8, padding: '10px 14px', color: '#dc2626',
     display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginBottom: 14,
   },
   panel: {
-    background: '#1f2937', borderRadius: 10, border: '1px solid #374151',
+    background: '#ffffff', borderRadius: 10, border: '1px solid #e5e7eb',
     padding: 16, marginBottom: 16,
   },
   panelTitle: {
-    fontSize: 13, fontWeight: 700, color: '#d1d5db',
+    fontSize: 13, fontWeight: 700, color: '#374151',
     marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6,
   },
   tickerInput: {
-    background: '#111827', border: '1px solid #374151', borderRadius: 8,
-    padding: '7px 12px', color: '#f9fafb', fontSize: 13, outline: 'none',
+    background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 8,
+    padding: '7px 12px', color: '#111827', fontSize: 13, outline: 'none',
     width: 90, textTransform: 'uppercase',
   },
   addBtn: {
-    background: '#374151', border: 'none', borderRadius: 8,
-    padding: '7px 14px', color: '#d1d5db', cursor: 'pointer',
+    background: '#f3f4f6', border: 'none', borderRadius: 8,
+    padding: '7px 14px', color: '#374151', cursor: 'pointer',
     display: 'flex', alignItems: 'center', gap: 5, fontSize: 13,
   },
   runBtn: {
@@ -351,7 +350,7 @@ const s = {
     display: 'flex', alignItems: 'center', gap: 5, fontSize: 13,
   },
   chip: {
-    background: '#111827', border: '1px solid #374151', borderRadius: 8,
+    background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8,
     padding: '5px 10px', display: 'flex', alignItems: 'center', gap: 6,
   },
   removeBtn: {
@@ -359,20 +358,20 @@ const s = {
     cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center',
   },
   section: {
-    background: '#1f2937', borderRadius: 10, border: '1px solid #374151',
+    background: '#ffffff', borderRadius: 10, border: '1px solid #e5e7eb',
     padding: 16,
   },
   sectionTitle: {
-    fontSize: 13, fontWeight: 700, color: '#d1d5db',
+    fontSize: 13, fontWeight: 700, color: '#374151',
     marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6,
   },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
   th: {
     textAlign: 'left', color: '#6b7280', fontWeight: 600,
-    padding: '6px 10px', borderBottom: '1px solid #374151', fontSize: 11,
+    padding: '6px 10px', borderBottom: '1px solid #e5e7eb', fontSize: 11,
     textTransform: 'uppercase', letterSpacing: 0.5,
   },
-  td: { padding: '8px 10px', color: '#9ca3af', verticalAlign: 'middle' },
+  td: { padding: '8px 10px', color: '#374151', verticalAlign: 'middle' },
 };
 
 export default ScheduledRunsLog;

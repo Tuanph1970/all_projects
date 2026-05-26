@@ -69,7 +69,7 @@ const ConfBar = ({ value }) => {
   const color = pct >= 70 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#6b7280';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 80 }}>
-      <div style={{ flex: 1, height: 5, background: '#374151', borderRadius: 3, overflow: 'hidden' }}>
+      <div style={{ flex: 1, height: 5, background: '#e5e7eb', borderRadius: 3, overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 3 }} />
       </div>
       <span style={{ fontSize: 11, color, fontWeight: 600, width: 28, textAlign: 'right' }}>{pct}%</span>
@@ -117,16 +117,14 @@ const ScannerPage = () => {
     setLoading(true);
     setError(null);
     setResult(null);
-    try {
-      const data = await helperService.scan(barDate);
-      setResult(data);
-      if (data.actionable_count === 0) setFilter('All');
-      else setFilter('Actionable');
-    } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Scan failed');
-    } finally {
-      setLoading(false);
+    const res = await helperService.scan(barDate);
+    if (res?.success) {
+      setResult(res.data);
+      setFilter(res.data?.actionable_count === 0 ? 'All' : 'Actionable');
+    } else {
+      setError(res?.error?.message || 'Scan failed');
     }
+    setLoading(false);
   };
 
   const filtered = result?.results?.filter(r => {
@@ -158,7 +156,7 @@ const ScannerPage = () => {
       <div style={styles.toolbar}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <Scan size={18} color="#a78bfa" />
-          <span style={{ fontWeight: 700, fontSize: 16, color: '#f9fafb' }}>{t('decision_helper.scanner.title')}</span>
+          <span style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>{t('decision_helper.scanner.title')}</span>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto' }}>
           <input
@@ -207,9 +205,9 @@ const ScannerPage = () => {
                   onClick={() => setFilter(f)}
                   style={{
                     ...styles.filterBtn,
-                    background: filter === f ? '#374151' : 'transparent',
-                    color: filter === f ? '#f9fafb' : '#6b7280',
-                    borderColor: filter === f ? '#4b5563' : 'transparent',
+                    background: filter === f ? '#e5e7eb' : 'transparent',
+                    color: filter === f ? '#111827' : '#6b7280',
+                    borderColor: filter === f ? '#d1d5db' : 'transparent',
                   }}
                 >
                   {f === 'All' ? t('decision_helper.scanner.filter_all') : f === 'Actionable' ? t('decision_helper.scanner.filter_actionable') : f} {count > 0 && <span style={styles.filterCount}>{count}</span>}
@@ -235,9 +233,9 @@ const ScannerPage = () => {
                 </thead>
                 <tbody>
                   {filtered.map((item, i) => (
-                    <tr key={item.ticker} style={{ ...styles.tr, background: i % 2 === 0 ? '#111827' : 'transparent' }}>
+                    <tr key={item.ticker} style={{ ...styles.tr, background: i % 2 === 0 ? '#f9fafb' : '#ffffff' }}>
                       <td style={styles.td}><ActionBadge action={item.action} /></td>
-                      <td style={{ ...styles.td, fontWeight: 700, color: '#f9fafb', fontSize: 14 }}>
+                      <td style={{ ...styles.td, fontWeight: 700, color: '#111827', fontSize: 14 }}>
                         {item.ticker}
                         {item.error && (
                           <span title={item.error} style={{ marginLeft: 6 }}>
@@ -304,11 +302,11 @@ const ScannerPage = () => {
 };
 
 const styles = {
-  page: { padding: 20, maxWidth: 1100, margin: '0 auto', color: '#f9fafb' },
+  page: { padding: 20, maxWidth: 1100, margin: '0 auto', color: '#111827' },
   toolbar: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 },
   dateInput: {
-    background: '#1f2937', border: '1px solid #374151', borderRadius: 8,
-    padding: '8px 12px', color: '#f9fafb', fontSize: 13, outline: 'none',
+    background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 8,
+    padding: '8px 12px', color: '#111827', fontSize: 13, outline: 'none',
   },
   runBtn: {
     background: '#7c3aed', border: 'none', borderRadius: 8,
@@ -316,8 +314,8 @@ const styles = {
     cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
   },
   errorBanner: {
-    background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-    borderRadius: 8, padding: '10px 14px', color: '#fca5a5',
+    background: '#fee2e2', border: '1px solid #fca5a5',
+    borderRadius: 8, padding: '10px 14px', color: '#dc2626',
     display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginBottom: 12,
   },
   empty: {
@@ -326,8 +324,8 @@ const styles = {
   },
   summaryBar: {
     display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
-    background: '#1f2937', borderRadius: 8, padding: '10px 16px',
-    marginBottom: 12, fontSize: 13, color: '#d1d5db',
+    background: '#f9fafb', borderRadius: 8, padding: '10px 16px',
+    marginBottom: 12, fontSize: 13, color: '#374151',
   },
   summaryItem: { display: 'flex', alignItems: 'center', gap: 4 },
   filterBar: { display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 12 },
@@ -337,17 +335,17 @@ const styles = {
     display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
   },
   filterCount: {
-    background: '#374151', color: '#9ca3af', fontSize: 10,
+    background: '#e5e7eb', color: '#6b7280', fontSize: 10,
     padding: '1px 5px', borderRadius: 8, fontWeight: 700,
   },
-  tableWrap: { overflowX: 'auto', borderRadius: 10, border: '1px solid #374151' },
+  tableWrap: { overflowX: 'auto', borderRadius: 10, border: '1px solid #e5e7eb' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
   th: {
-    background: '#111827', padding: '10px 12px', textAlign: 'left',
-    color: '#9ca3af', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5,
-    borderBottom: '1px solid #374151', whiteSpace: 'nowrap',
+    background: '#f9fafb', padding: '10px 12px', textAlign: 'left',
+    color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5,
+    borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap',
   },
-  tr: { borderBottom: '1px solid #1f293720' },
+  tr: { borderBottom: '1px solid #f3f4f6' },
   td: { padding: '10px 12px', verticalAlign: 'middle' },
   planBtn: {
     background: '#3b82f6', border: 'none', borderRadius: 5,

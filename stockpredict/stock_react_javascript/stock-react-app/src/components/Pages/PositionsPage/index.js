@@ -55,22 +55,21 @@ const StopEditor = ({ pos, onSaved, onCancel }) => {
     if (!n || n <= 0) { setErr(t('decision_helper.positions.invalid_stop')); return; }
     setSaving(true);
     setErr(null);
-    try {
-      const updated = await helperService.updateStop(pos.ticker, n);
-      onSaved(updated);
-    } catch (e) {
-      setErr(e.response?.data?.detail || e.message || t('decision_helper.positions.stop_failed'));
-    } finally {
-      setSaving(false);
+    const res = await helperService.updateStop(pos.ticker, n);
+    if (res?.success) {
+      onSaved(res.data);
+    } else {
+      setErr(res?.error?.message || t('decision_helper.positions.stop_failed'));
     }
+    setSaving(false);
   };
 
   return (
-    <tr style={{ background: 'rgba(59,130,246,0.06)', borderBottom: '1px solid #1e3a5f' }}>
+    <tr style={{ background: 'rgba(59,130,246,0.06)', borderBottom: '1px solid #bfdbfe' }}>
       <td colSpan={9} style={{ padding: '10px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <Shield size={14} color="#3b82f6" />
-          <span style={{ fontSize: 13, color: '#93c5fd', fontWeight: 600 }}>
+          <span style={{ fontSize: 13, color: '#1d4ed8', fontWeight: 600 }}>
             {t('decision_helper.positions.update_stop_for', { ticker: pos.ticker })}
           </span>
           <input
@@ -106,14 +105,13 @@ const PositionsPage = () => {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try {
-      const data = await helperService.getPositions();
-      setPositions(data.positions ?? []);
-    } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Failed to load positions');
-    } finally {
-      setLoading(false);
+    const res = await helperService.getPositions();
+    if (res?.success) {
+      setPositions(res.data?.positions ?? []);
+    } else {
+      setError(res?.error?.message || 'Failed to load positions');
     }
+    setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -134,7 +132,7 @@ const PositionsPage = () => {
       <div style={styles.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Shield size={18} color="#a78bfa" />
-          <span style={{ fontWeight: 700, fontSize: 16, color: '#f9fafb' }}>{t('decision_helper.positions.title')}</span>
+          <span style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>{t('decision_helper.positions.title')}</span>
           {positions.length > 0 && (
             <span style={styles.badge}>{t('decision_helper.positions.n_open', { count: positions.length })}</span>
           )}
@@ -180,9 +178,9 @@ const PositionsPage = () => {
             <tbody>
               {positions.map((pos, i) => (
                 <React.Fragment key={pos.ticker}>
-                  <tr style={{ ...styles.tr, background: i % 2 === 0 ? '#111827' : 'transparent' }}>
+                  <tr style={{ ...styles.tr, background: i % 2 === 0 ? '#f9fafb' : '#ffffff' }}>
                     {/* Ticker */}
-                    <td style={{ ...styles.td, fontWeight: 800, fontSize: 14, color: '#f9fafb' }}>
+                    <td style={{ ...styles.td, fontWeight: 800, fontSize: 14, color: '#111827' }}>
                       <button
                         onClick={() => navigate(`/decision-console?ticker=${pos.ticker}`)}
                         style={styles.tickerBtn}
@@ -255,7 +253,7 @@ const PositionsPage = () => {
 };
 
 const styles = {
-  page: { padding: 20, maxWidth: 1100, margin: '0 auto', color: '#f9fafb' },
+  page: { padding: 20, maxWidth: 1100, margin: '0 auto', color: '#111827' },
   header: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     marginBottom: 16, flexWrap: 'wrap', gap: 10,
@@ -265,42 +263,42 @@ const styles = {
     fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
   },
   refreshBtn: {
-    background: '#1f2937', border: '1px solid #374151', borderRadius: 7,
-    padding: '7px 9px', color: '#9ca3af', cursor: 'pointer',
+    background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 7,
+    padding: '7px 9px', color: '#6b7280', cursor: 'pointer',
     display: 'flex', alignItems: 'center',
   },
   errorBanner: {
-    background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-    borderRadius: 8, padding: '10px 14px', color: '#fca5a5',
+    background: '#fee2e2', border: '1px solid #fca5a5',
+    borderRadius: 8, padding: '10px 14px', color: '#dc2626',
     display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginBottom: 12,
   },
   empty: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
     justifyContent: 'center', minHeight: 220, textAlign: 'center',
   },
-  tableWrap: { overflowX: 'auto', borderRadius: 10, border: '1px solid #374151' },
+  tableWrap: { overflowX: 'auto', borderRadius: 10, border: '1px solid #e5e7eb' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
   th: {
-    background: '#111827', padding: '10px 12px', textAlign: 'left',
-    color: '#9ca3af', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5,
-    borderBottom: '1px solid #374151', whiteSpace: 'nowrap',
+    background: '#f9fafb', padding: '10px 12px', textAlign: 'left',
+    color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5,
+    borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap',
   },
-  tr: { borderBottom: '1px solid #1f293730' },
+  tr: { borderBottom: '1px solid #f3f4f6' },
   td: { padding: '11px 12px', verticalAlign: 'middle', whiteSpace: 'nowrap' },
   tickerBtn: {
-    background: 'none', border: 'none', color: '#f9fafb', fontWeight: 800,
+    background: 'none', border: 'none', color: '#111827', fontWeight: 800,
     fontSize: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
     gap: 5, padding: 0,
   },
   editBtn: {
-    background: '#1f2937', border: '1px solid #374151', borderRadius: 6,
-    padding: '5px 7px', color: '#9ca3af', cursor: 'pointer',
+    background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 6,
+    padding: '5px 7px', color: '#6b7280', cursor: 'pointer',
     display: 'inline-flex', alignItems: 'center',
   },
   // Stop editor
   stopInput: {
-    background: '#111827', border: '1px solid #3b82f6', borderRadius: 6,
-    padding: '6px 10px', color: '#f9fafb', fontSize: 13, outline: 'none', width: 110,
+    background: '#ffffff', border: '1px solid #3b82f6', borderRadius: 6,
+    padding: '6px 10px', color: '#111827', fontSize: 13, outline: 'none', width: 110,
   },
   saveBtn: {
     background: '#2563eb', border: 'none', borderRadius: 6,
@@ -308,8 +306,8 @@ const styles = {
     cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5,
   },
   cancelBtn: {
-    background: '#374151', border: 'none', borderRadius: 6,
-    padding: '6px 12px', color: '#d1d5db', fontSize: 12,
+    background: '#f3f4f6', border: 'none', borderRadius: 6,
+    padding: '6px 12px', color: '#374151', fontSize: 12,
     cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
   },
 };

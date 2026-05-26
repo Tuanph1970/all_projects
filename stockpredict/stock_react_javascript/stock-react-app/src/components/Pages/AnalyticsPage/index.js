@@ -31,7 +31,7 @@ const StatCard = ({ label, value, sub, color, icon: Icon }) => (
       {Icon && <Icon size={14} color={color || '#a78bfa'} />}
       <span style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</span>
     </div>
-    <div style={{ fontSize: 22, fontWeight: 800, color: color || '#f9fafb' }}>{value}</div>
+    <div style={{ fontSize: 22, fontWeight: 800, color: color || '#111827' }}>{value}</div>
     {sub && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 3 }}>{sub}</div>}
   </div>
 );
@@ -55,8 +55,8 @@ const SignalTable = ({ rows }) => {
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={r.signal_kind} style={{ background: i % 2 === 0 ? '#111827' : 'transparent' }}>
-              <td style={{ ...styles.td, fontWeight: 700, color: '#f9fafb' }}>{r.signal_kind}</td>
+            <tr key={r.signal_kind} style={{ background: i % 2 === 0 ? '#f9fafb' : '#ffffff' }}>
+              <td style={{ ...styles.td, fontWeight: 700, color: '#111827' }}>{r.signal_kind}</td>
               <td style={styles.td}>{r.fire_count}</td>
               <td style={styles.td}>{r.confirmed_count}</td>
               <td style={{ ...styles.td, color: r.confirmation_rate >= 0.5 ? '#10b981' : '#f59e0b' }}>
@@ -90,8 +90,8 @@ const TopTickersTable = ({ rows }) => {
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={r.ticker} style={{ background: i % 2 === 0 ? '#111827' : 'transparent' }}>
-              <td style={{ ...styles.td, fontWeight: 700, color: '#f9fafb' }}>{r.ticker}</td>
+            <tr key={r.ticker} style={{ background: i % 2 === 0 ? '#f9fafb' : '#ffffff' }}>
+              <td style={{ ...styles.td, fontWeight: 700, color: '#111827' }}>{r.ticker}</td>
               <td style={styles.td}>{r.decision_count}</td>
               <td style={{ ...styles.td, color: '#10b981', fontWeight: 600 }}>{r.buy_count || '—'}</td>
               <td style={{ ...styles.td, color: '#f59e0b', fontWeight: 600 }}>{r.sell_short_count || '—'}</td>
@@ -108,8 +108,8 @@ const TopTickersTable = ({ rows }) => {
 const ChartTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: '#1f2937', border: '1px solid #374151', borderRadius: 6, padding: '8px 12px', fontSize: 12 }}>
-      <div style={{ color: '#9ca3af', marginBottom: 4 }}>{label}</div>
+    <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 6, padding: '8px 12px', fontSize: 12 }}>
+      <div style={{ color: '#6b7280', marginBottom: 4 }}>{label}</div>
       {payload.map(p => (
         <div key={p.name} style={{ color: p.color || '#f9fafb' }}>
           {p.name}: <strong>{p.value}</strong>
@@ -131,14 +131,13 @@ const AnalyticsPage = () => {
   const load = useCallback(async (d) => {
     setLoading(true);
     setError(null);
-    try {
-      const resp = await helperService.getAnalytics(d);
-      setData(resp);
-    } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Failed to load analytics');
-    } finally {
-      setLoading(false);
+    const resp = await helperService.getAnalytics(d);
+    if (resp?.success) {
+      setData(resp.data);
+    } else {
+      setError(resp?.error?.message || 'Failed to load analytics');
     }
+    setLoading(false);
   }, []);
 
   useEffect(() => { load(days); }, [days, load]);
@@ -158,15 +157,15 @@ const AnalyticsPage = () => {
       <div style={styles.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <BarChart2 size={18} color="#a78bfa" />
-          <span style={{ fontWeight: 700, fontSize: 16, color: '#f9fafb' }}>{t('decision_helper.analytics.title')}</span>
+          <span style={{ fontWeight: 700, fontSize: 16, color: '#111827' }}>{t('decision_helper.analytics.title')}</span>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           {DAY_OPTIONS.map(d => (
             <button key={d} onClick={() => handleDays(d)} style={{
               ...styles.dayBtn,
-              background: days === d ? '#7c3aed' : '#1f2937',
-              color: days === d ? '#fff' : '#9ca3af',
-              borderColor: days === d ? '#7c3aed' : '#374151',
+              background: days === d ? '#7c3aed' : '#ffffff',
+              color: days === d ? '#fff' : '#6b7280',
+              borderColor: days === d ? '#7c3aed' : '#e5e7eb',
             }}>
               {d}d
             </button>
@@ -215,7 +214,7 @@ const AnalyticsPage = () => {
                       <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 10 }}
                     tickFormatter={d => d?.slice(5)} interval="preserveStartEnd" />
                   <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} width={28} allowDecimals={false} />
@@ -236,10 +235,10 @@ const AnalyticsPage = () => {
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={data.action_breakdown} layout="vertical"
                     margin={{ top: 4, right: 20, left: 0, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" horizontal={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
                     <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 10 }} />
                     <YAxis type="category" dataKey="action" width={72}
-                      tick={{ fill: '#d1d5db', fontSize: 11, fontWeight: 600 }} />
+                      tick={{ fill: '#374151', fontSize: 11, fontWeight: 600 }} />
                     <Tooltip content={<ChartTooltip />} />
                     <Bar dataKey="count" name={t('decision_helper.analytics.decisions_label')} radius={[0, 4, 4, 0]}>
                       {data.action_breakdown.map(entry => (
@@ -259,7 +258,7 @@ const AnalyticsPage = () => {
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart data={data.confidence_histogram}
                     margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="bucket" tick={{ fill: '#6b7280', fontSize: 9 }}
                       angle={-30} textAnchor="end" height={40} />
                     <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} width={28} allowDecimals={false} />
@@ -284,8 +283,8 @@ const AnalyticsPage = () => {
               <ResponsiveContainer width="100%" height={160}>
                 <BarChart data={data.regime_breakdown}
                   margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                  <XAxis dataKey="regime" tick={{ fill: '#d1d5db', fontSize: 11 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="regime" tick={{ fill: '#374151', fontSize: 11 }} />
                   <YAxis tick={{ fill: '#6b7280', fontSize: 10 }} width={32} allowDecimals={false} />
                   <Tooltip content={<ChartTooltip />} />
                   <Bar dataKey="buy_count" name="BUY" fill="#10b981" radius={[3, 3, 0, 0]} stackId="a" />
@@ -320,19 +319,19 @@ const AnalyticsPage = () => {
 };
 
 const styles = {
-  page: { padding: 20, maxWidth: 1100, margin: '0 auto', color: '#f9fafb' },
+  page: { padding: 20, maxWidth: 1100, margin: '0 auto', color: '#111827' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 },
   dayBtn: {
     padding: '5px 10px', borderRadius: 6, border: '1px solid', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', transition: 'all 0.15s',
   },
   refreshBtn: {
-    background: '#1f2937', border: '1px solid #374151', borderRadius: 6,
-    padding: '6px 8px', color: '#9ca3af', cursor: 'pointer', display: 'flex',
+    background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 6,
+    padding: '6px 8px', color: '#6b7280', cursor: 'pointer', display: 'flex',
   },
   errorBanner: {
-    background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-    borderRadius: 8, padding: '10px 14px', color: '#fca5a5', fontSize: 13, marginBottom: 12,
+    background: '#fee2e2', border: '1px solid #fca5a5',
+    borderRadius: 8, padding: '10px 14px', color: '#dc2626', fontSize: 13, marginBottom: 12,
   },
   loadingBox: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -340,22 +339,22 @@ const styles = {
   },
   statsRow: { display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
   statCard: {
-    background: '#1f2937', border: '1px solid #374151', borderRadius: 10,
+    background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 10,
     padding: '14px 18px', flex: '1 1 180px',
   },
   section: {
-    background: '#1f2937', border: '1px solid #374151', borderRadius: 10,
+    background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 10,
     padding: '14px 16px', marginBottom: 14,
   },
-  sectionTitle: { fontSize: 12, fontWeight: 700, color: '#d1d5db', marginBottom: 12, letterSpacing: 0.3 },
+  sectionTitle: { fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 12, letterSpacing: 0.3 },
   twoCol: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 0 },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 12 },
   th: {
-    padding: '7px 10px', textAlign: 'left', color: '#9ca3af',
+    padding: '7px 10px', textAlign: 'left', color: '#6b7280',
     fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5,
-    borderBottom: '1px solid #374151', whiteSpace: 'nowrap',
+    borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap',
   },
-  td: { padding: '8px 10px', color: '#d1d5db', verticalAlign: 'middle' },
+  td: { padding: '8px 10px', color: '#374151', verticalAlign: 'middle' },
   emptyCell: { color: '#6b7280', fontSize: 12, padding: '12px 0' },
 };
 
