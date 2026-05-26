@@ -37,8 +37,8 @@ const fmtPctRaw = (v) => v != null ? `${Number(v).toFixed(2)}%` : '—';
 
 const StatCard = ({ label, value, color }) => (
   <div style={s.statCard}>
-    <div style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
-    <div style={{ fontSize: 18, fontWeight: 800, color: color || '#f9fafb', marginTop: 2 }}>{value}</div>
+    <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+    <div style={{ fontSize: 18, fontWeight: 800, color: color || '#111827', marginTop: 2 }}>{value}</div>
   </div>
 );
 
@@ -62,14 +62,13 @@ const BacktestStudio = () => {
     setLoading(true);
     setError(null);
     setResult(null);
-    try {
-      const res = await helperService.runBacktest(cfg);
-      setResult(res);
-    } catch (err) {
-      setError(err?.message || t('decision_helper.backtest_studio.failed'));
-    } finally {
-      setLoading(false);
+    const res = await helperService.runBacktest(cfg);
+    if (res?.success) {
+      setResult(res.data);
+    } else {
+      setError(res?.error?.message || t('decision_helper.backtest_studio.failed'));
     }
+    setLoading(false);
   };
 
   const stats = result?.stats;
@@ -96,7 +95,7 @@ const BacktestStudio = () => {
           <Field label={t('decision_helper.backtest_studio.slippage')} value={cfg.slippageBps} onChange={set('slippageBps')} type="number" step={1} min={0} />
           <Field label={t('decision_helper.backtest_studio.commission')} value={cfg.commission} onChange={set('commission')} type="number" step={1} min={0} />
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-            <label style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <label style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>
               {t('decision_helper.backtest_studio.walk_forward')}
             </label>
             <input
@@ -142,7 +141,7 @@ const BacktestStudio = () => {
               <div style={s.chartTitle}>{t('decision_helper.backtest_studio.equity_curve', { ticker: result.ticker })}</div>
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={result.equity_curve} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis
                     dataKey="date"
                     tick={{ fill: '#6b7280', fontSize: 10 }}
@@ -155,15 +154,15 @@ const BacktestStudio = () => {
                     width={52}
                   />
                   <Tooltip
-                    contentStyle={{ background: '#1f2937', border: '1px solid #374151', borderRadius: 6, fontSize: 12 }}
+                    contentStyle={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 6, fontSize: 12 }}
                     formatter={(v) => [`$${fmt2(v)}`, t('decision_helper.backtest_studio.equity_label')]}
-                    labelStyle={{ color: '#9ca3af' }}
+                    labelStyle={{ color: '#6b7280' }}
                   />
                   <ReferenceLine
                     y={cfg.initialEquity}
-                    stroke="#374151"
+                    stroke="#9ca3af"
                     strokeDasharray="4 4"
-                    label={{ value: t('decision_helper.backtest_studio.start_label'), fill: '#6b7280', fontSize: 10 }}
+                    label={{ value: t('decision_helper.backtest_studio.start_label'), fill: '#9ca3af', fontSize: 10 }}
                   />
                   <Line
                     type="monotone"
@@ -299,22 +298,23 @@ const BacktestStudio = () => {
 
 const Field = ({ label, value, onChange, type = 'text', step, min, max }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-    <label style={{ fontSize: 10, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</label>
+    <label style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</label>
     <input
       type={type} value={value} onChange={onChange}
       step={step} min={min} max={max}
       style={{
-        background: '#111827', border: '1px solid #374151', borderRadius: 5,
-        padding: '6px 8px', color: '#f9fafb', fontSize: 13, outline: 'none',
+        background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 5,
+        padding: '6px 8px', color: '#111827', fontSize: 13, outline: 'none',
       }}
     />
   </div>
 );
 
 const s = {
-  page: { padding: 20, color: '#f9fafb', maxWidth: 1200, margin: '0 auto' },
+  page: { padding: 20, color: '#111827', maxWidth: 1200, margin: '0 auto' },
   panel: {
-    background: '#1f2937', border: '1px solid #374151', borderRadius: 10, padding: 16, marginBottom: 16,
+    background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 16, marginBottom: 16,
+    boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
   },
   panelHeader: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontSize: 14 },
   configGrid: {
@@ -330,30 +330,32 @@ const s = {
     display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16,
   },
   statCard: {
-    background: '#1f2937', border: '1px solid #374151', borderRadius: 8,
-    padding: '10px 14px', minWidth: 100,
+    background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 8,
+    padding: '10px 14px', minWidth: 100, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
   },
   chartPanel: {
-    background: '#1f2937', border: '1px solid #374151', borderRadius: 10, padding: '14px 10px', marginBottom: 16,
+    background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 10,
+    padding: '14px 10px', marginBottom: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
   },
-  chartTitle: { fontSize: 13, fontWeight: 700, marginBottom: 10, paddingLeft: 4 },
+  chartTitle: { fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 10, paddingLeft: 4 },
   section: {
-    background: '#1f2937', border: '1px solid #374151', borderRadius: 10, padding: 14, marginBottom: 16,
+    background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 10,
+    padding: 14, marginBottom: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
   },
   collapseBtn: {
-    background: 'none', border: 'none', color: '#d1d5db', fontWeight: 700, fontSize: 13,
+    background: 'none', border: 'none', color: '#374151', fontWeight: 700, fontSize: 13,
     cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: 0,
   },
   wfAgg: { display: 'flex', flexWrap: 'wrap', gap: 12, margin: '10px 0', fontSize: 12 },
-  wfAggItem: { color: '#d1d5db' },
+  wfAggItem: { color: '#374151' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 12 },
   th: {
-    background: '#111827', padding: '8px 10px', textAlign: 'left',
-    color: '#9ca3af', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5,
-    borderBottom: '1px solid #374151', whiteSpace: 'nowrap',
+    background: '#f9fafb', padding: '8px 10px', textAlign: 'left',
+    color: '#6b7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5,
+    borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap',
   },
-  tr: { borderBottom: '1px solid #1f2937' },
-  td: { padding: '8px 10px', color: '#d1d5db', verticalAlign: 'middle', whiteSpace: 'nowrap' },
+  tr: { borderBottom: '1px solid #f3f4f6' },
+  td: { padding: '8px 10px', color: '#374151', verticalAlign: 'middle', whiteSpace: 'nowrap' },
 };
 
 export default BacktestStudio;
