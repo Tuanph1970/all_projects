@@ -105,11 +105,11 @@ acct_id = account["id"]
 # ---------------------------------------------------------------------------
 print("\n── Step 4: Add trading rules ────────────────────────────────")
 rules = [
-    ("Risk",       "Never risk more than 2% of account equity on a single trade"),
-    ("Risk",       "Cut losses immediately if the daily loss limit (5%) is hit"),
-    ("Entry",      "Only enter on confirmed signals — no anticipation trades"),
-    ("Exit",       "Let winners run to the target; do not exit early from emotion"),
-    ("Psychology", "No revenge trading after a loss — wait for the next clean setup"),
+    ("Risk",       "Không bao giờ rủi ro quá 2% vốn tài khoản cho một giao dịch"),
+    ("Risk",       "Cắt lỗ ngay lập tức nếu đã đạt giới hạn thua lỗ trong ngày (5%)"),
+    ("Entry",      "Chỉ vào lệnh khi có tín hiệu xác nhận — không giao dịch theo dự đoán"),
+    ("Exit",       "Để lợi nhuận chạy đến mục tiêu; không thoát sớm vì cảm xúc"),
+    ("Psychology", "Không giao dịch trả thù sau khi thua — chờ setup tiếp theo rõ ràng"),
 ]
 for category, text in rules:
     r = session.post(f"{JRNL}/accounts/{acct_id}/rules",
