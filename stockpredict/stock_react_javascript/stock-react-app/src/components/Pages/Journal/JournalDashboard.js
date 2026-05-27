@@ -211,7 +211,7 @@ const JournalDashboard = () => {
             <StatCard
               icon={<Clock size={18} />}
               label={t('journal.dashboard.avg_duration')}
-              value={`${stats?.avg_duration_days || 0} ngày`}
+              value={`${stats?.avg_duration_days || 0} ${t('journal.dashboard.days_unit')}`}
               sub={t('journal.dashboard.per_trade_suffix')}
               color="#06b6d4"
             />
@@ -301,17 +301,17 @@ const JournalDashboard = () => {
                         <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis
                       dataKey="date"
-                      tick={{ fill: '#94a3b8', fontSize: 11 }}
+                      tick={{ fill: '#374151', fontSize: 11 }}
                       tickFormatter={(v) => v ? v.substring(5) : ''}
-                      stroke="rgba(255,255,255,0.1)"
+                      stroke="#e5e7eb"
                     />
                     <YAxis
-                      tick={{ fill: '#94a3b8', fontSize: 11 }}
+                      tick={{ fill: '#374151', fontSize: 11 }}
                       tickFormatter={(v) => v >= 1e6 ? `${(v/1e6).toFixed(1)}M` : v >= 1e3 ? `${(v/1e3).toFixed(0)}K` : v}
-                      stroke="rgba(255,255,255,0.1)"
+                      stroke="#e5e7eb"
                     />
                     <Tooltip content={<EquityTooltip currency={currency} fmt={fmt} />} />
                     <Area
@@ -345,16 +345,16 @@ const JournalDashboard = () => {
                 {byMonth.length > 0 ? (
                   <ResponsiveContainer width="100%" height={260}>
                     <BarChart data={byMonth} margin={{ top: 10, right: 20, left: 10, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                       <XAxis
                         dataKey="month"
-                        tick={{ fill: '#94a3b8', fontSize: 11 }}
-                        stroke="rgba(255,255,255,0.1)"
+                        tick={{ fill: '#374151', fontSize: 11 }}
+                        stroke="#e5e7eb"
                       />
                       <YAxis
-                        tick={{ fill: '#94a3b8', fontSize: 11 }}
+                        tick={{ fill: '#374151', fontSize: 11 }}
                         tickFormatter={(v) => v >= 1e6 ? `${(v/1e6).toFixed(1)}M` : v >= 1e3 ? `${(v/1e3).toFixed(0)}K` : v}
-                        stroke="rgba(255,255,255,0.1)"
+                        stroke="#e5e7eb"
                       />
                       <Tooltip content={<MonthlyTooltip currency={currency} fmt={fmt} />} />
                       <Bar dataKey="total_pnl" radius={[4, 4, 0, 0]}>
@@ -400,7 +400,7 @@ const JournalDashboard = () => {
                         <strong>{d.win_rate}%</strong>
                       </div>
                       <div className="jdash-dir-stat">
-                        <span>Avg R</span>
+                        <span>{t('journal.dashboard.avg_r_label')}</span>
                         <strong>{d.avg_r}R</strong>
                       </div>
                     </div>

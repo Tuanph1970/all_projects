@@ -12,14 +12,14 @@ import { useNavigate } from 'react-router-dom';
 import '../../../styles/journal.css';
 
 const DIRECTIONS = [
-  { value: 'Long', label: 'Long', icon: TrendingUp, color: '#22c55e' },
-  { value: 'Short', label: 'Short', icon: TrendingDown, color: '#ef4444' }
+  { value: 'Long', labelKey: 'journal.trade_log.direction_long', icon: TrendingUp, color: '#22c55e' },
+  { value: 'Short', labelKey: 'journal.trade_log.direction_short', icon: TrendingDown, color: '#ef4444' }
 ];
 
 const ENTRY_TYPES = [
-  { value: 'Market', label: 'Market' },
-  { value: 'Limit', label: 'Limit' },
-  { value: 'Stop', label: 'Stop' }
+  { value: 'Market', labelKey: 'journal.trade_log.entry_type_market' },
+  { value: 'Limit', labelKey: 'journal.trade_log.entry_type_limit' },
+  { value: 'Stop', labelKey: 'journal.trade_log.entry_type_stop' }
 ];
 
 const STATUS_OPTIONS = [
@@ -496,8 +496,8 @@ const TradeLog = () => {
         </select>
         <select value={directionFilter} onChange={e => setDirectionFilter(e.target.value)}>
           <option value="">{t('journal.common.all_option')}</option>
-          <option value="Long">Long</option>
-          <option value="Short">Short</option>
+          <option value="Long">{t('journal.trade_log.direction_long')}</option>
+          <option value="Short">{t('journal.trade_log.direction_short')}</option>
         </select>
         <input
           type="text"
@@ -546,7 +546,7 @@ const TradeLog = () => {
                   <td>
                     <span className={`direction-badge direction-${trade.direction.toLowerCase()}`}>
                       {trade.direction === 'Long' ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                      {trade.direction}
+                      {t(trade.direction === 'Long' ? 'journal.trade_log.direction_long' : 'journal.trade_log.direction_short')}
                     </span>
                   </td>
                   <td className="num-cell">{formatNum(trade.entry_price, 2)}</td>
@@ -685,7 +685,7 @@ const TradeLog = () => {
                         style={{ borderColor: tradeForm.direction === d.value ? d.color : 'transparent' }}
                         onClick={() => setTradeForm({ ...tradeForm, direction: d.value })}
                       >
-                        <d.icon size={14} /> {d.label}
+                        <d.icon size={14} /> {t(d.labelKey)}
                       </button>
                     ))}
                   </div>
@@ -708,7 +708,7 @@ const TradeLog = () => {
                     value={tradeForm.entry_type}
                     onChange={e => setTradeForm({ ...tradeForm, entry_type: e.target.value })}
                   >
-                    {ENTRY_TYPES.map(et => <option key={et.value} value={et.value}>{et.label}</option>)}
+                    {ENTRY_TYPES.map(et => <option key={et.value} value={et.value}>{t(et.labelKey)}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
