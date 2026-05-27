@@ -50,6 +50,7 @@ export const API_BASE_URLS = {
   JOURNAL_API: `${API_GATEWAY_URL}/stock_helper/api/v2/journal`,
   KNOWLEDGE_QA_API: `${API_GATEWAY_URL}/stock_helper/api/v2/knowledge-qa`,
   HELPER_API: `${API_GATEWAY_URL}/stock_helper/api/v2/helper`,
+  CHART_DECOMP_API: `${API_GATEWAY_URL}/stock_helper/api/v2/chart-decomp`,
 
   // Legacy API (fallback - Django monolith)
   LEGACY_API: `${API_GATEWAY_URL}/api/v1`
@@ -372,6 +373,24 @@ export const API_ENDPOINTS = {
   HELPER_CORRELATION: `${API_BASE_URLS.HELPER_API}/correlation`,
   // F-210..F-213 — Performance attribution
   HELPER_ATTRIBUTION: `${API_BASE_URLS.HELPER_API}/attribution`,
+
+  // ==========================================
+  // CHART DECOMPOSITION SERVICE ENDPOINTS (/api/v2/chart-decomp)
+  // CD-3
+  // ==========================================
+  CHART_DECOMP_MODWT:        `${API_BASE_URLS.CHART_DECOMP_API}/decompose/modwt`,
+  CHART_DECOMP_EMD:          `${API_BASE_URLS.CHART_DECOMP_API}/decompose/emd`,
+  CHART_DECOMP_EEMD:         `${API_BASE_URLS.CHART_DECOMP_API}/decompose/eemd`,
+  CHART_DECOMP_VMD:          `${API_BASE_URLS.CHART_DECOMP_API}/decompose/vmd`,
+  CHART_DECOMP_CWT:          `${API_BASE_URLS.CHART_DECOMP_API}/time-freq/cwt`,
+  CHART_DECOMP_HHT:          `${API_BASE_URLS.CHART_DECOMP_API}/time-freq/hht`,
+  CHART_DECOMP_HURST:        `${API_BASE_URLS.CHART_DECOMP_API}/hurst`,
+  CHART_DECOMP_COHERENCE:    `${API_BASE_URLS.CHART_DECOMP_API}/coherence`,
+  CHART_DECOMP_HAR:          `${API_BASE_URLS.CHART_DECOMP_API}/forecast/har`,
+  CHART_DECOMP_VMD_HAR:      `${API_BASE_URLS.CHART_DECOMP_API}/forecast/vmd-har`,
+  CHART_DECOMP_REALIZED_VOL: `${API_BASE_URLS.CHART_DECOMP_API}/realized-vol`,
+  CHART_DECOMP_BACKTEST:     `${API_BASE_URLS.CHART_DECOMP_API}/backtest/vol-target`,
+  CHART_DECOMP_COMPARE:      `${API_BASE_URLS.CHART_DECOMP_API}/forecast/compare`,
 };
 
 // HTTP Status Codes

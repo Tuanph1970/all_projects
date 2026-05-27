@@ -69,7 +69,9 @@
     "risk_dashboard": "Risk Dashboard",
     "tools": "Tools",
     "calculator": "Investment calculator",
-    "watchlist": "Watchlist"
+    "watchlist": "Watchlist",
+    "chart_decomp": "Multi-Scale Decomp",
+    "vol_forecast": "Forecast & Backtest"
   },
   "page_titles": {
     "dashboard": {
@@ -243,6 +245,14 @@
     "company": {
       "title": "Stock details",
       "emphasis": "details"
+    },
+    "chart_decomp": {
+      "title": "Multi-Scale Decomp",
+      "emphasis": "Decomp"
+    },
+    "vol_forecast": {
+      "title": "Forecast & Backtest",
+      "emphasis": "Backtest"
     }
   },
   "agent": {
@@ -2105,6 +2115,112 @@
     "save_btn": "Save Trade Plan",
     "rr_warn": "— below 1:1, reconsider"
   },
+  "chart_decomp": {
+    "page_title": "Decomposition & Multi-Scale Analysis",
+    "page_subtitle": "Analyse price series across multiple frequencies — MODWT, EMD, VMD, CWT, Hurst, HAR",
+    "tabs": {
+      "decomp": "Signal Decomposition",
+      "time_freq": "Time-Frequency",
+      "hurst": "Hurst & Coherence",
+      "forecast": "Volatility Forecast"
+    },
+    "input": {
+      "title": "Input Data",
+      "ticker_label": "Ticker",
+      "ticker_placeholder": "E.g. VCB, HPG, VIC…",
+      "period_label": "Data Period",
+      "period_1y": "1 Year",
+      "period_2y": "2 Years",
+      "period_3y": "3 Years",
+      "period_5y": "5 Years",
+      "load_btn": "Load Data",
+      "loading": "Loading…",
+      "demo_btn": "Use Demo Data",
+      "series_info": "{{n}} data points ready",
+      "no_data": "No data — enter a ticker or use demo data",
+      "error_load": "Failed to load data: {{msg}}"
+    },
+    "decomp": {
+      "method_label": "Method",
+      "method_modwt": "MODWT (Wavelet)",
+      "method_emd": "EMD",
+      "method_eemd": "EEMD (Ensemble)",
+      "method_vmd": "VMD (Variational)",
+      "wavelet_label": "Wavelet",
+      "level_label": "Levels (J)",
+      "modes_label": "Modes (K)",
+      "alpha_label": "Bandwidth (α)",
+      "run_btn": "Run Decomposition",
+      "running": "Processing…",
+      "error": "Decomposition error: {{msg}}",
+      "recon_error": "Reconstruction error",
+      "original_label": "Original Series",
+      "approx_label": "Approximation A_{{j}}",
+      "detail_label": "Detail D_{{j}}",
+      "mode_label": "Mode {{j}} (VMD)",
+      "imf_label": "IMF {{j}}",
+      "coi_note": "Grey zone: outside Cone of Influence (COI)",
+      "n_components": "{{n}} components",
+      "residue_label": "Residue"
+    },
+    "time_freq": {
+      "method_cwt": "CWT Scalogram",
+      "method_hht": "Hilbert-Huang Spectrum",
+      "run_btn": "Compute",
+      "running": "Computing…",
+      "error": "Error: {{msg}}",
+      "freq_axis": "Frequency (cycles/sample)",
+      "period_axis": "Period (samples)",
+      "time_axis": "Time (samples)",
+      "power_label": "Power",
+      "coi_label": "COI boundary",
+      "high_power": "High",
+      "low_power": "Low",
+      "n_scales_label": "Scales"
+    },
+    "hurst": {
+      "run_btn": "Estimate Hurst",
+      "running": "Computing…",
+      "error": "Error: {{msg}}",
+      "h_label": "Hurst Exponent (H)",
+      "h_random": "Random walk (H≈0.5)",
+      "h_trend": "Trending (H>0.5)",
+      "h_mr": "Mean-reverting (H<0.5)",
+      "slope_label": "Slope",
+      "intercept_label": "Intercept",
+      "variance_plot_title": "Variance by Wavelet Level",
+      "coherence_title": "Wavelet Coherence",
+      "coherence_ticker2": "Second Ticker",
+      "coherence_run": "Compute Coherence",
+      "coherence_running": "Computing…",
+      "coherence_r2": "R² Coherence",
+      "coherence_phase": "Phase",
+      "in_phase": "In phase",
+      "anti_phase": "Anti-phase"
+    },
+    "forecast": {
+      "method_label": "Forecast Model",
+      "method_har": "HAR (Baseline)",
+      "method_vmd_har": "VMD-HAR (Enhanced)",
+      "run_btn": "Run Forecast",
+      "running": "Forecasting…",
+      "error": "Forecast error: {{msg}}",
+      "metrics_title": "Evaluation Metrics",
+      "rmse_label": "RMSE",
+      "mae_label": "MAE",
+      "r2_label": "R²",
+      "qlike_label": "QLIKE",
+      "predicted_label": "Forecast",
+      "actual_label": "Actual",
+      "chart_title": "Realised Volatility Forecast (log-RV)",
+      "oos_note": "Showing out-of-sample (OOS) period only",
+      "need_more_data": "At least 300 data points needed for forecasting"
+    },
+    "common": {
+      "no_result": "No results yet",
+      "run_first": "Press the run button to start analysis"
+    }
+  },
   "file_manager": {
     "title": "File Management",
     "col_file_name": "File Name",
@@ -2122,5 +2238,91 @@
     "delete_confirm": "Are you sure you want to delete \"{{name}}\"? This action cannot be undone.",
     "confirm_btn": "Delete",
     "cancel_btn": "Cancel"
+  },
+  "vol_forecast": {
+    "page_title": "Volatility Forecast & Backtest",
+    "page_subtitle": "HAR vs VMD-HAR comparison · Diebold-Mariano test · Vol-targeting backtest with transaction costs",
+    "input": {
+      "title": "Price Data",
+      "ticker_label": "Ticker",
+      "ticker_placeholder": "E.g. VCB, HPG…",
+      "period_label": "Data Period",
+      "period_1y": "1 Year",
+      "period_2y": "2 Years",
+      "period_3y": "3 Years",
+      "period_5y": "5 Years",
+      "load_btn": "Load Data",
+      "loading": "Loading…",
+      "demo_btn": "Demo Data",
+      "series_info": "{{n}} price points · {{m}} log-RV points",
+      "no_data": "No data yet",
+      "error_load": "Load error: {{msg}}"
+    },
+    "config": {
+      "title": "Model Configuration",
+      "har_section": "HAR (baseline)",
+      "vmd_section": "VMD-HAR (enhanced)",
+      "ridge_alpha": "Ridge α",
+      "min_train": "Min train days",
+      "refit_every": "Refit every (days)",
+      "vmd_K": "VMD modes (K)",
+      "vmd_alpha": "VMD bandwidth (α)",
+      "vmd_window": "VMD window",
+      "vmd_edge_lag": "Edge lag",
+      "run_btn": "Run Comparison",
+      "running": "Running both models…",
+      "error": "Error: {{msg}}"
+    },
+    "compare": {
+      "title": "Model Comparison Results",
+      "model_har": "HAR",
+      "model_vmd_har": "VMD-HAR",
+      "winner_label": "Better model",
+      "winner_har": "HAR wins (VMD-HAR did not pass all 3 C4 criteria)",
+      "winner_vmd": "VMD-HAR wins — RMSE↓ QLIKE↓ DM>1.96",
+      "dm_label": "Diebold-Mariano",
+      "dm_sig": "Significant (>1.96)",
+      "dm_insig": "Not significant",
+      "rmse": "RMSE",
+      "mae": "MAE",
+      "r2": "R²",
+      "qlike": "QLIKE",
+      "chart_title": "log-RV Forecast (OOS period)",
+      "actual": "Actual",
+      "har_pred": "HAR forecast",
+      "vmd_pred": "VMD-HAR forecast",
+      "oos_samples": "{{n}} OOS samples"
+    },
+    "backtest": {
+      "title": "Vol-targeting Backtest",
+      "config_title": "Backtest Parameters",
+      "model_label": "Use vol forecast from",
+      "target_vol": "Target annual vol (σ*)",
+      "max_lev": "Max leverage",
+      "cost_bps": "Transaction cost (bps)",
+      "run_btn": "Run Backtest",
+      "running": "Running backtest…",
+      "error": "Backtest error: {{msg}}",
+      "metrics_title": "Performance Metrics",
+      "ann_ret": "Annual Return",
+      "ann_vol": "Annual Vol",
+      "sharpe": "Sharpe",
+      "maxdd": "Max Drawdown",
+      "avg_lev": "Avg Leverage",
+      "ann_turn": "Annual Turnover",
+      "cost_drag": "Cost Drag/yr",
+      "equity_title": "Cumulative Equity (net P&L)",
+      "drawdown_title": "Drawdown",
+      "position_title": "Position Size w[t]",
+      "turnover_title": "Daily Turnover",
+      "benchmark_label": "Buy & Hold",
+      "strategy_label": "Vol-Target",
+      "gross_label": "Gross P&L",
+      "net_label": "Net P&L (after costs)"
+    },
+    "common": {
+      "need_data": "Need at least 300 price points",
+      "run_forecast_first": "Run forecast comparison first to enable backtest"
+    }
   }
 }

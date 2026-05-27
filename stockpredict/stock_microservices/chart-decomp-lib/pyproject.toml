@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chart-decomp"
+version = "0.1.0"
+description = "Chart decomposition & multi-scale analysis library"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.12",
+    "scikit-learn>=1.4",
+    "PyWavelets>=1.4",
+]
+
+[project.optional-dependencies]
+emd  = ["EMD-signal>=1.6"]
+vmd  = ["vmdpy>=0.1"]
+dev  = ["pytest>=8", "pytest-asyncio", "fbm>=0.3"]
+all  = ["chart-decomp[emd,vmd,dev]"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["chart_decomp*"]

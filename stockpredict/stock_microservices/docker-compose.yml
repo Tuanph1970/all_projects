@@ -774,6 +774,41 @@ services:
       - "traefik.http.routers.stock-decision-helper.priority=10"
       - "traefik.http.services.stock-decision-helper.loadbalancer.server.port=8010"
 
+  chart-decomp-service:
+    build:
+      context: .
+      dockerfile: services/chart-decomp-service/Dockerfile
+    container_name: stock_chart_decomp_service
+    environment:
+      - SERVICE_NAME=chart-decomp-service
+      - SERVICE_VERSION=0.1.0
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DEBUG=${DEBUG:-0}
+      - API_PREFIX=stock_helper
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-secret-key-change-in-production}
+      - JWT_ALGORITHM=HS256
+      - TRACING_ENABLED=true
+      - TRACING_JAEGER_HOST=jaeger
+      - TRACING_JAEGER_PORT=6831
+    expose:
+      - "8011"
+    networks:
+      - stock-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8011/health/live')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-chart-decomp.rule=PathPrefix(`/stock_helper/api/v2/chart-decomp`)"
+      - "traefik.http.routers.stock-chart-decomp.entrypoints=web"
+      - "traefik.http.routers.stock-chart-decomp.priority=10"
+      - "traefik.http.services.stock-chart-decomp.loadbalancer.server.port=8011"
+
   # Ollama - Local LLM inference server (CPU mode, works everywhere)
   # To use GPU: docker compose --profile gpu up (instead of default ollama)
   ollama:

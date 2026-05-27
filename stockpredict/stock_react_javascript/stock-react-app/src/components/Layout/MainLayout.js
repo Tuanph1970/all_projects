@@ -54,6 +54,8 @@ import OutcomesPage from '../Pages/OutcomesPage';
 import RiskDashboard from '../Pages/RiskDashboard';
 import WatchlistHeatMap from '../Pages/WatchlistHeatMap';
 import DecisionHelperOverview from '../Pages/DecisionHelperOverview';
+import ChartDecompPage from '../Pages/ChartDecomp';
+import VolForecastPage from '../Pages/ChartDecomp/VolForecastPage';
 import AlertCenter from '../common/AlertToast';
 import { useAlertStream } from '../../hooks/useAlertStream';
 
@@ -171,6 +173,8 @@ const MainLayout = () => {
             <Route path="/outcomes" element={<OutcomesPage />} />
             <Route path="/risk-dashboard" element={<RiskDashboard />} />
             <Route path="/watchlist-heatmap" element={<WatchlistHeatMap />} />
+            <Route path="/chart-decomp" element={<ChartDecompPage />} />
+            <Route path="/vol-forecast" element={<VolForecastPage />} />
 
             {/* Tools */}
             <Route path="/screener" element={<StockScreener />} />

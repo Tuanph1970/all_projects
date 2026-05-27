@@ -116,9 +116,11 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       labelKey: 'sidebar.analysis',
       icon: SearchCode,
       submenu: [
-        { key: 'technical',   labelKey: 'sidebar.technical',   route: 'technical' },
-        { key: 'fundamental', labelKey: 'sidebar.fundamental', route: 'fundamental' },
-        { key: 'ai-insights', labelKey: 'sidebar.ai_insights', route: 'ai-insights' }
+        { key: 'technical',    labelKey: 'sidebar.technical',    route: 'technical' },
+        { key: 'fundamental',  labelKey: 'sidebar.fundamental',  route: 'fundamental' },
+        { key: 'ai-insights',  labelKey: 'sidebar.ai_insights',  route: 'ai-insights' },
+        { key: 'chart-decomp',  labelKey: 'sidebar.chart_decomp',  route: 'chart-decomp' },
+        { key: 'vol-forecast',   labelKey: 'sidebar.vol_forecast',   route: 'vol-forecast' }
       ]
     },
     {

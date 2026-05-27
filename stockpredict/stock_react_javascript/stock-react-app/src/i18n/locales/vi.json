@@ -69,7 +69,9 @@
     "risk_dashboard": "Bảng rủi ro",
     "tools": "Công cụ",
     "calculator": "Máy tính đầu tư",
-    "watchlist": "Danh sách theo dõi"
+    "watchlist": "Danh sách theo dõi",
+    "chart_decomp": "Phân rã đa tỷ lệ",
+    "vol_forecast": "Dự báo & Backtest"
   },
   "page_titles": {
     "dashboard": {
@@ -243,6 +245,14 @@
     "company": {
       "title": "Chi tiết cổ phiếu",
       "emphasis": "cổ phiếu"
+    },
+    "chart_decomp": {
+      "title": "Phân rã đa tỷ lệ",
+      "emphasis": "tỷ lệ"
+    },
+    "vol_forecast": {
+      "title": "Dự báo & Backtest",
+      "emphasis": "Backtest"
     }
   },
   "agent": {
@@ -2105,6 +2115,112 @@
     "save_btn": "Lưu kế hoạch giao dịch",
     "rr_warn": "— dưới 1:1, nên xem xét lại"
   },
+  "chart_decomp": {
+    "page_title": "Phân rã & Phân tích đa tỷ lệ",
+    "page_subtitle": "Phân tích chuỗi giá chứng khoán theo nhiều tần số — MODWT, EMD, VMD, CWT, Hurst, HAR",
+    "tabs": {
+      "decomp": "Phân rã tín hiệu",
+      "time_freq": "Thời tần",
+      "hurst": "Hurst & Tương quan",
+      "forecast": "Dự báo biến động"
+    },
+    "input": {
+      "title": "Dữ liệu đầu vào",
+      "ticker_label": "Mã cổ phiếu",
+      "ticker_placeholder": "VD: VCB, HPG, VIC…",
+      "period_label": "Kỳ dữ liệu",
+      "period_1y": "1 năm",
+      "period_2y": "2 năm",
+      "period_3y": "3 năm",
+      "period_5y": "5 năm",
+      "load_btn": "Tải dữ liệu",
+      "loading": "Đang tải…",
+      "demo_btn": "Dùng dữ liệu mẫu",
+      "series_info": "{{n}} điểm dữ liệu đã sẵn sàng",
+      "no_data": "Chưa có dữ liệu — nhập mã CP hoặc dùng dữ liệu mẫu",
+      "error_load": "Không tải được dữ liệu: {{msg}}"
+    },
+    "decomp": {
+      "method_label": "Phương pháp",
+      "method_modwt": "MODWT (Sóng con)",
+      "method_emd": "EMD",
+      "method_eemd": "EEMD (Tổng hợp)",
+      "method_vmd": "VMD (Biến phân)",
+      "wavelet_label": "Sóng con",
+      "level_label": "Số tầng (J)",
+      "modes_label": "Số mode (K)",
+      "alpha_label": "Băng thông (α)",
+      "run_btn": "Chạy phân rã",
+      "running": "Đang xử lý…",
+      "error": "Lỗi phân rã: {{msg}}",
+      "recon_error": "Sai số tái tạo",
+      "original_label": "Chuỗi gốc",
+      "approx_label": "Xấp xỉ A_{{j}}",
+      "detail_label": "Chi tiết D_{{j}}",
+      "mode_label": "Mode {{j}} (VMD)",
+      "imf_label": "IMF {{j}}",
+      "coi_note": "Vùng xám: ngoài Cone of Influence (COI)",
+      "n_components": "{{n}} thành phần",
+      "residue_label": "Phần dư"
+    },
+    "time_freq": {
+      "method_cwt": "CWT Scalogram",
+      "method_hht": "Phổ Hilbert-Huang",
+      "run_btn": "Tính toán",
+      "running": "Đang tính…",
+      "error": "Lỗi: {{msg}}",
+      "freq_axis": "Tần số (chu kỳ/mẫu)",
+      "period_axis": "Chu kỳ (mẫu)",
+      "time_axis": "Thời gian (mẫu)",
+      "power_label": "Công suất",
+      "coi_label": "Ranh giới COI",
+      "high_power": "Cao",
+      "low_power": "Thấp",
+      "n_scales_label": "Số tỷ lệ"
+    },
+    "hurst": {
+      "run_btn": "Ước lượng Hurst",
+      "running": "Đang tính…",
+      "error": "Lỗi: {{msg}}",
+      "h_label": "Số mũ Hurst (H)",
+      "h_random": "Ngẫu nhiên (H≈0.5)",
+      "h_trend": "Có xu hướng (H>0.5)",
+      "h_mr": "Hồi quy trung bình (H<0.5)",
+      "slope_label": "Hệ số góc",
+      "intercept_label": "Hệ số chặn",
+      "variance_plot_title": "Phương sai theo tầng sóng con",
+      "coherence_title": "Tương quan sóng con",
+      "coherence_ticker2": "Mã CP thứ hai",
+      "coherence_run": "Tính tương quan",
+      "coherence_running": "Đang tính…",
+      "coherence_r2": "R² Tương quan",
+      "coherence_phase": "Pha",
+      "in_phase": "Đồng pha",
+      "anti_phase": "Ngược pha"
+    },
+    "forecast": {
+      "method_label": "Mô hình dự báo",
+      "method_har": "HAR (Cơ sở)",
+      "method_vmd_har": "VMD-HAR (Nâng cao)",
+      "run_btn": "Chạy dự báo",
+      "running": "Đang dự báo…",
+      "error": "Lỗi dự báo: {{msg}}",
+      "metrics_title": "Chỉ số đánh giá",
+      "rmse_label": "RMSE",
+      "mae_label": "MAE",
+      "r2_label": "R²",
+      "qlike_label": "QLIKE",
+      "predicted_label": "Dự báo",
+      "actual_label": "Thực tế",
+      "chart_title": "Dự báo biến động thực hiện (log-RV)",
+      "oos_note": "Chỉ hiển thị giai đoạn ngoài mẫu (OOS)",
+      "need_more_data": "Cần ít nhất 300 điểm dữ liệu để dự báo"
+    },
+    "common": {
+      "no_result": "Chưa có kết quả",
+      "run_first": "Nhấn nút chạy để bắt đầu phân tích"
+    }
+  },
   "file_manager": {
     "title": "Quản lý tệp",
     "col_file_name": "Tên tệp",
@@ -2122,5 +2238,91 @@
     "delete_confirm": "Bạn có chắc muốn xóa \"{{name}}\"? Hành động này không thể hoàn tác.",
     "confirm_btn": "Xóa",
     "cancel_btn": "Hủy"
+  },
+  "vol_forecast": {
+    "page_title": "Dự báo & Kiểm thử biến động",
+    "page_subtitle": "So sánh HAR vs VMD-HAR · Kiểm định Diebold-Mariano · Backtest vol-targeting có phí giao dịch",
+    "input": {
+      "title": "Dữ liệu giá",
+      "ticker_label": "Mã cổ phiếu",
+      "ticker_placeholder": "VD: VCB, HPG…",
+      "period_label": "Kỳ dữ liệu",
+      "period_1y": "1 năm",
+      "period_2y": "2 năm",
+      "period_3y": "3 năm",
+      "period_5y": "5 năm",
+      "load_btn": "Tải dữ liệu",
+      "loading": "Đang tải…",
+      "demo_btn": "Dữ liệu mẫu",
+      "series_info": "{{n}} điểm giá · {{m}} điểm log-RV",
+      "no_data": "Chưa có dữ liệu",
+      "error_load": "Lỗi tải dữ liệu: {{msg}}"
+    },
+    "config": {
+      "title": "Cấu hình mô hình",
+      "har_section": "HAR (cơ sở)",
+      "vmd_section": "VMD-HAR (nâng cao)",
+      "ridge_alpha": "Hệ số Ridge (α)",
+      "min_train": "Tối thiểu train",
+      "refit_every": "Refit mỗi (ngày)",
+      "vmd_K": "Số mode VMD (K)",
+      "vmd_alpha": "Băng thông VMD (α)",
+      "vmd_window": "Cửa sổ VMD",
+      "vmd_edge_lag": "Edge lag",
+      "run_btn": "Chạy so sánh",
+      "running": "Đang chạy cả 2 mô hình…",
+      "error": "Lỗi: {{msg}}"
+    },
+    "compare": {
+      "title": "Kết quả so sánh mô hình",
+      "model_har": "HAR",
+      "model_vmd_har": "VMD-HAR",
+      "winner_label": "Mô hình tốt hơn",
+      "winner_har": "HAR thắng (VMD-HAR chưa vượt qua cả 3 tiêu chí C4)",
+      "winner_vmd": "VMD-HAR thắng — RMSE↓ QLIKE↓ DM>1.96",
+      "dm_label": "Diebold-Mariano",
+      "dm_sig": "Có ý nghĩa (>1.96)",
+      "dm_insig": "Không có ý nghĩa",
+      "rmse": "RMSE",
+      "mae": "MAE",
+      "r2": "R²",
+      "qlike": "QLIKE",
+      "chart_title": "Dự báo log-RV (giai đoạn OOS)",
+      "actual": "Thực tế",
+      "har_pred": "HAR dự báo",
+      "vmd_pred": "VMD-HAR dự báo",
+      "oos_samples": "{{n}} mẫu OOS"
+    },
+    "backtest": {
+      "title": "Backtest vol-targeting",
+      "config_title": "Tham số backtest",
+      "model_label": "Dùng vol forecast từ",
+      "target_vol": "Mục tiêu vol năm (σ*)",
+      "max_lev": "Đòn bẩy tối đa",
+      "cost_bps": "Chi phí (bps/lượt)",
+      "run_btn": "Chạy backtest",
+      "running": "Đang backtest…",
+      "error": "Lỗi backtest: {{msg}}",
+      "metrics_title": "Chỉ số hiệu suất",
+      "ann_ret": "Lợi nhuận/năm",
+      "ann_vol": "Vol/năm",
+      "sharpe": "Sharpe",
+      "maxdd": "Max Drawdown",
+      "avg_lev": "Đòn bẩy TB",
+      "ann_turn": "Turnover/năm",
+      "cost_drag": "Chi phí/năm",
+      "equity_title": "Đường vốn tích lũy (net P&L)",
+      "drawdown_title": "Drawdown",
+      "position_title": "Kích thước vị thế (w[t])",
+      "turnover_title": "Turnover hàng ngày",
+      "benchmark_label": "Buy & Hold",
+      "strategy_label": "Vol-Target",
+      "gross_label": "Gross P&L",
+      "net_label": "Net P&L (sau phí)"
+    },
+    "common": {
+      "need_data": "Cần ít nhất 300 điểm giá",
+      "run_forecast_first": "Chạy so sánh dự báo trước để kích hoạt backtest"
+    }
   }
 }
