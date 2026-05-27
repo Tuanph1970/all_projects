@@ -5,6 +5,8 @@ import { timeFormat } from "d3-time-format";
 import { getXAxisProps, getYAxisProps, chartColors, chartMargin } from "../../constants/chartTheme";
 import ChartWrapper from "./ChartWrapper";
 import DrawingToolbar from "./DrawingToolbar";
+import httpClient from "../../services/httpClient";
+import { API_ENDPOINTS } from "../../constants/api";
 
 import {
   ema,
@@ -61,6 +63,7 @@ const BB_APPEARANCE = {
 const VWAP_STROKE = "#fbbf24";
 const SMA_STROKE  = "#10b981";
 const ATR_STROKE  = "#06b6d4";
+const COMP_STROKE = "#F59E0B";  // amber — comparison stock % return line
 
 const SMA_MIN = 2;
 const SMA_MAX = 200;
@@ -231,6 +234,11 @@ export default function StockChart({ initialData, symbol }) {
   const [drawings,     setDrawings]     = useState(EMPTY_DRAWINGS);
   const drawingsHydratedRef = useRef(false);
 
+  // Phase 6 — Multi-stock comparison
+  const [compInput,   setCompInput]   = useState("");
+  const [compTicker,  setCompTicker]  = useState(null);
+  const [compData,    setCompData]    = useState([]);
+
   const lsKey         = `${LS_KEY_PREFIX}${symbol || "default"}`;
   const lsDrawingsKey = `${LS_DRAWINGS_PREFIX}${symbol || "default"}`;
 
@@ -284,6 +292,21 @@ export default function StockChart({ initialData, symbol }) {
 
   const hasDrawings = drawings.trends.length + drawings.hlines.length + drawings.fibs.length > 0;
   const clearAllDrawings = () => setDrawings(EMPTY_DRAWINGS);
+
+  // Fetch comparison stock history when compTicker is confirmed
+  useEffect(() => {
+    if (!compTicker) { setCompData([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await httpClient.get(API_ENDPOINTS.STOCK_HISTORY(compTicker));
+        if (!cancelled && result.success && result.data) {
+          setCompData(result.data.data || result.data);
+        }
+      } catch { /* ignore network errors */ }
+    })();
+    return () => { cancelled = true; };
+  }, [compTicker]);
 
   // Responsive width
   useEffect(() => {
@@ -424,6 +447,35 @@ export default function StockChart({ initialData, symbol }) {
     prevHaClose = haClose;
   }
 
+  // Comparison stock % return — normalised from the first data point that has
+  // a matching entry in compData (both series aligned by `time` string key).
+  const compLookup = useMemo(() => {
+    if (!compData?.length) return null;
+    const map = new Map();
+    for (const d of compData) {
+      if (d.time && d.close != null) map.set(d.time, d.close);
+    }
+    return map;
+  }, [compData]);
+
+  if (compLookup) {
+    let baseClose = null;
+    for (const d of calculatedData) {
+      const p = compLookup.get(d.time);
+      if (p != null) { baseClose = p; break; }
+    }
+    for (const d of calculatedData) {
+      const p = compLookup.get(d.time);
+      d.compReturn = (baseClose != null && p != null)
+        ? ((p / baseClose) - 1) * 100
+        : undefined;
+    }
+  } else {
+    for (const d of calculatedData) {
+      d.compReturn = undefined;
+    }
+  }
+
   const { data, xScale, xAccessor, displayXAccessor } = ScaleProvider(calculatedData);
 
   const priceFormat  = format(".2f");
@@ -535,7 +587,79 @@ export default function StockChart({ initialData, symbol }) {
           onClearAll={clearAllDrawings}
           hasDrawings={hasDrawings}
         />
+
+        {/* Comparator symbol picker (Phase 6) */}
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ fontSize: 11, color: "#6B7280", fontFamily: "Inter, sans-serif" }}>vs</span>
+          <input
+            style={{
+              width: 60,
+              fontSize: 11,
+              padding: "3px 6px",
+              background: "#111827",
+              color: "#D1D5DB",
+              border: "1px solid #374151",
+              borderRadius: 3,
+              fontFamily: "Inter, sans-serif",
+              textTransform: "uppercase",
+            }}
+            placeholder="TICKER"
+            value={compInput}
+            onChange={(e) => setCompInput(e.target.value.toUpperCase())}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const t = compInput.trim();
+                setCompTicker(t || null);
+              }
+              if (e.key === "Escape") {
+                setCompTicker(null);
+                setCompInput("");
+              }
+            }}
+          />
+          {compTicker && (
+            <button
+              style={{
+                padding: "3px 6px",
+                fontSize: 11,
+                fontFamily: "Inter, sans-serif",
+                background: "transparent",
+                color: COMP_STROKE,
+                border: `1px solid ${COMP_STROKE}`,
+                borderRadius: 3,
+                cursor: "pointer",
+              }}
+              onClick={() => { setCompTicker(null); setCompInput(""); }}
+              title="Remove comparison"
+            >
+              {compTicker} ×
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Comparison legend */}
+      {compTicker && (
+        <div style={{
+          position: "absolute",
+          top: 36,
+          left: 8,
+          zIndex: 20,
+          display: "flex",
+          gap: 12,
+          fontFamily: "Inter, sans-serif",
+          fontSize: 11,
+        }}>
+          <span style={{ color: "#9CA3AF" }}>
+            <span style={{ display: "inline-block", width: 14, height: 2, background: "#6366F1", marginRight: 4, verticalAlign: "middle" }} />
+            {symbol || "Main"} (price)
+          </span>
+          <span style={{ color: COMP_STROKE }}>
+            <span style={{ display: "inline-block", width: 14, height: 2, background: COMP_STROKE, marginRight: 4, verticalAlign: "middle" }} />
+            {compTicker} (% return)
+          </span>
+        </div>
+      )}
 
       {/* ── Indicator toggle dropdown ───────────────────────────── */}
       <div ref={dropdownRef} style={dropdownStyles.wrapper}>
@@ -674,7 +798,7 @@ export default function StockChart({ initialData, symbol }) {
             <TrendLine
               enabled={activeTool === "trend"}
               type="LINE"
-              snap={false}
+              snap={true}
               snapTo={(d) => [d.high, d.low]}
               trends={drawings.trends}
               onComplete={(_e, newTrends) =>
@@ -706,6 +830,36 @@ export default function StockChart({ initialData, symbol }) {
               }
             />
           </Chart>
+
+          {/* ── Comparison stock % return overlay (Phase 6) ──────── */}
+          {compTicker && compLookup && (
+            <Chart
+              id={7}
+              height={priceHeight}
+              origin={[0, 0]}
+              yExtents={(d) => (d.compReturn != null ? d.compReturn : 0)}
+              padding={{ top: 10, bottom: 10 }}
+            >
+              <YAxis
+                axisAt="right"
+                orient="right"
+                ticks={4}
+                tickFormat={(v) => `${v.toFixed(0)}%`}
+                {...getYAxisProps({ showGridLines: false })}
+              />
+              <LineSeries
+                yAccessor={(d) => d.compReturn}
+                strokeStyle={COMP_STROKE}
+                strokeWidth={1.5}
+              />
+              <SingleValueTooltip
+                origin={[8, 96]}
+                yAccessor={(d) => d.compReturn}
+                yLabel={compTicker}
+                yDisplayFormat={(v) => (v != null ? `${v.toFixed(2)}%` : "—")}
+              />
+            </Chart>
+          )}
 
           {/* ── RSI overlay — right Y-axis (0–100) ──────────────── */}
           {indicators.rsi && (

@@ -93,7 +93,7 @@ def run_vmd(req: VMDRequest) -> VMDResponse:
     err = float(np.max(np.abs(x - recon)))
     return VMDResponse(
         modes=[row.tolist() for row in result.modes],
-        omega_final=result.omega_final.tolist(),
+        omega_final=result.center_frequencies.tolist(),
         n_modes=result.n_modes,
         reconstruction_error=err,
     )
