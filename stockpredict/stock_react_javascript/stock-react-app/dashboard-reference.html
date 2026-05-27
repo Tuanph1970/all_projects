@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:#F5F2EA; --panel:#FFFFFF; --sidebar:#EEEBE2;
+    --line:#DDD9CF; --rule:#EEEBE2;
+    --ink:#1A1810; --ink2:#6B6859; --ink3:#8F8C7F;
+    --pos:#2C5F4A; --neg:#9B2C2C; --amber:#88683E;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { font-family: 'Geist', sans-serif; background: var(--paper); color: var(--ink); }
+  .layout { display: flex; min-height: 100vh; }
+  svg { flex-shrink: 0; }
+
+  aside { width: 248px; background: var(--sidebar); border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 24px 20px; border-bottom: 1px solid var(--line); }
+  .logo { width: 28px; height: 28px; border-radius: 6px; background: var(--ink); display: flex; align-items: center; justify-content: center; color: var(--paper); }
+  .brand-name { font-family: 'Instrument Serif', serif; font-size: 22px; line-height: 1; }
+  .brand-name em { font-style: italic; }
+  nav { padding: 14px 10px; flex: 1; }
+  .nav-item { margin-bottom: 1px; }
+  .nav-button { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 6px; font-size: 13px; color: var(--ink2); border: 1px solid transparent; cursor: pointer; background: transparent; width: 100%; text-align: left; font-family: inherit; }
+  .nav-button.active { background: var(--panel); color: var(--ink); font-weight: 500; border: 1px solid var(--line); }
+  .nav-button-content { display: flex; align-items: center; gap: 12px; }
+  .nav-icon { color: var(--ink3); }
+  .nav-button.active .nav-icon { color: var(--ink); }
+  .nav-chevron { color: var(--ink3); opacity: 0.6; }
+  .nav-submenu { padding: 4px 0 6px 36px; margin-left: 4px; border-left: 1px solid var(--line); margin-top: 2px; }
+  .nav-submenu-item { display: block; padding: 5px 12px; font-size: 12px; color: var(--ink2); border-radius: 4px; cursor: pointer; background: transparent; border: none; font-family: inherit; text-align: left; width: 100%; }
+  .sidebar-foot { padding: 12px 10px; border-top: 1px solid var(--line); }
+  .user-card { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--pos); color: var(--paper); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 500; }
+  .user-info { flex: 1; min-width: 0; }
+  .user-name { font-size: 12px; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .user-meta { font-size: 10px; color: var(--ink3); }
+  .collapse-btn { display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: 11px; color: var(--ink3); cursor: pointer; background: transparent; border: none; font-family: inherit; margin-top: 4px; }
+
+  main { flex: 1; padding: 28px 36px; min-width: 0; }
+  .header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 28px; }
+  .ts { display: flex; align-items: center; gap: 8px; color: var(--ink3); font-family: 'Geist Mono', monospace; font-size: 11px; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--pos); }
+  h1 { font-family: 'Instrument Serif', serif; font-size: 32px; line-height: 1; font-weight: 400; }
+  h1 em { font-style: italic; }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+  .search { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; min-width: 240px; }
+  .search-input { color: var(--ink3); font-size: 12px; flex: 1; }
+  .kbd { padding: 2px 6px; border-radius: 4px; background: var(--paper); color: var(--ink3); font-family: 'Geist Mono', monospace; font-size: 10px; }
+  .icon-btn { width: 36px; height: 36px; border-radius: 6px; background: var(--panel); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; color: var(--ink2); cursor: pointer; }
+  .logout-btn { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; color: var(--ink2); font-size: 12px; cursor: pointer; font-family: inherit; }
+
+  .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+  .summary-card { padding: 16px; }
+  .label { color: var(--ink3); font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; }
+  .value { font-family: 'Geist Mono', monospace; font-size: 22px; font-weight: 500; letter-spacing: -0.01em; line-height: 1; }
+  .value.pos { color: var(--pos); }
+  .meta { color: var(--ink3); font-family: 'Geist Mono', monospace; font-size: 11px; margin-top: 8px; }
+
+  .portfolio-card, .ai-card, .potential-card { margin-bottom: 10px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 22px; border-bottom: 1px solid var(--line); }
+  .card-title { font-family: 'Instrument Serif', serif; font-size: 19px; line-height: 1; margin-top: 4px; }
+  .card-head-left { display: flex; align-items: center; gap: 10px; }
+  .btn-primary { padding: 6px 12px; background: var(--ink); color: var(--paper); border: none; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; font-family: inherit; }
+  .btn-secondary { padding: 8px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; color: var(--ink); font-weight: 500; cursor: pointer; font-family: inherit; }
+  table.portfolio { width: 100%; border-collapse: collapse; }
+  table.portfolio th { text-align: left; padding: 10px 22px; color: var(--ink3); font-family: 'Geist Mono', monospace; font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; border-bottom: 1px solid var(--line); }
+  table.portfolio th.num { text-align: right; }
+  .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px; }
+  .empty-icon { width: 44px; height: 44px; border-radius: 50%; background: var(--paper); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; margin-bottom: 14px; color: var(--ink3); }
+  .empty-title { font-family: 'Instrument Serif', serif; font-size: 17px; margin-bottom: 4px; }
+  .empty-sub { color: var(--ink3); font-size: 12px; margin-bottom: 14px; max-width: 380px; text-align: center; line-height: 1.5; }
+
+  .ai-head-left { display: flex; align-items: flex-start; gap: 10px; }
+  .ai-head-label { color: var(--ink3); font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .ai-link { color: var(--ink2); font-size: 12px; display: flex; align-items: center; gap: 4px; background: none; border: none; cursor: pointer; font-family: inherit; }
+  .rec-row { padding: 14px 22px; display: flex; align-items: center; gap: 18px; border-top: 1px solid var(--rule); }
+  .rec-row:first-of-type { border-top: none; }
+  .badge { padding: 4px 10px; border-radius: 6px; font-family: 'Geist Mono', monospace; font-size: 10px; font-weight: 500; letter-spacing: 0.08em; min-width: 46px; text-align: center; }
+  .badge.BUY { background: #E8EFE9; color: var(--pos); }
+  .badge.HOLD { background: #F2E8D8; color: var(--amber); }
+  .rec-body { flex: 1; min-width: 0; }
+  .rec-title { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+  .rec-sym { font-family: 'Geist Mono', monospace; font-size: 13px; font-weight: 500; }
+  .rec-name { color: var(--ink2); font-size: 12px; }
+  .rec-note { color: var(--ink2); font-size: 12px; line-height: 1.5; }
+  .rec-conf { text-align: right; min-width: 84px; }
+  .conf-label { color: var(--ink3); font-family: 'Geist Mono', monospace; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 2px; }
+  .conf-value { font-family: 'Geist Mono', monospace; font-size: 15px; font-weight: 500; }
+  .conf-bar { margin-top: 6px; height: 3px; border-radius: 2px; background: var(--paper); overflow: hidden; }
+  .conf-fill { height: 100%; }
+
+  footer.app-footer { background: var(--ink); color: var(--ink3); padding: 14px 22px; border-radius: 8px; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 16px; font-size: 12px; }
+  footer.app-footer .author { color: var(--paper); font-weight: 500; }
+  footer.app-footer .sep { color: var(--ink2); }
+  footer.app-footer a { color: var(--ink3); text-decoration: none; display: flex; align-items: center; gap: 6px; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside>
+    <div class="brand">
+      <div class="logo">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/></svg>
+      </div>
+      <div class="brand-name">Stock<em>AI</em></div>
+    </div>
+
+    <nav>
+      <div class="nav-item"><button class="nav-button active"><div class="nav-button-content"><svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg><span>Bảng điều khiển</span></div></button></div>
+
+      <div class="nav-item"><button class="nav-button"><div class="nav-button-content"><svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg><span>Bảng giá</span></div></button></div>
+
+      <div class="nav-item"><button class="nav-button"><div class="nav-button-content"><svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/></svg><span>Cổ phiếu</span></div><svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button></div>
+
+      <div class="nav-item"><button class="nav-button"><div class="nav-button-content"><svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></svg><span>Biến động thị trường</span></div><svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button></div>
+
+      <div class="nav-item"><button class="nav-button"><div class="nav-button-content"><svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M9 13a4.5 4.5 0 0 0 3-4"/><path d="M12 13h4"/><path d="M12 18h6a2 2 0 0 1 2 2v1"/><path d="M12 8h8"/><path d="M16 8V5a2 2 0 0 1 2-2"/></svg><span>Dự đoán</span></div><svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button></div>
+
+      <div class="nav-item"><button class="nav-button"><div class="nav-button-content"><svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg><span>Mô phỏng giao dịch với AI</span></div></button></div>
+
+      <div class="nav-item"><button class="nav-button"><div class="nav-button-content"><svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg><span>Trợ lý AI</span></div><svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button></div>
+
+      <div class="nav-item"><button class="nav-button"><div class="nav-button-content"><svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m13 13.5 2-2.5-2-2.5"/><path d="m21 21-4.3-4.3"/><path d="M9 8.5 7 11l2 2.5"/><circle cx="11" cy="11" r="8"/></svg><span>Phân tích</span></div><svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button></div>
+
+      <div class="nav-item"><button class="nav-button"><div class="nav-button-content"><svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg><span>Danh mục</span></div><svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button></div>
+
+      <div class="nav-item"><button class="nav-button"><div class="nav-button-content"><svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg><span>Nhật ký giao dịch</span></div><svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button></div>
+
+      <div class="nav-item"><button class="nav-button"><div class="nav-button-content"><svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg><span>Decision Helper</span></div><svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button></div>
+
+      <div class="nav-item">
+        <button class="nav-button"><div class="nav-button-content"><svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg><span>Công cụ</span></div><svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+        <div class="nav-submenu">
+          <button class="nav-submenu-item">Máy tính đầu tư</button>
+          <button class="nav-submenu-item">Danh sách theo dõi</button>
+        </div>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="user-card">
+        <div class="avatar">VU</div>
+        <div class="user-info">
+          <div class="user-name">verifyuser@test.io</div>
+          <div class="user-meta">Tài khoản cá nhân</div>
+        </div>
+      </div>
+      <button class="collapse-btn">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        Thu gọn menu
+      </button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="header">
+      <div>
+        <div class="ts"><span class="pulse"></span>CẬP NHẬT 09:50:17 · 21/05/2026 · THỊ TRƯỜNG MỞ</div>
+        <h1>Bảng điều <em>khiển</em></h1>
+      </div>
+      <div class="header-actions">
+        <div class="search">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8F8C7F" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <span class="search-input">Tìm mã cổ phiếu...</span>
+          <span class="kbd">⌘K</span>
+        </div>
+        <button class="icon-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>
+        </button>
+        <button class="logout-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/></svg>
+          Đăng xuất
+        </button>
+      </div>
+    </div>
+
+    <div class="summary">
+      <div class="card summary-card"><div class="label">Tổng giá trị</div><div class="value">$0</div><div class="meta">Chưa có khoản đầu tư</div></div>
+      <div class="card summary-card"><div class="label">Lãi / Lỗ</div><div class="value">+$0</div><div class="meta">Hôm nay</div></div>
+      <div class="card summary-card"><div class="label">Cổ phiếu nắm giữ</div><div class="value">0</div><div class="meta">0 mã đang nắm</div></div>
+      <div class="card summary-card"><div class="label">Thay đổi trong ngày</div><div class="value pos">+2.34%</div><div class="meta">VN-Index +0.42%</div></div>
+    </div>
+
+    <div class="card portfolio-card">
+      <div class="card-head">
+        <div>
+          <div class="label">Danh mục đầu tư</div>
+          <div class="card-title">0 mã đang nắm giữ</div>
+        </div>
+        <button class="btn-primary">+ Thêm cổ phiếu</button>
+      </div>
+      <table class="portfolio">
+        <thead>
+          <tr>
+            <th>Mã CP</th><th>Công ty</th>
+            <th class="num">Số lượng</th><th class="num">Giá TB</th>
+            <th class="num">Giá hiện tại</th><th class="num">Thay đổi</th><th class="num">Giá trị</th>
+          </tr>
+        </thead>
+      </table>
+      <div class="empty">
+        <div class="empty-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+        </div>
+        <div class="empty-title">Danh mục của bạn đang trống</div>
+        <div class="empty-sub">Bắt đầu thêm cổ phiếu để theo dõi hiệu suất danh mục của bạn theo thời gian thực</div>
+        <button class="btn-secondary">Khám phá mã được khuyến nghị →</button>
+      </div>
+    </div>
+
+    <div class="card ai-card">
+      <div class="card-head">
+        <div class="ai-head-left">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#88683E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 2px;"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z"/></svg>
+          <div class="ai-head-label">Khuyến nghị AI · 5 mã</div>
+        </div>
+        <button class="ai-link">Xem tất cả
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </div>
+      <div class="rec-row"><span class="badge BUY">BUY</span><div class="rec-body"><div class="rec-title"><span class="rec-sym">FPT</span><span class="rec-name">· FPT Corporation</span></div><div class="rec-note">MACD bullish crossover detected. Price above 20-day moving average.</div></div><div class="rec-conf"><div class="conf-label">Độ tin cậy</div><div class="conf-value">95%</div><div class="conf-bar"><div class="conf-fill" style="width:95%;background:#2C5F4A;"></div></div></div></div>
+      <div class="rec-row"><span class="badge HOLD">HOLD</span><div class="rec-body"><div class="rec-title"><span class="rec-sym">VNM</span><span class="rec-name">· Vietnam Dairy Products JSC</span></div><div class="rec-note">RSI (37.1) approaching oversold territory. MACD showing bearish signal.</div></div><div class="rec-conf"><div class="conf-label">Độ tin cậy</div><div class="conf-value">65%</div><div class="conf-bar"><div class="conf-fill" style="width:65%;background:#88683E;"></div></div></div></div>
+      <div class="rec-row"><span class="badge HOLD">HOLD</span><div class="rec-body"><div class="rec-title"><span class="rec-sym">VCB</span><span class="rec-name">· Vietcombank</span></div><div class="rec-note">RSI (71.9) indicates overbought conditions. MACD bullish crossover detected.</div></div><div class="rec-conf"><div class="conf-label">Độ tin cậy</div><div class="conf-value">65%</div><div class="conf-bar"><div class="conf-fill" style="width:65%;background:#88683E;"></div></div></div></div>
+      <div class="rec-row"><span class="badge HOLD">HOLD</span><div class="rec-body"><div class="rec-title"><span class="rec-sym">MSN</span><span class="rec-name">· Masan Group Corporation</span></div><div class="rec-note">MACD showing bearish signal. Price below 20-day moving average.</div></div><div class="rec-conf"><div class="conf-label">Độ tin cậy</div><div class="conf-value">65%</div><div class="conf-bar"><div class="conf-fill" style="width:65%;background:#88683E;"></div></div></div></div>
+      <div class="rec-row"><span class="badge HOLD">HOLD</span><div class="rec-body"><div class="rec-title"><span class="rec-sym">TCB</span><span class="rec-name">· Techcombank</span></div><div class="rec-note">RSI (37.9) approaching oversold territory. MACD showing bearish signal.</div></div><div class="rec-conf"><div class="conf-label">Độ tin cậy</div><div class="conf-value">57%</div><div class="conf-bar"><div class="conf-fill" style="width:57%;background:#88683E;"></div></div></div></div>
+    </div>
+
+    <div class="card potential-card">
+      <div class="card-head">
+        <div class="ai-head-left">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#88683E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="margin-top: 2px;"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg>
+          <div>
+            <div class="ai-head-label">Cổ phiếu tiềm năng</div>
+            <div style="font-size: 11px; color: var(--ink3); margin-top: 4px; max-width: 480px;">Dựa trên phân tích cơ bản: tin tức tích cực, tỷ số P/E hấp dẫn và tăng trưởng lợi nhuận 2 năm</div>
+          </div>
+        </div>
+      </div>
+      <div class="empty">
+        <div class="empty-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg>
+        </div>
+        <div class="empty-title">Chưa có cổ phiếu tiềm năng</div>
+        <div class="empty-sub">Hệ thống đang phân tích thị trường. Vui lòng quay lại sau để xem các mã được đề xuất.</div>
+      </div>
+    </div>
+
+    <footer class="app-footer">
+      <span class="author">Pham Hoang Tuan</span>
+      <span class="sep">|</span>
+      <a href="mailto:tuanph1970@gmail.com">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"/><rect x="2" y="4" width="20" height="16" rx="2"/></svg>
+        tuanph1970@gmail.com
+      </a>
+    </footer>
+  </main>
+</div>
+</body>
+</html>
