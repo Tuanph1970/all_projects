@@ -94,7 +94,7 @@ def run_vmd(req: VMDRequest) -> VMDResponse:
     return VMDResponse(
         modes=[row.tolist() for row in result.modes],
         omega_final=result.center_frequencies.tolist(),
-        n_modes=result.n_modes,
+        n_modes=result.K,
         reconstruction_error=err,
     )
 
@@ -111,7 +111,7 @@ def run_cwt(req: CWTRequest) -> CWTResponse:
         power=result.power.tolist(),
         frequencies=result.frequencies.tolist(),
         coi=result.coi.tolist(),
-        wavelet=result.wavelet,
+        wavelet=req.wavelet,
     )
 
 
