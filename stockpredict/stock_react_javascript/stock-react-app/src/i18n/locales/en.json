@@ -70,7 +70,7 @@
     "tools": "Tools",
     "calculator": "Investment calculator",
     "watchlist": "Watchlist",
-    "chart_decomp": "Multi-Scale Decomp",
+    "chart_decomp": "Chart Decomposition",
     "vol_forecast": "Forecast & Backtest"
   },
   "page_titles": {
