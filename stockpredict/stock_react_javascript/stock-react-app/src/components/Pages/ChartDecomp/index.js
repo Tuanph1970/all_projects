@@ -148,10 +148,15 @@ function InputPanel({ onSeriesReady, t }) {
     try {
       const resp = await companyService.getCompanyCharts(ticker, period);
       if (!resp.success) throw new Error(resp.error);
+      // stock-data-service returns { symbol, name, exchange, data: [...], count }.
+      // Older mocks returned a bare array, so accept both shapes.
       const raw = resp.data;
-      const prices = Array.isArray(raw)
-        ? raw.map(d => d.close ?? d.c ?? d.price).filter(v => v != null && isFinite(v))
-        : [];
+      const rows = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.data) ? raw.data : [];
+      const prices = rows
+        .map(d => d.close ?? d.c ?? d.price)
+        .filter(v => v != null && isFinite(v));
       if (prices.length < 64) throw new Error('Not enough price data returned');
       onSeriesReady(prices, ticker);
       setInfo(t('chart_decomp.input.series_info', { n: prices.length }));
