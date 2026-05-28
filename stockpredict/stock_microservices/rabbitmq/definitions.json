@@ -3,7 +3,7 @@
   "users": [
     {
       "name": "stockuser",
-      "password_hash": "EI3GpDjXVlhyMbloT8qGKG4t/uPSu/5D4t0V7GN9Xb8yPqHj",
+      "password_hash": "0SB8//TVX9KKp0R+xzmQZgJQU352GzvC6jyN9OehBOVB90vP",
       "hashing_algorithm": "rabbit_password_hashing_sha256",
       "tags": ["administrator"]
     }
