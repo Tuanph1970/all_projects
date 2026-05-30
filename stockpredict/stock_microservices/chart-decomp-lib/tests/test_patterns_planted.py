@@ -24,6 +24,7 @@ from chart_decomp.infrastructure.patterns.flag_pennant import (
     BearFlagDetector,
     BullFlagDetector,
 )
+from chart_decomp.factories.pattern_detector_factory import detect_patterns
 from chart_decomp.infrastructure.patterns.triangle import (
     AscendingTriangleDetector,
     DescendingTriangleDetector,
@@ -332,3 +333,54 @@ class TestDescendingTrianglePlanted:
         assert SymmetricTriangleDetector().detect(skeleton_of(x), x) == []
         assert AscendingTriangleDetector().detect(skeleton_of(x), x) == []
         assert DescendingTriangleDetector().detect(skeleton_of(x), x) == []
+
+
+# ── Default-registry end-to-end (A10 — CD-610) ───────────────────────────────
+
+class TestDefaultRegistryEndToEnd:
+    """II.5.1 consolidated: all four pattern families via detect_patterns('all').
+
+    Verifies that the default_registry is populated with all built-in detectors
+    and that detect_patterns('all') finds each pattern family in a planted series.
+    """
+
+    def test_head_and_shoulders_via_registry(self):
+        ctrl = [(0, 80), (30, 130), (50, 100), (70, 160), (90, 102), (110, 132), (140, 90)]
+        x = zigzag(ctrl, 150)
+        dets = detect_patterns(skeleton_of(x), x, "all")
+        assert any(d.pattern == "Head & Shoulders" for d in dets), (
+            "H&S not found via default registry"
+        )
+
+    def test_double_top_via_registry(self):
+        ctrl = [(0, 90), (40, 150), (70, 110), (100, 151), (140, 95)]
+        x = zigzag(ctrl, 150)
+        dets = detect_patterns(skeleton_of(x), x, "all")
+        assert any(d.pattern == "Double Top" for d in dets), (
+            "Double Top not found via default registry"
+        )
+
+    def test_bull_flag_via_registry(self):
+        ctrl = [
+            (0, 100), (20, 85), (45, 155),
+            (60, 145), (75, 152), (90, 143), (105, 151),
+            (150, 80),
+        ]
+        x = zigzag(ctrl, 160)
+        dets = detect_patterns(skeleton_of(x), x, "all")
+        assert any(d.pattern == "Bull Flag" for d in dets), (
+            "Bull Flag not found via default registry"
+        )
+
+    def test_symmetric_triangle_via_registry(self):
+        ctrl = [
+            (0, 130),
+            (20, 150), (40, 112), (60, 145), (80, 116),
+            (100, 140), (120, 120),
+            (160, 130),
+        ]
+        x = zigzag(ctrl, 170)
+        dets = detect_patterns(skeleton_of(x), x, "all")
+        assert any(d.pattern == "Symmetric Triangle" for d in dets), (
+            "Symmetric Triangle not found via default registry"
+        )

@@ -104,3 +104,39 @@ def detect_patterns(
 ) -> list[Detection]:
     """Run the default registry's detectors over a swing skeleton."""
     return default_registry.detect(skeleton, x, detectors, params)
+
+
+# ── Built-in detector registration (A6–A9) ───────────────────────────────────
+# Imported here (after default_registry is defined) to avoid circular imports.
+
+from chart_decomp.infrastructure.patterns.double import (  # noqa: E402
+    DoubleBottomDetector,
+    DoubleTopDetector,
+)
+from chart_decomp.infrastructure.patterns.flag_pennant import (  # noqa: E402
+    BearFlagDetector,
+    BullFlagDetector,
+)
+from chart_decomp.infrastructure.patterns.head_shoulders import (  # noqa: E402
+    HeadAndShouldersDetector,
+    InverseHeadAndShouldersDetector,
+)
+from chart_decomp.infrastructure.patterns.triangle import (  # noqa: E402
+    AscendingTriangleDetector,
+    DescendingTriangleDetector,
+    SymmetricTriangleDetector,
+)
+
+for _det in [
+    HeadAndShouldersDetector(),
+    InverseHeadAndShouldersDetector(),
+    DoubleTopDetector(),
+    DoubleBottomDetector(),
+    BullFlagDetector(),
+    BearFlagDetector(),
+    SymmetricTriangleDetector(),
+    AscendingTriangleDetector(),
+    DescendingTriangleDetector(),
+]:
+    default_registry.register(_det)
+del _det
