@@ -24,6 +24,11 @@ from chart_decomp.infrastructure.patterns.flag_pennant import (
     BearFlagDetector,
     BullFlagDetector,
 )
+from chart_decomp.infrastructure.patterns.triangle import (
+    AscendingTriangleDetector,
+    DescendingTriangleDetector,
+    SymmetricTriangleDetector,
+)
 from chart_decomp.infrastructure.patterns.head_shoulders import (
     HeadAndShouldersDetector,
     InverseHeadAndShouldersDetector,
@@ -242,3 +247,88 @@ class TestBearFlagPlanted:
         x = zigzag(self.CTRL, self.N)
         # No L→H pole exceeds pole_min in this series.
         assert BullFlagDetector().detect(skeleton_of(x), x) == []
+
+
+# ── Symmetric Triangle ────────────────────────────────────────────────────────
+
+class TestSymmetricTrianglePlanted:
+    # H pivots descend (150→145→140) and L pivots ascend (112→116→120):
+    # converging from both sides → Symmetric Triangle.
+    # Each H↔L move ≥ 24 pts >> 8%-of-range threshold (≈3 pts).
+    CTRL = [
+        (0, 130),
+        (20, 150), (40, 112),   # H1 L1
+        (60, 145), (80, 116),   # H2 L2
+        (100, 140), (120, 120), # H3 L3
+        (160, 130),
+    ]
+    N = 170
+
+    def test_detected_near_location(self):
+        x = zigzag(self.CTRL, self.N)
+        dets = SymmetricTriangleDetector().detect(skeleton_of(x), x)
+        assert dets, "planted symmetric triangle not detected"
+        d = dets[0]
+        assert d.pattern == "Symmetric Triangle"
+        assert abs(d.start_index - 20) <= 3   # first pivot near index 20
+        assert d.score > 0.5
+
+
+# ── Ascending Triangle ────────────────────────────────────────────────────────
+
+class TestAscendingTrianglePlanted:
+    # H pivots all at 150 (flat resistance); L pivots at 113→120→127 (rising support).
+    CTRL = [
+        (0, 130),
+        (20, 150), (45, 113),   # H1 L1
+        (70, 150), (95, 120),   # H2 L2
+        (120, 150), (145, 127), # H3 L3
+        (180, 140),
+    ]
+    N = 190
+
+    def test_detected_near_location(self):
+        x = zigzag(self.CTRL, self.N)
+        dets = AscendingTriangleDetector().detect(skeleton_of(x), x)
+        assert dets, "planted ascending triangle not detected"
+        d = dets[0]
+        assert d.pattern == "Ascending Triangle"
+        assert d.score > 0.5
+
+    def test_descending_silent_on_ascending(self):
+        x = zigzag(self.CTRL, self.N)
+        assert DescendingTriangleDetector().detect(skeleton_of(x), x) == []
+
+
+# ── Descending Triangle ───────────────────────────────────────────────────────
+
+class TestDescendingTrianglePlanted:
+    # H pivots at 150→143→136 (falling resistance); L pivots all at 113 (flat support).
+    CTRL = [
+        (0, 130),
+        (20, 150), (45, 113),   # H1 L1
+        (70, 143), (95, 113),   # H2 L2
+        (120, 136), (145, 113), # H3 L3
+        (180, 120),
+    ]
+    N = 190
+
+    def test_detected_near_location(self):
+        x = zigzag(self.CTRL, self.N)
+        dets = DescendingTriangleDetector().detect(skeleton_of(x), x)
+        assert dets, "planted descending triangle not detected"
+        d = dets[0]
+        assert d.pattern == "Descending Triangle"
+        assert d.score > 0.5
+
+    def test_ascending_silent_on_descending(self):
+        x = zigzag(self.CTRL, self.N)
+        assert AscendingTriangleDetector().detect(skeleton_of(x), x) == []
+
+    def test_too_few_pivots_rejected(self):
+        # 2H + 1L → no window satisfies ≥2H + ≥2L (min_pivots=4).
+        ctrl = [(0, 80), (30, 150), (70, 80), (110, 150), (150, 130)]
+        x = zigzag(ctrl, 160)
+        assert SymmetricTriangleDetector().detect(skeleton_of(x), x) == []
+        assert AscendingTriangleDetector().detect(skeleton_of(x), x) == []
+        assert DescendingTriangleDetector().detect(skeleton_of(x), x) == []
