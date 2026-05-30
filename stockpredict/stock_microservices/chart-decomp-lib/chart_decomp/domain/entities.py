@@ -180,3 +180,93 @@ class BacktestResult:
     positions: np.ndarray
     turnover: np.ndarray
     metrics: dict
+
+
+# ── Part II — Pattern detection entities (SRS §II.4) ─────────────────────────
+
+
+@dataclass
+class Swing:
+    """A single significant pivot anchoring pattern geometry (SRS §II.4).
+
+    index : position in the (denoised) series
+    price : value at that position
+    kind  : 'H' (high) or 'L' (low) — see SwingSkeleton for the alternation
+            guarantee enforced by the swing extractor (FR-SW-2).
+    """
+    index: int
+    price: float
+    kind: str  # 'H' | 'L'
+
+
+@dataclass
+class SwingSkeleton:
+    """The piecewise-linear skeleton connecting consecutive swings (FR-SW-2).
+
+    `swings` is the ordered, strictly-alternating H/L pivot list produced by the
+    swing extractor.  The view properties give detectors cheap array access
+    without copying the dataclass list each time.
+    """
+    swings: list[Swing]
+
+    def __len__(self) -> int:
+        return len(self.swings)
+
+    @property
+    def indices(self) -> np.ndarray:
+        return np.array([s.index for s in self.swings], dtype=int)
+
+    @property
+    def prices(self) -> np.ndarray:
+        return np.array([s.price for s in self.swings], dtype=np.float64)
+
+    @property
+    def kinds(self) -> list[str]:
+        return [s.kind for s in self.swings]
+
+
+@dataclass
+class Detection:
+    """One detected chart pattern (SRS §II.4 / FR-PAT-*, FR-SCORE-1, FR-FPR-2).
+
+    pattern         : human-readable name, e.g. 'Head & Shoulders', 'Bull Flag'
+    start_index     : first series index covered by the pattern
+    end_index       : last series index covered by the pattern
+    pivots          : constituent swing indices
+    score           : [0, 1] geometric quality (FR-SCORE-1)
+    null_percentile : where this score sits vs the random-walk null for the same
+                      pattern (FR-FPR-2); None until null comparison is run.
+    confirmed       : False when the pattern touches the right-edge cone of
+                      influence and may still change as new data arrives
+                      (Part II Trap B6 / Part I Constraint C2).
+    details         : pattern-specific extras (prices, projected target, ...).
+    """
+    pattern: str
+    start_index: int
+    end_index: int
+    pivots: list[int]
+    score: float
+    null_percentile: Optional[float] = None
+    confirmed: bool = True
+    details: dict = field(default_factory=dict)
+
+
+@dataclass
+class PatternPipelineResult:
+    """End-to-end pattern pipeline output (SRS §II.4 `PipelineResult`).
+
+    Renamed `PatternPipelineResult` to avoid colliding with any future Part I
+    pipeline result entity.
+
+    raw            : original input series
+    denoised       : Layer-1 wavelet-denoised series (FR-DN-1)
+    swings         : extracted swing pivots (FR-SW-*)
+    detections     : aggregated detections across all detectors (FR-PAT-EXT)
+    fpr_by_pattern : per-pattern false-positive rate vs the null (FR-FPR-1);
+                     empty dict when compute_fpr is False.
+    """
+    raw: np.ndarray
+    denoised: np.ndarray
+    swings: list[Swing]
+    detections: list[Detection]
+    fpr_by_pattern: dict

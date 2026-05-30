@@ -151,3 +151,64 @@ python run_migration.py --verify-only
 - **DB schemas live in two places** for `prediction-service`: SQLAlchemy `Base` (declarative models in `app/models/domain.py`) and the inline `WEBAPI_TABLES_SQL`/`MIGRATION_SQL`/`SEED_DATA_SQL` blocks in `app/main.py` for legacy WebAPI compatibility. Keep both in sync.
 - **Frontend services** (`src/services/*.js`) wrap `httpClient.js` and pull URLs from `constants/api.js`. New backend endpoints get a constant added to `API_ENDPOINTS` and a method on the matching service class — components should not call `axios` directly (see `RESTRUCTURE_GUIDE.md`).
 - **Auth flow**: `auth-service` mints JWTs with `JWT_SECRET_KEY`; every other service shares the same secret via env and validates locally using `stock_common.auth`. Don't introduce per-service secrets.
+
+# ─────────────────────────────────────────────
+# Chart Decomposition & Pattern Detection System
+# (applies only to work on this subsystem)
+# ─────────────────────────────────────────────
+# CLAUDE.md — Standing Rules for the Chart Decomposition & Pattern Detection Work
+
+These rules apply to **every** session that touches the chart decomposition / pattern
+detection system. They are derived from `docs/SRS_master_chart_system.md`. Read that
+spec before acting; this file is the short version of its binding constraints.
+
+## The spec is the source of truth
+- The full specification lives in `docs/SRS_master_chart_system.md`. Re-read the
+  relevant Part/section before implementing anything; grep it rather than relying on
+  memory of it.
+- Requirement IDs (e.g. `FR-DECOMP-MODWT`, `FR-HURST`, `FR-PAT-HS`, `C1`–`C5`) are the
+  canonical way to refer to features. Cite them in commits, tests, and docstrings.
+
+## Fit the existing project — do NOT impose the spec's API verbatim
+- The interfaces in the SRS (§I.4, §II.4) are explicitly **illustrative**. Match the
+  existing codebase's module layout, naming, typing, error-handling, and dependency
+  conventions instead of copying the spec's signatures literally.
+- Before writing a module, check whether equivalent functionality already exists
+  (see `docs/srs_gap_analysis.md`). Reuse and extend; never duplicate.
+
+## Binding constraints (these override convenience)
+1. **Strict causality (C1).** Any forecasting/feature code uses only data available at
+   the prediction time. Never decompose a full series and then slice it into past/future.
+   Feature builders take `(data_up_to_t)`, not a precomputed full-series matrix.
+2. **No-leakage test is mandatory (§I.5.3).** Any forecasting path ships with the test
+   that swaps past target values for noise and asserts past predictions do not change.
+3. **Mode-ordering stability (C3).** Data-adaptive decompositions (EMD/EEMD/VMD) must be
+   sorted by a stable key (center frequency for VMD, dominant period for EMD) before any
+   feature is read across multiple refits.
+4. **Mandatory benchmarks (C4).** Volatility models are always reported beside HAR;
+   direction models beside lag-returns; pattern detectors beside a random-walk null-FPR.
+   A method "improves" only if it beats the benchmark out-of-sample with significance.
+5. **Boundary handling (C2).** Time-frequency outputs expose the cone of influence; live
+   feature reads back off from the right edge (`edge_lag`).
+6. **Stationary input for Hurst (FR-HURST).** Estimate Hurst on returns, never on price.
+
+## Numbers from the spec are illustrative, not expected values
+- All magnitudes in Part III (AUC ≈ 0.97, R² ≈ 0.89, etc.) come from synthetic data.
+  Do NOT hardcode them as test assertions. Tests assert *properties* (e.g. "fGn Hurst
+  recovered within 0.07", "no-leakage swap changes nothing", "VMD-HAR within ±10% of
+  HAR") not specific simulator numbers.
+
+## Workflow discipline
+- One phase per session: design → plan → implement → document. Each phase writes a
+  `docs/*.md` artifact that is the handoff to the next.
+- During implementation, do ONE task from `docs/implementation_plan.md` at a time. Write
+  its tests (TDD where practical: failing test first), run them, show they pass, then
+  STOP. Do not start the next task without being asked.
+- Prefer small, reviewable changes. Show diffs and test output.
+
+## Testing
+- Test runner: `pytest`. Every new module ships with unit tests.
+- Mandatory harnesses, built alongside the code they validate (not after):
+  round-trip reconstruction, translation-invariance (MODWT), fGn-Hurst recovery,
+  wavelet-coherence on a known-construction pair, the no-leakage causality test, the
+  planted-pattern test, and the null-FPR test.

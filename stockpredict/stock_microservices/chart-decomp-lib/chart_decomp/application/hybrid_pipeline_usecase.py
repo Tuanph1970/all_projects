@@ -27,7 +27,9 @@ from chart_decomp.domain.value_objects import (
     MODWTParams,
     TimeSeries,
 )
+from chart_decomp.domain.value_objects import DenoiseParams
 from chart_decomp.factories.decomposer_factory import DecomposerFactory
+from chart_decomp.infrastructure.denoise.wavelet_denoiser import WaveletDenoiser
 from chart_decomp.infrastructure.time_freq.cwt_analyzer import CWTAnalyzer
 from chart_decomp.infrastructure.time_freq.hht_analyzer import HHTAnalyzer
 
@@ -41,6 +43,7 @@ class HybridPipelineUseCase:
 
     def __init__(self) -> None:
         self._factory = DecomposerFactory()
+        self._denoiser = WaveletDenoiser()
         self._cwt = CWTAnalyzer()
         self._hht = HHTAnalyzer()
 
@@ -66,23 +69,11 @@ class HybridPipelineUseCase:
         mp = modwt_params or MODWTParams()
         ep = emd_params or EMDParams()
 
-        modwt_result = self._factory.create_modwt().decompose(series, mp)
-
-        # Reconstruct without the finest k_drop detail bands
-        denoised = modwt_result.approximation.copy()
-        for j, d in enumerate(modwt_result.details):
-            if j < len(modwt_result.details) - k_drop:
-                # Keep bands D_1..D_{J-k_drop} (the coarser ones)
-                pass  # skip finest k_drop details
-            else:
-                denoised = denoised + d
-
-        # Actually: details = [D_1(finest), ..., D_J(coarsest)]
-        # Drop the finest k_drop → skip details[0..k_drop-1]
-        denoised = modwt_result.approximation.copy()
-        for j, d in enumerate(modwt_result.details):
-            if j >= k_drop:
-                denoised = denoised + d
+        # Reuse the Layer-1 denoiser: drop the finest k_drop MODWT detail bands.
+        denoised = self._denoiser.denoise(
+            series,
+            DenoiseParams(wavelet=mp.wavelet, level=mp.level, k_drop=k_drop, method="drop"),
+        )
 
         denoised_series = TimeSeries(denoised)
         return self._factory.create_emd().decompose(denoised_series, ep)

@@ -14,10 +14,13 @@ import numpy as np
 from chart_decomp.domain.entities import (
     BacktestResult,
     CoherenceResult,
+    Detection,
     EMDResult,
     ForecastResult,
     HurstResult,
     MODWTResult,
+    SwingSkeleton,
+    Swing,
     TimeFreqResult,
     VMDResult,
 )
@@ -26,12 +29,15 @@ from chart_decomp.domain.value_objects import (
     BivariateSeries,
     CoherenceParams,
     CWTParams,
+    DenoiseParams,
     EMDParams,
     EEMDParams,
     HARParams,
     HHTParams,
     HurstParams,
     MODWTParams,
+    NullFPRParams,
+    SwingParams,
     TimeSeries,
     VMDHARParams,
     VMDParams,
@@ -126,4 +132,62 @@ class IBacktester(Protocol):
         vol_forecast: np.ndarray,
         params: BacktestParams,
     ) -> BacktestResult:
+        ...
+
+
+# ── Part II — Pattern detection interfaces (SRS §II.4) ───────────────────────
+
+
+@runtime_checkable
+class IDenoiser(Protocol):
+    """Strategy interface for Layer-1 wavelet denoising (FR-DN-1)."""
+
+    def denoise(self, series: TimeSeries, params: DenoiseParams) -> np.ndarray:
+        ...
+
+
+@runtime_checkable
+class ISwingExtractor(Protocol):
+    """Strategy interface for Layer-2a swing extraction (FR-SW-*).
+
+    Implementations MUST use a vetted extrema primitive (L2), not a hand-rolled
+    comparison loop, and MUST emit a strictly-alternating H/L pivot list.
+    """
+
+    def extract(self, series: TimeSeries, params: SwingParams) -> list[Swing]:
+        ...
+
+
+@runtime_checkable
+class IPatternDetector(Protocol):
+    """Strategy interface for a single chart-pattern detector (FR-PAT-EXT).
+
+    Adapts the SRS's illustrative ``(piv, kinds, x, params) -> list[Detection]``
+    to the project's Protocol style: detectors consume the SwingSkeleton plus
+    the underlying (denoised) array and return zero or more Detections.
+    The detector registry runs every registered detector and aggregates.
+    """
+
+    name: str
+
+    def detect(self, skeleton: SwingSkeleton, x: np.ndarray, params=None) -> list[Detection]:
+        ...
+
+
+@runtime_checkable
+class INullEvaluator(Protocol):
+    """Strategy interface for the mandatory random-walk null comparison (FR-FPR-1).
+
+    Reports a per-pattern false-positive rate so a detection's significance can
+    be judged (L3). This is the pattern-world analogue of the forecasting
+    module's HAR benchmark gate (Constraint C4).
+    """
+
+    def null_fpr(
+        self,
+        length: int,
+        volatility: float,
+        detectors,
+        params: NullFPRParams,
+    ) -> dict:
         ...

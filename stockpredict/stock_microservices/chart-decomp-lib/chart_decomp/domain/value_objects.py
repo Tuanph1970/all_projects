@@ -214,3 +214,143 @@ class BacktestParams:
             raise InputValidationError("max_leverage must be > 0")
         if self.cost_bps < 0:
             raise InputValidationError("cost_bps must be >= 0")
+
+
+# ── Part II — Pattern detection parameter value objects (SRS §II.A) ───────────
+
+
+@dataclass(frozen=True)
+class DenoiseParams:
+    """Layer-1 wavelet denoising (FR-DN-1).
+
+    method='drop' zeroes the finest `k_drop` MODWT detail bands and
+    reconstructs; 'soft'/'hard' apply universal-threshold coefficient
+    shrinkage instead.
+    """
+    wavelet: str = "sym8"
+    level: int = 4
+    k_drop: int = 1
+    method: Literal["drop", "soft", "hard"] = "drop"
+
+    def __post_init__(self) -> None:
+        if self.level < 1:
+            raise InputValidationError("DenoiseParams level must be >= 1")
+        if self.k_drop < 0:
+            raise InputValidationError("DenoiseParams k_drop must be >= 0")
+        if self.k_drop > self.level:
+            raise InputValidationError(
+                f"DenoiseParams k_drop ({self.k_drop}) cannot exceed level ({self.level})"
+            )
+        if self.method not in ("drop", "soft", "hard"):
+            raise InputValidationError(
+                f"DenoiseParams method must be drop/soft/hard; got '{self.method}'"
+            )
+
+
+@dataclass(frozen=True)
+class SwingParams:
+    """Layer-2a swing extraction (FR-SW-1/2/3).
+
+    threshold_mode is scale-robust by design (L4): a fraction of the series
+    range, a multiple of rolling ATR, or an absolute price distance.
+    Percent-of-price is deliberately NOT offered as the sole option.
+    """
+    order: int = 10
+    threshold_mode: Literal["range_frac", "atr", "absolute"] = "range_frac"
+    threshold: float = 0.08
+    atr_period: int = 14
+    min_gap: int = 8
+
+    def __post_init__(self) -> None:
+        if self.order < 1:
+            raise InputValidationError("SwingParams order must be >= 1")
+        if self.threshold < 0:
+            raise InputValidationError("SwingParams threshold must be >= 0")
+        if self.atr_period < 1:
+            raise InputValidationError("SwingParams atr_period must be >= 1")
+        if self.min_gap < 1:
+            raise InputValidationError("SwingParams min_gap must be >= 1")
+        if self.threshold_mode not in ("range_frac", "atr", "absolute"):
+            raise InputValidationError(
+                "SwingParams threshold_mode must be range_frac/atr/absolute "
+                f"(L4: percent-of-price is not allowed); got '{self.threshold_mode}'"
+            )
+
+
+@dataclass(frozen=True)
+class HSParams:
+    """Head & Shoulders detector tolerances (FR-PAT-HS)."""
+    tol_shoulder: float = 0.35
+    tol_neckline: float = 0.50
+
+    def __post_init__(self) -> None:
+        if self.tol_shoulder < 0:
+            raise InputValidationError("HSParams tol_shoulder must be >= 0")
+        if self.tol_neckline < 0:
+            raise InputValidationError("HSParams tol_neckline must be >= 0")
+
+
+@dataclass(frozen=True)
+class FlagParams:
+    """Flag / Pennant detector parameters (FR-PAT-FLAG)."""
+    pole_min: float = 0.40
+    retr_max: float = 0.60
+
+    def __post_init__(self) -> None:
+        if self.pole_min <= 0:
+            raise InputValidationError("FlagParams pole_min must be > 0")
+        if not (0.0 < self.retr_max < 1.0):
+            raise InputValidationError("FlagParams retr_max must be in (0, 1)")
+
+
+@dataclass(frozen=True)
+class TriangleParams:
+    """Triangle detector parameters (FR-PAT-TRI).
+
+    flat_slope_eps : a fitted trendline counts as "flat" when |slope| scaled by
+                     the series range is below this threshold.
+    min_pivots     : minimum pivots required to fit upper/lower bounds.
+    """
+    flat_slope_eps: float = 0.05
+    min_pivots: int = 4
+
+    def __post_init__(self) -> None:
+        if self.flat_slope_eps < 0:
+            raise InputValidationError("TriangleParams flat_slope_eps must be >= 0")
+        if self.min_pivots < 4:
+            raise InputValidationError("TriangleParams min_pivots must be >= 4")
+
+
+@dataclass(frozen=True)
+class DoubleParams:
+    """Double top / bottom detector parameters (FR-PAT-DT)."""
+    tol_equal: float = 0.03
+    min_separation: int = 5
+    min_trough_depth: float = 0.03
+
+    def __post_init__(self) -> None:
+        if self.tol_equal < 0:
+            raise InputValidationError("DoubleParams tol_equal must be >= 0")
+        if self.min_separation < 1:
+            raise InputValidationError("DoubleParams min_separation must be >= 1")
+        if self.min_trough_depth < 0:
+            raise InputValidationError("DoubleParams min_trough_depth must be >= 0")
+
+
+@dataclass(frozen=True)
+class NullFPRParams:
+    """Null-FPR evaluation parameters (FR-FPR-1/2).
+
+    noteworthy_pct is the null-score percentile a detection must exceed to be
+    flagged "noteworthy" (FR-FPR-2). seed makes the surrogate draw reproducible
+    (NFR-RP1).
+    """
+    n_null: int = 1000
+    noteworthy_pct: float = 95.0
+    seed: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        if self.n_null < 1:
+            raise InputValidationError("NullFPRParams n_null must be >= 1")
+        if not (0.0 <= self.noteworthy_pct <= 100.0):
+            raise InputValidationError("NullFPRParams noteworthy_pct must be in [0, 100]")
