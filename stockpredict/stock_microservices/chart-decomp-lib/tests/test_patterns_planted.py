@@ -20,6 +20,10 @@ from chart_decomp.infrastructure.patterns.double import (
     DoubleBottomDetector,
     DoubleTopDetector,
 )
+from chart_decomp.infrastructure.patterns.flag_pennant import (
+    BearFlagDetector,
+    BullFlagDetector,
+)
 from chart_decomp.infrastructure.patterns.head_shoulders import (
     HeadAndShouldersDetector,
     InverseHeadAndShouldersDetector,
@@ -148,3 +152,93 @@ class TestDoubleBottomPlanted:
     def test_top_detector_silent_on_bottom(self):
         x = zigzag(self.CTRL, 150)
         assert DoubleTopDetector().detect(skeleton_of(x), x) == []
+
+
+# ── Bull Flag ─────────────────────────────────────────────────────────────────
+
+class TestBullFlagPlanted:
+    # Pole: L(~20, 85) → H(~45, 155), height=70, ~93% of range >> pole_min(40%).
+    # Consolidation: H(~75,152), H(~105,151) and L(~60,145), L(~90,143).
+    # Both bound lines slope slightly negative → parallel → "Bull Flag".
+    CTRL = [
+        (0, 100), (20, 85), (45, 155),
+        (60, 145), (75, 152), (90, 143), (105, 151),
+        (150, 80),
+    ]
+    N = 160
+
+    def test_detected_near_location(self):
+        x = zigzag(self.CTRL, self.N)
+        dets = BullFlagDetector().detect(skeleton_of(x), x)
+        assert dets, "planted bull flag not detected"
+        d = dets[0]
+        assert d.pattern == "Bull Flag"
+        assert abs(d.start_index - 20) <= 3   # pole base near index 20
+        assert d.score > 0.5
+
+    def test_large_retrace_rejected(self):
+        # Consolidation L(~90, 103): retrace = 155-103=52, 52/70=74% > retr_max(60%).
+        ctrl = [
+            (0, 100), (20, 85), (45, 155),
+            (60, 108), (75, 150), (90, 103), (105, 148),
+            (150, 80),
+        ]
+        x = zigzag(ctrl, self.N)
+        assert BullFlagDetector().detect(skeleton_of(x), x) == []
+
+    def test_bear_detector_silent_on_bull_flag(self):
+        x = zigzag(self.CTRL, self.N)
+        # No H→L pole exceeds pole_min in this series.
+        assert BearFlagDetector().detect(skeleton_of(x), x) == []
+
+
+# ── Bull Pennant ──────────────────────────────────────────────────────────────
+
+class TestBullPennantPlanted:
+    # Same pole as bull flag. Consolidation: H(~75,152), H(~105,148) slope down;
+    # L(~60,133), L(~90,140) slope up → converging → "Bull Pennant".
+    # Each H↔L move ≥ 8 pts, well above the 8%-of-range threshold (5.6 pt).
+    CTRL = [
+        (0, 100), (20, 85), (45, 155),
+        (60, 133), (75, 152), (90, 140), (105, 148),
+        (150, 100),
+    ]
+    N = 160
+
+    def test_detected_near_location(self):
+        x = zigzag(self.CTRL, self.N)
+        dets = BullFlagDetector().detect(skeleton_of(x), x)
+        assert dets, "planted bull pennant not detected"
+        d = dets[0]
+        assert d.pattern == "Bull Pennant"
+        assert d.score > 0.5
+
+
+# ── Bear Flag ────────────────────────────────────────────────────────────────
+
+class TestBearFlagPlanted:
+    # Pole: H(~25, 155) → L(~50, 85), height=70 >> pole_min.
+    # Consolidation: H(~70,95), H(~105,96) and L(~85,87), L(~120,88).
+    # All moves ≥ 8 pts (> 7.2-pt threshold = 8% of range=90).
+    # Brief H(130,96) ensures L(120) has a higher right neighbour for argrelextrema.
+    # Both bound lines slope slightly positive → parallel → "Bear Flag".
+    CTRL = [
+        (0, 100), (25, 155), (50, 85),
+        (70, 95), (85, 87), (105, 96), (120, 88), (130, 96),
+        (190, 65),
+    ]
+    N = 200
+
+    def test_detected_near_location(self):
+        x = zigzag(self.CTRL, self.N)
+        dets = BearFlagDetector().detect(skeleton_of(x), x)
+        assert dets, "planted bear flag not detected"
+        d = dets[0]
+        assert d.pattern == "Bear Flag"
+        assert abs(d.start_index - 25) <= 3   # pole top near index 25
+        assert d.score > 0.5
+
+    def test_bull_detector_silent_on_bear_flag(self):
+        x = zigzag(self.CTRL, self.N)
+        # No L→H pole exceeds pole_min in this series.
+        assert BullFlagDetector().detect(skeleton_of(x), x) == []
