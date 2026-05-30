@@ -288,6 +288,59 @@ def hybrid_modwt_hilbert(x: np.ndarray) -> TimeFreqResult:
     return _hyb_uc.hybrid_c(x)
 
 
+# ── Part II — Pattern pipeline ─────────────────────────────────────────────────
+
+from chart_decomp.application.run_pattern_pipeline_usecase import (  # noqa: E402
+    RunPatternPipelineUseCase,
+)
+from chart_decomp.domain.entities import PatternPipelineResult  # noqa: E402
+from chart_decomp.domain.value_objects import (  # noqa: E402
+    DenoiseParams,
+    NullFPRParams,
+    SwingParams,
+)
+
+_pattern_pipeline_uc = RunPatternPipelineUseCase()
+
+
+def run_pattern_pipeline(
+    x: np.ndarray,
+    *,
+    denoise_params: "DenoiseParams | None" = None,
+    swing_params: "SwingParams | None" = None,
+    detectors="all",
+    compute_fpr: bool = True,
+    fpr_params: "NullFPRParams | None" = None,
+) -> PatternPipelineResult:
+    """Denoise → swing extraction → pattern detection → (null FPR).
+
+    Parameters
+    ----------
+    x              : raw price series (1-D float array).
+    denoise_params : wavelet denoising config; default DenoiseParams().
+    swing_params   : swing extractor config; default SwingParams().
+    detectors      : 'all' or list of registered detector names.
+    compute_fpr    : if True (default), run the null FPR evaluator and annotate
+                     each Detection with null_percentile (FR-FPR-2). Set False
+                     for interactive speed.
+    fpr_params     : NullFPRParams for the null evaluator. Default n_null=1000;
+                     pass NullFPRParams(n_null=100) for faster interactive use.
+
+    Returns
+    -------
+    PatternPipelineResult with raw, denoised, swings, detections, fpr_by_pattern.
+    Detections near the right-edge cone of influence have confirmed=False (B6/C2).
+    """
+    return _pattern_pipeline_uc.execute(
+        x,
+        denoise_params=denoise_params,
+        swing_params=swing_params,
+        detectors=detectors,
+        compute_fpr=compute_fpr,
+        fpr_params=fpr_params,
+    )
+
+
 __all__ = [
     # Decomposition
     "modwt", "emd", "eemd", "vmd",
@@ -315,4 +368,7 @@ __all__ = [
     # Exceptions
     "ChartDecompError", "InputValidationError", "CausalityViolationError",
     "InsufficientDataError", "DecompositionError", "MissingDependencyError",
+    # Part II — pattern pipeline
+    "run_pattern_pipeline", "PatternPipelineResult",
+    "DenoiseParams", "SwingParams", "NullFPRParams",
 ]
