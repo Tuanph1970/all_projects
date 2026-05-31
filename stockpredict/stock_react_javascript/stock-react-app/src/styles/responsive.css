@@ -1,0 +1,150 @@
+/* =============================================================================
+ * responsive.css — global mobile-responsive foundation (Phase 5)
+ * =============================================================================
+ * Broad, page-agnostic rules that make the whole app behave on small screens.
+ * Imported LAST in App.js so these can override earlier stylesheets.
+ *
+ * Breakpoints (match layout.css):
+ *   - phone   : max-width 480px
+ *   - mobile  : max-width 768px
+ *   - tablet  : max-width 1023px  (sidebar is a drawer below 1024px)
+ *
+ * Per-page layouts that use INLINE `gridTemplateColumns` cannot be overridden
+ * by CSS (inline styles win); those are migrated page-by-page to the
+ * .responsive-grid-* utilities below in the follow-up audit pass.
+ * ========================================================================== */
+
+/* ─── 1. Global overflow + fluid media guards ─────────────────────────────
+ * Stop a single wide child (table, image, fixed-width box) from forcing the
+ * entire app to scroll sideways. Inner scroll containers (.table-scroll) still
+ * scroll on their own. */
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+.main-content,
+.page-content {
+  overflow-x: hidden;
+  min-width: 0;            /* allow fl/grid children to shrink below content size */
+}
+
+/* Media should never exceed its container. */
+img,
+svg,
+canvas,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ─── 2. Responsive grid utilities ────────────────────────────────────────
+ * Opt-in classes that collapse to fewer columns as the viewport narrows.
+ * Use instead of inline `gridTemplateColumns` so layouts reflow on mobile. */
+.responsive-grid-2,
+.responsive-grid-3,
+.responsive-grid-4,
+.responsive-grid-auto {
+  display: grid;
+  gap: 12px;
+}
+
+.responsive-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.responsive-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.responsive-grid-4 { grid-template-columns: repeat(4, 1fr); }
+.responsive-grid-auto { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+
+@media (max-width: 1023px) {
+  .responsive-grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .responsive-grid-3 { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .responsive-grid-2,
+  .responsive-grid-3,
+  .responsive-grid-4 {
+    grid-template-columns: 1fr;          /* stack on phones */
+  }
+  .responsive-grid-auto {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+}
+
+/* ─── 3. Table overflow ───────────────────────────────────────────────────
+ * Wrap wide tables in <div class="table-scroll"> to get horizontal scrolling
+ * instead of breaking the page. A defensive rule also nudges bare tables. */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  .table-scroll > table { min-width: 560px; }   /* keep columns legible; scroll */
+}
+
+/* ─── 4. Mobile spacing ───────────────────────────────────────────────────
+ * Tighten generous desktop page padding so content isn't squeezed on phones.
+ * Targets common page container class names used across the app. */
+@media (max-width: 768px) {
+  .page-content { padding: 0; }
+
+  .container,
+  .dashboard-content,
+  .simulation-dashboard,
+  .page-container {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
+/* ─── 5. Touch targets ────────────────────────────────────────────────────
+ * On touch/coarse pointers, ensure interactive controls are tappable (~44px)
+ * and inputs use ≥16px font so iOS Safari doesn't auto-zoom on focus. */
+@media (hover: none) and (pointer: coarse) {
+  button,
+  .nav-button,
+  [role="button"] {
+    min-height: 40px;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px;          /* prevents iOS focus-zoom */
+  }
+}
+
+/* ─── 6. Header fixes (override layout.css) ───────────────────────────────
+ * layout.css enlarges the title to 28px under 768px (bigger than the 20px
+ * desktop size) — clearly a regression. Shrink it instead, and let the search
+ * box flex-shrink rather than overflow a narrow header. */
+@media (max-width: 768px) {
+  .header-title { font-size: 18px !important; }
+  .header-meta { display: none; }                /* free space on small headers */
+  .header-search {
+    width: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 200px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Below ~iPhone width the search box can't coexist with the action cluster;
+     hide it (search remains reachable from the dedicated pages). */
+  .header-search { display: none; }
+  .header { padding: 10px 12px; }
+}
+
+/* ─── 7. Charts ───────────────────────────────────────────────────────────
+ * Recharts ResponsiveContainer handles width already; just make sure any
+ * explicit-width chart wrapper can shrink. */
+@media (max-width: 768px) {
+  .recharts-responsive-container,
+  .chart-section,
+  .chart-wrapper {
+    max-width: 100%;
+  }
+}

@@ -20,6 +20,7 @@ import './styles/tab_styles.css';
 import './styles/table_style.css';
 import './styles/performance.css';
 import './styles/knowledge-qa.css';
+import './styles/responsive.css';   // global mobile-responsive foundation — keep last
 
 // homepage in package.json — BrowserRouter strips this prefix from routes.
 const BASENAME = '/stock-app';
