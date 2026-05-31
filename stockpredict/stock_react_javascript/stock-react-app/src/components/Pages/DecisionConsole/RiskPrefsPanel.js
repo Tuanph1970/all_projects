@@ -58,7 +58,7 @@ const RiskPrefsPanel = ({ onClose }) => {
         <span style={{ fontWeight: 700, fontSize: 14 }}>{t('decision_helper.risk_prefs.title')}</span>
         <button onClick={onClose} style={styles.closeBtn}><X size={14} /></button>
       </div>
-      <div style={styles.grid}>
+      <div className="responsive-stack" style={styles.grid}>
         <Field label={t('decision_helper.risk_prefs.account_equity')} value={form.accountEquity} onChange={set('accountEquity')} step={1000} />
         <Field label={t('decision_helper.risk_prefs.risk_per_trade')} value={form.riskPerTradePct} onChange={set('riskPerTradePct')} step={0.1} min={0.1} max={10} />
         <Field label={t('decision_helper.risk_prefs.max_positions')} value={form.maxConcurrentPositions} onChange={set('maxConcurrentPositions')} step={1} min={1} max={20} />

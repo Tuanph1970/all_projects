@@ -123,7 +123,7 @@ const DisciplineDashboard = () => {
       {summary && (
         <>
           {/* ── stat cards ── */}
-          <div style={s.statsGrid}>
+          <div className="responsive-stack responsive-stack-2up" style={s.statsGrid}>
             <StatCard
               label={t('decision_helper.discipline.loss_streak')}
               value={summary.recent_losses}

@@ -239,7 +239,7 @@ const TradePlanModal = ({ isOpen, onClose, recommendation, onSaved }) => {
               </div>
 
               {/* Price fields */}
-              <div style={styles.row}>
+              <div className="responsive-stack responsive-stack-2up" style={styles.row}>
                 <div style={styles.field}>
                   <label style={styles.label}>{t('trade_plan.entry_price')}</label>
                   <input

@@ -78,7 +78,7 @@ const Backtest = () => {
         {t('backtest.description')}
       </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24 }}>
+      <div className="responsive-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 24 }}>
         {/* Form */}
         <form
           onSubmit={onSubmit}
@@ -121,7 +121,7 @@ const Backtest = () => {
             </select>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+          <div className="responsive-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
             <div>
               <label htmlFor="bt-start" style={{ display: 'block', marginBottom: 4, fontWeight: 500 }}>
                 {t('backtest.from_date')}
@@ -262,7 +262,7 @@ const Backtest = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="responsive-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <Metric label="MAE" value={fmtNum(result.mean_absolute_error)} />
                 <Metric label="RMSE" value={fmtNum(result.root_mean_squared_error)} />
                 <Metric

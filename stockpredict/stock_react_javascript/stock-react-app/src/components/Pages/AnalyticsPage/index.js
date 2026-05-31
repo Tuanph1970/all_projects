@@ -227,7 +227,7 @@ const AnalyticsPage = () => {
           )}
 
           {/* ── Two-column: action breakdown + confidence histogram ── */}
-          <div style={styles.twoCol}>
+          <div className="responsive-stack" style={styles.twoCol}>
             {/* Action breakdown */}
             <div style={styles.section}>
               <div style={styles.sectionTitle}>{t('decision_helper.analytics.action_distribution')}</div>
@@ -296,7 +296,7 @@ const AnalyticsPage = () => {
           )}
 
           {/* ── Two-column: signal breakdown + top tickers ── */}
-          <div style={styles.twoCol}>
+          <div className="responsive-stack" style={styles.twoCol}>
             <div style={styles.section}>
               <div style={styles.sectionTitle}>{t('decision_helper.analytics.signal_breakdown_title')}</div>
               <SignalTable rows={data.signal_breakdown} />

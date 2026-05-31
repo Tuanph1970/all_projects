@@ -72,7 +72,7 @@ const ActionCard = ({ rec, onPlan }) => {
         )}
       </div>
 
-      <div style={styles.priceGrid}>
+      <div className="responsive-stack responsive-stack-2up" style={styles.priceGrid}>
         <PriceBox label={t('decision_helper.decision_console.entry')} value={fmt(rec.entry_price)} color="#f9fafb" />
         <PriceBox label={t('decision_helper.decision_console.stop')} value={fmt(rec.stop_price)} color="#ef4444" icon={Shield} />
         <PriceBox label={t('decision_helper.decision_console.target')} value={fmt(rec.target_price)} color="#10b981" icon={Target} />

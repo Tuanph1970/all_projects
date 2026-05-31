@@ -78,7 +78,7 @@ const PositionCalculator = () => {
         {t('tools.calculator.subtitle')}
       </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+      <div className="responsive-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
         {/* Inputs */}
         <div style={{ background: '#fff', padding: 20, borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
           <h3 style={{ marginTop: 0, marginBottom: 16 }}>{t('tools.calculator.parameters_label')}</h3>
@@ -177,7 +177,7 @@ const PositionCalculator = () => {
                 <div data-testid="pc-shares" style={{ fontSize: 28, fontWeight: 700, color: '#2563eb' }}>{fmtNum(result.shares)}</div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+              <div className="responsive-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
                 <Cell label={t('tools.calculator.position_value_label')} value={fmtVND(result.positionValue)} />
                 <Cell label={t('tools.calculator.total_risk_label')} value={fmtVND(result.actualRiskAmount)} accent="#dc2626" />
                 <Cell label={t('tools.calculator.actual_risk_pct_label')} value={`${result.actualRiskPct.toFixed(2)}%`} accent="#dc2626" />

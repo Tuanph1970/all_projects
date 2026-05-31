@@ -71,9 +71,30 @@ video {
   }
 }
 
+/* ─── 2b. Inline-grid stacking override ───────────────────────────────────
+ * Pages that set gridTemplateColumns via an inline `style` prop can't be
+ * reflowed by a normal CSS rule (inline styles win). Author `!important`
+ * DOES beat non-important inline styles, so adding .responsive-stack to such
+ * an element collapses it on small screens while leaving the desktop design
+ * (the inline value) untouched.
+ *
+ *   .responsive-stack        → 1 column at ≤768px (phones)
+ *   .responsive-stack-2up    → 2 columns at 769–1023px (tablets), combine with
+ *                              .responsive-stack so 4-col grids go 4→2→1. */
+@media (max-width: 768px) {
+  .responsive-stack { grid-template-columns: 1fr !important; }
+}
+
+@media (min-width: 769px) and (max-width: 1023px) {
+  .responsive-stack-2up { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
 /* ─── 3. Table overflow ───────────────────────────────────────────────────
  * Wrap wide tables in <div class="table-scroll"> to get horizontal scrolling
- * instead of breaking the page. A defensive rule also nudges bare tables. */
+ * instead of breaking the page. A defensive global rule also makes bare data
+ * tables inside page content scroll horizontally on phones rather than
+ * forcing the whole layout wide (display:block keeps cell alignment via an
+ * anonymous table box while letting the table scroll on its own). */
 .table-scroll {
   width: 100%;
   overflow-x: auto;
@@ -82,6 +103,13 @@ video {
 
 @media (max-width: 768px) {
   .table-scroll > table { min-width: 560px; }   /* keep columns legible; scroll */
+
+  .page-content table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* ─── 4. Mobile spacing ───────────────────────────────────────────────────
