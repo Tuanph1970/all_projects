@@ -52,6 +52,27 @@ class ChartDecompService {
     return httpClient.post(API_ENDPOINTS.CHART_DECOMP_BACKTEST, { returns, vol_forecasts, target_ann_vol, max_leverage, cost_bps, lookback_vol });
   }
 
+  // ── Part II: pattern detection (CD-617) ──────────────────────────────────
+
+  async patternPipeline({
+    series,
+    wavelet = 'sym8', level = 4, k_drop = 1, denoise_method = 'drop',
+    order = 10, threshold = 0.08, threshold_mode = 'range_frac', min_gap = 8,
+    detectors = [],
+    compute_fpr = false, n_null = 100, fpr_seed = null,
+  }) {
+    return httpClient.post(API_ENDPOINTS.CHART_DECOMP_PAT_PIPELINE, {
+      series, wavelet, level, k_drop, denoise_method,
+      order, threshold, threshold_mode, min_gap,
+      detectors, compute_fpr, n_null, fpr_seed,
+    });
+  }
+
+  async patternNullFPR({ series, detectors = [], n_null = 100, seed = null }) {
+    return httpClient.post(API_ENDPOINTS.CHART_DECOMP_PAT_NULL_FPR,
+      { series, detectors, n_null, seed });
+  }
+
   async forecastCompare({ log_rv, har = {}, vmd = {} }) {
     return httpClient.post(API_ENDPOINTS.CHART_DECOMP_COMPARE, {
       log_rv,

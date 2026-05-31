@@ -290,4 +290,113 @@ class ForecastCompareResponse(BaseModel):
     har: ForecastResponse
     vmd_har: ForecastResponse
     dm_stat: Optional[float] = Field(None, description="Diebold-Mariano stat (VMD-HAR vs HAR); >1.96 → VMD-HAR significantly better")
+
+
+# ---------------------------------------------------------------------------
+# Part II — Pattern detection (CD-616 / A16)
+# ---------------------------------------------------------------------------
+
+class PatternDenoiseRequest(BaseModel):
+    series: list[float]
+    wavelet: str = "sym8"
+    level: int = Field(4, ge=1, le=12)
+    k_drop: int = Field(1, ge=0)
+    method: str = "drop"
+
+    @field_validator("series")
+    @classmethod
+    def _check(cls, v: list[float]) -> list[float]:
+        return _check_array(v, min_len=8)
+
+
+class PatternDenoiseResponse(BaseModel):
+    denoised: list[float]
+
+
+class PatternSwingsRequest(BaseModel):
+    series: list[float]
+    order: int = Field(10, ge=1)
+    threshold: float = Field(0.08, gt=0.0)
+    threshold_mode: str = "range_frac"
+    min_gap: int = Field(8, ge=1)
+
+    @field_validator("series")
+    @classmethod
+    def _check(cls, v: list[float]) -> list[float]:
+        return _check_array(v, min_len=8)
+
+
+class SwingInfo(BaseModel):
+    index: int
+    price: float
+    kind: str
+
+
+class PatternSwingsResponse(BaseModel):
+    swings: list[SwingInfo]
+
+
+class DetectionInfo(BaseModel):
+    pattern: str
+    start_index: int
+    end_index: int
+    pivots: list[int]
+    score: float
+    null_percentile: Optional[float] = None
+    confirmed: bool = True
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class PatternDetectRequest(BaseModel):
+    """Denoise → swings → detect (no FPR)."""
+    series: list[float]
+    wavelet: str = "sym8"
+    level: int = Field(4, ge=1, le=12)
+    k_drop: int = Field(1, ge=0)
+    denoise_method: str = "drop"
+    order: int = Field(10, ge=1)
+    threshold: float = Field(0.08, gt=0.0)
+    threshold_mode: str = "range_frac"
+    min_gap: int = Field(8, ge=1)
+    detectors: list[str] = Field(default_factory=list)
+
+    @field_validator("series")
+    @classmethod
+    def _check(cls, v: list[float]) -> list[float]:
+        return _check_array(v, min_len=8)
+
+
+class PatternDetectResponse(BaseModel):
+    denoised: list[float]
+    swings: list[SwingInfo]
+    detections: list[DetectionInfo]
+
+
+class PatternPipelineRequest(PatternDetectRequest):
+    """Full pipeline: denoise → swings → detect → optional null-FPR."""
+    compute_fpr: bool = False
+    n_null: int = Field(100, ge=10, le=2000)
+    fpr_seed: Optional[int] = None
+
+
+class PatternPipelineResponse(PatternDetectResponse):
+    fpr_by_pattern: dict[str, float] = Field(default_factory=dict)
+
+
+class PatternNullFPRRequest(BaseModel):
+    series: list[float]
+    detectors: list[str] = Field(default_factory=list)
+    n_null: int = Field(100, ge=10, le=2000)
+    seed: Optional[int] = None
+
+    @field_validator("series")
+    @classmethod
+    def _check(cls, v: list[float]) -> list[float]:
+        return _check_array(v, min_len=8)
+
+
+class PatternNullFPRResponse(BaseModel):
+    fpr_by_pattern: dict[str, float]
+    score_pct95_by_pattern: dict[str, float]
+    n_null: int
     winner: str = Field("har", description="'har' | 'vmd_har' | 'tie'")

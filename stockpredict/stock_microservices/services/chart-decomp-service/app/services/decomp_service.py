@@ -11,7 +11,19 @@ import numpy as np
 import chart_decomp as cd
 
 from chart_decomp.application.run_forecast_usecase import RunForecastUseCase
-from chart_decomp.domain.value_objects import HARParams, VMDHARParams
+from chart_decomp.domain.entities import SwingSkeleton
+from chart_decomp.domain.value_objects import (
+    DenoiseParams,
+    HARParams,
+    NullFPRParams,
+    SwingParams,
+    TimeSeries,
+    VMDHARParams,
+)
+from chart_decomp.infrastructure.denoise.wavelet_denoiser import WaveletDenoiser
+from chart_decomp.infrastructure.swings.swing_extractor import SwingExtractor
+from chart_decomp.infrastructure.validation.null_fpr import null_fpr
+from chart_decomp.infrastructure.validation.surrogates import estimate_volatility
 
 from app.api.schemas import (
     BacktestRequest,
@@ -20,6 +32,7 @@ from app.api.schemas import (
     CoherenceResponse,
     CWTRequest,
     CWTResponse,
+    DetectionInfo,
     EMDRequest,
     EMDResponse,
     EEMDRequest,
@@ -33,14 +46,27 @@ from app.api.schemas import (
     HurstResponse,
     MODWTRequest,
     MODWTResponse,
+    PatternDenoiseRequest,
+    PatternDenoiseResponse,
+    PatternDetectRequest,
+    PatternDetectResponse,
+    PatternNullFPRRequest,
+    PatternNullFPRResponse,
+    PatternPipelineRequest,
+    PatternPipelineResponse,
+    PatternSwingsRequest,
+    PatternSwingsResponse,
     RealizedVarRequest,
     RealizedVarResponse,
+    SwingInfo,
     VMDHARForecastRequest,
     VMDRequest,
     VMDResponse,
 )
 
 _fc_uc = RunForecastUseCase()
+_denoiser = WaveletDenoiser()
+_extractor = SwingExtractor()
 
 
 # ---------------------------------------------------------------------------
@@ -293,4 +319,116 @@ def run_backtest(req: BacktestRequest) -> BacktestResponse:
         pnl_gross=result.pnl_gross.tolist(),
         turnover=result.turnover.tolist(),
         metrics=result.metrics,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Part II — Pattern detection (CD-616 / A16)
+# ---------------------------------------------------------------------------
+
+def _det_to_info(d) -> DetectionInfo:
+    return DetectionInfo(
+        pattern=d.pattern,
+        start_index=d.start_index,
+        end_index=d.end_index,
+        pivots=d.pivots,
+        score=round(float(d.score), 4),
+        null_percentile=d.null_percentile,
+        confirmed=d.confirmed,
+        details={k: (v.tolist() if hasattr(v, "tolist") else v)
+                 for k, v in d.details.items()},
+    )
+
+
+def run_pattern_denoise(req: PatternDenoiseRequest) -> PatternDenoiseResponse:
+    x = np.asarray(req.series, dtype=np.float64)
+    params = DenoiseParams(wavelet=req.wavelet, level=req.level,
+                           k_drop=req.k_drop, method=req.method)
+    denoised = _denoiser.denoise(TimeSeries(x), params)
+    return PatternDenoiseResponse(denoised=denoised.tolist())
+
+
+def run_pattern_swings(req: PatternSwingsRequest) -> PatternSwingsResponse:
+    x = np.asarray(req.series, dtype=np.float64)
+    sp = SwingParams(order=req.order, threshold=req.threshold,
+                     threshold_mode=req.threshold_mode, min_gap=req.min_gap)
+    swings = _extractor.extract(TimeSeries(x), sp)
+    return PatternSwingsResponse(
+        swings=[SwingInfo(index=s.index, price=round(s.price, 4), kind=s.kind)
+                for s in swings]
+    )
+
+
+def _build_detect_response(req: PatternDetectRequest) -> tuple:
+    """Run denoise + swings + detect; return (denoised, swings_list, detections)."""
+    from chart_decomp.factories.pattern_detector_factory import detect_patterns
+    x = np.asarray(req.series, dtype=np.float64)
+    dp = DenoiseParams(wavelet=req.wavelet, level=req.level,
+                       k_drop=req.k_drop, method=req.denoise_method)
+    sp = SwingParams(order=req.order, threshold=req.threshold,
+                     threshold_mode=req.threshold_mode, min_gap=req.min_gap)
+    denoised = _denoiser.denoise(TimeSeries(x), dp)
+    try:
+        swings = _extractor.extract(TimeSeries(denoised), sp)
+    except Exception:
+        swings = []
+
+    detectors = req.detectors if req.detectors else "all"
+    dets = []
+    if len(swings) >= 2:
+        sk = SwingSkeleton(swings)
+        # Edge-flag detections near right edge (B6/C2)
+        from chart_decomp.application.run_pattern_pipeline_usecase import _edge_lag
+        lag = _edge_lag(dp)
+        raw_dets = detect_patterns(sk, denoised, detectors)
+        for d in raw_dets:
+            if d.end_index >= len(x) - lag:
+                d.confirmed = False
+        dets = raw_dets
+
+    return denoised, swings, dets
+
+
+def run_pattern_detect(req: PatternDetectRequest) -> PatternDetectResponse:
+    denoised, swings, dets = _build_detect_response(req)
+    return PatternDetectResponse(
+        denoised=denoised.tolist(),
+        swings=[SwingInfo(index=s.index, price=round(s.price, 4), kind=s.kind)
+                for s in swings],
+        detections=[_det_to_info(d) for d in dets],
+    )
+
+
+def run_pattern_pipeline(req: PatternPipelineRequest) -> PatternPipelineResponse:
+    x = np.asarray(req.series, dtype=np.float64)
+    denoised, swings, dets = _build_detect_response(req)
+    fpr: dict = {}
+    if req.compute_fpr and dets:
+        fp = NullFPRParams(n_null=req.n_null, seed=req.fpr_seed)
+        detectors = req.detectors if req.detectors else "all"
+        vol = max(float(estimate_volatility(x)), 1e-8)
+        null_res = null_fpr(len(x), vol, detectors=detectors, params=fp)
+        fpr = null_res.fpr_by_pattern
+        pct95 = null_res.score_pct95_by_pattern
+        for d in dets:
+            d.null_percentile = pct95.get(d.pattern)
+    return PatternPipelineResponse(
+        denoised=denoised.tolist(),
+        swings=[SwingInfo(index=s.index, price=round(s.price, 4), kind=s.kind)
+                for s in swings],
+        detections=[_det_to_info(d) for d in dets],
+        fpr_by_pattern=fpr,
+    )
+
+
+def run_pattern_null_fpr(req: PatternNullFPRRequest) -> PatternNullFPRResponse:
+    x = np.asarray(req.series, dtype=np.float64)
+    detectors = req.detectors if req.detectors else "all"
+    vol = max(float(estimate_volatility(x)), 1e-8)
+    fp = NullFPRParams(n_null=req.n_null, seed=req.seed)
+    result = null_fpr(len(x), vol, detectors=detectors, params=fp)
+    return PatternNullFPRResponse(
+        fpr_by_pattern=result.fpr_by_pattern,
+        score_pct95_by_pattern=result.score_pct95_by_pattern,
+        n_null=result.n_null,
     )

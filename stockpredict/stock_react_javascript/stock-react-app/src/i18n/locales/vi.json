@@ -2122,7 +2122,8 @@
       "decomp": "Phân rã tín hiệu",
       "time_freq": "Thời tần",
       "hurst": "Hurst & Tương quan",
-      "forecast": "Dự báo biến động"
+      "forecast": "Dự báo biến động",
+      "patterns": "Phát hiện Mẫu hình"
     },
     "input": {
       "title": "Dữ liệu đầu vào",
@@ -2219,6 +2220,31 @@
     "common": {
       "no_result": "Chưa có kết quả",
       "run_first": "Nhấn nút chạy để bắt đầu phân tích"
+    },
+    "patterns": {
+      "run_btn": "Chạy phát hiện",
+      "running": "Đang phát hiện…",
+      "error": "Lỗi phát hiện: {{msg}}",
+      "k_drop_label": "k_drop khử nhiễu",
+      "threshold_label": "Ngưỡng swing",
+      "panel1_title": "Thô vs Khử nhiễu",
+      "panel2_title": "Khung xương Swing",
+      "panel3_title": "Mẫu hình phát hiện được",
+      "raw_label": "Thô",
+      "denoised_label": "Khử nhiễu",
+      "high_label": "Đỉnh",
+      "low_label": "Đáy",
+      "no_detections": "Không phát hiện mẫu hình.",
+      "report_title": "Báo cáo phát hiện",
+      "col_pattern": "Mẫu hình",
+      "col_start": "Bắt đầu",
+      "col_end": "Kết thúc",
+      "col_score": "Điểm",
+      "col_confirmed": "Xác nhận",
+      "col_null_pct": "Null pct95",
+      "confirmed_yes": "✓",
+      "confirmed_edge": "Cạnh?",
+      "no_series": "Tải dữ liệu trước."
     }
   },
   "file_manager": {

@@ -2122,7 +2122,8 @@
       "decomp": "Signal Decomposition",
       "time_freq": "Time-Frequency",
       "hurst": "Hurst & Coherence",
-      "forecast": "Volatility Forecast"
+      "forecast": "Volatility Forecast",
+      "patterns": "Pattern Detection"
     },
     "input": {
       "title": "Input Data",
@@ -2219,6 +2220,31 @@
     "common": {
       "no_result": "No results yet",
       "run_first": "Press the run button to start analysis"
+    },
+    "patterns": {
+      "run_btn": "Run Detection",
+      "running": "Detecting…",
+      "error": "Detection error: {{msg}}",
+      "k_drop_label": "Denoise k_drop",
+      "threshold_label": "Swing threshold",
+      "panel1_title": "Raw vs Denoised",
+      "panel2_title": "Swing Skeleton",
+      "panel3_title": "Detected Patterns",
+      "raw_label": "Raw",
+      "denoised_label": "Denoised",
+      "high_label": "High pivot",
+      "low_label": "Low pivot",
+      "no_detections": "No patterns detected.",
+      "report_title": "Detection Report",
+      "col_pattern": "Pattern",
+      "col_start": "Start",
+      "col_end": "End",
+      "col_score": "Score",
+      "col_confirmed": "Confirmed",
+      "col_null_pct": "Null pct95",
+      "confirmed_yes": "✓",
+      "confirmed_edge": "Edge?",
+      "no_series": "Load a series first."
     }
   },
   "file_manager": {

@@ -35,6 +35,16 @@ from app.api.schemas import (
     HurstResponse,
     MODWTRequest,
     MODWTResponse,
+    PatternDenoiseRequest,
+    PatternDenoiseResponse,
+    PatternDetectRequest,
+    PatternDetectResponse,
+    PatternNullFPRRequest,
+    PatternNullFPRResponse,
+    PatternPipelineRequest,
+    PatternPipelineResponse,
+    PatternSwingsRequest,
+    PatternSwingsResponse,
     RealizedVarRequest,
     RealizedVarResponse,
     VMDHARForecastRequest,
@@ -202,5 +212,62 @@ async def backtest_vol_target(req: BacktestRequest) -> BacktestResponse:
     """Volatility-targeting backtest with leverage cap and transaction costs."""
     try:
         return svc.run_backtest(req)
+    except Exception as exc:
+        raise _handle(exc) from exc
+
+
+# ---------------------------------------------------------------------------
+# Part II — Pattern detection (CD-616 / A16)
+# ---------------------------------------------------------------------------
+
+@router.post("/patterns/denoise", response_model=PatternDenoiseResponse,
+             summary="Wavelet denoise (FR-DN-1)")
+async def patterns_denoise(req: PatternDenoiseRequest) -> PatternDenoiseResponse:
+    """Layer-1 wavelet denoising only — returns the skeleton-ready series."""
+    try:
+        return svc.run_pattern_denoise(req)
+    except Exception as exc:
+        raise _handle(exc) from exc
+
+
+@router.post("/patterns/swings", response_model=PatternSwingsResponse,
+             summary="Swing extraction (FR-SW-1/2/3)")
+async def patterns_swings(req: PatternSwingsRequest) -> PatternSwingsResponse:
+    """Extract alternating H/L swing pivots from a (denoised) series."""
+    try:
+        return svc.run_pattern_swings(req)
+    except Exception as exc:
+        raise _handle(exc) from exc
+
+
+@router.post("/patterns/detect", response_model=PatternDetectResponse,
+             summary="Detect patterns (no FPR)")
+async def patterns_detect(req: PatternDetectRequest) -> PatternDetectResponse:
+    """Denoise → swings → detect all registered patterns.  No null-FPR computation."""
+    try:
+        return svc.run_pattern_detect(req)
+    except Exception as exc:
+        raise _handle(exc) from exc
+
+
+@router.post("/patterns/pipeline", response_model=PatternPipelineResponse,
+             summary="Full pattern pipeline (FR-PAT-* + optional FR-FPR-1/2)")
+async def patterns_pipeline(req: PatternPipelineRequest) -> PatternPipelineResponse:
+    """Denoise → swings → detect → optional null-FPR annotation.
+    Set compute_fpr=true to annotate detections with null_percentile (slower).
+    Right-edge detections are flagged confirmed=false (B6/C2).
+    """
+    try:
+        return svc.run_pattern_pipeline(req)
+    except Exception as exc:
+        raise _handle(exc) from exc
+
+
+@router.post("/patterns/null-fpr", response_model=PatternNullFPRResponse,
+             summary="Null-FPR evaluation (FR-FPR-1/2)")
+async def patterns_null_fpr(req: PatternNullFPRRequest) -> PatternNullFPRResponse:
+    """Run the full pipeline on n_null random-walk surrogates and return per-pattern FPR."""
+    try:
+        return svc.run_pattern_null_fpr(req)
     except Exception as exc:
         raise _handle(exc) from exc
