@@ -32,6 +32,7 @@ const IndicatorsList = () => {
 
   useEffect(() => {
     fetchAllIndicators();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
 
   const fetchAllIndicators = async () => {

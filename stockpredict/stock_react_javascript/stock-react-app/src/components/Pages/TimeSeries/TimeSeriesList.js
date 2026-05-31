@@ -27,6 +27,7 @@ const TimeSeriesList = () => {
 
   useEffect(() => {
     fetchAllData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
 
   const fetchAllData = async () => {

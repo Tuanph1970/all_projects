@@ -20,7 +20,6 @@ const REGIME_COLORS = {
 
 const DAY_OPTIONS = [30, 60, 90, 180, 365];
 
-const fmt1 = (v) => v != null ? Number(v).toFixed(1) : '—';
 const fmtPct = (v) => v != null ? `${(v * 100).toFixed(1)}%` : '—';
 
 // ── Summary cards ─────────────────────────────────────────────────────────────

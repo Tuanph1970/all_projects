@@ -30,6 +30,7 @@ const Alerts = () => {
   useEffect(() => {
     fetchAlerts();
     loadUserHoldings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
   }, []);
 
   const loadUserHoldings = async () => {

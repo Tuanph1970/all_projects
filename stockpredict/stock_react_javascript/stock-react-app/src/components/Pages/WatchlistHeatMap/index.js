@@ -116,7 +116,7 @@ const WatchlistHeatMap = () => {
   const [items, setItems] = useState([]);           // ScanResultItem[]
   const [watchlistTickers, setWatchlistTickers] = useState([]);
   const [scanning, setScanning] = useState(false);
-  const [loadingWl, setLoadingWl] = useState(false);
+  const [, setLoadingWl] = useState(false);
   const [error, setError] = useState(null);
   const [lastScan, setLastScan] = useState(null);   // ISO date string
   const [sort, setSort] = useState('confidence');

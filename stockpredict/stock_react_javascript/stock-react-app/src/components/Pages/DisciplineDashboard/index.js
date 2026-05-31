@@ -2,7 +2,7 @@
 // Schwager Ch 16-17: streak tracker, drawdown alert, rule-advisory panel
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  ShieldAlert, TrendingDown, CheckCircle, XCircle,
+  ShieldAlert, CheckCircle, XCircle,
   AlertTriangle, Info, RefreshCw, BookOpen,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';

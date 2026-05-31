@@ -1,6 +1,6 @@
 // CD-3 — Chart Decomposition & Multi-Scale Analysis viewer
 // Tabs: Signal Decomposition | Time-Frequency | Hurst & Coherence | Volatility Forecast
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, ReferenceArea,
@@ -339,7 +339,6 @@ function DecompTab({ series, t }) {
 
       {result && (() => {
         const d = result.data;
-        const N = series.length;
 
         if (result.method === 'modwt') {
           const components = [

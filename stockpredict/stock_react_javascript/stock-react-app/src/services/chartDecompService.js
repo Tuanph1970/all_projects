@@ -91,4 +91,5 @@ class ChartDecompService {
   }
 }
 
-export default new ChartDecompService();
+const chartDecompService = new ChartDecompService();
+export default chartDecompService;

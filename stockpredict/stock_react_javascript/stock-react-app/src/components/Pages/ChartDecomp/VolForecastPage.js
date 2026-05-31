@@ -462,7 +462,6 @@ function BacktestPanel({ compareResult, prices, t }) {
       const volForecast = logRVToAnnVol(fcResult.predictions);
 
       // Daily log-returns (aligned with OOS forecast period)
-      const N = prices.length;
       const allReturns = prices.slice(1).map((p, i) => Math.log(p / prices[i]));
 
       // Align returns to forecast timestamps
