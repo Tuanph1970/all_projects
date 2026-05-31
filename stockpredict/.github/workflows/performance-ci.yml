@@ -1,0 +1,113 @@
+name: performance-ci
+
+# Phase 3.5: p99 ≤ 300ms SLA gate for core API endpoints.
+#
+# Runs on:
+#   - Manual trigger (workflow_dispatch) with configurable sample count
+#   - Weekly schedule (every Monday 03:00 UTC) to catch regressions
+#   - Automatically on pushes that touch service code (smoke test, 30 samples)
+#
+# Requires: Docker + docker-compose (available on ubuntu-latest runners).
+
+on:
+  workflow_dispatch:
+    inputs:
+      samples:
+        description: 'Requests per endpoint (50 = quick, 100 = production-grade)'
+        required: false
+        default: '50'
+  schedule:
+    - cron: '0 3 * * 1'   # weekly Monday 03:00 UTC
+  push:
+    branches: [main]
+    paths:
+      - 'stock_microservices/services/**'
+      - '.github/workflows/performance-ci.yml'
+
+defaults:
+  run:
+    working-directory: stock_microservices
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+  GATEWAY_URL: 'http://localhost:8004'
+  AUTH_URL:    'http://localhost:8007'
+
+jobs:
+  performance:
+    name: Phase 3.5 p99 SLA benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Start the microservices stack ────────────────────────────────────
+      - name: Start docker-compose stack
+        run: |
+          docker compose up -d \
+            auth-service stock-data-service portfolio-service \
+            analysis-service traefik redis rabbitmq
+        working-directory: stock_microservices
+
+      # ── Wait for all services to be healthy ──────────────────────────────
+      - name: Wait for services to be healthy
+        run: |
+          echo "Waiting for gateway and core services..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8004/health/live > /dev/null 2>&1 && \
+               curl -sf http://localhost:8007/health/live > /dev/null 2>&1 && \
+               curl -sf http://localhost:8001/health/live > /dev/null 2>&1; then
+              echo "All health checks passed after ${i}s"
+              break
+            fi
+            echo "  attempt $i/30 — sleeping 5s..."
+            sleep 5
+            if [ $i -eq 30 ]; then
+              echo "Services did not become healthy in time"
+              docker compose logs --tail=50
+              exit 1
+            fi
+          done
+        working-directory: stock_microservices
+
+      # ── Install benchmark dependencies ───────────────────────────────────
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install benchmark deps
+        run: pip install httpx
+
+      # ── Run Phase 3.5 benchmark ──────────────────────────────────────────
+      - name: Run p99 SLA benchmark
+        run: |
+          SAMPLES=${{ github.event.inputs.samples || '50' }}
+          python tests/performance/benchmark.py \
+            --samples "$SAMPLES" \
+            --out reports/performance/benchmark_$(date +%Y%m%d_%H%M%S).json
+        env:
+          GATEWAY_URL: ${{ env.GATEWAY_URL }}
+          AUTH_URL:    ${{ env.AUTH_URL }}
+
+      # ── Upload report ────────────────────────────────────────────────────
+      - name: Upload benchmark report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report-${{ github.run_number }}
+          path: stock_microservices/reports/performance/
+          if-no-files-found: ignore
+
+      # ── Print service logs on failure ────────────────────────────────────
+      - name: Dump service logs on failure
+        if: failure()
+        run: docker compose logs --tail=100
+        working-directory: stock_microservices
+
+      # ── Tear down ────────────────────────────────────────────────────────
+      - name: Tear down stack
+        if: always()
+        run: docker compose down -v
+        working-directory: stock_microservices

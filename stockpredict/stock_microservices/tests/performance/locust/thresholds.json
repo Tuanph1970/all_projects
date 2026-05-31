@@ -1,87 +1,136 @@
 {
+  "_comment": "Phase 3.5 SLA targets (PHASE3_IMPLEMENTATION_PLAN.md §3.5.2). Tiered by endpoint class.",
+  "_tiers": {
+    "T1_health":    "p99 ≤  100ms — health/liveness probes",
+    "T2_core_read": "p99 ≤  300ms — auth, company/stock list, portfolio CRUD (Phase 3.5 primary target)",
+    "T3_analysis":  "p99 ≤ 1000ms — technical/fundamental analysis, screener",
+    "T4_ml":        "p99 ≤ 3000ms — ML prediction, model training status",
+    "T5_llm":       "p99 ≤ 10000ms — AI insights, chatbot (LLM-bound)"
+  },
+
   "health_live": {
-    "p95": 100,
-    "p99": 200,
+    "tier": "T1",
+    "p50": 20,
+    "p95": 60,
+    "p99": 100,
     "success_rate": 99.9
   },
+
   "api_v2_auth_login": {
-    "p95": 500,
-    "p99": 1000,
+    "tier": "T2",
+    "p50": 60,
+    "p95": 150,
+    "p99": 300,
     "success_rate": 99.5
   },
   "api_v2_auth_register": {
-    "p95": 500,
-    "p99": 1000,
+    "tier": "T2",
+    "p50": 80,
+    "p95": 200,
+    "p99": 300,
     "success_rate": 99.0
   },
+
   "api_v2_companies": {
-    "p95": 300,
-    "p99": 500,
+    "tier": "T2",
+    "p50": 50,
+    "p95": 150,
+    "p99": 300,
     "success_rate": 99.5
   },
   "api_v2_stocks_symbol": {
-    "p95": 250,
-    "p99": 500,
+    "tier": "T2",
+    "p50": 50,
+    "p95": 150,
+    "p99": 300,
     "success_rate": 99.5
   },
   "api_v2_stocks_search": {
-    "p95": 400,
-    "p99": 800,
+    "tier": "T2",
+    "p50": 80,
+    "p95": 200,
+    "p99": 300,
     "success_rate": 99.0
   },
   "api_v2_stocks_history": {
-    "p95": 500,
-    "p99": 1000,
+    "tier": "T2",
+    "p50": 80,
+    "p95": 200,
+    "p99": 300,
     "success_rate": 99.0
   },
+
   "api_v2_portfolio": {
-    "p95": 400,
-    "p99": 800,
+    "tier": "T2",
+    "p50": 60,
+    "p95": 150,
+    "p99": 300,
     "success_rate": 99.5
   },
   "api_v2_portfolio_summary": {
-    "p95": 500,
-    "p99": 1000,
+    "tier": "T2",
+    "p50": 80,
+    "p95": 200,
+    "p99": 300,
     "success_rate": 99.0
   },
   "api_v2_portfolio_transactions": {
-    "p95": 500,
-    "p99": 1000,
+    "tier": "T2",
+    "p50": 80,
+    "p95": 200,
+    "p99": 300,
     "success_rate": 99.0
   },
   "api_v2_alerts": {
-    "p95": 300,
-    "p99": 600,
+    "tier": "T2",
+    "p50": 60,
+    "p95": 150,
+    "p99": 300,
     "success_rate": 99.0
   },
+
   "api_v2_analysis_technical": {
-    "p95": 800,
-    "p99": 1500,
+    "tier": "T3",
+    "p50": 200,
+    "p95": 600,
+    "p99": 1000,
     "success_rate": 98.0
   },
   "api_v2_analysis_fundamental": {
-    "p95": 800,
-    "p99": 1500,
+    "tier": "T3",
+    "p50": 200,
+    "p95": 600,
+    "p99": 1000,
     "success_rate": 98.0
   },
   "api_v2_screener": {
-    "p95": 1000,
-    "p99": 2000,
+    "tier": "T3",
+    "p50": 300,
+    "p95": 700,
+    "p99": 1000,
     "success_rate": 98.0
   },
+
   "api_v2_predict": {
+    "tier": "T4",
+    "p50": 500,
     "p95": 2000,
-    "p99": 5000,
+    "p99": 3000,
     "success_rate": 95.0
   },
+
   "api_v2_ai_insight": {
-    "p95": 3000,
+    "tier": "T5",
+    "p50": 1000,
+    "p95": 5000,
     "p99": 10000,
     "success_rate": 95.0
   },
   "api_v2_chat": {
-    "p95": 5000,
-    "p99": 15000,
+    "tier": "T5",
+    "p50": 2000,
+    "p95": 8000,
+    "p99": 10000,
     "success_rate": 95.0
   }
 }
