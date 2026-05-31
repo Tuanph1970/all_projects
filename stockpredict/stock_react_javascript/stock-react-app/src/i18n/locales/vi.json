@@ -191,48 +191,48 @@
       "emphasis": "Tổng quan"
     },
     "decision-console": {
-      "title": "Decision Console",
-      "emphasis": "Console"
+      "title": "Bảng điều khiển",
+      "emphasis": "điều khiển"
     },
     "decision-board": {
-      "title": "Watchlist Board",
-      "emphasis": "Board"
+      "title": "Bảng theo dõi",
+      "emphasis": "theo dõi"
     },
     "backtest-studio": {
       "title": "Backtest Studio",
       "emphasis": "Studio"
     },
     "discipline": {
-      "title": "Discipline",
+      "title": "Kỷ luật",
       "emphasis": ""
     },
     "scheduled-runs": {
-      "title": "Scheduled Runs",
-      "emphasis": "Runs"
+      "title": "Lịch chạy",
+      "emphasis": "chạy"
     },
     "scanner": {
-      "title": "Scanner",
-      "emphasis": ""
+      "title": "Bộ quét",
+      "emphasis": "quét"
     },
     "analytics": {
-      "title": "Analytics",
+      "title": "Phân tích",
       "emphasis": ""
     },
     "positions-open": {
-      "title": "Open Positions",
-      "emphasis": "Positions"
+      "title": "Vị thế mở",
+      "emphasis": "mở"
     },
     "outcomes": {
-      "title": "Trade Outcomes",
-      "emphasis": "Outcomes"
+      "title": "Kết quả giao dịch",
+      "emphasis": "giao dịch"
     },
     "risk-dashboard": {
-      "title": "Risk Dashboard",
-      "emphasis": "Dashboard"
+      "title": "Bảng Rủi ro",
+      "emphasis": "Rủi ro"
     },
     "watchlist-heatmap": {
-      "title": "Watchlist Heat Map",
-      "emphasis": "Heat Map"
+      "title": "Bản đồ nhiệt",
+      "emphasis": "nhiệt"
     },
     "calculator": {
       "title": "Máy tính đầu tư",
@@ -780,7 +780,7 @@
       "stoch_short": "Stoch",
       "macd_panel_label": "MACD:",
       "macd_short": "MACD",
-      "signal_short": "Signal",
+      "signal_short": "Tín hiệu",
       "chart_hint": "Mẹo: Sử dụng cuộn chuột để phóng to/thu nhỏ, kéo để di chuyển. Nhấn nút Cài đặt để tùy chỉnh chỉ báo.",
       "indicator_settings_title": "Cài đặt chỉ báo",
       "panel_label": "Bảng",
@@ -803,7 +803,7 @@
       "rsi_tooltip_label": "RSI(14)",
       "stoch_k_tooltip_label": "Stoch %K",
       "macd_tooltip_label": "MACD",
-      "signal_tooltip_label": "Signal",
+      "signal_tooltip_label": "Tín hiệu",
       "volume_tooltip_label": "KL"
     },
     "fundamental": {
@@ -908,7 +908,7 @@
       "momentum_panel_label": "Đà:",
       "macd_panel_label": "MACD:",
       "macd_label": "MACD",
-      "signal_label": "Signal",
+      "signal_label": "Tín hiệu",
       "volume_panel_label": "Khối lượng:",
       "vol_bars_label": "Thanh KL",
       "obv_label": "OBV",
@@ -919,7 +919,7 @@
       "stochastic_label": "Stochastic",
       "mfi_label": "MFI",
       "macd_tooltip_label": "MACD",
-      "signal_tooltip_label": "Signal",
+      "signal_tooltip_label": "Tín hiệu",
       "volume_tooltip_label": "KL"
     }
   },
@@ -947,12 +947,12 @@
       "ticker_column": "Mã CK",
       "pnl_column": "P/L",
       "pnl_label": "P/L:",
-      "equity_label": "Equity:",
+      "equity_label": "Vốn:",
       "trades_label": "Lệnh:",
       "trades_suffix": "lệnh",
       "win_column": "Win",
-      "win_rate_column": "Win Rate",
-      "win_rate_label": "Win Rate:"
+      "win_rate_column": "Tỷ lệ thắng",
+      "win_rate_label": "Tỷ lệ thắng:"
     },
     "dashboard": {
       "error_loading_dashboard": "Không thể tải dữ liệu dashboard",
@@ -963,22 +963,22 @@
       "return_percent": "Lợi nhuận %",
       "total_closed_trades": "Tổng lệnh đã đóng",
       "trades_open_suffix": "lệnh đang mở",
-      "win_rate": "Win Rate",
-      "profit_factor": "Profit Factor",
+      "win_rate": "Tỷ lệ thắng",
+      "profit_factor": "Hệ số lợi nhuận",
       "pf_good": "Tốt",
       "pf_average": "Trung bình",
       "pf_poor": "Kém",
       "avg_r_multiple": "Avg R-Multiple",
       "rm_positive": "Tích cực",
       "rm_needs_improvement": "Cần cải thiện",
-      "expectancy": "Expectancy",
+      "expectancy": "Kỳ vọng",
       "per_trade_avg": "TB mỗi lệnh",
-      "streak": "Streak",
+      "streak": "Chuỗi",
       "max_streak": "Max chuỗi thắng/thua",
       "avg_duration": "TB thời gian",
       "per_trade_suffix": "mỗi giao dịch",
       "avg_win_loss": "TB Win / Loss",
-      "loss_prefix": "Loss: ",
+      "loss_prefix": "Lỗ: ",
       "risk_monitor": "Giám Sát Rủi Ro",
       "cumulative_risk": "Rủi ro tích lũy",
       "warning_threshold": "Cảnh báo (70%)",
@@ -1070,7 +1070,7 @@
       "entry_date_column": "Ngày vào",
       "direction_column": "Hướng",
       "entry_price_column": "Giá vào",
-      "stop_column": "Stop",
+      "stop_column": "Cắt lỗ",
       "quantity_column": "KL",
       "risk_column": "Rủi ro",
       "exit_price_column": "Giá thoát",
@@ -1643,7 +1643,7 @@
       "col_industry": "Ngành",
       "col_volume": "KL Giao dịch",
       "col_pe_ratio": "P/E Ratio",
-      "col_rating": "Rating",
+      "col_rating": "Xếp hạng",
       "col_analysis_count": "Số phân tích",
       "col_target_price": "Giá đích",
       "col_spread": "Chênh lệch",
@@ -1812,7 +1812,7 @@
       "subtitle": "Schwager Ch 16–17",
       "loss_streak": "Chuỗi thua",
       "streak_active": "Đang chuỗi thua",
-      "drawdown": "Drawdown",
+      "drawdown": "Mức sụt giảm",
       "rules_triggered": "Quy tắc vi phạm",
       "threshold": "Ngưỡng: {{n}}",
       "reduce_size": "Giảm khối lượng vị thế",
@@ -2105,7 +2105,7 @@
     "account_label": "Tài khoản nhật ký",
     "no_accounts": "Không tìm thấy tài khoản",
     "entry_price": "Giá vào",
-    "stop_loss": "Stop-Loss *",
+    "stop_loss": "Cắt lỗ *",
     "target": "Mục tiêu *",
     "shares": "Số cổ phiếu",
     "notes_label": "Ghi chú / Lý do vào lệnh",
@@ -2333,17 +2333,17 @@
       "ann_ret": "Lợi nhuận/năm",
       "ann_vol": "Vol/năm",
       "sharpe": "Sharpe",
-      "maxdd": "Max Drawdown",
+      "maxdd": "Sụt giảm tối đa",
       "avg_lev": "Đòn bẩy TB",
       "ann_turn": "Turnover/năm",
       "cost_drag": "Chi phí/năm",
       "equity_title": "Đường vốn tích lũy (net P&L)",
-      "drawdown_title": "Drawdown",
+      "drawdown_title": "Mức sụt giảm",
       "position_title": "Kích thước vị thế (w[t])",
       "turnover_title": "Turnover hàng ngày",
       "benchmark_label": "Buy & Hold",
       "strategy_label": "Vol-Target",
-      "gross_label": "Gross P&L",
+      "gross_label": "Lãi/Lỗ gộp",
       "net_label": "Net P&L (sau phí)"
     },
     "common": {
