@@ -9,6 +9,7 @@ from sqlalchemy import text
 
 from app.api.dependencies import get_db, get_current_user_optional, get_current_user, require_admin
 from app.services.prediction_service import PredictionService
+from app.services.simulation_service import SimulationService, SimulationError
 from app.models.schemas import (
     PredictionRequest, PredictionResponse,
     BulkPredictionRequest, BulkPredictionResponse,
@@ -16,7 +17,8 @@ from app.models.schemas import (
     BacktestRequest, BacktestResult,
     ModelComparisonRequest, ModelComparisonResult,
     FeatureImportanceResponse, AccuracyReport, ModelHealthStatus,
-    ModelType, TrainingLogResponse
+    ModelType, TrainingLogResponse,
+    SimulationRequest, SimulationResult
 )
 
 logger = logging.getLogger(__name__)
@@ -418,6 +420,32 @@ async def get_trained_solutions(
     except Exception as e:
         logger.error(f"Failed to fetch trained solutions: {e}")
         return []
+
+
+@router.post("/simulation/run", response_model=SimulationResult)
+async def run_simulation(
+    req: SimulationRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user_optional),
+):
+    """Run an end-to-end backtest simulation for the simulation dashboard.
+
+    Trains (or re-trains) the chosen model on data before start_date, walks
+    forward across [start_date, end_date] predicting next-day close, applies the
+    threshold trading rules, and returns portfolio metrics + prediction accuracy
+    + time series + transaction history.
+    """
+    try:
+        service = SimulationService(db)
+        return await service.run_simulation(req)
+    except SimulationError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except Exception as e:
+        logger.error(f"Simulation failed for {req.ticker}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Simulation error: {e}",
+        )
 
 
 # ==========================================

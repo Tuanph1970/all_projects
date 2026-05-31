@@ -184,3 +184,67 @@ class ModelHealthStatus(BaseModel):
     predictions_last_24h: int
     accuracy_last_30_days: Optional[float]
     needs_retraining: bool
+
+
+# ==========================================
+# Simulation (backtest dashboard) schemas
+# ==========================================
+
+class SimulationTradingParams(BaseModel):
+    threshold_buy: float = 0.02    # predicted return >= this -> BUY (fraction, e.g. 0.02 = 2%)
+    threshold_sell: float = -0.01  # predicted return <= this -> SELL (fraction)
+    position_size: float = 0.30    # fraction of available cash deployed per BUY
+
+
+class SimulationRequest(BaseModel):
+    ticker: str
+    start_date: date
+    end_date: date
+    initial_capital: float = 100_000_000
+    model_type: Optional[str] = "XGBoost"        # display name from /simulation/models
+    use_pretrained_model: bool = False
+    pretrained_solution_id: Optional[int] = None
+    use_indicators: bool = False
+    trading_params: SimulationTradingParams = SimulationTradingParams()
+
+
+class SimulationPortfolioMetrics(BaseModel):
+    initial_capital: float
+    final_value: float
+    total_return: float
+    total_return_pct: float
+    total_trades: int
+    win_rate: float
+    sharpe_ratio: float
+    max_drawdown: float
+    alpha: float          # strategy return_pct minus buy & hold return_pct
+
+
+class SimulationPredictionAccuracy(BaseModel):
+    direction_accuracy: float
+    mape: float
+
+
+class SimulationTimePoint(BaseModel):
+    date: str
+    actual_price: float
+    predicted_price: Optional[float] = None
+
+
+class SimulationTransaction(BaseModel):
+    date: str
+    type: str             # BUY | SELL
+    price: float
+    shares: float
+    total_value: float
+    portfolio_value: float
+    cash_balance: float
+
+
+class SimulationResult(BaseModel):
+    ticker: str
+    model_type: str
+    portfolio_metrics: SimulationPortfolioMetrics
+    prediction_accuracy: SimulationPredictionAccuracy
+    time_series: List[SimulationTimePoint]
+    transaction_history: List[SimulationTransaction]
