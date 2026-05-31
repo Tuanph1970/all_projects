@@ -1,0 +1,179 @@
+# =============================================================================
+# High-Availability overlay (Phase 3.5 §3.5.3)
+# =============================================================================
+# Adds multi-replica deployment, pod anti-affinity (spread across nodes),
+# rolling updates with zero downtime, resource limits, and restart policies.
+#
+# This overlay is designed for Docker Swarm, which honours the `deploy:` key
+# and IGNORES `container_name` (so the per-service container_name in the base
+# file does not block scaling — unlike plain `docker compose --scale`).
+#
+# Usage:
+#   docker swarm init                      # one-time, on the manager node
+#   docker stack deploy \
+#       -c docker-compose.yml \
+#       -c docker-compose.ha.yml \
+#       stock
+#   docker stack services stock            # observe replica counts
+#   docker service scale stock_stock-data-service=5   # scale on demand
+#
+# For Kubernetes HA see production/kubernetes/deployment-ha.yaml.
+# =============================================================================
+
+services:
+  # --- Tier-0: gateway (must stay reachable; 2 replicas, global-ish) ----------
+  traefik:
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 0
+      placement:
+        max_replicas_per_node: 1   # spread gateway across nodes (anti-affinity)
+
+  # --- auth-service: 2 replicas -----------------------------------------------
+  auth-service:
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        max_failure_ratio: 0.0
+        order: start-first        # start new task before stopping old (maxUnavailable=0)
+        failure_action: rollback
+        monitor: 30s
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+      restart_policy:
+        condition: any
+        delay: 5s
+        window: 60s
+      placement:
+        max_replicas_per_node: 1  # anti-affinity: one replica per node
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.50"
+        reservations:
+          memory: 256M
+          cpus: "0.10"
+
+  # --- stock-data-service: 3 replicas (highest read traffic) ------------------
+  stock-data-service:
+    deploy:
+      replicas: 3
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        monitor: 30s
+      restart_policy:
+        condition: any
+        delay: 5s
+        window: 60s
+      placement:
+        max_replicas_per_node: 2
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.50"
+        reservations:
+          memory: 256M
+          cpus: "0.10"
+
+  # --- portfolio-service: 3 replicas (spec §3.5.3 reference example) ----------
+  portfolio-service:
+    deploy:
+      replicas: 3
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        monitor: 30s
+      restart_policy:
+        condition: any
+        delay: 5s
+        window: 60s
+      placement:
+        max_replicas_per_node: 1  # anti-affinity
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.50"
+        reservations:
+          memory: 256M
+          cpus: "0.10"
+
+  # --- analysis-service: 2 replicas -------------------------------------------
+  analysis-service:
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        monitor: 30s
+      restart_policy:
+        condition: any
+        delay: 5s
+        window: 60s
+      placement:
+        max_replicas_per_node: 1
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.50"
+        reservations:
+          memory: 256M
+          cpus: "0.10"
+
+  # --- prediction-service: 2 replicas -----------------------------------------
+  prediction-service:
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+        monitor: 30s
+      restart_policy:
+        condition: any
+        delay: 5s
+        window: 60s
+      placement:
+        max_replicas_per_node: 1
+      resources:
+        limits:
+          memory: 768M
+          cpus: "1.00"
+        reservations:
+          memory: 384M
+          cpus: "0.25"
+
+  # --- Stateful backing services: single replica, never lose the volume ------
+  # Redis and RabbitMQ stay at replicas:1 here; true HA for these requires
+  # clustering (Redis Sentinel / RabbitMQ quorum queues) — see DR_RUNBOOK.md.
+  redis:
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+      placement:
+        constraints:
+          - node.role == manager   # pin to a stable node with the data volume
+
+  rabbitmq:
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 10s
+      placement:
+        constraints:
+          - node.role == manager

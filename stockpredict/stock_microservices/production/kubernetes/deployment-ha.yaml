@@ -1,0 +1,288 @@
+# =============================================================================
+# Kubernetes High-Availability manifests (Phase 3.5 §3.5.3)
+# =============================================================================
+# Multi-replica Deployments with:
+#   - pod anti-affinity (spread replicas across nodes)
+#   - RollingUpdate maxUnavailable=0 (zero-downtime deploys)
+#   - resource requests/limits
+#   - liveness + readiness probes on /health/{live,ready}
+#   - PodDisruptionBudget (keep a minimum available during node drains)
+#   - HorizontalPodAutoscaler (scale on CPU)
+#
+# Apply with:
+#   kubectl apply -f production/kubernetes/deployment-ha.yaml -n stock
+#
+# The auth-service and stock-data-service are shown in full; portfolio,
+# analysis, and prediction follow the identical pattern (replicas/ports differ).
+# =============================================================================
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: stock
+---
+# -----------------------------------------------------------------------------
+# auth-service — 2 replicas
+# -----------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: stock
+  labels:
+    app: auth-service
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: auth-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0          # zero-downtime: never drop below desired count
+  template:
+    metadata:
+      labels:
+        app: auth-service
+        tier: backend
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: auth-service
+      containers:
+        - name: auth-service
+          image: stock/auth-service:latest
+          ports:
+            - containerPort: 8007
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8007
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8007
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: 8007
+            failureThreshold: 30
+            periodSeconds: 2
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: auth-service-pdb
+  namespace: stock
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: auth-service
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: auth-service-hpa
+  namespace: stock
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: auth-service
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+# -----------------------------------------------------------------------------
+# stock-data-service — 3 replicas (highest read traffic)
+# -----------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stock-data-service
+  namespace: stock
+  labels:
+    app: stock-data-service
+    tier: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: stock-data-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: stock-data-service
+        tier: backend
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: stock-data-service
+      containers:
+        - name: stock-data-service
+          image: stock/stock-data-service:latest
+          ports:
+            - containerPort: 8001
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8001
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: stock-data-service-pdb
+  namespace: stock
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: stock-data-service
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: stock-data-service-hpa
+  namespace: stock
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: stock-data-service
+  minReplicas: 3
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+# -----------------------------------------------------------------------------
+# portfolio-service — 3 replicas (spec §3.5.3 reference)
+# -----------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portfolio-service
+  namespace: stock
+  labels:
+    app: portfolio-service
+    tier: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: portfolio-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: portfolio-service
+        tier: backend
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: portfolio-service
+      containers:
+        - name: portfolio-service
+          image: stock/portfolio-service:latest
+          ports:
+            - containerPort: 8003
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8003
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8003
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: portfolio-service-pdb
+  namespace: stock
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: portfolio-service
