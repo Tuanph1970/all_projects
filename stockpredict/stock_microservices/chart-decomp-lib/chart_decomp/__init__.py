@@ -290,6 +290,10 @@ def hybrid_modwt_hilbert(x: np.ndarray) -> TimeFreqResult:
 
 # ── Part II — Pattern pipeline ─────────────────────────────────────────────────
 
+from chart_decomp.application.denoise_swings_usecase import (  # noqa: E402
+    CalibrationResult,
+    calibrate_denoise_swings,
+)
 from chart_decomp.application.run_pattern_pipeline_usecase import (  # noqa: E402
     RunPatternPipelineUseCase,
 )
@@ -370,5 +374,6 @@ __all__ = [
     "InsufficientDataError", "DecompositionError", "MissingDependencyError",
     # Part II — pattern pipeline
     "run_pattern_pipeline", "PatternPipelineResult",
+    "calibrate_denoise_swings", "CalibrationResult",
     "DenoiseParams", "SwingParams", "NullFPRParams",
 ]
