@@ -250,12 +250,16 @@ def run_forecast_compare(req: ForecastCompareRequest) -> ForecastCompareResponse
     har_result    = _fc_uc.har(log_rv, har_params)
     vmd_har_result = _fc_uc.vmd_har(log_rv, vmd_params)
 
-    # Diebold-Mariano: VMD-HAR vs HAR baseline
+    # Diebold-Mariano: VMD-HAR vs HAR baseline (FR-FCST-EVAL / B3)
     dm_stat: float | None = None
     try:
         dm_stat = RunForecastUseCase.diebold_mariano(vmd_har_result, har_result)
     except Exception:
         pass
+
+    # Wire dm_vs_har into each model's metrics dict (FR-FCST-EVAL completeness)
+    har_result.metrics["dm_vs_har"] = None          # baseline has no self-comparison
+    vmd_har_result.metrics["dm_vs_har"] = dm_stat   # positive = VMD-HAR better
 
     # Determine winner (Constraint C4: must beat on RMSE + QLIKE + DM)
     har_m   = har_result.metrics

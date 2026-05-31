@@ -1,5 +1,8 @@
 """chart_decomp — public facade API.
 
+Version: 2.0.0  (Part I + Part II complete)
+
+
 All public functions live here.  Import from the top level:
 
     from chart_decomp import modwt, emd, eemd, vmd
@@ -376,4 +379,38 @@ __all__ = [
     "run_pattern_pipeline", "PatternPipelineResult",
     "calibrate_denoise_swings", "CalibrationResult",
     "DenoiseParams", "SwingParams", "NullFPRParams",
+    # Meta
+    "__version__", "get_versions",
 ]
+
+__version__ = "2.0.0"
+
+
+def get_versions() -> dict[str, str]:
+    """Return version strings for the library and its key dependencies (NFR-RP2).
+
+    Use this to embed provenance in saved results so experiments are
+    reproducible even after dependency upgrades.
+
+    Returns
+    -------
+    dict with keys: chart_decomp, numpy, scipy, pywt
+    """
+    import importlib.metadata
+
+    result: dict[str, str] = {"chart_decomp": __version__}
+    for pkg_name, key in [
+        ("numpy",      "numpy"),
+        ("scipy",      "scipy"),
+        ("PyWavelets", "pywt"),
+    ]:
+        try:
+            result[key] = importlib.metadata.version(pkg_name)
+        except Exception:
+            try:
+                import importlib as _il
+                mod = _il.import_module(key)
+                result[key] = getattr(mod, "__version__", "unknown")
+            except Exception:
+                result[key] = "unknown"
+    return result
