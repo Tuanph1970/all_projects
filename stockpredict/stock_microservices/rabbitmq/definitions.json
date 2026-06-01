@@ -3,14 +3,20 @@
   "users": [
     {
       "name": "stockuser",
-      "password_hash": "0SB8//TVX9KKp0R+xzmQZgJQU352GzvC6jyN9OehBOVB90vP",
+      "password_hash": "esO+qb6gCOp0xDgdY6zhSlgoYQ/yb7qP1GJoLsLs3OXDbvk5",
       "hashing_algorithm": "rabbit_password_hashing_sha256",
-      "tags": ["administrator"]
+      "tags": [
+        "administrator"
+      ]
     }
   ],
   "vhosts": [
-    {"name": "/"},
-    {"name": "/stock"}
+    {
+      "name": "/"
+    },
+    {
+      "name": "/stock"
+    }
   ],
   "permissions": [
     {
