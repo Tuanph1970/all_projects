@@ -1,4 +1,10 @@
-"""Update roadmap_version_2.xlsx to reflect CD-1 through CD-4 completion."""
+"""Update roadmap_version_2.xlsx to reflect CD-1 through CD-5 completion.
+
+WARNING: this is a one-shot incremental mutator, not an idempotent rebuild.
+It APPENDS a row to the Session Log every run, and it does NOT know about the
+CD-6 / CD-7 rows (those live only in the workbook). Do not blindly re-run it —
+edit the workbook directly for routine status updates.
+"""
 import openpyxl
 
 WB_PATH = "roadmap_version_2.xlsx"
@@ -8,14 +14,11 @@ wb = openpyxl.load_workbook(WB_PATH)
 # ── CD Tasks: update Status column (col G = index 7, 1-based) ──────────────
 ws_tasks = wb["CD Tasks"]
 done_phases = {"CD-1", "CD-2", "CD-3", "CD-4"}
-# CD-501 to CD-505 are Done (test files exist); CD-506 stays Planned
 done_task_ids = {
     f"CD-{phase_num}{seq:02d}"
     for phase_num in range(1, 6)
     for seq in range(1, 11)
 }
-# Override: CD-506 is NOT done
-done_task_ids.discard("CD-506")
 
 for row in ws_tasks.iter_rows(min_row=5):
     task_id = row[0].value
@@ -23,9 +26,8 @@ for row in ws_tasks.iter_rows(min_row=5):
         phase = row[1].value  # col B
         if task_id in done_task_ids and phase in done_phases:
             row[6].value = "Done"   # col G
-        elif task_id.startswith("CD-5") and task_id != "CD-506":
-            row[6].value = "Done"   # CD-501..505 test files exist
-        # CD-506 stays Planned
+        elif task_id.startswith("CD-5"):
+            row[6].value = "Done"   # CD-501..506 all shipped (incl. test_e2e_heston.py)
 
 # ── CD Overview: update Status column (col G = index 7) ───────────────────
 ws_overview = wb["CD Overview"]
@@ -34,7 +36,7 @@ phase_status = {
     "CD-2": "Done",
     "CD-3": "Done",
     "CD-4": "Done",
-    "CD-5": "Partial",
+    "CD-5": "Done",   # CD-506 test_e2e_heston.py now exists
 }
 for row in ws_overview.iter_rows(min_row=5):
     phase_id = row[0].value
@@ -43,8 +45,8 @@ for row in ws_overview.iter_rows(min_row=5):
 
 # Also update the subtitle row (row 2) to reflect completion
 ws_overview["A2"] = (
-    "SRS: SRS_chart_decomposition.md  |  As of 2026-05-27  |  "
-    "Status: CD-1 Done | CD-2 Done | CD-3 Done | CD-4 Done | CD-5 Partial"
+    "SRS: SRS_master_chart_system.md  |  As of 2026-06-01  |  "
+    "Status: CD-1..CD-7 Done (Part I + Part II + clean-ups all shipped)"
 )
 
 # ── Session Log: append new session row ────────────────────────────────────
@@ -114,5 +116,5 @@ for col_idx, value in enumerate(session_data, start=1):
 wb.save(WB_PATH)
 print(f"Saved {WB_PATH}")
 print(f"  • CD Tasks: updated statuses (Done/Planned)")
-print(f"  • CD Overview: CD-1–CD-4 Done, CD-5 Partial")
+print(f"  • CD Overview: CD-1–CD-5 Done (CD-6/CD-7 maintained directly in workbook)")
 print(f"  • Session Log: appended row {last_row}")

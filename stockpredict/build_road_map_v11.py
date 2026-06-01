@@ -81,6 +81,82 @@ def add_conditional(ws, col_letter, first_row, last_row, fills_map):
         )
 
 
+# ---------------------------------------------------------------------------
+# Status reconciliation (2026-06-01)
+# The decision-helper-service was originally planned here as a greenfield build,
+# so every row shipped as "Not Started". It has since been implemented. The map
+# below records the status VERIFIED AGAINST SHIPPED CODE on 2026-06-01 and is
+# applied to each sheet's rows (keyed by the row's first column) before writing.
+# Keys are unique across sheets except "backtest_harness" (Pipeline + Architecture),
+# which carry the same value.
+#
+# 2026-06-01 follow-up — the four previously-open rows were then implemented
+# (one task at a time, TDD) and flipped to Done:
+#   F-043 / Phase E  — pyramiding guard rails (risk/pyramiding.py + harness opt-in).
+#   F-053 / Phase F  — parameter-set sensitivity report (backtest/sensitivity.py
+#                      + /backtest?sensitivity=true).
+#   decision.stop.triggered / .target.hit — delivered via the shipped alert_broker
+#                      (SSE) pattern: structured exit_reason on the recommendation;
+#                      the scheduler publishes an exit alert (not RabbitMQ).
+#   s1_universe       — liquidity filter helper (universe/liquidity.py) wired into
+#                      the scheduler's watchlist pre-screen.
+VERIFIED_STATUS = {
+    # --- Pipeline_Mapping (by Stage ID) ---
+    "s1_universe": "Done",
+    "s2_data": "Done", "s3_indicators": "Done", "s4_patterns": "Done",
+    "s5_regime": "Done", "s6L_direction": "Done", "s6R_range": "Done",
+    "s7L_signal": "Done", "s7R_breakout": "Done", "s9L_filter": "Done",
+    "s8R_confirm": "Done", "s10L_failed": "Done", "s9R_failed": "Done",
+    "state_machine": "Done", "out_actions": "Done", "log_loop": "Done",
+    "risk_stops": "Done", "risk_sizing": "Done", "risk_targets": "Done",
+    "regime_inputs": "Done", "osc_note": "Done", "failed_signal_principle": "Done",
+    "backtest_harness": "Done", "discipline": "Done",
+    # --- Architecture (by Component) ---
+    "decision-helper-service": "Done", "regime_classifier": "Done",
+    "signal_engine": "Done", "confirmation_layer": "Done",
+    "failed_signal_detector": "Done", "stop_module": "Done",
+    "target_module": "Done", "sizing_module": "Done",
+    "position_state_machine": "Done", "decision_orchestrator": "Done",
+    "discipline_checks": "Done",
+    "decision_runs (table)": "Done", "position_states (table)": "Done",
+    "signal_history (table)": "Done", "user_risk_prefs (table)": "Done",
+    "decision.recommendation.created": "Done", "decision.signal.failed": "Done",
+    "decision.stop.triggered / decision.target.hit": "Done",
+    "analysis-service: ATR + swings": "Done",
+    "ai-insights-service: pattern v2": "Done",
+    "journal-service: auto-draft": "Done",
+    "portfolio-service: sync alerts": "Done",
+    "DecisionConsole": "Done", "WatchlistDecisionBoard": "Done",
+    "TradePlanModal": "Done", "BacktestStudio": "Done",
+    "DisciplineDashboard": "Done",
+    # --- Feature_Backlog (by F-ID): all built except F-043, F-053 ---
+    "F-001": "Done", "F-002": "Done", "F-003": "Done", "F-004": "Done",
+    "F-005": "Done", "F-006": "Done", "F-010": "Done", "F-011": "Done",
+    "F-012": "Done", "F-013": "Done", "F-014": "Done", "F-015": "Done",
+    "F-016": "Done", "F-020": "Done", "F-021": "Done", "F-022": "Done",
+    "F-023": "Done", "F-024": "Done", "F-025": "Done", "F-026": "Done",
+    "F-027": "Done", "F-030": "Done", "F-031": "Done", "F-032": "Done",
+    "F-033": "Done", "F-034": "Done", "F-035": "Done", "F-040": "Done",
+    "F-041": "Done", "F-042": "Done", "F-043": "Done",
+    "F-050": "Done", "F-051": "Done", "F-052": "Done", "F-053": "Done",
+    "F-054": "Done", "F-060": "Done", "F-061": "Done", "F-062": "Done",
+    "F-063": "Done", "F-064": "Done", "F-065": "Done",
+    # --- Phased_Roadmap (by Phase letter) ---
+    "A": "Done", "B": "Done", "C": "Done", "D": "Done",
+    "E": "Done", "F": "Done", "G": "Done",
+}
+
+
+def reconcile(rows):
+    """Override each row's final (Status) cell from VERIFIED_STATUS, keyed by row[0]."""
+    out = []
+    for r in rows:
+        if r[0] in VERIFIED_STATUS:
+            r = tuple(r[:-1]) + (VERIFIED_STATUS[r[0]],)
+        out.append(r)
+    return out
+
+
 # ===========================================================================
 wb = Workbook()
 
@@ -334,7 +410,7 @@ pipeline_rows = [
      "decision-helper-service + journal-service + frontend",
      "Ch 16, 17", "P1 (should)", "Not Started"),
 ]
-write_table(ws, headers, pipeline_rows)
+write_table(ws, headers, reconcile(pipeline_rows))
 autosize(ws, [16, 28, 38, 38, 42, 30, 16, 14, 14])
 add_conditional(ws, "I", 2, 1 + len(pipeline_rows), STATUS_FILLS)
 add_conditional(ws, "H", 2, 1 + len(pipeline_rows), PRIORITY_FILLS)
@@ -444,7 +520,7 @@ arch_rows = [
      "Streaks, drawdown, rule-violation log, post-loss break suggestion.",
      "discipline_checks API, journal-service", "Ch 16, 17", "Not Started"),
 ]
-write_table(ws, headers, arch_rows)
+write_table(ws, headers, reconcile(arch_rows))
 autosize(ws, [38, 16, 56, 60, 50, 16, 14])
 add_conditional(ws, "G", 2, 1 + len(arch_rows), STATUS_FILLS)
 
@@ -615,7 +691,7 @@ backlog = [
      "Codify rules from Ch 17 as advisory checks surfaced in DecisionConsole sidebar.",
      "Ch 17", "L", "P2 (could)", "F-031", "Not Started"),
 ]
-write_table(ws, headers, backlog)
+write_table(ws, headers, reconcile(backlog))
 autosize(ws, [10, 8, 22, 36, 70, 16, 9, 14, 22, 14])
 add_conditional(ws, "J", 2, 1 + len(backlog), STATUS_FILLS)
 add_conditional(ws, "H", 2, 1 + len(backlog), PRIORITY_FILLS)
@@ -677,7 +753,7 @@ phases = [
      "applied automatically; dashboard surfaces rule violations.",
      "2", "D", "Not Started"),
 ]
-write_table(ws, headers, phases)
+write_table(ws, headers, reconcile(phases))
 autosize(ws, [8, 50, 50, 60, 60, 12, 16, 14])
 add_conditional(ws, "H", 2, 1 + len(phases), STATUS_FILLS)
 

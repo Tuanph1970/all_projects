@@ -37,6 +37,7 @@ from app.models.schemas import (
     OutcomeRecord,
     OutcomeSummary,
     OutcomesResponse,
+    ParamVariantSchema,
     PositionRiskItem,
     RiskOverviewResponse,
     TradeReviewResponse,
@@ -55,6 +56,7 @@ from app.models.schemas import (
     SignalAnalysisRequest,
     SignalAnalysisResponse,
     SignalBreakdownItem,
+    SensitivityReportSchema,
     SignalResultSchema,
     TopTickerItem,
     TradeRecordSchema,
@@ -459,6 +461,32 @@ async def run_backtest(
         ]
         wf_aggregate = wf_result.aggregate_stats
 
+    # Optionally run parameter-set sensitivity (F-053)
+    sensitivity_report: Optional[SensitivityReportSchema] = None
+    if req.sensitivity:
+        from app.services.backtest.sensitivity import run_param_sensitivity
+        sens = run_param_sensitivity(config, bars, metric=req.sensitivity_metric)
+        sensitivity_report = SensitivityReportSchema(
+            metric_name=sens.metric_name,
+            base_metric=sens.base_metric,
+            variants=[
+                ParamVariantSchema(
+                    label=v.label,
+                    overrides=v.overrides,
+                    metric=v.metric,
+                    stats=BacktestStatsSchema(**vars(v.stats)),
+                )
+                for v in sens.variants
+            ],
+            mean=sens.mean,
+            std=sens.std,
+            cv=sens.cv if sens.cv != float("inf") else -1.0,
+            min=sens.min,
+            max=sens.max,
+            fragile=sens.fragile,
+            reason=sens.reason,
+        )
+
     latency_ms = int((_time.time() - t0) * 1000)
 
     return BacktestResultSchema(
@@ -471,6 +499,7 @@ async def run_backtest(
         stats=BacktestStatsSchema(**vars(result.stats)),
         walk_forward_windows=wf_windows,
         walk_forward_aggregate=wf_aggregate,
+        sensitivity=sensitivity_report,
         latency_ms=latency_ms,
     )
 

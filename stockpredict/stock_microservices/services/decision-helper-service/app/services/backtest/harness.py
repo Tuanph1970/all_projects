@@ -27,6 +27,7 @@ from app.services.backtest.market_features import (
 )
 from app.services.backtest.slippage import apply_slippage
 from app.services.confirmation.layer import ConfirmationResult, confirm
+from app.services.risk.pyramiding import evaluate_pyramid
 from app.services.risk.sizing_module import compute_size
 from app.services.risk.stop_module import compute_initial_stop, update_trailing_stop
 from app.services.risk.target_module import compute_target
@@ -55,6 +56,8 @@ class BacktestConfig:
     k_delay: int = 1
     slippage_bps: float = 5.0
     commission: float = 10.0
+    allow_pyramiding: bool = False         # F-043 — opt-in; default off keeps replay unchanged
+    max_pyramid_fraction: float = 0.5
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +124,8 @@ class _Position:
     stop: Optional[float] = None
     target: Optional[float] = None
     shares: int = 0
+    initial_shares: int = 0            # F-043 — size of the original leg (pyramid cap base)
+    pyramided_shares: int = 0          # F-043 — cumulative shares added via pyramids
 
 
 # ---------------------------------------------------------------------------
@@ -197,6 +202,12 @@ def run_backtest_on_bars(
                 equity += trade_ledger[-1].net_pnl or 0.0
                 pos = _Position()
 
+        # ── 3b. Pyramiding (F-043, opt-in) — add to a winning position ───
+        if config.allow_pyramiding and pos.state != "FLAT" and bar.date <= config.end_date:
+            equity += _maybe_pyramid(
+                pos, bars_so_far, bar, regime, atr, swings, sr_data, rsi, equity, config
+            )
+
         # ── 4. Entry signals (only when FLAT and before end_date) ────────
         if pos.state == "FLAT" and bar.date <= config.end_date:
             signals = _run_signals(regime, bars_so_far, bar.date, config)
@@ -240,6 +251,7 @@ def run_backtest_on_bars(
                         stop=stop_res.stop_price,
                         target=tgt_res.target_price,
                         shares=size_res.shares,
+                        initial_shares=size_res.shares,
                     )
 
         # ── 5. Mark-to-market equity ─────────────────────────────────────
@@ -285,6 +297,8 @@ def run_backtest_on_bars(
             "k_delay": config.k_delay,
             "slippage_bps": config.slippage_bps,
             "commission": config.commission,
+            "allow_pyramiding": config.allow_pyramiding,
+            "max_pyramid_fraction": config.max_pyramid_fraction,
         },
         trade_ledger=trade_ledger,
         equity_curve=equity_curve,
@@ -340,6 +354,66 @@ def _best_confirmed(
     results = [confirm(s, bars, regime, rsi, k_delay) for s in signals]
     accepted = [r for r in results if r.accepted]
     return max(accepted, key=lambda r: r.final_confidence) if accepted else None
+
+
+def _maybe_pyramid(
+    pos: _Position,
+    bars_so_far: List[OHLCVBar],
+    bar: OHLCVBar,
+    regime: str,
+    atr: Optional[float],
+    swings: Any,
+    sr_data: Any,
+    rsi: Optional[float],
+    equity: float,
+    config: BacktestConfig,
+) -> float:
+    """F-043 — attempt a guarded pyramid add while holding a winner.
+
+    Returns the equity delta (the add's commission, or 0.0 when no add is made)
+    and mutates ``pos`` in place: shares grow, entry_price is re-blended to the
+    weighted average, and the stop is tightened (never widened).
+    """
+    if pos.state == "FLAT" or pos.entry_price is None or pos.stop is None or not atr:
+        return 0.0
+
+    # Only same-direction, confirmed continuation signals justify an add.
+    same_dir = [s for s in _run_signals(regime, bars_so_far, bar.date, config)
+                if s.direction == pos.direction]
+    best = _best_confirmed(same_dir, bars_so_far, regime, rsi, config.k_delay)
+    if not best:
+        return 0.0
+
+    entry_fill = apply_slippage(bar.close, pos.direction, config.slippage_bps)
+    stop_res = compute_initial_stop(
+        direction=pos.direction, entry_price=entry_fill,
+        atr=atr, swings=swings, sr_levels=sr_data,
+    )
+    size_res = compute_size(
+        entry_price=entry_fill, stop_price=stop_res.stop_price,
+        equity=equity, risk_pct=config.risk_per_trade_pct, atr=atr,
+    )
+    decision = evaluate_pyramid(
+        direction=pos.direction,
+        entry_price=pos.entry_price,
+        current_close=bar.close,
+        current_stop=pos.stop,
+        initial_shares=pos.initial_shares,
+        pyramided_shares=pos.pyramided_shares,
+        proposed_add_shares=size_res.shares,
+        proposed_add_stop=stop_res.stop_price,
+        max_pyramid_fraction=config.max_pyramid_fraction,
+    )
+    if not decision.allowed or decision.add_shares <= 0:
+        return 0.0
+
+    total = pos.shares + decision.add_shares
+    pos.entry_price = (pos.entry_price * pos.shares + entry_fill * decision.add_shares) / total
+    pos.shares = total
+    pos.pyramided_shares += decision.add_shares
+    if decision.new_stop is not None:
+        pos.stop = decision.new_stop
+    return -config.commission
 
 
 def _check_exit(

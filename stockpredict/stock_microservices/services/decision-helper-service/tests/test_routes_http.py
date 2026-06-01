@@ -1206,3 +1206,80 @@ async def test_backtest_happy_path(client: AsyncClient):
     body = r.json()
     assert body["ticker"] == "VCB"
     assert body["stats"]["num_trades"] == 0
+
+
+@pytest.mark.asyncio
+async def test_backtest_with_sensitivity_report(client: AsyncClient):
+    """F-053 — sensitivity=true attaches a SensitivityReport to the response."""
+    from app.services.backtest.harness import BacktestStats
+    from app.services.backtest.sensitivity import ParamVariant, SensitivityReport
+
+    mc = MagicMock()
+    mc.fetch_ohlcv = AsyncMock(return_value=_bars(120, date(2025, 12, 1)))
+
+    fake_result = MagicMock()
+    fake_result.ticker = "VCB"
+    fake_result.start_date = date(2026, 1, 1)
+    fake_result.end_date = date(2026, 3, 1)
+    fake_result.config = {}
+    fake_result.trade_ledger = []
+    fake_result.equity_curve = []
+    stats = BacktestStats(
+        num_trades=0, num_wins=0, win_rate=0.0, total_gross_pnl=0.0,
+        total_commission=0.0, total_net_pnl=0.0, max_drawdown_pct=0.0,
+        expectancy=0.0, sharpe_ratio=None, profit_factor=None,
+    )
+    fake_result.stats = stats
+
+    report = SensitivityReport(
+        metric_name="total_net_pnl", base_metric=100.0,
+        variants=[ParamVariant("base", {}, 100.0, stats)],
+        mean=100.0, std=0.0, cv=0.0, min=100.0, max=100.0,
+        fragile=False, reason="stable",
+    )
+
+    with patch("app.api.routes.get_market_client", return_value=mc), \
+         patch("app.services.backtest.harness.run_backtest_on_bars",
+               return_value=fake_result), \
+         patch("app.services.backtest.sensitivity.run_param_sensitivity",
+               return_value=report):
+        r = await client.post(f"{PREFIX}/backtest", json={
+            "ticker": "VCB",
+            "start_date": "2026-01-01", "end_date": "2026-03-01",
+            "sensitivity": True,
+        })
+    assert r.status_code == 200
+    body = r.json()
+    assert body["sensitivity"]["fragile"] is False
+    assert body["sensitivity"]["metric_name"] == "total_net_pnl"
+    assert body["sensitivity"]["variants"][0]["label"] == "base"
+
+
+@pytest.mark.asyncio
+async def test_backtest_no_sensitivity_by_default(client: AsyncClient):
+    """Without the flag, the sensitivity field stays null."""
+    mc = MagicMock()
+    mc.fetch_ohlcv = AsyncMock(return_value=_bars(120, date(2025, 12, 1)))
+    fake_result = MagicMock()
+    fake_result.ticker = "VCB"
+    fake_result.start_date = date(2026, 1, 1)
+    fake_result.end_date = date(2026, 3, 1)
+    fake_result.config = {}
+    fake_result.trade_ledger = []
+    fake_result.equity_curve = []
+    fake_stats = MagicMock()
+    fake_stats.__dict__.update(dict(
+        num_trades=0, num_wins=0, win_rate=0.0, total_gross_pnl=0.0,
+        total_commission=0.0, total_net_pnl=0.0, max_drawdown_pct=0.0,
+        expectancy=0.0, sharpe_ratio=None, profit_factor=None,
+    ))
+    fake_result.stats = fake_stats
+
+    with patch("app.api.routes.get_market_client", return_value=mc), \
+         patch("app.services.backtest.harness.run_backtest_on_bars",
+               return_value=fake_result):
+        r = await client.post(f"{PREFIX}/backtest", json={
+            "ticker": "VCB", "start_date": "2026-01-01", "end_date": "2026-03-01",
+        })
+    assert r.status_code == 200
+    assert r.json()["sensitivity"] is None

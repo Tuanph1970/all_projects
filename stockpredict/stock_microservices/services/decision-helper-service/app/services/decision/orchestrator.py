@@ -438,6 +438,7 @@ async def run_recommendation(
         signal_kind=best_signal.kind if best_signal else None,
         signal_confirmed=best_confirmed is not None,
         failed_signal_kind=failed_signal_kind,
+        exit_reason=transition.exit_reason,
         confidence=overall_confidence,
         reason_chain=[
             ReasonStep(

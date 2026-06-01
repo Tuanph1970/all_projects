@@ -114,6 +114,7 @@ class RecommendationResponse(BaseModel):
     signal_kind: Optional[str] = None
     signal_confirmed: bool = False
     failed_signal_kind: Optional[str] = None
+    exit_reason: Optional[str] = None      # STOP_HIT | TARGET_HIT when a position closed on its stop/target
 
     confidence: float
     reason_chain: List[ReasonStep] = Field(default_factory=list)
@@ -254,6 +255,8 @@ class BacktestRequest(BaseModel):
     commission: float = Field(default=10.0, ge=0.0)
     walk_forward: bool = False
     wf_window_days: int = Field(default=90, ge=10, le=365)
+    sensitivity: bool = False                       # F-053 — run neighbouring param sets
+    sensitivity_metric: str = Field(default="total_net_pnl", max_length=32)
 
 
 class TradeRecordSchema(BaseModel):
@@ -297,6 +300,26 @@ class WalkForwardWindowSchema(BaseModel):
     num_trades: int
 
 
+class ParamVariantSchema(BaseModel):
+    label: str
+    overrides: Dict[str, Any] = Field(default_factory=dict)
+    metric: float
+    stats: BacktestStatsSchema
+
+
+class SensitivityReportSchema(BaseModel):
+    metric_name: str
+    base_metric: float
+    variants: List[ParamVariantSchema] = Field(default_factory=list)
+    mean: float
+    std: float
+    cv: float
+    min: float
+    max: float
+    fragile: bool
+    reason: str
+
+
 class BacktestResultSchema(BaseModel):
 
     ticker: str
@@ -308,6 +331,7 @@ class BacktestResultSchema(BaseModel):
     stats: BacktestStatsSchema
     walk_forward_windows: List[WalkForwardWindowSchema] = Field(default_factory=list)
     walk_forward_aggregate: Optional[Dict[str, Any]] = None
+    sensitivity: Optional[SensitivityReportSchema] = None        # F-053
     latency_ms: int = 0
 
 

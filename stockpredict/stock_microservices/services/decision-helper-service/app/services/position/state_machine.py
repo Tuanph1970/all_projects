@@ -31,6 +31,7 @@ class StateTransition:
     entry_price: Optional[float] = None   # set when opening a new leg
     exit_price: Optional[float] = None    # set when closing
     reason: str = ""
+    exit_reason: Optional[str] = None     # STOP_HIT | TARGET_HIT when an exit was triggered
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +135,7 @@ def _from_long(
             state_after="FLAT",
             exit_price=current_stop,
             reason=f"Stop triggered at {current_stop:.4f} — exiting LONG",
+            exit_reason="STOP_HIT",
         )
     if target_hit:
         return StateTransition(
@@ -142,6 +144,7 @@ def _from_long(
             state_after="FLAT",
             exit_price=current_target,
             reason=f"Target reached at {current_target:.4f} — exiting LONG",
+            exit_reason="TARGET_HIT",
         )
     if signal_direction == "SHORT" and confirmed:
         # v1: reverse through FLAT; SHORT entry fires next bar
@@ -177,6 +180,7 @@ def _from_short(
             state_after="FLAT",
             exit_price=current_stop,
             reason=f"Stop triggered at {current_stop:.4f} — covering SHORT",
+            exit_reason="STOP_HIT",
         )
     if target_hit:
         return StateTransition(
@@ -185,6 +189,7 @@ def _from_short(
             state_after="FLAT",
             exit_price=current_target,
             reason=f"Target reached at {current_target:.4f} — covering SHORT",
+            exit_reason="TARGET_HIT",
         )
     if signal_direction == "LONG" and confirmed:
         return StateTransition(

@@ -50,6 +50,13 @@ class Settings(BaseSettings):
     PATTERN_GATEWAY_TIMEOUT_MS: int = 500
     JOURNAL_SYNC_TIMEOUT_S: float = 3.0
 
+    # s1_universe — liquidity pre-screen for the scheduled watchlist run.
+    # Opt-in: when both thresholds are 0 the filter is disabled and the
+    # scheduler runs every watchlist entry (no extra fetch, no behaviour change).
+    LIQUIDITY_LOOKBACK_DAYS: int = 20
+    MIN_AVG_DAILY_VALUE: float = 0.0    # mean(close * volume) over lookback, VND
+    MIN_AVG_DAILY_VOLUME: float = 0.0   # mean(volume) over lookback, shares
+
     # Tracing
     TRACING_ENABLED: bool = True
     TRACING_JAEGER_HOST: str = "jaeger"
