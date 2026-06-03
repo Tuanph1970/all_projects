@@ -52,10 +52,29 @@ class CompanyService {
     }
   }
 
+  // Translate a UI timeframe (e.g. '2Y', '5Y') into a calendar-day lookback.
+  // The stock-data-service /stocks/{symbol}/history endpoint honours
+  // start_date/end_date but ignores ?timeframe=, so a fixed timeframe always
+  // returned ~1 trading year (~264 points). We compute the date window here.
+  static timeframeToDays(timeframe = '1Y') {
+    const tf = String(timeframe).trim().toUpperCase();
+    const map = { '1Y': 365, '2Y': 730, '3Y': 1095, '5Y': 1825 };
+    if (map[tf]) return map[tf];
+    const m = tf.match(/^(\d+)\s*Y$/);   // tolerate other "<n>Y" values
+    if (m) return parseInt(m[1], 10) * 365;
+    return 365;
+  }
+
   // Get company charts data (stock history)
   async getCompanyCharts(symbol, timeframe = '1Y') {
     try {
-      const { data } = await axios.get(`${API_ENDPOINTS.COMPANY_CHARTS(symbol)}?timeframe=${timeframe}`);
+      const end = new Date();
+      const start = new Date();
+      start.setDate(start.getDate() - CompanyService.timeframeToDays(timeframe));
+      const fmt = (d) => d.toISOString().slice(0, 10); // YYYY-MM-DD
+      const url = `${API_ENDPOINTS.COMPANY_CHARTS(symbol)}`
+        + `?start_date=${fmt(start)}&end_date=${fmt(end)}`;
+      const { data } = await axios.get(url);
       return { success: true, data };
     } catch (error) {
       console.error('Failed to fetch company charts:', error);

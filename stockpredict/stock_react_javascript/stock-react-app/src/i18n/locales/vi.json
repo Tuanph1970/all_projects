@@ -1089,6 +1089,8 @@
       "entry_date_label": "Ngày vào lệnh",
       "ticker_label": "Mã chứng khoán",
       "ticker_placeholder": "VD: VNM",
+      "ticker_select_placeholder": "Chọn mã đang nắm giữ…",
+      "ticker_no_holdings": "Chưa có mã nào — hãy mua cổ phiếu trong Danh mục trước.",
       "direction_label": "Hướng",
       "entry_price_label": "Giá vào",
       "entry_type_label": "Loại lệnh",
@@ -1758,7 +1760,12 @@
       "shares": "Số CP",
       "recompute": "Tính lại",
       "save_plan": "Lưu kế hoạch",
-      "plan_saved": "Đã lưu kế hoạch giao dịch."
+      "plan_saved": "Đã lưu kế hoạch giao dịch.",
+      "watch_placeholder": "Thêm mã…",
+      "watch_add": "Theo dõi",
+      "watch_added": "Đã thêm {{ticker}} vào danh sách theo dõi.",
+      "watch_add_failed": "Không thể thêm {{ticker}} vào danh sách theo dõi.",
+      "watch_remove": "Bỏ khỏi danh sách theo dõi"
     },
     "backtest_studio": {
       "title": "Phòng thử nghiệm Backtest",
@@ -2119,11 +2126,28 @@
     "page_title": "Phân rã & Phân tích đa tỷ lệ",
     "page_subtitle": "Phân tích chuỗi giá chứng khoán theo nhiều tần số — MODWT, EMD, VMD, CWT, Hurst, HAR",
     "tabs": {
+      "combined": "Xem tổng hợp",
       "decomp": "Phân rã tín hiệu",
       "time_freq": "Thời tần",
       "hurst": "Hurst & Tương quan",
       "forecast": "Dự báo biến động",
       "patterns": "Phát hiện Mẫu hình"
+    },
+    "combined": {
+      "series_label": "Chuỗi",
+      "series_count": "Hiện {{n}}/{{total}}",
+      "series_price": "Giá",
+      "series_trend": "Xu hướng (A{{j}})",
+      "series_detail": "Chi tiết D{{j}}",
+      "axis_left": "T",
+      "axis_right": "P",
+      "axis_left_title": "Giá",
+      "axis_right_title": "Chi tiết",
+      "axis_note": "Trục trái: giá & xu hướng (thang giá). Trục phải: các thành phần chi tiết (thang dao động). Dùng menu Chuỗi để bật/tắt đường.",
+      "chart_title": "Biểu đồ tổng hợp — MODWT {{wavelet}}, J={{j}}",
+      "recompute": "Tính lại",
+      "running": "Đang tính…",
+      "error": "Phân rã thất bại: {{msg}}"
     },
     "input": {
       "title": "Dữ liệu đầu vào",

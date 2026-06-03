@@ -1089,6 +1089,8 @@
       "entry_date_label": "Entry date",
       "ticker_label": "Symbol",
       "ticker_placeholder": "e.g. VNM",
+      "ticker_select_placeholder": "Select a holding…",
+      "ticker_no_holdings": "No holdings yet — buy a stock in Portfolio first.",
       "direction_label": "Direction",
       "entry_price_label": "Entry price",
       "entry_type_label": "Order type",
@@ -1758,7 +1760,12 @@
       "shares": "Shares",
       "recompute": "Recompute",
       "save_plan": "Save plan",
-      "plan_saved": "Trade plan saved."
+      "plan_saved": "Trade plan saved.",
+      "watch_placeholder": "Add ticker…",
+      "watch_add": "Watch",
+      "watch_added": "{{ticker}} added to watch list.",
+      "watch_add_failed": "Could not add {{ticker}} to watch list.",
+      "watch_remove": "Remove from watch list"
     },
     "backtest_studio": {
       "title": "Backtest Studio",
@@ -2119,11 +2126,28 @@
     "page_title": "Decomposition & Multi-Scale Analysis",
     "page_subtitle": "Analyse price series across multiple frequencies — MODWT, EMD, VMD, CWT, Hurst, HAR",
     "tabs": {
+      "combined": "Combined View",
       "decomp": "Signal Decomposition",
       "time_freq": "Time-Frequency",
       "hurst": "Hurst & Coherence",
       "forecast": "Volatility Forecast",
       "patterns": "Pattern Detection"
+    },
+    "combined": {
+      "series_label": "Series",
+      "series_count": "{{n}} of {{total}} shown",
+      "series_price": "Price",
+      "series_trend": "Trend (A{{j}})",
+      "series_detail": "Detail D{{j}}",
+      "axis_left": "L",
+      "axis_right": "R",
+      "axis_left_title": "Price",
+      "axis_right_title": "Detail",
+      "axis_note": "Left axis: price & trend (price scale). Right axis: detail components (oscillation scale). Use the Series dropdown to toggle lines.",
+      "chart_title": "Combined overlay — MODWT {{wavelet}}, J={{j}}",
+      "recompute": "Recompute",
+      "running": "Computing…",
+      "error": "Decomposition failed: {{msg}}"
     },
     "input": {
       "title": "Input Data",

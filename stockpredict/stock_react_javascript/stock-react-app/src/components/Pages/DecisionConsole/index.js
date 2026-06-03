@@ -206,13 +206,18 @@ const DecisionConsole = () => {
           portfolioId
             ? httpClient.get(API_ENDPOINTS.PORTFOLIO_HOLDINGS(portfolioId))
             : Promise.resolve({ success: true, data: [] }),
-          httpClient.get(API_ENDPOINTS.WATCHLIST),
+          // Canonical "watch" list lives in decision-helper (HelperWatchlist),
+          // so the Decision Helper analyses exactly what the user added to watch.
+          helperService.getWatchlist(),
         ]);
 
         const holdings = holdingsRes.status === 'fulfilled' && holdingsRes.value?.success
           ? (holdingsRes.value.data || []) : [];
+        // HelperWatchlist entries are keyed by `ticker`; normalise to `symbol`
+        // so the merge/dedup below stays uniform with portfolio holdings.
         const watchlist = watchlistRes.status === 'fulfilled' && watchlistRes.value?.success
-          ? (watchlistRes.value.data || []) : [];
+          ? (watchlistRes.value.data || []).map(e => ({ ...e, symbol: e.symbol || e.ticker }))
+          : [];
 
         // Merge, dedup by symbol
         const seen = new Set();

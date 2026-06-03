@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   RefreshCw, TrendingUp, TrendingDown, Minus, Zap,
-  BookOpen, ChevronUp, ChevronDown as ChevDown,
+  BookOpen, ChevronUp, ChevronDown as ChevDown, X,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import httpClient from '../../../services/httpClient';
@@ -46,45 +46,55 @@ const WatchlistDecisionBoard = () => {
   const [sortKey, setSortKey] = useState('ticker');
   const [sortAsc, setSortAsc] = useState(true);
   const [planRec, setPlanRec] = useState(null);
+  const [watchInput, setWatchInput] = useState('');
+  const [watchBusy, setWatchBusy] = useState(false);
+  const [watchMsg, setWatchMsg] = useState(null);
 
-  // Load tickers from portfolio holdings + watchlist (same logic as DecisionConsole)
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const portfolioRes = await httpClient.get(API_ENDPOINTS.PORTFOLIO_DEFAULT);
-        const portfolioId = portfolioRes.success ? portfolioRes.data?.id : null;
+  // Load tickers from portfolio holdings + the canonical decision-helper watchlist.
+  // Preserves any per-row recommendations already computed so an Add/Remove doesn't
+  // wipe analysis results.
+  const loadList = useCallback(async () => {
+    try {
+      const portfolioRes = await httpClient.get(API_ENDPOINTS.PORTFOLIO_DEFAULT);
+      const portfolioId = portfolioRes.success ? portfolioRes.data?.id : null;
 
-        const [holdingsRes, watchlistRes] = await Promise.allSettled([
-          portfolioId
-            ? httpClient.get(API_ENDPOINTS.PORTFOLIO_HOLDINGS(portfolioId))
-            : Promise.resolve({ success: true, data: [] }),
-          httpClient.get(API_ENDPOINTS.WATCHLIST),
-        ]);
+      const [holdingsRes, watchlistRes] = await Promise.allSettled([
+        portfolioId
+          ? httpClient.get(API_ENDPOINTS.PORTFOLIO_HOLDINGS(portfolioId))
+          : Promise.resolve({ success: true, data: [] }),
+        helperService.getWatchlist(),
+      ]);
 
-        const holdings = holdingsRes.status === 'fulfilled' && holdingsRes.value?.success
-          ? (holdingsRes.value.data || []) : [];
-        const watchlist = watchlistRes.status === 'fulfilled' && watchlistRes.value?.success
-          ? (watchlistRes.value.data || []) : [];
+      const holdings = holdingsRes.status === 'fulfilled' && holdingsRes.value?.success
+        ? (holdingsRes.value.data || []) : [];
+      // HelperWatchlist entries are keyed by `ticker`; normalise to `symbol`.
+      const watchlist = watchlistRes.status === 'fulfilled' && watchlistRes.value?.success
+        ? (watchlistRes.value.data || []).map(e => ({ ...e, symbol: e.symbol || e.ticker }))
+        : [];
 
-        const seen = new Set();
-        const merged = [...holdings, ...watchlist].filter(item => {
-          if (!item.symbol || seen.has(item.symbol)) return false;
-          seen.add(item.symbol);
-          return true;
-        });
+      const seen = new Set();
+      const merged = [...holdings, ...watchlist].filter(item => {
+        if (!item.symbol || seen.has(item.symbol)) return false;
+        seen.add(item.symbol);
+        return true;
+      });
 
-        setRows(merged.map(item => ({ ticker: item.symbol, status: 'idle', rec: null })));
+      setRows(prev => {
+        const prevByTicker = Object.fromEntries(prev.map(r => [r.ticker, r]));
+        return merged.map(item => prevByTicker[item.symbol]
+          || { ticker: item.symbol, status: 'idle', rec: null });
+      });
 
-        // Build symbol → held quantity map from portfolio holdings
-        const map = {};
-        holdings.forEach(h => { map[h.symbol] = h.quantity || 0; });
-        setHoldingsMap(map);
-      } catch {
-        setRows([]);
-      }
-    };
-    load();
+      // Build symbol → held quantity map from portfolio holdings
+      const map = {};
+      holdings.forEach(h => { map[h.symbol] = h.quantity || 0; });
+      setHoldingsMap(map);
+    } catch {
+      setRows([]);
+    }
   }, []);
+
+  useEffect(() => { loadList(); }, [loadList]);
 
   const analyzeOne = useCallback(async (ticker) => {
     setRows(prev => prev.map(r => r.ticker === ticker ? { ...r, status: 'loading' } : r));
@@ -101,6 +111,31 @@ const WatchlistDecisionBoard = () => {
     await Promise.all(rows.map(r => analyzeOne(r.ticker)));
     setAnalyzing(false);
   }, [rows, analyzeOne]);
+
+  // Search → add to watch (Theo dõi): writes to the canonical HelperWatchlist,
+  // which the Decision Helper analyses.
+  const addToWatch = useCallback(async () => {
+    const ticker = watchInput.trim().toUpperCase();
+    if (!ticker) return;
+    setWatchBusy(true);
+    setWatchMsg(null);
+    const result = await helperService.addWatchlist({ ticker });
+    if (result?.success) {
+      setWatchInput('');
+      setWatchMsg({ ok: true, text: t('decision_helper.decision_board.watch_added', { ticker }) });
+      await loadList();
+    } else {
+      setWatchMsg({ ok: false, text: t('decision_helper.decision_board.watch_add_failed', { ticker }) });
+    }
+    setWatchBusy(false);
+  }, [watchInput, loadList, t]);
+
+  const removeFromWatch = useCallback(async (ticker) => {
+    const result = await helperService.removeWatchlist(ticker);
+    if (result?.success) {
+      setRows(prev => prev.filter(r => r.ticker !== ticker));
+    }
+  }, []);
 
   const handleSort = (key) => {
     if (sortKey === key) setSortAsc(a => !a);
@@ -134,7 +169,27 @@ const WatchlistDecisionBoard = () => {
       {/* toolbar */}
       <div style={styles.toolbar}>
         <h2 style={styles.title}>{t('decision_helper.decision_board.title')}</h2>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* search → add to watch */}
+          <input
+            type="text"
+            value={watchInput}
+            onChange={e => setWatchInput(e.target.value.toUpperCase())}
+            onKeyDown={e => e.key === 'Enter' && addToWatch()}
+            placeholder={t('decision_helper.decision_board.watch_placeholder')}
+            style={{ ...styles.dateInput, width: 150, textTransform: 'uppercase' }}
+          />
+          <button
+            onClick={addToWatch}
+            disabled={watchBusy || !watchInput.trim()}
+            style={styles.analyzeAllBtn}
+            title={t('decision_helper.decision_board.watch_add')}
+          >
+            {watchBusy
+              ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              : <BookOpen size={14} />}
+            {t('decision_helper.decision_board.watch_add')}
+          </button>
           <input
             type="date" value={barDate}
             onChange={e => setBarDate(e.target.value)}
@@ -148,6 +203,14 @@ const WatchlistDecisionBoard = () => {
           </button>
         </div>
       </div>
+      {watchMsg && (
+        <div style={{
+          margin: '0 0 10px', fontSize: 12,
+          color: watchMsg.ok ? '#166534' : '#b91c1c',
+        }}>
+          {watchMsg.text}
+        </div>
+      )}
 
       {analyzed > 0 && (
         <div style={styles.summary}>
@@ -240,6 +303,15 @@ const WatchlistDecisionBoard = () => {
                           title={t('decision_helper.decision_board.save_plan')}
                         >
                           <BookOpen size={12} />
+                        </button>
+                      )}
+                      {holdingsMap[ticker] == null && (
+                        <button
+                          onClick={() => removeFromWatch(ticker)}
+                          style={{ ...styles.iconBtn, color: '#ef4444' }}
+                          title={t('decision_helper.decision_board.watch_remove')}
+                        >
+                          <X size={12} />
                         </button>
                       )}
                     </div>

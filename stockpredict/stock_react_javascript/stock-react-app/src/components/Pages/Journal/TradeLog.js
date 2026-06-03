@@ -8,6 +8,8 @@ import {
   CalendarDays, Lightbulb
 } from 'lucide-react';
 import journalService from '../../../services/journalService';
+import httpClient from '../../../services/httpClient';
+import { API_ENDPOINTS } from '../../../constants/api';
 import { useNavigate } from 'react-router-dom';
 import '../../../styles/journal.css';
 
@@ -48,6 +50,10 @@ const TradeLog = () => {
   // Today's plan (Journal polish B — surface DailyPlan in TradeLog)
   const [todayPlan, setTodayPlan] = useState(null);
   const [todayPlanCollapsed, setTodayPlanCollapsed] = useState(false);
+
+  // Bought stocks (portfolio holdings, excluding watchlist-only) — the Journal
+  // only logs trades on symbols the user actually owns.
+  const [boughtSymbols, setBoughtSymbols] = useState([]);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('');
@@ -169,6 +175,26 @@ const TradeLog = () => {
       }
     })();
   }, [selectedAccountId]);
+
+  // Load the user's bought stocks from their default portfolio (holdings where
+  // is_watchlist_only is false). Used to constrain the new-trade symbol picker.
+  useEffect(() => {
+    (async () => {
+      try {
+        const pr = await httpClient.get(API_ENDPOINTS.PORTFOLIO_DEFAULT);
+        const pid = pr.success ? pr.data?.id : null;
+        if (!pid) { setBoughtSymbols([]); return; }
+        const hr = await httpClient.get(API_ENDPOINTS.PORTFOLIO_HOLDINGS(pid));
+        const list = hr.success ? (hr.data || []) : [];
+        const symbols = [...new Set(
+          list.filter(h => !h.is_watchlist_only && h.symbol).map(h => h.symbol)
+        )].sort();
+        setBoughtSymbols(symbols);
+      } catch {
+        setBoughtSymbols([]);
+      }
+    })();
+  }, []);
 
   // =========================================================================
   // Sorting
@@ -665,14 +691,22 @@ const TradeLog = () => {
                 </div>
                 <div className="form-group">
                   <label>{t('journal.trade_log.ticker_label')}</label>
-                  <input
-                    type="text"
-                    value={tradeForm.market_ticker}
-                    onChange={e => setTradeForm({ ...tradeForm, market_ticker: e.target.value.toUpperCase() })}
-                    placeholder={t('journal.trade_log.ticker_placeholder')}
-                    required
-                    maxLength={20}
-                  />
+                  {boughtSymbols.length > 0 ? (
+                    <select
+                      value={tradeForm.market_ticker}
+                      onChange={e => setTradeForm({ ...tradeForm, market_ticker: e.target.value })}
+                      required
+                    >
+                      <option value="">{t('journal.trade_log.ticker_select_placeholder')}</option>
+                      {boughtSymbols.map(sym => (
+                        <option key={sym} value={sym}>{sym}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="form-hint" style={{ fontSize: 12, color: '#9ca3af' }}>
+                      {t('journal.trade_log.ticker_no_holdings')}
+                    </div>
+                  )}
                 </div>
                 <div className="form-group">
                   <label>{t('journal.trade_log.direction_label')}</label>
