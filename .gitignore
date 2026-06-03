@@ -240,3 +240,7 @@ packages/
 
 # drawio auto-backup/lock files
 .$*.drawio.bkp
+
+# Obsidian volatile UI state (pane/tab layout churns constantly)
+**/.obsidian/workspace.json
+**/.obsidian/workspace-mobile.json
