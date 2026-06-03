@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, HTTPException, status
+from fastapi.concurrency import run_in_threadpool
 
 from chart_decomp.domain.exceptions import (
     ChartDecompError,
@@ -77,7 +78,7 @@ def _handle(exc: Exception) -> HTTPException:
 async def decompose_modwt(req: MODWTRequest) -> MODWTResponse:
     """Maximal Overlap Discrete Wavelet Transform with MRA reconstruction."""
     try:
-        return svc.run_modwt(req)
+        return await run_in_threadpool(svc.run_modwt, req)
     except Exception as exc:
         raise _handle(exc) from exc
 
@@ -86,7 +87,7 @@ async def decompose_modwt(req: MODWTRequest) -> MODWTResponse:
 async def decompose_emd(req: EMDRequest) -> EMDResponse:
     """Empirical Mode Decomposition (requires emd extra)."""
     try:
-        return svc.run_emd(req)
+        return await run_in_threadpool(svc.run_emd, req)
     except Exception as exc:
         raise _handle(exc) from exc
 
@@ -95,7 +96,7 @@ async def decompose_emd(req: EMDRequest) -> EMDResponse:
 async def decompose_eemd(req: EEMDRequest) -> EMDResponse:
     """Ensemble EMD with noise trials (requires emd extra)."""
     try:
-        return svc.run_eemd(req)
+        return await run_in_threadpool(svc.run_eemd, req)
     except Exception as exc:
         raise _handle(exc) from exc
 
@@ -104,7 +105,7 @@ async def decompose_eemd(req: EEMDRequest) -> EMDResponse:
 async def decompose_vmd(req: VMDRequest) -> VMDResponse:
     """Variational Mode Decomposition (requires vmd extra)."""
     try:
-        return svc.run_vmd(req)
+        return await run_in_threadpool(svc.run_vmd, req)
     except Exception as exc:
         raise _handle(exc) from exc
 
@@ -117,7 +118,7 @@ async def decompose_vmd(req: VMDRequest) -> VMDResponse:
 async def time_freq_cwt(req: CWTRequest) -> CWTResponse:
     """Continuous Wavelet Transform power scalogram with COI."""
     try:
-        return svc.run_cwt(req)
+        return await run_in_threadpool(svc.run_cwt, req)
     except Exception as exc:
         raise _handle(exc) from exc
 
@@ -126,7 +127,7 @@ async def time_freq_cwt(req: CWTRequest) -> CWTResponse:
 async def time_freq_hht(req: HHTRequest) -> HHTResponse:
     """Hilbert-Huang Transform: EMD + Hilbert marginal spectrum."""
     try:
-        return svc.run_hht(req)
+        return await run_in_threadpool(svc.run_hht, req)
     except Exception as exc:
         raise _handle(exc) from exc
 
@@ -139,7 +140,7 @@ async def time_freq_hht(req: HHTRequest) -> HHTResponse:
 async def hurst(req: HurstRequest) -> HurstResponse:
     """Estimate Hurst exponent via wavelet variance regression."""
     try:
-        return svc.run_hurst(req)
+        return await run_in_threadpool(svc.run_hurst, req)
     except Exception as exc:
         raise _handle(exc) from exc
 
@@ -152,7 +153,7 @@ async def hurst(req: HurstRequest) -> HurstResponse:
 async def coherence(req: CoherenceRequest) -> CoherenceResponse:
     """Time-varying R² coherence and phase between two series."""
     try:
-        return svc.run_coherence(req)
+        return await run_in_threadpool(svc.run_coherence, req)
     except Exception as exc:
         raise _handle(exc) from exc
 
@@ -165,7 +166,7 @@ async def coherence(req: CoherenceRequest) -> CoherenceResponse:
 async def forecast_har(req: HARForecastRequest) -> ForecastResponse:
     """Walk-forward HAR model for log realised-variance."""
     try:
-        return svc.run_har_forecast(req)
+        return await run_in_threadpool(svc.run_har_forecast, req)
     except Exception as exc:
         raise _handle(exc) from exc
 
@@ -174,7 +175,7 @@ async def forecast_har(req: HARForecastRequest) -> ForecastResponse:
 async def forecast_vmd_har(req: VMDHARForecastRequest) -> ForecastResponse:
     """Walk-forward VMD-augmented HAR (causal window, edge-lag protected)."""
     try:
-        return svc.run_vmd_har_forecast(req)
+        return await run_in_threadpool(svc.run_vmd_har_forecast, req)
     except Exception as exc:
         raise _handle(exc) from exc
 
@@ -185,7 +186,7 @@ async def forecast_compare(req: ForecastCompareRequest) -> ForecastCompareRespon
     Constraint C4: winner is declared only if VMD-HAR beats HAR on RMSE + QLIKE + DM > 1.96.
     """
     try:
-        return svc.run_forecast_compare(req)
+        return await run_in_threadpool(svc.run_forecast_compare, req)
     except Exception as exc:
         raise _handle(exc) from exc
 
@@ -198,7 +199,7 @@ async def forecast_compare(req: ForecastCompareRequest) -> ForecastCompareRespon
 async def realized_vol(req: RealizedVarRequest) -> RealizedVarResponse:
     """Compute realised variance, vol, and log-RV from daily or intraday returns."""
     try:
-        return svc.run_realized_var(req)
+        return await run_in_threadpool(svc.run_realized_var, req)
     except Exception as exc:
         raise _handle(exc) from exc
 
@@ -211,7 +212,7 @@ async def realized_vol(req: RealizedVarRequest) -> RealizedVarResponse:
 async def backtest_vol_target(req: BacktestRequest) -> BacktestResponse:
     """Volatility-targeting backtest with leverage cap and transaction costs."""
     try:
-        return svc.run_backtest(req)
+        return await run_in_threadpool(svc.run_backtest, req)
     except Exception as exc:
         raise _handle(exc) from exc
 
@@ -225,7 +226,7 @@ async def backtest_vol_target(req: BacktestRequest) -> BacktestResponse:
 async def patterns_denoise(req: PatternDenoiseRequest) -> PatternDenoiseResponse:
     """Layer-1 wavelet denoising only — returns the skeleton-ready series."""
     try:
-        return svc.run_pattern_denoise(req)
+        return await run_in_threadpool(svc.run_pattern_denoise, req)
     except Exception as exc:
         raise _handle(exc) from exc
 
@@ -235,7 +236,7 @@ async def patterns_denoise(req: PatternDenoiseRequest) -> PatternDenoiseResponse
 async def patterns_swings(req: PatternSwingsRequest) -> PatternSwingsResponse:
     """Extract alternating H/L swing pivots from a (denoised) series."""
     try:
-        return svc.run_pattern_swings(req)
+        return await run_in_threadpool(svc.run_pattern_swings, req)
     except Exception as exc:
         raise _handle(exc) from exc
 
@@ -245,7 +246,7 @@ async def patterns_swings(req: PatternSwingsRequest) -> PatternSwingsResponse:
 async def patterns_detect(req: PatternDetectRequest) -> PatternDetectResponse:
     """Denoise → swings → detect all registered patterns.  No null-FPR computation."""
     try:
-        return svc.run_pattern_detect(req)
+        return await run_in_threadpool(svc.run_pattern_detect, req)
     except Exception as exc:
         raise _handle(exc) from exc
 
@@ -258,7 +259,7 @@ async def patterns_pipeline(req: PatternPipelineRequest) -> PatternPipelineRespo
     Right-edge detections are flagged confirmed=false (B6/C2).
     """
     try:
-        return svc.run_pattern_pipeline(req)
+        return await run_in_threadpool(svc.run_pattern_pipeline, req)
     except Exception as exc:
         raise _handle(exc) from exc
 
@@ -268,6 +269,6 @@ async def patterns_pipeline(req: PatternPipelineRequest) -> PatternPipelineRespo
 async def patterns_null_fpr(req: PatternNullFPRRequest) -> PatternNullFPRResponse:
     """Run the full pipeline on n_null random-walk surrogates and return per-pattern FPR."""
     try:
-        return svc.run_pattern_null_fpr(req)
+        return await run_in_threadpool(svc.run_pattern_null_fpr, req)
     except Exception as exc:
         raise _handle(exc) from exc
