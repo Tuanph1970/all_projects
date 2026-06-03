@@ -2,13 +2,14 @@
 // Tabs: Signal Decomposition | Time-Frequency | Hurst & Coherence | Volatility Forecast
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ComposedChart, ResponsiveContainer, ReferenceLine, ReferenceArea,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, ReferenceLine, ReferenceArea,
 } from 'recharts';
-import { Activity, RefreshCw, TrendingUp, Zap, BarChart2, GitBranch, Layers, ChevronDown } from 'lucide-react';
+import { Activity, RefreshCw, TrendingUp, Zap, BarChart2, GitBranch } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import chartDecompService from '../../../services/chartDecompService';
 import companyService from '../../../services/companyService';
+import DecompCombinedChart from './DecompCombinedChart';
 
 // ── Palette & theme ───────────────────────────────────────────────────────────
 
@@ -261,6 +262,7 @@ function DecompTab({ series, t }) {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
   const [result, setResult]   = useState(null);
+  const [viewMode, setViewMode] = useState('combined'); // 'combined' | 'per_component'
 
   const run = async () => {
     if (!series) return;
@@ -337,7 +339,27 @@ function DecompTab({ series, t }) {
         <EmptyState text={series ? t('chart_decomp.common.run_first') : t('chart_decomp.input.no_data')} />
       )}
 
-      {result && (() => {
+      {result && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          {['combined', 'per_component'].map(m => (
+            <button
+              key={m}
+              onClick={() => setViewMode(m)}
+              style={s.btn(viewMode === m ? COLORS.accent : '#e5e7eb', viewMode !== m)}
+            >
+              {t(`chart_decomp.decomp.view_${m}`)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {result && viewMode === 'combined' && (
+        <div style={s.card}>
+          <DecompCombinedChart method={result.method} d={result.data} series={series} t={t} />
+        </div>
+      )}
+
+      {result && viewMode === 'per_component' && (() => {
         const d = result.data;
 
         if (result.method === 'modwt') {
@@ -1172,183 +1194,11 @@ function PatternTab({ series, t }) {
   );
 }
 
-// ── Combined Tab ──────────────────────────────────────────────────────────────
-// One chart area: price + trend on the LEFT axis, oscillatory detail components on
-// the RIGHT axis, a visible grid, and a checkbox dropdown to toggle series.
-
-function CombinedTab({ series, t }) {
-  const [wavelet] = useState('sym8');
-  const [level, setLevel]   = useState(6);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]   = useState(null);
-  const [decomp, setDecomp] = useState(null);     // { approximation, details[], level }
-  const [visible, setVisible] = useState({});      // key -> bool
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  const run = React.useCallback(async () => {
-    if (!series) return;
-    setLoading(true); setError(null);
-    try {
-      const resp = await chartDecompService.modwt({ series, wavelet, level });
-      const d = resp.data ?? resp;
-      setDecomp(d);
-      // default-visible: price + trend + first detail
-      const vis = { price: true, trend: true };
-      (d.details || []).forEach((_, i) => { vis[`d${i + 1}`] = i === 0; });
-      setVisible(vis);
-    } catch (e) {
-      setError(t('chart_decomp.combined.error', { msg: e.response?.data?.detail ?? e.message }));
-      setDecomp(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [series, wavelet, level, t]);
-
-  // Auto-run when a new series is loaded or the level changes (run identity
-  // tracks those deps).
-  useEffect(() => { if (series) run(); }, [series, run]);
-
-  // Series definitions: axis 'left' = price-scale, 'right' = detail-scale.
-  const seriesDefs = React.useMemo(() => {
-    if (!decomp) return [];
-    const defs = [
-      { key: 'price', axis: 'left',  color: COLORS.original, label: t('chart_decomp.combined.series_price') },
-      { key: 'trend', axis: 'left',  color: COLORS.approx,   label: t('chart_decomp.combined.series_trend', { j: decomp.level }) },
-    ];
-    (decomp.details || []).forEach((_, i) => {
-      defs.push({
-        key: `d${i + 1}`, axis: 'right',
-        color: COLORS.details[i % COLORS.details.length],
-        label: t('chart_decomp.combined.series_detail', { j: i + 1 }),
-      });
-    });
-    return defs;
-  }, [decomp, t]);
-
-  const chartData = React.useMemo(() => {
-    if (!decomp || !series) return [];
-    return series.map((p, i) => {
-      const row = { i, price: p, trend: decomp.approximation?.[i] };
-      (decomp.details || []).forEach((det, j) => { row[`d${j + 1}`] = det[i]; });
-      return row;
-    });
-  }, [decomp, series]);
-
-  const toggle = (key) => setVisible(v => ({ ...v, [key]: !v[key] }));
-
-  return (
-    <div>
-      {/* Controls */}
-      <div style={s.card}>
-        <div style={s.row}>
-          <div style={s.field}>
-            <span style={s.label}>{t('chart_decomp.decomp.level_label')}</span>
-            <input type="number" style={{ ...s.input, width: 64 }} min={2} max={10}
-              value={level} onChange={e => setLevel(+e.target.value)} />
-          </div>
-
-          {/* Checkbox dropdown */}
-          <div style={s.field}>
-            <span style={s.label}>{t('chart_decomp.combined.series_label')}</span>
-            <div style={{ position: 'relative' }}>
-              <button
-                style={{ ...s.select, display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 160, justifyContent: 'space-between' }}
-                onClick={() => setMenuOpen(o => !o)}
-                disabled={!decomp}
-              >
-                {t('chart_decomp.combined.series_count', {
-                  n: Object.values(visible).filter(Boolean).length,
-                  total: seriesDefs.length,
-                })}
-                <ChevronDown size={14} />
-              </button>
-              {menuOpen && decomp && (
-                <div style={{
-                  position: 'absolute', top: 40, left: 0, zIndex: 20, background: '#fff',
-                  border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: 8,
-                  boxShadow: '0 6px 18px rgba(0,0,0,0.12)', minWidth: 200, maxHeight: 260, overflowY: 'auto',
-                }}>
-                  {seriesDefs.map(def => (
-                    <label key={def.key} style={{
-                      display: 'flex', alignItems: 'center', gap: 8, padding: '5px 6px',
-                      fontSize: 12, cursor: 'pointer', borderRadius: 6,
-                    }}>
-                      <input type="checkbox" checked={!!visible[def.key]} onChange={() => toggle(def.key)} />
-                      <span style={{ width: 12, height: 12, borderRadius: 3, background: def.color, display: 'inline-block' }} />
-                      <span style={{ color: '#374151' }}>{def.label}</span>
-                      <span style={{ marginLeft: 'auto', ...s.badge() }}>
-                        {def.axis === 'left' ? t('chart_decomp.combined.axis_left') : t('chart_decomp.combined.axis_right')}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <button
-            style={s.btn(loading ? '#9ca3af' : COLORS.accent)}
-            onClick={run}
-            disabled={!series || loading}
-          >
-            {loading ? <Spinner /> : <RefreshCw size={14} />}
-            {loading ? t('chart_decomp.combined.running') : t('chart_decomp.combined.recompute')}
-          </button>
-        </div>
-        {error && <div style={{ ...s.errorBox, marginTop: 10 }}>{error}</div>}
-        <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 10 }}>
-          {t('chart_decomp.combined.axis_note')}
-        </div>
-      </div>
-
-      {/* Chart */}
-      {!decomp && !loading && (
-        <EmptyState text={series ? t('chart_decomp.common.run_first') : t('chart_decomp.input.no_data')} />
-      )}
-      {decomp && (
-        <div style={s.card}>
-          <div style={s.cardTitle}>
-            {t('chart_decomp.combined.chart_title', { wavelet, j: decomp.level })}
-          </div>
-          <ResponsiveContainer width="100%" height={420}>
-            <ComposedChart data={chartData} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-              <CartesianGrid stroke={COLORS.grid} strokeDasharray={COLORS.gridDash} />
-              <XAxis dataKey="i" tick={{ fontSize: 10, fontFamily: FONT, fill: COLORS.axis }}
-                tickFormatter={i => `t=${i}`} minTickGap={40} />
-              <YAxis yAxisId="left" tick={{ fontSize: 10, fontFamily: FONT, fill: COLORS.axis }}
-                width={56} tickFormatter={v => (v != null ? v.toFixed(1) : '')}
-                label={{ value: t('chart_decomp.combined.axis_left_title'), angle: -90, position: 'insideLeft', style: { fontSize: 10, fill: COLORS.axis } }} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fontFamily: FONT, fill: COLORS.axis }}
-                width={56} tickFormatter={v => (v != null ? v.toFixed(2) : '')}
-                label={{ value: t('chart_decomp.combined.axis_right_title'), angle: 90, position: 'insideRight', style: { fontSize: 10, fill: COLORS.axis } }} />
-              <Tooltip
-                formatter={(v, name) => [typeof v === 'number' ? v.toFixed(4) : v, name]}
-                labelFormatter={i => `t=${i}`}
-                contentStyle={{ fontSize: 11, fontFamily: FONT, borderRadius: 6 }}
-              />
-              <Legend wrapperStyle={{ fontSize: 11, fontFamily: FONT }} />
-              {seriesDefs.filter(def => visible[def.key]).map(def => (
-                <Line
-                  key={def.key} yAxisId={def.axis} type="monotone" dataKey={def.key}
-                  name={def.label} stroke={def.color}
-                  strokeWidth={def.key === 'price' ? 1.6 : 1.2}
-                  dot={false} isAnimationActive={false} connectNulls
-                />
-              ))}
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-const TABS = ['combined', 'decomp', 'time_freq', 'hurst', 'forecast', 'patterns'];
+const TABS = ['decomp', 'time_freq', 'hurst', 'forecast', 'patterns'];
 
 const TAB_ICONS = {
-  combined:  Layers,
   decomp:    Activity,
   time_freq: BarChart2,
   hurst:     TrendingUp,
@@ -1358,7 +1208,7 @@ const TAB_ICONS = {
 
 export default function ChartDecompPage() {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState('combined');
+  const [activeTab, setActiveTab] = useState('decomp');
   const [series, setSeries]       = useState(null);
 
   return (
@@ -1391,7 +1241,6 @@ export default function ChartDecompPage() {
       </div>
 
       {/* Tab panels */}
-      {activeTab === 'combined'  && <CombinedTab  series={series} t={t} />}
       {activeTab === 'decomp'    && <DecompTab    series={series} t={t} />}
       {activeTab === 'time_freq' && <TimeFreqTab  series={series} t={t} />}
       {activeTab === 'hurst'     && <HurstTab     series={series} t={t} />}
