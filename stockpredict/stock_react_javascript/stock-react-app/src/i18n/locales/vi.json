@@ -2144,7 +2144,7 @@
       "axis_left_title": "Gốc / Xu hướng",
       "axis_right_title": "Thành phần",
       "x_title": "Thời gian (phiên)",
-      "interact_hint": "Cuộn để phóng to · kéo để di chuyển · thanh công cụ để phóng vùng / tự chỉnh",
+      "interact_hint": "Cuộn để phóng to · kéo để di chuyển · kéo thanh bên dưới để cuộn · thanh công cụ để phóng vùng / tự chỉnh",
       "axis_note": "Trục trái: giá & xu hướng (thang giá). Trục phải: các thành phần chi tiết (thang dao động). Dùng menu Chuỗi để bật/tắt đường.",
       "chart_title": "Biểu đồ tổng hợp — MODWT {{wavelet}}, J={{j}}",
       "recompute": "Tính lại",

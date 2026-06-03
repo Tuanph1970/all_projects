@@ -75,7 +75,7 @@ export default function DecompCombinedChart({ method, d, series, t }) {
   const traces = defs.map(def => ({
     x,
     y: def.y,
-    type: 'scattergl',          // GL renderer — smooth with long series
+    type: 'scatter',            // SVG renderer so the range-slider preview renders
     mode: 'lines',
     name: def.name,
     line: { color: def.color, width: def.key === 'orig' ? 2 : 1.4 },
@@ -92,12 +92,18 @@ export default function DecompCombinedChart({ method, d, series, t }) {
 
   const layout = {
     autosize: true,
-    height: 460,
-    margin: { l: 56, r: 56, t: 10, b: 56 },
+    height: 520,
+    margin: { l: 56, r: 56, t: 10, b: 40 },
     dragmode: 'pan',
     hovermode: 'x unified',
     font: { family: FONT },
-    xaxis: { ...axisCommon, title: { text: t('chart_decomp.combined.x_title'), font: { size: 11 } }, nticks: 12 },
+    xaxis: {
+      ...axisCommon,
+      title: { text: t('chart_decomp.combined.x_title'), font: { size: 11 } },
+      nticks: 12,
+      // Overview strip with a draggable window for scrolling/zooming the range.
+      rangeslider: { visible: true, thickness: 0.1, bgcolor: '#f9fafb', bordercolor: '#e5e7eb', borderwidth: 1 },
+    },
     yaxis: {
       ...axisCommon,
       title: { text: t('chart_decomp.combined.axis_left_title'), font: { size: 11 } },

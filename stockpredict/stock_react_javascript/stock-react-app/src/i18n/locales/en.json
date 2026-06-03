@@ -2144,7 +2144,7 @@
       "axis_left_title": "Original / Trend",
       "axis_right_title": "Components",
       "x_title": "Time (bars)",
-      "interact_hint": "Scroll to zoom · drag to pan · toolbar for box-zoom / autoscale",
+      "interact_hint": "Scroll to zoom · drag to pan · drag the strip below to scroll · toolbar for box-zoom / autoscale",
       "axis_note": "Left axis: price & trend (price scale). Right axis: detail components (oscillation scale). Use the Series dropdown to toggle lines.",
       "chart_title": "Combined overlay — MODWT {{wavelet}}, J={{j}}",
       "recompute": "Recompute",
