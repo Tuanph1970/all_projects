@@ -2243,7 +2243,9 @@
       "actual_label": "Thực tế",
       "chart_title": "Dự báo biến động thực hiện (log-RV)",
       "oos_note": "Chỉ hiển thị giai đoạn ngoài mẫu (OOS)",
-      "need_more_data": "Cần ít nhất 300 điểm dữ liệu để dự báo"
+      "need_more_data": "Cần ít nhất 300 điểm dữ liệu để dự báo",
+      "need_more_data_vmd": "VMD-HAR cần ≥ {{need}} điểm dữ liệu (≈5 năm theo ngày); bạn đang có {{have}}. Hãy chọn khoảng thời gian dài hơn hoặc dùng HAR.",
+      "vmd_hint": "Cần ≈5 năm dữ liệu (≥ {{need}} điểm)"
     },
     "common": {
       "no_result": "Chưa có kết quả",

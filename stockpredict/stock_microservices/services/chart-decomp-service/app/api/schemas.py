@@ -244,7 +244,10 @@ class ForecastResponse(BaseModel):
     predictions: list[float]
     actuals: list[float]
     timestamps: list[int]
-    metrics: dict[str, float]
+    # dm_vs_har is None for the HAR baseline (no self-comparison), so metric
+    # values are Optional — declaring dict[str, float] makes the HAR endpoint
+    # fail response validation with a 500.
+    metrics: dict[str, float | None]
     features_used: list[str]
 
 

@@ -83,7 +83,11 @@ class EMDDecomposer:
         x = series.values.copy()
         noise_width = params.noise_width * float(np.std(x))
 
-        eemd = EEMD(trials=params.n_trials, noise_width=noise_width)
+        # parallel=False is mandatory here: PyEMD's EEMD otherwise spawns a
+        # multiprocessing.Pool, which deadlocks/stalls when this runs inside the
+        # FastAPI request threadpool (run_in_threadpool). Serial EEMD is fast
+        # enough (~0.1s for n_trials=100 on ~500 points).
+        eemd = EEMD(trials=params.n_trials, noise_width=noise_width, parallel=False)
         if params.seed is not None:
             eemd.noise_seed(params.seed)
         eemd.MAX_ITERATION = params.stop_tol  # EEMD uses tolerance differently

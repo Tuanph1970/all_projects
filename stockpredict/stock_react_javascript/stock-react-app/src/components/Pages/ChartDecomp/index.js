@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine, ReferenceArea,
+  ResponsiveContainer, ReferenceArea,
 } from 'recharts';
 import { Activity, RefreshCw, TrendingUp, Zap, BarChart2, GitBranch } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -50,6 +50,18 @@ function scaleColor(t) {
   const g = Math.round(stops[lo][1] + (stops[hi][1] - stops[lo][1]) * frac);
   const b = Math.round(stops[lo][2] + (stops[hi][2] - stops[lo][2]) * frac);
   return `rgb(${r},${g},${b})`;
+}
+
+// httpClient wraps every call as { success, data } | { success:false, error } and
+// never throws. Unwrap it: return the response body on success, or throw a real
+// Error otherwise — so each tab's catch can surface a message instead of silently
+// rendering the wrapper object as if it were a valid result ("nothing happened").
+function unwrap(resp) {
+  if (!resp || !resp.success) {
+    const err = resp?.error;
+    throw new Error(err?.data?.detail ?? err?.message ?? 'Request failed');
+  }
+  return resp.data;
 }
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
@@ -214,45 +226,6 @@ function InputPanel({ onSeriesReady, t }) {
 
 // ── Decomposition Tab ─────────────────────────────────────────────────────────
 
-function ComponentChart({ title, data, color, height = 90, showCoi, coiWidth }) {
-  const chartData = data.map((v, i) => ({ i, v }));
-  const N = data.length;
-  const coiLeft  = coiWidth != null ? coiWidth : 0;
-  const coiRight = coiWidth != null ? N - 1 - coiWidth : N - 1;
-
-  return (
-    <div style={{ marginBottom: 4 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 2, marginLeft: 4 }}>{title}</div>
-      <ResponsiveContainer width="100%" height={height}>
-        <LineChart data={chartData} margin={{ left: 0, right: 8, top: 4, bottom: 0 }}>
-          <CartesianGrid stroke={COLORS.grid} strokeDasharray={COLORS.gridDash} vertical={false} />
-          <XAxis dataKey="i" hide tick={false} />
-          <YAxis
-            tick={{ fontSize: 9, fontFamily: FONT, fill: COLORS.axis }}
-            width={40}
-            tickFormatter={v => v.toFixed(1)}
-          />
-          <Tooltip
-            formatter={v => [v.toFixed(4), title]}
-            labelFormatter={i => `t=${i}`}
-            contentStyle={{ fontSize: 11, fontFamily: FONT, borderRadius: 6 }}
-          />
-          {showCoi && coiLeft > 0 && (
-            <ReferenceLine x={coiLeft}  stroke={COLORS.coi} strokeWidth={1} strokeDasharray="4 2" />
-          )}
-          {showCoi && coiRight < N - 1 && (
-            <ReferenceLine x={coiRight} stroke={COLORS.coi} strokeWidth={1} strokeDasharray="4 2" />
-          )}
-          <Line
-            type="monotone" dataKey="v" stroke={color} strokeWidth={1.2}
-            dot={false} isAnimationActive={false}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
 function DecompTab({ series, t }) {
   const [method, setMethod]   = useState('modwt');
   const [wavelet, setWavelet] = useState('sym8');
@@ -262,7 +235,6 @@ function DecompTab({ series, t }) {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
   const [result, setResult]   = useState(null);
-  const [viewMode, setViewMode] = useState('combined'); // 'combined' | 'per_component'
 
   const run = async () => {
     if (!series) return;
@@ -273,7 +245,7 @@ function DecompTab({ series, t }) {
       else if (method === 'emd')  resp = await chartDecompService.emd({ series });
       else if (method === 'eemd') resp = await chartDecompService.eemd({ series });
       else                         resp = await chartDecompService.vmd({ series, K, alpha });
-      setResult({ method, data: resp.data ?? resp });
+      setResult({ method, data: unwrap(resp) });
     } catch (e) {
       setError(t('chart_decomp.decomp.error', { msg: e.response?.data?.detail ?? e.message }));
     } finally {
@@ -340,119 +312,10 @@ function DecompTab({ series, t }) {
       )}
 
       {result && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          {['combined', 'per_component'].map(m => (
-            <button
-              key={m}
-              onClick={() => setViewMode(m)}
-              style={s.btn(viewMode === m ? COLORS.accent : '#e5e7eb', viewMode !== m)}
-            >
-              {t(`chart_decomp.decomp.view_${m}`)}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {result && viewMode === 'combined' && (
         <div style={s.card}>
           <DecompCombinedChart method={result.method} d={result.data} series={series} t={t} />
         </div>
       )}
-
-      {result && viewMode === 'per_component' && (() => {
-        const d = result.data;
-
-        if (result.method === 'modwt') {
-          const components = [
-            { label: t('chart_decomp.decomp.original_label'), data: series, color: COLORS.original, height: 100 },
-            { label: t('chart_decomp.decomp.approx_label', { j: d.level }), data: d.approximation, color: COLORS.approx, coi: d.coi_widths?.[d.level - 1] },
-            ...d.details.map((det, i) => ({
-              label: t('chart_decomp.decomp.detail_label', { j: i + 1 }),
-              data: det,
-              color: COLORS.details[i % COLORS.details.length],
-              coi: d.coi_widths?.[i],
-            })),
-          ];
-          return (
-            <div style={s.card}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <span style={s.cardTitle}>MODWT — {wavelet}, J={d.level}</span>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <span style={s.badge(COLORS.success, '#f0fdf4')}>
-                    {t('chart_decomp.decomp.recon_error')}: {d.reconstruction_error?.toExponential(2)}
-                  </span>
-                  <span style={s.badge()}>{t('chart_decomp.decomp.n_components', { n: d.level + 1 })}</span>
-                </div>
-              </div>
-              <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 10 }}>
-                {t('chart_decomp.decomp.coi_note')}
-              </div>
-              {components.map((c, idx) => (
-                <ComponentChart
-                  key={idx}
-                  title={c.label}
-                  data={c.data}
-                  color={c.color}
-                  height={idx === 0 ? 110 : 80}
-                  showCoi={c.coi != null}
-                  coiWidth={c.coi}
-                />
-              ))}
-            </div>
-          );
-        }
-
-        if (result.method === 'vmd') {
-          return (
-            <div style={s.card}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                <span style={s.cardTitle}>VMD — K={d.n_modes}</span>
-                <span style={s.badge(COLORS.warn, '#fffbeb')}>
-                  {t('chart_decomp.decomp.recon_error')}: {d.reconstruction_error?.toExponential(2)}
-                </span>
-              </div>
-              <ComponentChart title={t('chart_decomp.decomp.original_label')} data={series} color={COLORS.original} height={110} />
-              {d.modes.map((mode, i) => (
-                <ComponentChart
-                  key={i}
-                  title={`${t('chart_decomp.decomp.mode_label', { j: i + 1 })} ω=${d.omega_final[i]?.toFixed(4)}`}
-                  data={mode}
-                  color={COLORS.details[i % COLORS.details.length]}
-                  height={80}
-                />
-              ))}
-            </div>
-          );
-        }
-
-        // EMD / EEMD
-        return (
-          <div style={s.card}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <span style={s.cardTitle}>{result.method.toUpperCase()} — {d.n_imfs} IMFs</span>
-              <span style={s.badge(COLORS.success, '#f0fdf4')}>
-                {t('chart_decomp.decomp.recon_error')}: {d.reconstruction_error?.toExponential(2)}
-              </span>
-            </div>
-            <ComponentChart title={t('chart_decomp.decomp.original_label')} data={series} color={COLORS.original} height={110} />
-            {d.imfs.slice(0, -1).map((imf, i) => (
-              <ComponentChart
-                key={i}
-                title={t('chart_decomp.decomp.imf_label', { j: i + 1 })}
-                data={imf}
-                color={COLORS.details[i % COLORS.details.length]}
-                height={80}
-              />
-            ))}
-            <ComponentChart
-              title={t('chart_decomp.decomp.residue_label')}
-              data={d.imfs[d.imfs.length - 1]}
-              color="#9ca3af"
-              height={80}
-            />
-          </div>
-        );
-      })()}
     </div>
   );
 }
@@ -547,7 +410,7 @@ function TimeFreqTab({ series, t }) {
       } else {
         resp = await chartDecompService.hht({ series });
       }
-      setResult({ method, data: resp.data ?? resp });
+      setResult({ method, data: unwrap(resp) });
     } catch (e) {
       setError(t('chart_decomp.time_freq.error', { msg: e.response?.data?.detail ?? e.message }));
     } finally {
@@ -676,7 +539,7 @@ function HurstTab({ series, t }) {
     setLoading(true); setError(null); setResult(null);
     try {
       const resp = await chartDecompService.hurst({ series });
-      setResult(resp.data ?? resp);
+      setResult(unwrap(resp));
     } catch (e) {
       setError(t('chart_decomp.hurst.error', { msg: e.response?.data?.detail ?? e.message }));
     } finally {
@@ -690,7 +553,11 @@ function HurstTab({ series, t }) {
     try {
       const resp = await companyService.getCompanyCharts(ticker2, '2Y');
       if (!resp.success) throw new Error(resp.error);
-      const prices = (Array.isArray(resp.data) ? resp.data : [])
+      // stock-data-service returns { symbol, …, data: [...] }; older mocks
+      // returned a bare array. Accept both shapes (same as InputPanel).
+      const raw = resp.data;
+      const rows = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+      const prices = rows
         .map(d => d.close ?? d.c ?? d.price)
         .filter(v => v != null && isFinite(v));
       setSeries2(prices);
@@ -707,7 +574,7 @@ function HurstTab({ series, t }) {
     setCohLoading(true); setCohError(null); setCohResult(null);
     try {
       const resp = await chartDecompService.coherence({ x: series.slice(-N), y: series2.slice(-N) });
-      setCohResult(resp.data ?? resp);
+      setCohResult(unwrap(resp));
     } catch (e) {
       setCohError(t('chart_decomp.hurst.error', { msg: e.response?.data?.detail ?? e.message }));
     } finally {
@@ -840,15 +707,29 @@ function HurstTab({ series, t }) {
 
 // ── Forecast Tab ──────────────────────────────────────────────────────────────
 
+// Minimum series length per forecast model. log_rv has (series.length - 1)
+// points; the backend needs that to cover its training window:
+//   HAR     → min_train (252)
+//   VMD-HAR → min_train (252) + window (1000) = 1252  → ≈5Y of daily data
+const FORECAST_MIN_SERIES = { har: 301, vmd_har: 1253 };
+
 function ForecastTab({ series, t }) {
   const [method, setMethod]   = useState('har');
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
   const [result, setResult]   = useState(null);
 
+  const need = FORECAST_MIN_SERIES[method];
+  const have = series?.length ?? 0;
+  const enoughData = have >= need;
+
   const run = async () => {
-    if (!series || series.length < 300) {
-      setError(t('chart_decomp.forecast.need_more_data')); return;
+    if (!series) return;
+    if (!enoughData) {
+      setError(method === 'vmd_har'
+        ? t('chart_decomp.forecast.need_more_data_vmd', { need, have })
+        : t('chart_decomp.forecast.need_more_data'));
+      return;
     }
     setLoading(true); setError(null); setResult(null);
     // Compute log-RV proxy: log(r²) where r = log-return
@@ -861,7 +742,7 @@ function ForecastTab({ series, t }) {
       } else {
         resp = await chartDecompService.vmdHarForecast({ log_rv: logRV });
       }
-      setResult({ method, data: resp.data ?? resp });
+      setResult({ method, data: unwrap(resp) });
     } catch (e) {
       setError(t('chart_decomp.forecast.error', { msg: e.response?.data?.detail ?? e.message }));
     } finally {
@@ -885,10 +766,19 @@ function ForecastTab({ series, t }) {
               <option value="vmd_har">{t('chart_decomp.forecast.method_vmd_har')}</option>
             </select>
           </div>
+          {method === 'vmd_har' && (
+            <span style={{
+              fontSize: 11, color: enoughData ? '#9ca3af' : COLORS.warn,
+              alignSelf: 'center', fontWeight: enoughData ? 400 : 600,
+            }}>
+              {t('chart_decomp.forecast.vmd_hint', { need: FORECAST_MIN_SERIES.vmd_har })}
+              {series ? ` · ${have}/${need}` : ''}
+            </span>
+          )}
           <button
-            style={s.btn(loading ? '#9ca3af' : COLORS.accent)}
+            style={s.btn((loading || (series && !enoughData)) ? '#9ca3af' : COLORS.accent)}
             onClick={run}
-            disabled={!series || loading}
+            disabled={!series || loading || !enoughData}
           >
             {loading ? <Spinner /> : <TrendingUp size={14} />}
             {loading ? t('chart_decomp.forecast.running') : t('chart_decomp.forecast.run_btn')}
@@ -997,13 +887,13 @@ function PatternTab({ series, t }) {
     if (!series) return;
     setLoading(true); setError(null);
     try {
-      const data = await chartDecompService.patternPipeline({
+      const resp = await chartDecompService.patternPipeline({
         series,
         k_drop: kDrop,
         threshold,
         compute_fpr: false,
       });
-      setResult(data);
+      setResult(unwrap(resp));
     } catch (e) {
       setError(e?.response?.data?.detail || e.message);
     } finally {

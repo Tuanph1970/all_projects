@@ -2243,7 +2243,9 @@
       "actual_label": "Actual",
       "chart_title": "Realised Volatility Forecast (log-RV)",
       "oos_note": "Showing out-of-sample (OOS) period only",
-      "need_more_data": "At least 300 data points needed for forecasting"
+      "need_more_data": "At least 300 data points needed for forecasting",
+      "need_more_data_vmd": "VMD-HAR needs ≥ {{need}} data points (≈5Y daily); you have {{have}}. Load a longer period or use HAR.",
+      "vmd_hint": "Needs ≈5Y of data (≥ {{need}} points)"
     },
     "common": {
       "no_result": "No results yet",
