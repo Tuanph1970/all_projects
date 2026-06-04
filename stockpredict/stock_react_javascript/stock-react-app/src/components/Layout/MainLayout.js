@@ -134,29 +134,29 @@ const MainLayout = () => {
             {/* Numeric solution id — must come AFTER /solutions/add so it
                 doesn't shadow the static path. SolutionEdit reads :id from
                 useLocation().pathname. */}
-            <Route path="/solutions/:id" element={<SolutionEdit />} />
-            <Route path="/backtest" element={<Backtest />} />
+            <Route path="/solutions/:id" element={<div className="chart-dense"><SolutionEdit /></div>} />
+            <Route path="/backtest" element={<div className="chart-dense chart-tall"><Backtest /></div>} />
 
-            <Route path="/agents" element={<Agent />} />
-            <Route path="/simulation" element={<SimulationDashboard />} />
+            <Route path="/agents" element={<div className="chart-dense"><Agent /></div>} />
+            <Route path="/simulation" element={<div className="chart-dense chart-tall"><SimulationDashboard /></div>} />
             <Route path="/chatbot" element={<ChatbotAgent />} />
             <Route path="/knowledge-qa" element={<KnowledgeQAChat />} />
 
             {/* Analysis */}
-            <Route path="/technical" element={<TechnicalAnalysis />} />
+            <Route path="/technical" element={<div className="chart-dense chart-tall"><TechnicalAnalysis /></div>} />
             <Route path="/fundamental" element={<FundamentalAnalysis />} />
-            <Route path="/ai-insights" element={<AIInsights />} />
+            <Route path="/ai-insights" element={<div className="chart-dense"><AIInsights /></div>} />
 
             {/* Portfolio */}
             <Route path="/holdings" element={<Holdings />} />
-            <Route path="/performance" element={<Performance />} />
+            <Route path="/performance" element={<div className="chart-dense"><Performance /></div>} />
             <Route path="/alerts" element={<Alerts />} />
 
             {/* Journal */}
             <Route path="/journal-accounts" element={<JournalAccounts />} />
-            <Route path="/journal-dashboard" element={<JournalDashboard />} />
+            <Route path="/journal-dashboard" element={<div className="chart-dense"><JournalDashboard /></div>} />
             <Route path="/trade-log" element={<TradeLog />} />
-            <Route path="/trade-diary" element={<TradeDiary />} />
+            <Route path="/trade-diary" element={<div className="chart-dense"><TradeDiary /></div>} />
             <Route path="/daily-planning" element={<DailyPlanning />} />
             <Route path="/weekly-review" element={<WeeklyReview />} />
 
@@ -164,17 +164,17 @@ const MainLayout = () => {
             <Route path="/decision-helper-overview" element={<DecisionHelperOverview />} />
             <Route path="/decision-console" element={<DecisionConsole />} />
             <Route path="/decision-board" element={<WatchlistDecisionBoard />} />
-            <Route path="/backtest-studio" element={<BacktestStudio />} />
+            <Route path="/backtest-studio" element={<div className="chart-dense chart-tall"><BacktestStudio /></div>} />
             <Route path="/discipline" element={<DisciplineDashboard />} />
             <Route path="/scheduled-runs" element={<ScheduledRunsLog />} />
             <Route path="/scanner" element={<ScannerPage />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/analytics" element={<div className="chart-dense"><AnalyticsPage /></div>} />
             <Route path="/positions-open" element={<PositionsPage />} />
             <Route path="/outcomes" element={<OutcomesPage />} />
             <Route path="/risk-dashboard" element={<RiskDashboard />} />
             <Route path="/watchlist-heatmap" element={<WatchlistHeatMap />} />
-            <Route path="/chart-decomp" element={<ChartDecompPage />} />
-            <Route path="/vol-forecast" element={<VolForecastPage />} />
+            <Route path="/chart-decomp" element={<div className="chart-dense chart-tall"><ChartDecompPage /></div>} />
+            <Route path="/vol-forecast" element={<div className="chart-dense chart-tall"><VolForecastPage /></div>} />
 
             {/* Tools */}
             <Route path="/screener" element={<StockScreener />} />
@@ -182,7 +182,7 @@ const MainLayout = () => {
             <Route path="/watchlist" element={<Watchlist />} />
 
             {/* Company detail with symbol param */}
-            <Route path="/company/:symbol" element={<CompanyRoute />} />
+            <Route path="/company/:symbol" element={<div className="chart-dense chart-tall"><CompanyRoute /></div>} />
 
             {/* Fallback — preserves the prior switch's default-to-Dashboard. */}
             <Route path="*" element={<Dashboard />} />

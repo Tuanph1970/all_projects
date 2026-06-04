@@ -92,8 +92,7 @@ export default function DecompCombinedChart({ method, d, series, t }) {
 
   const layout = {
     autosize: true,
-    height: 520,
-    margin: { l: 56, r: 56, t: 10, b: 40 },
+    margin: { l: 54, r: 54, t: 8, b: 32 },
     dragmode: 'pan',
     hovermode: 'x unified',
     font: { family: FONT },
@@ -180,7 +179,7 @@ export default function DecompCombinedChart({ method, d, series, t }) {
         data={traces}
         layout={layout}
         config={config}
-        style={{ width: '100%' }}
+        style={{ width: '100%', height: '74vh', minHeight: 440 }}
         useResizeHandler
       />
     </div>

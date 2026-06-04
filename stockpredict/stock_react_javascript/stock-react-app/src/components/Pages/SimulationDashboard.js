@@ -650,7 +650,7 @@ const ResultChart = ({ data, transactions }) => {
           <span className="signal-marker">V</span> {t('simulation.legend_sell_signal')}
         </span>
       </div>
-      <ResponsiveContainer width="100%" height={450}>
+      <ResponsiveContainer width="100%" height={620}>
         <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
           <CartesianGrid {...getRechartsGridProps().grid} />
           <XAxis

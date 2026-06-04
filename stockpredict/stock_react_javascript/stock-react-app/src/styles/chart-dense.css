@@ -1,0 +1,112 @@
+/* chart-dense.css
+ * Chart-first density layer for stock-chart screens.
+ * The chart is the point of these pages, so surrounding controls (labels,
+ * inputs, selects, date pickers, buttons) are shrunk and page/card chrome is
+ * trimmed to hand width + height back to the chart.
+ *
+ * Scoped strictly under .chart-dense (applied per-route in MainLayout) so it
+ * cannot leak into non-chart screens. !important is used deliberately to beat
+ * each page's existing component CSS. Inline-styled pages (ChartDecomp) are
+ * compacted in their JS instead, since CSS cannot override inline styles.
+ */
+
+/* ── Reclaim page + card chrome ─────────────────────────────────────────── */
+.chart-dense {
+  --cd-font: 11px;
+  --cd-font-sm: 10px;
+  --cd-control-h: 28px;
+}
+.chart-dense,
+.chart-dense .page,
+.chart-dense .dashboard,
+.chart-dense [class*="-page"],
+.chart-dense [class*="-dashboard"] {
+  padding-left: 12px !important;
+  padding-right: 12px !important;
+}
+.chart-dense .card,
+.chart-dense [class*="card"],
+.chart-dense [class*="panel"],
+.chart-dense section {
+  padding: 10px 12px !important;
+  margin-bottom: 10px !important;
+}
+
+/* Headers / titles take less vertical space */
+.chart-dense h1 { font-size: 18px !important; margin: 0 0 2px !important; }
+.chart-dense h2 { font-size: 15px !important; margin: 0 0 2px !important; }
+.chart-dense h3 { font-size: 13px !important; margin: 0 0 2px !important; }
+.chart-dense [class*="header"] { padding-top: 6px !important; padding-bottom: 6px !important; }
+.chart-dense [class*="subtitle"],
+.chart-dense [class*="description"] { font-size: var(--cd-font-sm) !important; }
+
+/* ── Shrink controls ───────────────────────────────────────────────────── */
+.chart-dense label,
+.chart-dense .label,
+.chart-dense [class*="label"] {
+  font-size: var(--cd-font-sm) !important;
+  margin-bottom: 2px !important;
+  letter-spacing: 0 !important;
+}
+.chart-dense input:not([type="checkbox"]):not([type="radio"]),
+.chart-dense select,
+.chart-dense textarea,
+.chart-dense .form-control {
+  font-size: var(--cd-font) !important;
+  height: var(--cd-control-h) !important;
+  min-height: var(--cd-control-h) !important;
+  padding: 2px 6px !important;
+  border-radius: 6px !important;
+}
+.chart-dense textarea { height: auto !important; }
+/* keep checkboxes/radios their natural size */
+.chart-dense input[type="checkbox"],
+.chart-dense input[type="radio"] { height: auto !important; min-height: 0 !important; }
+.chart-dense input[type="date"],
+.chart-dense input[type="datetime-local"] {
+  font-size: var(--cd-font) !important;
+  padding: 2px 6px !important;
+}
+.chart-dense button,
+.chart-dense .btn,
+.chart-dense [class*="btn"] {
+  font-size: var(--cd-font) !important;
+  height: var(--cd-control-h) !important;
+  min-height: var(--cd-control-h) !important;
+  padding: 2px 10px !important;
+}
+.chart-dense .form-group,
+.chart-dense .field,
+.chart-dense [class*="form-group"] {
+  margin-bottom: 6px !important;
+  gap: 4px !important;
+}
+.chart-dense .form-row,
+.chart-dense [class*="form-row"],
+.chart-dense [class*="controls"],
+.chart-dense [class*="toolbar"] {
+  gap: 6px !important;
+  row-gap: 6px !important;
+  margin-bottom: 6px !important;
+}
+/* Tab bars / pills */
+.chart-dense [class*="tab"] { font-size: var(--cd-font) !important; }
+.chart-dense [role="tab"] { padding: 4px 10px !important; }
+
+/* Tables that sit beside charts get denser too */
+.chart-dense table { font-size: var(--cd-font) !important; }
+.chart-dense th,
+.chart-dense td { padding: 4px 8px !important; }
+
+/* ── Let charts breathe ────────────────────────────────────────────────── */
+.chart-dense .recharts-responsive-container,
+.chart-dense canvas {
+  width: 100% !important;
+}
+
+/* On chart-primary routes, give the chart a tall floor so it fills the view.
+ * Targets the FIRST chart container on the page (the primary one); stacked
+ * secondary charts keep their own heights. */
+.chart-dense.chart-tall .recharts-responsive-container {
+  min-height: 0; /* default; primary bump handled per-engine in JS where needed */
+}

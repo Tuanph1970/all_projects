@@ -21,6 +21,7 @@ import './styles/table_style.css';
 import './styles/performance.css';
 import './styles/knowledge-qa.css';
 import './styles/responsive.css';   // global mobile-responsive foundation — keep last
+import './styles/chart-dense.css';  // chart-first density layer (scoped to .chart-dense routes)
 
 // homepage in package.json — BrowserRouter strips this prefix from routes.
 const BASENAME = '/stock-app';

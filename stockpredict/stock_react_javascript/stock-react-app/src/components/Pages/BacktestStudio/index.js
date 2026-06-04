@@ -139,7 +139,7 @@ const BacktestStudio = () => {
           {result.equity_curve?.length > 0 && (
             <div style={s.chartPanel}>
               <div style={s.chartTitle}>{t('decision_helper.backtest_studio.equity_curve', { ticker: result.ticker })}</div>
-              <ResponsiveContainer width="100%" height={260}>
+              <ResponsiveContainer width="100%" height={460}>
                 <LineChart data={result.equity_curve} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis

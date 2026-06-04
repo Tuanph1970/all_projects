@@ -410,7 +410,7 @@ function ComparePanel({ result, t }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
         <span style={s.badge()}>{t('vol_forecast.compare.oos_samples', { n: common.length })}</span>
       </div>
-      <ResponsiveContainer width="100%" height={240}>
+      <ResponsiveContainer width="100%" height={400}>
         <LineChart data={chartData} margin={{ left: 8, right: 16, top: 4, bottom: 0 }}>
           <CartesianGrid stroke={C.border} strokeDasharray="3 3" />
           <XAxis dataKey="ts" tick={{ fontSize: 9, fontFamily: FONT, fill: C.gray }} tickFormatter={v => `t${v}`} />
@@ -567,7 +567,7 @@ function BacktestPanel({ compareResult, prices, t }) {
             {/* Equity curve */}
             <div style={{ marginBottom: 16 }}>
               <div style={s.chartTitle}>{t('vol_forecast.backtest.equity_title')}</div>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={340}>
                 <ComposedChart data={result.cumData} margin={{ left: 8, right: 16, top: 4, bottom: 0 }}>
                   <CartesianGrid stroke={C.border} strokeDasharray="3 3" />
                   <XAxis dataKey="i" tick={{ fontSize: 9, fill: C.gray }} tickFormatter={v => `t${v}`} />

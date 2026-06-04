@@ -879,7 +879,7 @@ export const TechnicalAnalysis = () => {
 
     // Calculate heights based on visible panels
     const visiblePanels = Object.values(panels).filter(Boolean).length;
-    const totalHeight = 600;
+    const totalHeight = 780;
     const priceHeight = panels.price ? (visiblePanels === 1 ? totalHeight : totalHeight * 0.45) : 0;
     const oscillatorHeight = panels.oscillators ? 120 : 0;
     const macdHeight = panels.macd ? 120 : 0;

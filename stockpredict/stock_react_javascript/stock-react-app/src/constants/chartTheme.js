@@ -12,7 +12,7 @@ export const chartTheme = {
   },
   axis: {
     fontFamily: FONT_FAMILY,
-    fontSize: 11,
+    fontSize: 10,
     tickStrokeStyle: "#9CA3AF",
     strokeStyle: "#D1D5DB",
     tickLabelFill: "#6B7280",
