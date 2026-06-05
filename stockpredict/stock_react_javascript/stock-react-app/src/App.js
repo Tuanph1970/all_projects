@@ -20,6 +20,7 @@ import './styles/tab_styles.css';
 import './styles/table_style.css';
 import './styles/performance.css';
 import './styles/knowledge-qa.css';
+import './styles/theme-ui.css';     // centralized grid/input/button theme — overrides base component styles
 import './styles/responsive.css';   // global mobile-responsive foundation — keep last
 import './styles/chart-dense.css';  // chart-first density layer (scoped to .chart-dense routes)
 
