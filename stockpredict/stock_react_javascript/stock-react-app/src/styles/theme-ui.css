@@ -241,6 +241,28 @@
    matched here — its own higher-specificity rules keep it dark.
    ========================================================================= */
 
+/* --- HARD EXCLUSION: PriceBoard (.services) ---------------------------------
+   The PriceBoard is a dark trading-terminal grid. Its ceiling / floor /
+   reference / up / down colors are market semantics and MUST NOT be themed.
+   Re-assert its own surface here so no theme-ui rule can ever bleed in, even
+   if specificity changes later. Do not "normalize" this grid. */
+.page-content .services .custom-table th,
+.page-content .services .custom-table td {
+  background-color: #0F0F0F;
+  border: 1px solid #333;
+  border-radius: 0;
+  padding: 0.25rem 0.375rem;
+  font-size: 0.75rem;
+}
+.page-content .services .custom-table th {
+  background: linear-gradient(180deg, #1a365d 0%, #1e3a5f 100%);
+  color: #fff;
+}
+.page-content .services tbody tr,
+.page-content .services tbody tr:hover {
+  background-color: transparent;
+}
+
 .page-content table {
   width: 100%;
   border-collapse: collapse;
@@ -262,9 +284,11 @@
   white-space: nowrap;
 }
 
-/* Body cells — horizontal dividers only */
+/* Body cells — horizontal dividers only.
+   NOTE: never set `color` here. Stock screens encode market meaning in cell
+   text color (ceiling/floor/reference, up/down). Text color is left to
+   inherit / to the component's own classes & inline styles. */
 .page-content td {
-  color: var(--ui-text);
   font-size: var(--ui-font);
   padding: 12px 16px;
   border: none;
@@ -298,7 +322,7 @@
   font-size: var(--ui-font);
 }
 .page-content .rdt_TableCell {
-  color: var(--ui-text);
+  /* color intentionally not set — preserve semantic market colors */
   font-size: var(--ui-font);
 }
 .page-content .rdt_TableRow {
