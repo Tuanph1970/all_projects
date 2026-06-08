@@ -656,6 +656,36 @@ export const stockAPI = {
     }
   },
 
+  getLongtermRecommendations: async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.AI_LONGTERM_RECOMMENDATIONS, {
+        method: 'GET',
+        headers: getAuthHeaders()
+      });
+      if (!response.ok) throw new Error('Failed to fetch long-term recommendations');
+      const data = await response.json();
+      return data.recommendations || [];
+    } catch (error) {
+      console.error('Error fetching long-term recommendations:', error);
+      return [];
+    }
+  },
+
+  getShorttermRecommendations: async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.AI_SHORTTERM_RECOMMENDATIONS, {
+        method: 'GET',
+        headers: getAuthHeaders()
+      });
+      if (!response.ok) throw new Error('Failed to fetch short-term recommendations');
+      const data = await response.json();
+      return data.recommendations || [];
+    } catch (error) {
+      console.error('Error fetching short-term recommendations:', error);
+      return [];
+    }
+  },
+
   getRecommendations: async () => {
     try {
       // Call the new real recommendations endpoint

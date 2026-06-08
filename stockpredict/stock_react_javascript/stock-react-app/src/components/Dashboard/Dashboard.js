@@ -1,6 +1,6 @@
 // src/components/Dashboard/Dashboard.js
 import React, { useState, useEffect } from 'react';
-import { Inbox, Sparkles, Star } from 'lucide-react';
+import { Inbox, TrendingUp, BarChart2 } from 'lucide-react';
 import { stockAPI } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -16,11 +16,24 @@ const formatSigned = (n) => {
   return `${sign}${Math.abs(v).toLocaleString('vi-VN', { maximumFractionDigits: 0 })} ₫`;
 };
 
+// Hourglass spinner shown while a section is loading
+const SectionSpinner = ({ label }) => (
+  <div className="dashboard-section-spinner">
+    <span className="dashboard-hourglass">⏳</span>
+    <span className="dashboard-spinner-label">{label}</span>
+  </div>
+);
+
 const Dashboard = () => {
   const [portfolio, setPortfolio] = useState([]);
-  const [recommendations, setRecommendations] = useState([]);
-  const [prospectiveStocks, setProspectiveStocks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [portfolioLoading, setPortfolioLoading] = useState(true);
+
+  const [longtermRecs, setLongtermRecs] = useState([]);
+  const [longtermLoading, setLongtermLoading] = useState(true);
+
+  const [shorttermRecs, setShorttermRecs] = useState([]);
+  const [shorttermLoading, setShorttermLoading] = useState(true);
+
   const navigate = useNavigate();
   const { t } = useTranslation();
 
@@ -28,26 +41,28 @@ const Dashboard = () => {
     navigate(`/company/${symbol}`);
   };
 
+  // Portfolio loads first (fast)
   useEffect(() => {
-    const loadDashboardData = async () => {
-      try {
-        setLoading(true);
-        const [portfolioData, recommendationsData, prospectiveData] = await Promise.all([
-          stockAPI.getPortfolio(),
-          stockAPI.getRecommendations(),
-          stockAPI.getProspectiveStocks()
-        ]);
-        setPortfolio(portfolioData);
-        setRecommendations(recommendationsData);
-        setProspectiveStocks(prospectiveData);
-      } catch (error) {
-        console.error('Error loading dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    stockAPI.getPortfolio()
+      .then(setPortfolio)
+      .catch(() => setPortfolio([]))
+      .finally(() => setPortfolioLoading(false));
+  }, []);
 
-    loadDashboardData();
+  // Long-term recs — independent, may take a while
+  useEffect(() => {
+    stockAPI.getLongtermRecommendations()
+      .then(setLongtermRecs)
+      .catch(() => setLongtermRecs([]))
+      .finally(() => setLongtermLoading(false));
+  }, []);
+
+  // Short-term recs — independent
+  useEffect(() => {
+    stockAPI.getShorttermRecommendations()
+      .then(setShorttermRecs)
+      .catch(() => setShorttermRecs([]))
+      .finally(() => setShorttermLoading(false));
   }, []);
 
   const totalValue = portfolio.reduce(
@@ -57,73 +72,49 @@ const Dashboard = () => {
     (sum, stock) => sum + (stock.shares * (stock.currentPrice - stock.avgPrice)), 0
   );
 
-  const recommendationTone = (recommendation) => {
-    switch ((recommendation || '').toLowerCase()) {
-      case 'buy':  return 'buy';
-      case 'sell': return 'sell';
-      case 'hold': return 'hold';
-      default:     return 'hold';
-    }
-  };
-
-  const confidenceTone = (pct) => {
-    const v = Number(pct) || 0;
-    if (v >= 80) return 'pos';
-    if (v >= 60) return 'amber';
-    return 'neg';
-  };
-
-  if (loading) {
-    return (
-      <div className="dashboard">
-        <div className="dashboard-stat-grid">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="dashboard-stat skeleton" />
-          ))}
-        </div>
-        <div className="dashboard-card skeleton-tall" />
-        <div className="dashboard-card skeleton-tall" />
-      </div>
-    );
-  }
-
   return (
     <div className="dashboard">
       {/* Stat cards */}
       <div className="dashboard-stat-grid">
-        <div className="dashboard-stat">
-          <div className="dashboard-stat-label">{t('dashboard.stat_total_value')}</div>
-          <div className="dashboard-stat-value">{formatVND(totalValue)}</div>
-          <div className="dashboard-stat-meta">
-            {portfolio.length === 0
-              ? t('dashboard.stat_no_investments')
-              : t('dashboard.stat_total_current')}
-          </div>
-        </div>
+        {portfolioLoading ? (
+          [...Array(4)].map((_, i) => (
+            <div key={i} className="dashboard-stat skeleton" />
+          ))
+        ) : (
+          <>
+            <div className="dashboard-stat">
+              <div className="dashboard-stat-label">{t('dashboard.stat_total_value')}</div>
+              <div className="dashboard-stat-value">{formatVND(totalValue)}</div>
+              <div className="dashboard-stat-meta">
+                {portfolio.length === 0
+                  ? t('dashboard.stat_no_investments')
+                  : t('dashboard.stat_total_current')}
+              </div>
+            </div>
 
-        <div className="dashboard-stat">
-          <div className="dashboard-stat-label">{t('dashboard.stat_pnl')}</div>
-          <div
-            className={`dashboard-stat-value ${totalGainLoss < 0 ? 'neg' : ''}`}
-          >
-            {formatSigned(totalGainLoss)}
-          </div>
-          <div className="dashboard-stat-meta">{t('dashboard.stat_today')}</div>
-        </div>
+            <div className="dashboard-stat">
+              <div className="dashboard-stat-label">{t('dashboard.stat_pnl')}</div>
+              <div className={`dashboard-stat-value ${totalGainLoss < 0 ? 'neg' : ''}`}>
+                {formatSigned(totalGainLoss)}
+              </div>
+              <div className="dashboard-stat-meta">{t('dashboard.stat_today')}</div>
+            </div>
 
-        <div className="dashboard-stat">
-          <div className="dashboard-stat-label">{t('dashboard.stat_holdings')}</div>
-          <div className="dashboard-stat-value">{portfolio.length}</div>
-          <div className="dashboard-stat-meta">
-            {t('dashboard.stat_holdings_count', { count: portfolio.length })}
-          </div>
-        </div>
+            <div className="dashboard-stat">
+              <div className="dashboard-stat-label">{t('dashboard.stat_holdings')}</div>
+              <div className="dashboard-stat-value">{portfolio.length}</div>
+              <div className="dashboard-stat-meta">
+                {t('dashboard.stat_holdings_count', { count: portfolio.length })}
+              </div>
+            </div>
 
-        <div className="dashboard-stat">
-          <div className="dashboard-stat-label">{t('dashboard.stat_day_change')}</div>
-          <div className="dashboard-stat-value pos">+2.34%</div>
-          <div className="dashboard-stat-meta">{t('dashboard.stat_index_change')}</div>
-        </div>
+            <div className="dashboard-stat">
+              <div className="dashboard-stat-label">{t('dashboard.stat_day_change')}</div>
+              <div className="dashboard-stat-value pos">+2.34%</div>
+              <div className="dashboard-stat-meta">{t('dashboard.stat_index_change')}</div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Portfolio card */}
@@ -132,17 +123,11 @@ const Dashboard = () => {
           <div>
             <div className="dashboard-card-eyebrow">{t('dashboard.portfolio_eyebrow')}</div>
             <div className="dashboard-card-title">
-              {(() => {
+              {portfolioLoading ? '…' : (() => {
                 const phrase = t('dashboard.portfolio_count', { count: portfolio.length });
-                // Italicize everything after the leading count so layout
-                // matches the serif/italic emphasis used elsewhere.
                 const head = String(portfolio.length);
                 const tail = phrase.startsWith(head) ? phrase.slice(head.length).trimStart() : phrase;
-                return (
-                  <>
-                    {head} <em>{tail}</em>
-                  </>
-                );
+                return <>{head} <em>{tail}</em></>;
               })()}
             </div>
           </div>
@@ -155,214 +140,183 @@ const Dashboard = () => {
           </button>
         </div>
 
-        <div className="dashboard-table">
-          <div className="dashboard-table-head">
-            <div className="col col-sym">{t('dashboard.col_symbol')}</div>
-            <div className="col col-name">{t('dashboard.col_company')}</div>
-            <div className="col col-num">{t('dashboard.col_shares')}</div>
-            <div className="col col-num">{t('dashboard.col_avg_price')}</div>
-            <div className="col col-num">{t('dashboard.col_current_price')}</div>
-            <div className="col col-num">{t('dashboard.col_change')}</div>
-            <div className="col col-num">{t('dashboard.col_value')}</div>
-          </div>
+        {portfolioLoading ? (
+          <div className="dashboard-card skeleton-tall" />
+        ) : (
+          <div className="dashboard-table">
+            <div className="dashboard-table-head">
+              <div className="col col-sym">{t('dashboard.col_symbol')}</div>
+              <div className="col col-name">{t('dashboard.col_company')}</div>
+              <div className="col col-num">{t('dashboard.col_shares')}</div>
+              <div className="col col-num">{t('dashboard.col_avg_price')}</div>
+              <div className="col col-num">{t('dashboard.col_current_price')}</div>
+              <div className="col col-num">{t('dashboard.col_change')}</div>
+              <div className="col col-num">{t('dashboard.col_value')}</div>
+            </div>
 
-          {portfolio.length === 0 ? (
-            <div className="dashboard-empty">
-              <div className="dashboard-empty-icon">
-                <Inbox />
+            {portfolio.length === 0 ? (
+              <div className="dashboard-empty">
+                <div className="dashboard-empty-icon"><Inbox /></div>
+                <div className="dashboard-empty-title">{t('dashboard.portfolio_empty_title')}</div>
+                <div className="dashboard-empty-sub">{t('dashboard.portfolio_empty_sub')}</div>
+                <button
+                  type="button"
+                  className="dashboard-secondary-btn"
+                  onClick={() => navigate('/stockscreener')}
+                >
+                  {t('dashboard.portfolio_empty_cta')}
+                </button>
               </div>
-              <div className="dashboard-empty-title">
-                {t('dashboard.portfolio_empty_title')}
+            ) : (
+              <div className="dashboard-table-body">
+                {portfolio.map((stock) => {
+                  const change = parseFloat(stock.change);
+                  const changeClass = change >= 0 ? 'pos' : 'neg';
+                  return (
+                    <div className="dashboard-table-row" key={stock.symbol}>
+                      <div
+                        className="col col-sym sym"
+                        onClick={() => handleSymbolClick(stock.symbol)}
+                      >
+                        {stock.symbol}
+                      </div>
+                      <div className="col col-name">{stock.name}</div>
+                      <div className="col col-num">{stock.shares}</div>
+                      <div className="col col-num">
+                        {Number(stock.avgPrice || 0).toLocaleString('vi-VN', { maximumFractionDigits: 0 })} ₫
+                      </div>
+                      <div className="col col-num">
+                        {Number(stock.currentPrice || 0).toLocaleString('vi-VN', { maximumFractionDigits: 0 })} ₫
+                      </div>
+                      <div className={`col col-num ${changeClass}`}>{stock.change}</div>
+                      <div className="col col-num">
+                        {(stock.shares * (stock.currentPrice || 0)).toLocaleString(
+                          'vi-VN', { maximumFractionDigits: 0 }
+                        )} ₫
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="dashboard-empty-sub">
-                {t('dashboard.portfolio_empty_sub')}
-              </div>
-              <button
-                type="button"
-                className="dashboard-secondary-btn"
-                onClick={() => navigate('/stockscreener')}
-              >
-                {t('dashboard.portfolio_empty_cta')}
-              </button>
-            </div>
-          ) : (
-            <div className="dashboard-table-body">
-              {portfolio.map((stock) => {
-                const change = parseFloat(stock.change);
-                const changeClass = change >= 0 ? 'pos' : 'neg';
-                return (
-                  <div className="dashboard-table-row" key={stock.symbol}>
-                    <div
-                      className="col col-sym sym"
-                      onClick={() => handleSymbolClick(stock.symbol)}
-                    >
-                      {stock.symbol}
-                    </div>
-                    <div className="col col-name">{stock.name}</div>
-                    <div className="col col-num">{stock.shares}</div>
-                    <div className="col col-num">
-                      {Number(stock.avgPrice || 0).toLocaleString('vi-VN', { maximumFractionDigits: 0 })} ₫
-                    </div>
-                    <div className="col col-num">
-                      {Number(stock.currentPrice || 0).toLocaleString('vi-VN', { maximumFractionDigits: 0 })} ₫
-                    </div>
-                    <div className={`col col-num ${changeClass}`}>
-                      {stock.change}
-                    </div>
-                    <div className="col col-num">
-                      {(stock.shares * (stock.currentPrice || 0)).toLocaleString(
-                        'vi-VN',
-                        { maximumFractionDigits: 0 }
-                      )} ₫
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </section>
 
-      {/* AI Recommendations */}
+      {/* Long-term recommendations */}
       <section className="dashboard-card">
         <div className="dashboard-card-header">
           <div className="dashboard-card-eyebrow with-icon">
-            <Sparkles className="eyebrow-icon" />
-            <span>
-              {t('dashboard.ai_eyebrow', { count: recommendations.length })}
-            </span>
+            <BarChart2 className="eyebrow-icon" />
+            <span>Khuyến nghị dài hạn</span>
           </div>
-          <button
-            type="button"
-            className="dashboard-link-btn"
-            onClick={() => navigate('/ai-insights')}
-          >
-            {t('common.see_all')} ›
-          </button>
+          <span className="dashboard-card-subtitle-inline">
+            Top 3 VN30 · P/E &amp; lợi nhuận nhiều năm
+          </span>
         </div>
 
-        <div className="dashboard-rec-list">
-          {recommendations.length === 0 ? (
-            <div className="dashboard-empty">
-              <div className="dashboard-empty-icon">
-                <Sparkles />
-              </div>
-              <div className="dashboard-empty-title">{t('dashboard.ai_empty_title')}</div>
-              <div className="dashboard-empty-sub">
-                {t('dashboard.ai_empty_sub')}
-              </div>
+        {longtermLoading ? (
+          <SectionSpinner label="Đang phân tích cơ bản VN30…" />
+        ) : longtermRecs.length === 0 ? (
+          <div className="dashboard-empty">
+            <div className="dashboard-empty-icon"><BarChart2 /></div>
+            <div className="dashboard-empty-title">Chưa có khuyến nghị</div>
+            <div className="dashboard-empty-sub">
+              Không tìm thấy cổ phiếu đạt tiêu chí cơ bản dài hạn trong VN30.
             </div>
-          ) : (
-            recommendations.map((rec, idx) => {
-              const tone = recommendationTone(rec.type || rec.recommendation);
-              const conf = Number(rec.confidence) || 0;
-              const confTone = confidenceTone(conf);
-              return (
-                <div className="dashboard-rec-row" key={idx}>
-                  <div className={`rec-badge tone-${tone}`}>
-                    {(rec.type || rec.recommendation || '').toUpperCase()}
+          </div>
+        ) : (
+          <div className="dashboard-rec-list">
+            {longtermRecs.map((rec, idx) => (
+              <div className="dashboard-rec-row" key={idx}>
+                <div className="rec-badge tone-buy">DÀI HẠN</div>
+                <div className="rec-body">
+                  <div className="rec-headline">
+                    <span
+                      className="rec-symbol"
+                      onClick={() => handleSymbolClick(rec.symbol)}
+                    >
+                      {rec.symbol}
+                    </span>
+                    <span className="rec-sep">·</span>
+                    <span className="rec-name">{rec.name}</span>
                   </div>
-                  <div className="rec-body">
-                    <div className="rec-headline">
-                      <span
-                        className="rec-symbol"
-                        onClick={() => handleSymbolClick(rec.symbol)}
-                      >
-                        {rec.symbol}
+                  <div className="rec-reason">{rec.reason}</div>
+                  <div className="rec-metrics">
+                    {rec.pe != null && (
+                      <span className="rec-metric">P/E: {rec.pe}x</span>
+                    )}
+                    {rec.roe != null && (
+                      <span className="rec-metric">ROE: {rec.roe}%</span>
+                    )}
+                    {rec.profit_growth_years > 0 && (
+                      <span className="rec-metric">
+                        Lợi nhuận tăng {rec.profit_growth_years} năm
                       </span>
-                      <span className="rec-sep">·</span>
-                      <span className="rec-name">{rec.name}</span>
-                    </div>
-                    <div className="rec-reason">{rec.reason}</div>
-                  </div>
-                  <div className="rec-confidence">
-                    <div className="rec-confidence-label">{t('dashboard.ai_confidence_label')}</div>
-                    <div className="rec-confidence-value">{conf}%</div>
-                    <div className="rec-confidence-bar">
-                      <div
-                        className={`rec-confidence-bar-fill tone-${confTone}`}
-                        style={{ width: `${Math.max(0, Math.min(100, conf))}%` }}
-                      />
-                    </div>
+                    )}
                   </div>
                 </div>
-              );
-            })
-          )}
-        </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
-      {/* Prospective stocks */}
+      {/* Short-term recommendations */}
       <section className="dashboard-card">
-        <div className="dashboard-card-header column">
+        <div className="dashboard-card-header">
           <div className="dashboard-card-eyebrow with-icon">
-            <Star className="eyebrow-icon" />
-            <span>{t('dashboard.prospect_eyebrow')}</span>
+            <TrendingUp className="eyebrow-icon" />
+            <span>Khuyến nghị ngắn hạn</span>
           </div>
-          <div className="dashboard-card-subtitle">
-            {t('dashboard.prospect_subtitle')}
-          </div>
+          <span className="dashboard-card-subtitle-inline">
+            Top 3 VN30 · xu hướng tăng 1 năm
+          </span>
         </div>
 
-        <div className="dashboard-rec-list">
-          {prospectiveStocks.length === 0 ? (
-            <div className="dashboard-empty">
-              <div className="dashboard-empty-icon">
-                <Star />
-              </div>
-              <div className="dashboard-empty-title">
-                {t('dashboard.prospect_empty_title')}
-              </div>
-              <div className="dashboard-empty-sub">
-                {t('dashboard.prospect_empty_sub')}
-              </div>
+        {shorttermLoading ? (
+          <SectionSpinner label="Đang phân tích xu hướng VN30…" />
+        ) : shorttermRecs.length === 0 ? (
+          <div className="dashboard-empty">
+            <div className="dashboard-empty-icon"><TrendingUp /></div>
+            <div className="dashboard-empty-title">Chưa có khuyến nghị</div>
+            <div className="dashboard-empty-sub">
+              Không tìm thấy cổ phiếu có xu hướng tăng đủ mạnh trong VN30.
             </div>
-          ) : (
-            prospectiveStocks.map((stock, idx) => (
-              <div className="dashboard-prospect-row" key={idx}>
-                <div className="prospect-head">
-                  <span
-                    className="prospect-symbol"
-                    onClick={() => handleSymbolClick(stock.symbol)}
-                  >
-                    {stock.symbol}
-                  </span>
-                  <span className="prospect-sector">{stock.sector}</span>
-                </div>
-                <div className="prospect-name">{stock.name}</div>
-                <div className="prospect-metrics">
-                  <div className="metric">
-                    <span className="metric-k">{t('dashboard.prospect_metric_price')}</span>
-                    <span className="metric-v">
-                      ${Number(stock.price || 0).toFixed(2)}
+          </div>
+        ) : (
+          <div className="dashboard-rec-list">
+            {shorttermRecs.map((rec, idx) => (
+              <div className="dashboard-rec-row" key={idx}>
+                <div className="rec-badge tone-buy">NGẮN HẠN</div>
+                <div className="rec-body">
+                  <div className="rec-headline">
+                    <span
+                      className="rec-symbol"
+                      onClick={() => handleSymbolClick(rec.symbol)}
+                    >
+                      {rec.symbol}
                     </span>
+                    <span className="rec-sep">·</span>
+                    <span className="rec-name">{rec.name}</span>
                   </div>
-                  <div className="metric">
-                    <span className="metric-k">{t('dashboard.prospect_metric_pe')}</span>
-                    <span className="metric-v">
-                      {Number(stock.peRatio || 0).toFixed(1)}
+                  <div className="rec-reason">{rec.reason}</div>
+                  <div className="rec-metrics">
+                    <span className="rec-metric">
+                      Giá: {Number(rec.current_price || 0).toLocaleString('vi-VN', { maximumFractionDigits: 0 })} ₫
                     </span>
-                  </div>
-                  <div className="metric">
-                    <span className="metric-k">{t('dashboard.prospect_metric_eps')}</span>
-                    <span className="metric-v pos">
-                      +{Number(stock.epsGrowth2Y || 0).toFixed(1)}%
+                    <span className={`rec-metric ${rec.return_1y >= 0 ? 'pos' : 'neg'}`}>
+                      1Y: {rec.return_1y >= 0 ? '+' : ''}{rec.return_1y}%
                     </span>
-                  </div>
-                  <div className="metric">
-                    <span className="metric-k">{t('dashboard.prospect_metric_profit')}</span>
-                    <span className="metric-v pos">
-                      +{Number(stock.netProfitGrowth2Y || 0).toFixed(1)}%
+                    <span className={`rec-metric ${rec.return_20d >= 0 ? 'pos' : 'neg'}`}>
+                      20D: {rec.return_20d >= 0 ? '+' : ''}{rec.return_20d}%
                     </span>
                   </div>
                 </div>
-                {stock.news && (
-                  <div className="prospect-news">{stock.news}</div>
-                )}
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <Contact />

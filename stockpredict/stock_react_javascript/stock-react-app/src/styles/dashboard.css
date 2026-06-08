@@ -544,3 +544,58 @@
   .dashboard-card-header { flex-direction: column; align-items: flex-start; gap: 10px; }
   .dashboard-footer { flex-direction: column; gap: 6px; }
 }
+
+/* ─── Section spinner (hourglass while analysis runs) ─────────── */
+.dashboard-section-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: var(--ink2);
+}
+
+.dashboard-hourglass {
+  font-size: 28px;
+  animation: dashboard-hg-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes dashboard-hg-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.9); }
+}
+
+.dashboard-spinner-label {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--ink2);
+}
+
+/* ─── Inline subtitle next to eyebrow ────────────────────────── */
+.dashboard-card-subtitle-inline {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--ink3);
+  margin-left: auto;
+}
+
+/* ─── Metric pill row under rec-reason ───────────────────────── */
+.rec-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.rec-metric {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 1px 7px;
+  color: var(--ink2);
+}
+
+.rec-metric.pos { color: var(--pos); border-color: var(--pos); }
+.rec-metric.neg { color: var(--neg); border-color: var(--neg); }

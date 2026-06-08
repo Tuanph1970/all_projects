@@ -191,6 +191,34 @@ async def get_stock_recommendations(
     return {"recommendations": recommendations}
 
 
+@router.get("/long-term-recommendations")
+async def get_longterm_recommendations(
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """
+    Return top 3 VN30 stocks ranked by multi-year fundamental quality
+    (consecutive P/E improvement + net-profit growth + ROE).
+    Results are cached 24 h in Redis.
+    """
+    service = InsightsService()
+    result = await service.get_longterm_recommendations()
+    return {"recommendations": result}
+
+
+@router.get("/short-term-recommendations")
+async def get_shortterm_recommendations(
+    current_user: Optional[dict] = Depends(get_current_user_optional)
+):
+    """
+    Return top 3 VN30 stocks with the strongest 1-year uptrend
+    (SMA alignment, 52-week proximity, MACD, momentum).
+    Results are cached 24 h in Redis.
+    """
+    service = InsightsService()
+    result = await service.get_shortterm_recommendations()
+    return {"recommendations": result}
+
+
 @router.post("/portfolio-insight", response_model=PortfolioInsightResponse)
 async def get_portfolio_insight(
     data: PortfolioInsightRequest,

@@ -245,6 +245,8 @@ export const API_ENDPOINTS = {
   AI_BATCH: `${API_BASE_URLS.AI_API}/batch`,
   AI_TRENDING: `${API_BASE_URLS.AI_API}/trending`,
   AI_RECOMMENDATIONS: `${API_BASE_URLS.AI_API}/recommendations`,
+  AI_LONGTERM_RECOMMENDATIONS: `${API_BASE_URLS.AI_API}/long-term-recommendations`,
+  AI_SHORTTERM_RECOMMENDATIONS: `${API_BASE_URLS.AI_API}/short-term-recommendations`,
   AI_PORTFOLIO_INSIGHTS: `${API_BASE_URLS.AI_API}/portfolio-insight`,
   AI_SECTORS: `${API_BASE_URLS.AI_API}/sectors`,
   AI_CAPABILITIES: `${API_BASE_URLS.AI_API}/capabilities`,

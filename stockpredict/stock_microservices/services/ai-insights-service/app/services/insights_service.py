@@ -1358,6 +1358,331 @@ Maintain current position and monitor for clearer signals before taking action.
 
         return result[:limit]
 
+    # ──────────────────────────────────────────
+    # VN30 universe helpers
+    # ──────────────────────────────────────────
+
+    async def _fetch_vn30_universe(self) -> List[Dict[str, str]]:
+        """Return [{symbol, name}, …] for the live VN30 priceboard.
+
+        Falls back to the hardcoded list when the price-board endpoint is
+        unavailable so the recommendation endpoints never fail silently.
+        """
+        FALLBACK = [
+            {"symbol": s, "name": s} for s in [
+                "ACB", "BCM", "BID", "BVH", "CTG", "FPT", "GAS", "GVR",
+                "HDB", "HPG", "MBB", "MSN", "MWG", "PLX", "POW", "SAB",
+                "SHB", "SSB", "SSI", "STB", "TCB", "TPB", "VCB", "VHM",
+                "VIB", "VIC", "VJC", "VNM", "VPB", "VRE",
+            ]
+        ]
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    f"{settings.STOCK_DATA_SERVICE_URL}/{settings.API_PREFIX}/api/v2/priceboards",
+                    params={"group": "VN30"},
+                    timeout=15.0,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    rows = data if isinstance(data, list) else data.get("data", [])
+                    result = [
+                        {"symbol": r.get("symbol") or r.get("ticker", ""),
+                         "name": r.get("organ_name") or r.get("name") or r.get("symbol", "")}
+                        for r in rows if r.get("symbol") or r.get("ticker")
+                    ]
+                    if result:
+                        return result
+        except Exception as e:
+            logger.warning("Could not fetch VN30 universe: %s — using fallback", e)
+        return FALLBACK
+
+    # ──────────────────────────────────────────
+    # Long-term fundamental recommendations
+    # ──────────────────────────────────────────
+
+    async def get_longterm_recommendations(self) -> List[Dict[str, Any]]:
+        """Rank VN30 stocks by multi-year fundamental quality and return top 3.
+
+        Scoring (all annual data from vnstock via stock-data-service):
+          +3 pts per consecutive year of declining P/E   (value improving)
+          +2 pts per consecutive year of growing net profit
+          +1 pt  if latest ROE > 15 %
+          -1 pt  if latest P/E > 25  (stretched valuation)
+
+        Result is cached in Redis for 24 h.
+        """
+        CACHE_KEY = "dashboard:longterm_recs:v1"
+        CACHE_TTL = 86400  # 24 h
+
+        cached = await self._get_cached(CACHE_KEY)
+        if cached:
+            try:
+                return json.loads(cached)
+            except Exception:
+                pass
+
+        universe = await self._fetch_vn30_universe()
+        scored: List[Dict[str, Any]] = []
+
+        async with httpx.AsyncClient() as client:
+            for stock in universe:
+                sym = stock["symbol"]
+                try:
+                    # --- income statement (annual) ---
+                    inc_resp = await client.get(
+                        f"{settings.STOCK_DATA_SERVICE_URL}/{settings.API_PREFIX}"
+                        f"/api/v2/companies/{sym}/financials/income-statement",
+                        params={"period": "annual"},
+                        timeout=30.0,
+                    )
+                    # --- ratios (annual) ---
+                    rat_resp = await client.get(
+                        f"{settings.STOCK_DATA_SERVICE_URL}/{settings.API_PREFIX}"
+                        f"/api/v2/companies/{sym}/financials/ratios",
+                        params={"period": "annual"},
+                        timeout=30.0,
+                    )
+
+                    inc_rows = inc_resp.json() if inc_resp.status_code == 200 else []
+                    rat_rows = rat_resp.json() if rat_resp.status_code == 200 else []
+
+                    if not inc_rows and not rat_rows:
+                        continue
+
+                    # Sort newest-first then keep last 5 years
+                    def _year(row):
+                        for k in ("year", "Year", "fiscal_year", "period", "yearReport"):
+                            if k in row and row[k] is not None:
+                                try:
+                                    return int(str(row[k])[:4])
+                                except Exception:
+                                    pass
+                        return 0
+
+                    inc_rows = sorted(inc_rows, key=_year, reverse=True)[:5]
+                    rat_rows = sorted(rat_rows, key=_year, reverse=True)[:5]
+
+                    # Extract net profit series (newest first)
+                    profit_keys = ("net_profit", "netProfit", "profit_after_tax",
+                                   "net_income", "Profit After Tax", "Net Profit")
+                    profits = []
+                    for row in inc_rows:
+                        for k in profit_keys:
+                            v = row.get(k)
+                            if v is not None:
+                                try:
+                                    profits.append(float(v))
+                                except Exception:
+                                    pass
+                                break
+
+                    # Extract P/E series (newest first)
+                    pe_keys = ("pe", "pe_ratio", "P/E", "priceToEarning", "price_to_earning")
+                    pes = []
+                    for row in rat_rows:
+                        for k in pe_keys:
+                            v = row.get(k)
+                            if v is not None:
+                                try:
+                                    pes.append(float(v))
+                                except Exception:
+                                    pass
+                                break
+
+                    roe_keys = ("roe", "ROE", "return_on_equity")
+                    latest_roe = None
+                    for row in rat_rows[:1]:
+                        for k in roe_keys:
+                            if row.get(k) is not None:
+                                try:
+                                    latest_roe = float(row[k])
+                                except Exception:
+                                    pass
+                                break
+
+                    latest_pe = pes[0] if pes else None
+
+                    # Score
+                    score = 0
+                    reasons = []
+
+                    # Consecutive years of growing profit
+                    profit_growth_years = 0
+                    for i in range(len(profits) - 1):
+                        if profits[i] > profits[i + 1]:  # newest > older
+                            profit_growth_years += 1
+                        else:
+                            break
+                    if profit_growth_years >= 1:
+                        score += profit_growth_years * 2
+                        reasons.append(f"Lợi nhuận tăng {profit_growth_years} năm liên tiếp")
+
+                    # Consecutive years of declining P/E (value getting cheaper)
+                    pe_decline_years = 0
+                    for i in range(len(pes) - 1):
+                        if pes[i] < pes[i + 1]:  # newest < older
+                            pe_decline_years += 1
+                        else:
+                            break
+                    if pe_decline_years >= 1:
+                        score += pe_decline_years * 3
+                        reasons.append(f"P/E cải thiện {pe_decline_years} năm liên tiếp")
+
+                    if latest_roe is not None and latest_roe > 15:
+                        score += 1
+                        reasons.append(f"ROE mạnh ({latest_roe:.1f}%)")
+
+                    if latest_pe is not None and latest_pe > 25:
+                        score -= 1
+                        reasons.append(f"P/E hiện tại cao ({latest_pe:.1f}x)")
+
+                    if score <= 0 or not reasons:
+                        continue
+
+                    scored.append({
+                        "symbol": sym,
+                        "name": stock["name"],
+                        "score": score,
+                        "pe": round(latest_pe, 1) if latest_pe else None,
+                        "roe": round(latest_roe, 1) if latest_roe else None,
+                        "profit_growth_years": profit_growth_years,
+                        "reason": ". ".join(reasons),
+                        "generated_at": datetime.now().isoformat(),
+                    })
+
+                except Exception as e:
+                    logger.error("Long-term scoring failed for %s: %s", sym, e)
+                    continue
+
+        scored.sort(key=lambda x: x["score"], reverse=True)
+        result = scored[:3]
+
+        try:
+            await self._set_cached(CACHE_KEY, json.dumps(result), ttl=CACHE_TTL)
+        except Exception:
+            pass
+
+        return result
+
+    # ──────────────────────────────────────────
+    # Short-term uptrend recommendations
+    # ──────────────────────────────────────────
+
+    async def get_shortterm_recommendations(self) -> List[Dict[str, Any]]:
+        """Rank VN30 stocks by 1-year uptrend strength and return top 3.
+
+        Scoring (1-year daily closes):
+          +30 pts  price > SMA50 > SMA200          (golden alignment)
+          +20 pts  price > SMA50 only
+          +15 pts  1-year return > 20 %
+          +10 pts  1-year return > 10 %
+          +10 pts  price within 10 % of 52-week high
+          +10 pts  MACD > signal on latest bar
+          + 5 pts  positive 20-day momentum (price up vs 20 d ago)
+
+        Result is cached in Redis for 24 h.
+        """
+        CACHE_KEY = "dashboard:shortterm_recs:v1"
+        CACHE_TTL = 86400
+
+        cached = await self._get_cached(CACHE_KEY)
+        if cached:
+            try:
+                return json.loads(cached)
+            except Exception:
+                pass
+
+        universe = await self._fetch_vn30_universe()
+        scored: List[Dict[str, Any]] = []
+
+        end_date = datetime.now().strftime("%Y-%m-%d")
+        start_date = (datetime.now() - timedelta(days=400)).strftime("%Y-%m-%d")
+
+        for stock in universe:
+            sym = stock["symbol"]
+            try:
+                df = await self._fetch_historical_prices(sym, start_date, end_date)
+                if df is None or len(df) < 50:
+                    continue
+
+                prices = df["close"].values.astype(float)
+                current = prices[-1]
+                high_52w = prices[-min(252, len(prices)):].max()
+
+                sma50 = float(pd.Series(prices).rolling(50).mean().iloc[-1])
+                sma200_val = pd.Series(prices).rolling(200).mean().iloc[-1]
+                sma200 = float(sma200_val) if pd.notna(sma200_val) else None
+
+                # MACD
+                ema12 = pd.Series(prices).ewm(span=12).mean()
+                ema26 = pd.Series(prices).ewm(span=26).mean()
+                macd_line = ema12 - ema26
+                signal_line = macd_line.ewm(span=9).mean()
+                macd_bull = float(macd_line.iloc[-1]) > float(signal_line.iloc[-1])
+
+                ret_1y = (prices[-1] - prices[0]) / prices[0] * 100
+                ret_20d = (prices[-1] - prices[-min(20, len(prices))]) / prices[-min(20, len(prices))] * 100
+
+                score = 0
+                reasons = []
+
+                if sma200 and current > sma50 > sma200:
+                    score += 30
+                    reasons.append("Giá > SMA50 > SMA200 (xu hướng tăng mạnh)")
+                elif current > sma50:
+                    score += 20
+                    reasons.append("Giá trên SMA50")
+
+                if ret_1y > 20:
+                    score += 15
+                    reasons.append(f"Tăng {ret_1y:.0f}% trong 1 năm")
+                elif ret_1y > 10:
+                    score += 10
+                    reasons.append(f"Tăng {ret_1y:.0f}% trong 1 năm")
+
+                if current >= high_52w * 0.90:
+                    score += 10
+                    reasons.append("Gần đỉnh 52 tuần")
+
+                if macd_bull:
+                    score += 10
+                    reasons.append("MACD bullish")
+
+                if ret_20d > 0:
+                    score += 5
+                    reasons.append(f"Đà tăng 20 ngày (+{ret_20d:.1f}%)")
+
+                if score <= 0:
+                    continue
+
+                scored.append({
+                    "symbol": sym,
+                    "name": stock["name"],
+                    "score": score,
+                    "current_price": round(float(current), 2),
+                    "return_1y": round(ret_1y, 1),
+                    "return_20d": round(ret_20d, 1),
+                    "sma50": round(sma50, 2),
+                    "high_52w": round(float(high_52w), 2),
+                    "reason": ". ".join(reasons[:3]),
+                    "generated_at": datetime.now().isoformat(),
+                })
+
+            except Exception as e:
+                logger.error("Short-term scoring failed for %s: %s", sym, e)
+                continue
+
+        scored.sort(key=lambda x: x["score"], reverse=True)
+        result = scored[:3]
+
+        try:
+            await self._set_cached(CACHE_KEY, json.dumps(result), ttl=CACHE_TTL)
+        except Exception:
+            pass
+
+        return result
+
     # ==========================================
     # F-005 / F-006 — Full pattern catalog (Schwager Ch 5, 11, 12)
     # ==========================================
