@@ -113,32 +113,4 @@
   }
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .company-profile-container {
-    background-color: #1f2937;
-    color: #f9fafb;
-  }
-  
-  .profile-table {
-    background: #374151;
-    border-color: #4b5563;
-  }
-  
-  .profile-table tr:nth-child(even) {
-    background-color: #4b5563;
-  }
-  
-  .profile-table tr:hover {
-    background-color: #6b7280;
-  }
-  
-  .profile-label {
-    background-color: #4b5563;
-    color: #f9fafb;
-  }
-  
-  .profile-value {
-    color: #d1d5db;
-  }
-}
+/* Dark mode intentionally disabled — app uses light theme only */

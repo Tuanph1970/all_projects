@@ -148,14 +148,16 @@ export default function FinancialRatio({ symbol }) {
   return (
     <div className="p-4">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4">
+        <div className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center gap-3">
-            <TrendingUp className="w-6 h-6 text-white" />
+            <div className="p-1.5 bg-blue-500 rounded-lg">
+              <TrendingUp className="w-5 h-5 text-white" />
+            </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-gray-900">
                 {t('company_page.ratio_title')}
               </h3>
-              <p className="text-indigo-100 text-sm">
+              <p className="text-gray-500 text-sm">
                 {t('company_page.ratio_subtitle')}
               </p>
             </div>

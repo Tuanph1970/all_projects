@@ -189,14 +189,16 @@ export default function CompanyProfile({ symbol }) {
   return (
     <div className="p-4 space-y-4">
       {/* Header */}
-      <div className="bg-gradient-to-r from-slate-700 to-slate-900 rounded-xl p-6 text-white">
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
         <div className="flex items-center gap-3">
-          <Building2 className="w-8 h-8" />
+          <div className="p-2 bg-blue-500 rounded-lg">
+            <Building2 className="w-8 h-8 text-white" />
+          </div>
           <div>
-            <h2 className="text-xl font-bold">
+            <h2 className="text-xl font-bold text-gray-900">
               {profileData.ticker || symbol}
             </h2>
-            <p className="text-slate-300 text-sm">
+            <p className="text-gray-500 text-sm">
               {t('company_page.profile_subtitle')}
             </p>
           </div>

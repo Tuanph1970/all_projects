@@ -65,34 +65,34 @@ export default function CompanyOverView({ symbol }) {
       <div className="flex flex-wrap gap-4">
         {/* Company Header */}
         <div className="flex-1 min-w-[300px]">
-          <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 rounded-2xl p-5 text-white h-full shadow-lg">
+          <div className="bg-white border border-gray-200 rounded-2xl p-5 h-full shadow-sm">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                    <Building2 className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-center">
+                    <Building2 className="w-6 h-6 text-blue-600" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold tracking-tight">{overViewData.ticker}</h2>
-                    <p className="text-white/80 text-sm">{overViewData.industry}</p>
+                    <h2 className="text-2xl font-bold tracking-tight text-gray-900">{overViewData.ticker}</h2>
+                    <p className="text-gray-500 text-sm">{overViewData.industry}</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 mt-3">
                   {overViewData.industry && (
-                    <span className="px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-lg text-xs font-semibold uppercase tracking-wide">
+                    <span className="px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs font-semibold uppercase tracking-wide text-blue-700">
                       {overViewData.industry}
                     </span>
                   )}
                   {overViewData.industryL2 && (
-                    <span className="px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-lg text-xs font-semibold uppercase tracking-wide">
+                    <span className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs font-semibold uppercase tracking-wide text-gray-600">
                       {overViewData.industryL2}
                     </span>
                   )}
                 </div>
               </div>
-              <div className="text-right bg-white/10 backdrop-blur-sm rounded-xl p-3">
-                <p className="text-white/70 text-xs font-medium">{t('company_page.overview_charter_capital')}</p>
-                <p className="text-white text-lg font-bold">
+              <div className="text-right bg-blue-50 border border-blue-100 rounded-xl p-3">
+                <p className="text-gray-500 text-xs font-medium">{t('company_page.overview_charter_capital')}</p>
+                <p className="text-gray-900 text-lg font-bold">
                   {overViewData.charterCapital ? formatNumber(overViewData.charterCapital / 1000000000) + "B" : "N/A"}
                 </p>
               </div>
@@ -137,23 +137,23 @@ export default function CompanyOverView({ symbol }) {
       {/* Row 2: Detail Cards */}
       <div className="flex flex-wrap gap-4">
         {/* Share Info */}
-        <div className="flex-1 min-w-[150px] bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl p-4 border border-violet-200 shadow-sm hover:shadow-lg hover:scale-[1.02] transition-all duration-200">
+        <div className="flex-1 min-w-[150px] bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200">
           <div className="flex items-center gap-2 mb-3">
-            <div className="p-2 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg shadow-md">
+            <div className="p-2 bg-blue-500 rounded-lg">
               <PieChart className="w-4 h-4 text-white" />
             </div>
-            <h3 className="font-semibold text-violet-900 text-sm">{t('company_page.overview_shares_card')}</h3>
+            <h3 className="font-semibold text-gray-800 text-sm">{t('company_page.overview_shares_card')}</h3>
           </div>
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-xs text-violet-600">{t('company_page.overview_outstanding')}</span>
-              <span className="text-sm font-bold text-violet-900 bg-violet-100 px-2 py-0.5 rounded">
+              <span className="text-xs text-gray-500">{t('company_page.overview_outstanding')}</span>
+              <span className="text-sm font-bold text-gray-800 bg-blue-50 px-2 py-0.5 rounded">
                 {overViewData.outstandingShare ? formatNumber(overViewData.outstandingShare / 1000000) + "M" : "N/A"}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs text-violet-600">{t('company_page.overview_issued')}</span>
-              <span className="text-sm font-bold text-violet-900 bg-violet-100 px-2 py-0.5 rounded">
+              <span className="text-xs text-gray-500">{t('company_page.overview_issued')}</span>
+              <span className="text-sm font-bold text-gray-800 bg-blue-50 px-2 py-0.5 rounded">
                 {overViewData.issueShare ? formatNumber(overViewData.issueShare / 1000000) + "M" : "N/A"}
               </span>
             </div>
@@ -167,23 +167,23 @@ export default function CompanyOverView({ symbol }) {
         </div>
 
         {/* Stakeholders */}
-        <div className="flex-1 min-w-[150px] bg-gradient-to-br from-sky-50 to-blue-50 rounded-xl p-4 border border-sky-200 shadow-sm hover:shadow-lg hover:scale-[1.02] transition-all duration-200">
+        <div className="flex-1 min-w-[150px] bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200">
           <div className="flex items-center gap-2 mb-3">
-            <div className="p-2 bg-gradient-to-br from-sky-500 to-blue-600 rounded-lg shadow-md">
+            <div className="p-2 bg-blue-500 rounded-lg">
               <Users className="w-4 h-4 text-white" />
             </div>
-            <h3 className="font-semibold text-sky-900 text-sm">{t('company_page.overview_people_card')}</h3>
+            <h3 className="font-semibold text-gray-800 text-sm">{t('company_page.overview_people_card')}</h3>
           </div>
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-xs text-sky-600">{t('company_page.overview_shareholders')}</span>
-              <span className="text-sm font-bold text-sky-900 bg-sky-100 px-2 py-0.5 rounded">
+              <span className="text-xs text-gray-500">{t('company_page.overview_shareholders')}</span>
+              <span className="text-sm font-bold text-gray-800 bg-blue-50 px-2 py-0.5 rounded">
                 {overViewData.noShareholders ? formatNumber(overViewData.noShareholders) : "N/A"}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs text-sky-600">{t('company_page.overview_employees')}</span>
-              <span className="text-sm font-bold text-sky-900 bg-sky-100 px-2 py-0.5 rounded">
+              <span className="text-xs text-gray-500">{t('company_page.overview_employees')}</span>
+              <span className="text-sm font-bold text-gray-800 bg-blue-50 px-2 py-0.5 rounded">
                 {overViewData.noEmployees ? formatNumber(overViewData.noEmployees) : "N/A"}
               </span>
             </div>
@@ -191,23 +191,23 @@ export default function CompanyOverView({ symbol }) {
         </div>
 
         {/* Industry Info */}
-        <div className="flex-1 min-w-[150px] bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-200 shadow-sm hover:shadow-lg hover:scale-[1.02] transition-all duration-200">
+        <div className="flex-1 min-w-[150px] bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200">
           <div className="flex items-center gap-2 mb-3">
-            <div className="p-2 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg shadow-md">
+            <div className="p-2 bg-blue-500 rounded-lg">
               <Briefcase className="w-4 h-4 text-white" />
             </div>
-            <h3 className="font-semibold text-emerald-900 text-sm">{t('company_page.overview_industry_card')}</h3>
+            <h3 className="font-semibold text-gray-800 text-sm">{t('company_page.overview_industry_card')}</h3>
           </div>
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-xs text-emerald-600">{t('company_page.overview_level_1')}</span>
-              <span className="text-sm font-bold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded truncate max-w-[100px]" title={overViewData.industry}>
+              <span className="text-xs text-gray-500">{t('company_page.overview_level_1')}</span>
+              <span className="text-sm font-bold text-gray-800 bg-blue-50 px-2 py-0.5 rounded truncate max-w-[100px]" title={overViewData.industry}>
                 {overViewData.industry || "N/A"}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs text-emerald-600">{t('company_page.overview_level_2')}</span>
-              <span className="text-sm font-bold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded truncate max-w-[100px]" title={overViewData.industryL2}>
+              <span className="text-xs text-gray-500">{t('company_page.overview_level_2')}</span>
+              <span className="text-sm font-bold text-gray-800 bg-blue-50 px-2 py-0.5 rounded truncate max-w-[100px]" title={overViewData.industryL2}>
                 {overViewData.industryL2 || "N/A"}
               </span>
             </div>
@@ -215,23 +215,23 @@ export default function CompanyOverView({ symbol }) {
         </div>
 
         {/* Capital Info */}
-        <div className="flex-1 min-w-[150px] bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200 shadow-sm hover:shadow-lg hover:scale-[1.02] transition-all duration-200">
+        <div className="flex-1 min-w-[150px] bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200">
           <div className="flex items-center gap-2 mb-3">
-            <div className="p-2 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg shadow-md">
+            <div className="p-2 bg-blue-500 rounded-lg">
               <BarChart3 className="w-4 h-4 text-white" />
             </div>
-            <h3 className="font-semibold text-amber-900 text-sm">{t('company_page.overview_capital_card')}</h3>
+            <h3 className="font-semibold text-gray-800 text-sm">{t('company_page.overview_capital_card')}</h3>
           </div>
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-xs text-amber-600">{t('company_page.overview_charter')}</span>
-              <span className="text-sm font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
+              <span className="text-xs text-gray-500">{t('company_page.overview_charter')}</span>
+              <span className="text-sm font-bold text-gray-800 bg-blue-50 px-2 py-0.5 rounded">
                 {overViewData.charterCapital ? formatNumber(overViewData.charterCapital / 1000000000) + "B" : "N/A"}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-xs text-amber-600">{t('company_page.overview_foreign_pct')}</span>
-              <span className="text-sm font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
+              <span className="text-xs text-gray-500">{t('company_page.overview_foreign_pct')}</span>
+              <span className="text-sm font-bold text-gray-800 bg-blue-50 px-2 py-0.5 rounded">
                 {overViewData.foreignPercent != null ? (overViewData.foreignPercent * 100).toFixed(1) + "%" : "N/A"}
               </span>
             </div>
@@ -239,15 +239,15 @@ export default function CompanyOverView({ symbol }) {
         </div>
 
         {/* Industry L3 Card */}
-        <div className="flex-1 min-w-[150px] bg-gradient-to-br from-cyan-50 to-teal-50 rounded-xl p-4 border border-cyan-200 shadow-sm hover:shadow-lg hover:scale-[1.02] transition-all duration-200">
+        <div className="flex-1 min-w-[150px] bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-200">
           <div className="flex items-center gap-2 mb-3">
-            <div className="p-2 bg-gradient-to-br from-cyan-500 to-teal-600 rounded-lg shadow-md">
+            <div className="p-2 bg-blue-500 rounded-lg">
               <Building2 className="w-4 h-4 text-white" />
             </div>
-            <h3 className="font-semibold text-cyan-900 text-sm">{t('company_page.overview_sector_detail')}</h3>
+            <h3 className="font-semibold text-gray-800 text-sm">{t('company_page.overview_sector_detail')}</h3>
           </div>
           <div className="text-center">
-            <p className="text-sm font-bold text-cyan-900 leading-tight" title={overViewData.industryL3}>
+            <p className="text-sm font-bold text-gray-800 leading-tight" title={overViewData.industryL3}>
               {overViewData.industryL3 || overViewData.industry || "N/A"}
             </p>
           </div>

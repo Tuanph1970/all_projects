@@ -149,48 +149,48 @@ export default function CompanyDividents({ symbol }) {
       {/* Summary Cards */}
       {tableRowsData.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-gradient-to-br from-green-50 to-emerald-100 rounded-xl p-4 border border-green-200">
+          <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-500 rounded-lg">
+              <div className="p-2 bg-blue-500 rounded-lg">
                 <Coins className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-sm text-green-600 font-medium">
+                <p className="text-sm text-gray-500 font-medium">
                   {t('company_page.div_card_total')}
                 </p>
-                <p className="text-2xl font-bold text-green-700">
+                <p className="text-2xl font-bold text-gray-900">
                   {tableRowsData.length}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-4 border border-blue-200">
+          <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-500 rounded-lg">
                 <Percent className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-sm text-blue-600 font-medium">
+                <p className="text-sm text-gray-500 font-medium">
                   {t('company_page.div_card_avg')}
                 </p>
-                <p className="text-2xl font-bold text-blue-700">
+                <p className="text-2xl font-bold text-gray-900">
                   {avgDividend.toFixed(2)}%
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-purple-50 to-violet-100 rounded-xl p-4 border border-purple-200">
+          <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-500 rounded-lg">
+              <div className="p-2 bg-blue-500 rounded-lg">
                 <Calendar className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-sm text-purple-600 font-medium">
+                <p className="text-sm text-gray-500 font-medium">
                   {t('company_page.div_card_latest_year')}
                 </p>
-                <p className="text-2xl font-bold text-purple-700">
+                <p className="text-2xl font-bold text-gray-900">
                   {tableRowsData[0]?.issueDate ? new Date(tableRowsData[0].issueDate).getFullYear() : "-"}
                 </p>
               </div>
@@ -201,14 +201,16 @@ export default function CompanyDividents({ symbol }) {
 
       {/* Data Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4">
+        <div className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center gap-3">
-            <Coins className="w-6 h-6 text-white" />
+            <div className="p-1.5 bg-blue-500 rounded-lg">
+              <Coins className="w-5 h-5 text-white" />
+            </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-lg font-semibold text-gray-900">
                 {t('company_page.div_title')}
               </h3>
-              <p className="text-green-100 text-sm">
+              <p className="text-gray-500 text-sm">
                 {t('company_page.div_subtitle')}
               </p>
             </div>
