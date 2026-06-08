@@ -94,7 +94,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       labelKey: 'sidebar.prediction',
       icon: BrainCircuit,
       submenu: [
-        { key: 'timeseries', labelKey: 'sidebar.timeseries', route: 'timeseries' },
         { key: 'models',     labelKey: 'sidebar.models',     route: 'models' },
         { key: 'solutions',  labelKey: 'sidebar.solutions',  route: 'solutions' },
         { key: 'indicators', labelKey: 'sidebar.indicators', route: 'indicators' },
@@ -130,7 +129,8 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       submenu: [
         { key: 'holdings',    labelKey: 'sidebar.holdings',    route: 'holdings' },
         { key: 'performance', labelKey: 'sidebar.performance', route: 'performance' },
-        { key: 'alerts',      labelKey: 'sidebar.alerts',      route: 'alerts' }
+        { key: 'alerts',      labelKey: 'sidebar.alerts',      route: 'alerts' },
+        { key: 'watchlist',   labelKey: 'sidebar.watchlist',   route: 'watchlist' }
       ]
     },
     {
@@ -170,8 +170,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       labelKey: 'sidebar.tools',
       icon: Wrench,
       submenu: [
-        { key: 'calculator', labelKey: 'sidebar.calculator', route: 'calculator' },
-        { key: 'watchlist',  labelKey: 'sidebar.watchlist',  route: 'watchlist' }
+        { key: 'calculator', labelKey: 'sidebar.calculator', route: 'calculator' }
       ]
     }
   ];

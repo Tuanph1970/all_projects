@@ -1,6 +1,5 @@
 import React from "react";
 import { useTranslation } from 'react-i18next';
-import TimeSeriesList from "./TimeSeries/TimeSeriesList";
 import ModelList from "./models/ModelList";
 import SolutionList from "./Solutions/SolutionList";
 export const Predict = () => {
@@ -18,15 +17,6 @@ export const Models = () => {
       </div>
   );
 };
-export const TimeSeries = () => {
-  return (
-      <div className="content-container">
-          <TimeSeriesList/>
-
-      </div>
-  );
-};
-
 export const Solutions = () => {
   return (
       <div className="content-container">

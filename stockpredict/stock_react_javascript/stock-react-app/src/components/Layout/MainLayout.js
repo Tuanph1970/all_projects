@@ -22,7 +22,7 @@ import { StockList } from '../Pages/Stocks';
 import Gainers from '../Pages/MarketMovers/Gainer';
 import Losers from '../Pages/MarketMovers/Losers';
 import Actives from '../Pages/MarketMovers/Actives';
-import { TimeSeries, Models, Solutions } from '../Pages/Predict';
+import { Models, Solutions } from '../Pages/Predict';
 import SolutionAddNew from '../Pages/Solutions/SolutionAddNew';
 import SolutionEdit from '../Pages/Solutions/SolutionEdit';
 import { Agent } from '../Pages/Agent';
@@ -126,7 +126,6 @@ const MainLayout = () => {
             <Route path="/topactive" element={<Actives />} />
 
             {/* Prediction */}
-            <Route path="/timeseries" element={<TimeSeries />} />
             <Route path="/indicators" element={<IndicatorsList />} />
             <Route path="/models" element={<Models />} />
             <Route path="/solutions" element={<Solutions />} />
