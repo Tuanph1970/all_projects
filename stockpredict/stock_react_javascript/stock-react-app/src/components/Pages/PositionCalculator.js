@@ -64,7 +64,7 @@ const PositionCalculator = () => {
 
   // VND is always VND, but switch the digit-grouping locale to match the
   // active language so "100,000" vs "100.000" feels right.
-  const numLocale = i18n.language === 'en' ? 'en-US' : 'vi-VN';
+  const numLocale = 'vi-VN';
   const fmtVND = (v) => new Intl.NumberFormat(numLocale, { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(v);
   const fmtNum = (v) => new Intl.NumberFormat(numLocale).format(Math.round(v));
 

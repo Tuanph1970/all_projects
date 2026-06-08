@@ -57,7 +57,7 @@ const Watchlist = () => {
     }
   };
 
-  const numLocale = i18n.language === 'en' ? 'en-US' : 'vi-VN';
+  const numLocale = 'vi-VN';
   const formatPrice = (v) => {
     if (v == null) return '—';
     return new Intl.NumberFormat(numLocale).format(v);

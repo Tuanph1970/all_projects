@@ -7,13 +7,13 @@ import { useTranslation } from 'react-i18next';
 import Contact from '../Contact/Contact';
 import '../../styles/dashboard.css';
 
-const formatUSD = (n) =>
-  `$${Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+const formatVND = (n) =>
+  `${Number(n || 0).toLocaleString('vi-VN', { maximumFractionDigits: 0 })} ₫`;
 
 const formatSigned = (n) => {
   const v = Number(n || 0);
   const sign = v > 0 ? '+' : v < 0 ? '−' : '+';
-  return `${sign}$${Math.abs(v).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+  return `${sign}${Math.abs(v).toLocaleString('vi-VN', { maximumFractionDigits: 0 })} ₫`;
 };
 
 const Dashboard = () => {
@@ -93,7 +93,7 @@ const Dashboard = () => {
       <div className="dashboard-stat-grid">
         <div className="dashboard-stat">
           <div className="dashboard-stat-label">{t('dashboard.stat_total_value')}</div>
-          <div className="dashboard-stat-value">{formatUSD(totalValue)}</div>
+          <div className="dashboard-stat-value">{formatVND(totalValue)}</div>
           <div className="dashboard-stat-meta">
             {portfolio.length === 0
               ? t('dashboard.stat_no_investments')
@@ -201,19 +201,19 @@ const Dashboard = () => {
                     <div className="col col-name">{stock.name}</div>
                     <div className="col col-num">{stock.shares}</div>
                     <div className="col col-num">
-                      ${Number(stock.avgPrice || 0).toFixed(2)}
+                      {Number(stock.avgPrice || 0).toLocaleString('vi-VN', { maximumFractionDigits: 0 })} ₫
                     </div>
                     <div className="col col-num">
-                      ${Number(stock.currentPrice || 0).toFixed(2)}
+                      {Number(stock.currentPrice || 0).toLocaleString('vi-VN', { maximumFractionDigits: 0 })} ₫
                     </div>
                     <div className={`col col-num ${changeClass}`}>
                       {stock.change}
                     </div>
                     <div className="col col-num">
-                      ${(stock.shares * (stock.currentPrice || 0)).toLocaleString(
-                        'en-US',
-                        { maximumFractionDigits: 2 }
-                      )}
+                      {(stock.shares * (stock.currentPrice || 0)).toLocaleString(
+                        'vi-VN',
+                        { maximumFractionDigits: 0 }
+                      )} ₫
                     </div>
                   </div>
                 );

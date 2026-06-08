@@ -6,7 +6,7 @@ import helperService from '../../../services/helperService';
 // ── Utility ──────────────────────────────────────────────────────────────────
 
 const fmt = (n, dec = 2) =>
-  n == null ? '—' : Number(n).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  n == null ? '—' : Number(n).toLocaleString('vi-VN', { minimumFractionDigits: dec, maximumFractionDigits: dec });
 
 const pctColor = (pct) => {
   if (pct == null) return '#6b7280';

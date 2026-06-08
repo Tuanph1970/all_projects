@@ -161,7 +161,7 @@ const SimulationDashboard = () => {
     }
   };
 
-  const numLocale = i18n.language === 'en' ? 'en-US' : 'vi-VN';
+  const numLocale = 'vi-VN';
   const formatCurrency = (value) => {
     return new Intl.NumberFormat(numLocale, {
       style: 'currency',
@@ -594,7 +594,7 @@ const SellSignalShape = (props) => {
 const ResultChart = ({ data, transactions }) => {
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language === 'en' ? 'en-GB' : 'vi-VN';
-  const numLocale = i18n.language === 'en' ? 'en-US' : 'vi-VN';
+  const numLocale = 'vi-VN';
 
   // Prepare chart data with buy/sell markers
   const chartData = data.map((point) => {
@@ -712,7 +712,7 @@ const PriceChart = ({ data, transactions }) => {
 const TransactionHistory = ({ transactions }) => {
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language === 'en' ? 'en-GB' : 'vi-VN';
-  const numLocale = i18n.language === 'en' ? 'en-US' : 'vi-VN';
+  const numLocale = 'vi-VN';
   return (
     <div className="transaction-section">
       <h2>{t('simulation.section_transaction_history')}</h2>

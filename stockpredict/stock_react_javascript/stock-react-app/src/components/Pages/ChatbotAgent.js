@@ -352,7 +352,7 @@ const ChatbotAgent = () => {
     return formatted;
   };
 
-  const numLocale = i18n.language === 'en' ? 'en-US' : 'vi-VN';
+  const numLocale = 'vi-VN';
   const formatNumber = (num) => {
     if (!num) return 'N/A';
     return num.toLocaleString(numLocale);
