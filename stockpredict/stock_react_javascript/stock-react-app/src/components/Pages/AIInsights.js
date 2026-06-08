@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
-import { TrendingUp, TrendingDown, AlertTriangle, Brain, Activity, Shield, Target, Settings, RefreshCw, BarChart3, ChartLine } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertTriangle, Brain, Activity, Shield, Target, RefreshCw, BarChart3, ChartLine, ChevronDown } from 'lucide-react';
 import { format } from "d3-format";
 import { timeFormat } from "d3-time-format";
 import { getXAxisProps, getYAxisProps } from "../../constants/chartTheme";
@@ -42,6 +42,20 @@ import { API_BASE_URLS, API_ENDPOINTS } from '../../constants/api';
 // eslint-disable-next-line no-unused-vars -- kept for upcoming chart palette wiring
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
+const AI_SERIES_CONFIG = [
+  { key:'candles', name:'Nến giá',        color:'#26a69a', group:'Giá' },
+  { key:'sma20',   name:'SMA 20',          color:'#2563eb', group:'Giá' },
+  { key:'ema12',   name:'EMA 12',          color:'#10b981', group:'Giá' },
+  { key:'bb',      name:'Bollinger Bands', color:'#8b5cf6', group:'Giá' },
+  { key:'vwap',    name:'VWAP',            color:'#14b8a6', group:'Giá' },
+  { key:'rsi',     name:'RSI',             color:'#f59e0b', group:'Dao động (trục phải)' },
+  { key:'stoch',   name:'Stochastic',      color:'#ef4444', group:'Dao động (trục phải)' },
+  { key:'mfi',     name:'MFI',             color:'#f97316', group:'Dao động (trục phải)' },
+  { key:'macd',    name:'MACD',            color:'#10b981', group:'Bảng phụ' },
+  { key:'volume',  name:'Volume',          color:'#64748b', group:'Khối lượng' },
+  { key:'obv',     name:'OBV',             color:'#6366f1', group:'Khối lượng' },
+];
+
 // Use centralized API configuration - AI endpoints
 const API_BASE_URL = API_BASE_URLS.AI_API;
 
@@ -66,6 +80,14 @@ export const AIInsights = () => {
   const [activeTab, setActiveTab] = useState('parameters'); // 'parameters' or 'charts'
   const [indicatorData, setIndicatorData] = useState(null);
   const [chartLoading, setChartLoading] = useState(false);
+
+  // Which series are visible in the chart
+  const [seriesVisible, setSeriesVisible] = useState({
+    candles: true, sma20: true, ema12: false, bb: true, vwap: false,
+    rsi: true, stoch: false, mfi: false,
+    macd: true, volume: true, obv: false,
+  });
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   // Fetch portfolio holdings for stock dropdown
   const fetchPortfolioHoldings = useCallback(async () => {
@@ -218,7 +240,7 @@ export const AIInsights = () => {
     const end = new Date(endDate);
     const data = [];
     const days = Math.floor((end - start) / (1000 * 60 * 60 * 24));
-    const numPoints = Math.min(days, 100); // Limit to 100 data points for performance
+    const numPoints = Math.min(days, 100);
 
     let basePrice = 100;
     let obv = 1000000;
@@ -227,62 +249,41 @@ export const AIInsights = () => {
       const date = new Date(start.getTime() + (i * (end - start) / numPoints));
       const dateStr = date.toISOString().split('T')[0];
 
-      // Generate realistic price movement
       const priceChange = (Math.random() - 0.48) * 2;
       basePrice = Math.max(50, basePrice + priceChange);
+      const bbDev = basePrice * 0.02;
+      const macdVal = (Math.random() - 0.5) * 5;
+      obv += (Math.random() - 0.5) * 100000;
 
-      const dataPoint = {
+      // Always generate all fields so every series toggle works without refetch
+      data.push({
         date: dateStr,
-        price: parseFloat(basePrice.toFixed(2))
-      };
-
-      // Add trend indicators
-      if (indicators.trend === 'MACD') {
-        const macd = (Math.random() - 0.5) * 5;
-        dataPoint.MACD = parseFloat(macd.toFixed(2));
-        dataPoint.MACD_signal = parseFloat((macd * 0.8).toFixed(2));
-        dataPoint.MACD_histogram = parseFloat((macd - macd * 0.8).toFixed(2));
-      } else if (indicators.trend === 'EMA') {
-        dataPoint.EMA = parseFloat((basePrice * (1 + (Math.random() - 0.5) * 0.05)).toFixed(2));
-      } else if (indicators.trend === 'SMA') {
-        dataPoint.SMA = parseFloat((basePrice * (1 + (Math.random() - 0.5) * 0.03)).toFixed(2));
-      } else if (indicators.trend === 'WMA') {
-        dataPoint.WMA = parseFloat((basePrice * (1 + (Math.random() - 0.5) * 0.04)).toFixed(2));
-      }
-
-      // Add momentum indicators
-      if (indicators.momentum === 'RSI') {
-        dataPoint.RSI = parseFloat((30 + Math.random() * 40).toFixed(2));
-      } else if (indicators.momentum === 'Stochastic') {
-        dataPoint.Stochastic = parseFloat((20 + Math.random() * 60).toFixed(2));
-      } else if (indicators.momentum === 'MFI') {
-        dataPoint.MFI = parseFloat((25 + Math.random() * 50).toFixed(2));
-      }
-
-      // Add volatility indicators
-      if (indicators.volatility === 'BB') {
-        const bbMiddle = basePrice;
-        const bbDev = basePrice * 0.02;
-        dataPoint.BB_upper = parseFloat((bbMiddle + bbDev * 2).toFixed(2));
-        dataPoint.BB_middle = parseFloat(bbMiddle.toFixed(2));
-        dataPoint.BB_lower = parseFloat((bbMiddle - bbDev * 2).toFixed(2));
-      } else if (indicators.volatility === 'ATR') {
-        dataPoint.ATR = parseFloat((1 + Math.random() * 3).toFixed(2));
-      }
-
-      // Add volume indicators
-      if (indicators.volume === 'OBV') {
-        obv += (Math.random() - 0.5) * 100000;
-        dataPoint.OBV = Math.round(obv);
-      } else if (indicators.volume === 'VWAP') {
-        dataPoint.VWAP = parseFloat((basePrice * (1 + (Math.random() - 0.5) * 0.02)).toFixed(2));
-      }
-
-      data.push(dataPoint);
+        price: parseFloat(basePrice.toFixed(2)),
+        // Moving averages (rough approximation)
+        EMA: parseFloat((basePrice * (1 + (Math.random() - 0.5) * 0.03)).toFixed(2)),
+        SMA: parseFloat((basePrice * (1 + (Math.random() - 0.5) * 0.02)).toFixed(2)),
+        // Bollinger Bands
+        BB_upper: parseFloat((basePrice + bbDev * 2).toFixed(2)),
+        BB_middle: parseFloat(basePrice.toFixed(2)),
+        BB_lower: parseFloat((basePrice - bbDev * 2).toFixed(2)),
+        // VWAP (close approximation)
+        VWAP: parseFloat((basePrice * (1 + (Math.random() - 0.5) * 0.015)).toFixed(2)),
+        // Momentum (0-100)
+        RSI: parseFloat((30 + Math.random() * 40).toFixed(2)),
+        Stochastic: parseFloat((20 + Math.random() * 60).toFixed(2)),
+        MFI: parseFloat((25 + Math.random() * 50).toFixed(2)),
+        // MACD
+        MACD: parseFloat(macdVal.toFixed(2)),
+        MACD_signal: parseFloat((macdVal * 0.8).toFixed(2)),
+        MACD_histogram: parseFloat((macdVal * 0.2).toFixed(2)),
+        // Volume
+        volume: Math.round(500000 + Math.random() * 1000000),
+        OBV: Math.round(obv),
+      });
     }
 
     return {
-      data: data,
+      data,
       indicators: {
         trend: { name: indicators.trend, description: 'Trend Indicator' },
         momentum: { name: indicators.momentum, description: 'Momentum Indicator' },
@@ -359,6 +360,7 @@ export const AIInsights = () => {
       }
 
       const price = item.price || 100;
+      const vol = item.volume || (item.OBV ? Math.abs(item.OBV / 100) : 700000);
 
       return {
         date: dateObj,
@@ -366,8 +368,7 @@ export const AIInsights = () => {
         high: price * (1 + Math.random() * 0.015),
         low: price * (1 - Math.random() * 0.015),
         close: price,
-        volume: item.OBV ? Math.abs(item.OBV / 100) : Math.random() * 1000000 + 500000,
-        // Pass through indicator values
+        volume: vol,
         RSI: item.RSI,
         Stochastic: item.Stochastic,
         MFI: item.MFI,
@@ -377,17 +378,62 @@ export const AIInsights = () => {
         BB_upper: item.BB_upper,
         BB_middle: item.BB_middle,
         BB_lower: item.BB_lower,
-        ATR: item.ATR,
         OBV: item.OBV,
         VWAP: item.VWAP,
         EMA: item.EMA,
         SMA: item.SMA,
-        WMA: item.WMA
       };
     });
   }, [indicatorData]);
 
-  // Financial Chart Component using react-financial-charts
+  // Series checkbox dropdown for the AI chart
+  const SeriesDropdown = () => {
+    const groups = {};
+    AI_SERIES_CONFIG.forEach(s => {
+      if (!groups[s.group]) groups[s.group] = [];
+      groups[s.group].push(s);
+    });
+    const count = Object.values(seriesVisible).filter(Boolean).length;
+    return (
+      <div className="relative">
+        <button
+          onClick={() => setDropdownOpen(o => !o)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50"
+        >
+          <BarChart3 className="w-4 h-4 text-gray-600" />
+          <span>{t('analysis.ai_insights.series_button')}</span>
+          <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-700">{count}</span>
+          <ChevronDown className="w-3 h-3 text-gray-400" />
+        </button>
+        {dropdownOpen && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setDropdownOpen(false)} />
+            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 min-w-[220px] p-2">
+              {Object.entries(groups).map(([grp, items]) => (
+                <div key={grp} className="mb-1">
+                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 py-1">{grp}</div>
+                  {items.map(s => (
+                    <label key={s.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!seriesVisible[s.key]}
+                        onChange={() => setSeriesVisible(p => ({ ...p, [s.key]: !p[s.key] }))}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
+                      <span className="text-sm text-gray-700">{s.name}</span>
+                    </label>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // Dual-axis chart: left=price, right=0-100 oscillators, inverted volume, optional MACD panel
   const FinancialIndicatorChart = () => {
     const rawData = prepareChartData();
     if (!rawData || rawData.length === 0) {
@@ -402,60 +448,26 @@ export const AIInsights = () => {
       );
     }
 
-    const indicators = indicatorData?.indicators || {};
+    // Apply calculators for series that use calc-based accessors
+    const sma20Calc = sma().options({ windowSize: 20 }).merge((d, c) => { d.sma20 = c; }).accessor(d => d.sma20);
+    const ema12Calc = ema().options({ windowSize: 12 }).merge((d, c) => { d.ema12 = c; }).accessor(d => d.ema12);
+    const bbCalc    = bollingerBand().options({ windowSize: 20, multiplier: 2 }).merge((d, c) => { d.bb = c; }).accessor(d => d.bb);
+    const macdCalc  = macd().options({ fast: 12, slow: 26, signal: 9 }).merge((d, c) => { d.macdCalc = c; }).accessor(d => d.macdCalc);
+    const rsiCalc   = rsi().options({ windowSize: 14 }).merge((d, c) => { d.rsiCalc = c; }).accessor(d => d.rsiCalc);
 
-    // Determine which panels to show based on selected indicators
-    const showMomentumPanel = indicators.momentum && ['RSI', 'Stochastic', 'MFI'].includes(indicators.momentum.name);
-    const showMACDPanel = indicators.trend && indicators.trend.name === 'MACD';
-    const showVolumePanel = indicators.volume && ['OBV', 'VWAP'].includes(indicators.volume.name);
-    const showBollingerBands = indicators.volatility && indicators.volatility.name === 'BB';
-    const showMovingAverage = indicators.trend && ['EMA', 'SMA', 'WMA'].includes(indicators.trend.name);
+    let calcData = rawData;
+    if (seriesVisible.sma20) calcData = sma20Calc(calcData);
+    if (seriesVisible.ema12) calcData = ema12Calc(calcData);
+    if (seriesVisible.bb)    calcData = bbCalc(calcData);
+    if (seriesVisible.macd)  calcData = macdCalc(calcData);
+    if (seriesVisible.rsi)   calcData = rsiCalc(calcData);
 
-    // Calculate indicators using react-financial-charts calculators
-    const sma20Calculator = sma()
-      .options({ windowSize: 20 })
-      .merge((d, c) => { d.sma20 = c; })
-      .accessor(d => d.sma20);
-
-    const ema12Calculator = ema()
-      .options({ windowSize: 12 })
-      .merge((d, c) => { d.ema12 = c; })
-      .accessor(d => d.ema12);
-
-    const bbCalculator = bollingerBand()
-      .options({ windowSize: 20, multiplier: 2 })
-      .merge((d, c) => { d.bb = c; })
-      .accessor(d => d.bb);
-
-    const macdCalculator = macd()
-      .options({ fast: 12, slow: 26, signal: 9 })
-      .merge((d, c) => { d.macdCalc = c; })
-      .accessor(d => d.macdCalc);
-
-    const rsiCalculator = rsi()
-      .options({ windowSize: 14 })
-      .merge((d, c) => { d.rsiCalc = c; })
-      .accessor(d => d.rsiCalc);
-
-    // Apply calculators
-    let calculatedData = rawData;
-    if (showMovingAverage) {
-      if (indicators.trend.name === 'SMA') calculatedData = sma20Calculator(calculatedData);
-      if (indicators.trend.name === 'EMA') calculatedData = ema12Calculator(calculatedData);
-    }
-    if (showBollingerBands) calculatedData = bbCalculator(calculatedData);
-    if (showMACDPanel) calculatedData = macdCalculator(calculatedData);
-    if (showMomentumPanel && indicators.momentum.name === 'RSI') calculatedData = rsiCalculator(calculatedData);
-
-    const ScaleProvider = discontinuousTimeScaleProviderBuilder()
-      .inputDateAccessor(d => d.date);
-
-    const { data, xScale, xAccessor, displayXAccessor } = ScaleProvider(calculatedData);
+    const ScaleProvider = discontinuousTimeScaleProviderBuilder().inputDateAccessor(d => d.date);
+    const { data, xScale, xAccessor, displayXAccessor } = ScaleProvider(calcData);
 
     const pricesDisplayFormat = format(".2f");
     const volumeFormat = format(".2s");
-    const dateTimeFormat = "%d %b";
-    const timeDisplayFormat = timeFormat(dateTimeFormat);
+    const timeDisplayFormat = timeFormat("%d %b");
 
     const max = xAccessor(data[data.length - 1]);
     const min = xAccessor(data[Math.max(0, data.length - 100)]);
@@ -463,328 +475,148 @@ export const AIInsights = () => {
 
     const width = 1200;
     const margin = { left: 50, right: 70, top: 10, bottom: 30 };
-
-    // Calculate panel heights
-    const priceHeight = 280;
-    const momentumHeight = showMomentumPanel ? 120 : 0;
-    const macdHeight = showMACDPanel ? 120 : 0;
-    const volumeHeight = showVolumePanel ? 100 : 0;
-    const chartHeight = priceHeight + momentumHeight + macdHeight + volumeHeight + 50;
-
-    // Calculate origins for each panel
-    let currentY = priceHeight;
-    const momentumOrigin = [0, currentY];
-    currentY += momentumHeight;
-    const macdOrigin = [0, currentY];
-    currentY += macdHeight;
-    const volumeOrigin = [0, currentY];
+    const mainHeight = 480;
+    const volHeight  = 70;
+    const macdH      = seriesVisible.macd ? 130 : 0;
+    const totalH     = mainHeight + macdH;
 
     const openCloseColor = d => d.close > d.open ? "#26a69a" : "#ef5350";
-    const volumeColor = d => d.close > d.open ? "rgba(38, 166, 154, 0.5)" : "rgba(239, 83, 80, 0.5)";
+    const volumeColor    = d => d.close > d.open ? "rgba(38,166,154,0.35)" : "rgba(239,83,80,0.35)";
+    const hasOscillator  = seriesVisible.rsi || seriesVisible.stoch || seriesVisible.mfi;
 
     return (
       <ChartWrapper yAxisTitle={t('analysis.technical.price_axis_label')} xAxisTitle={t('analysis.technical.date_axis_label')}>
-      <ChartCanvas
-        height={chartHeight}
-        ratio={2}
-        width={width}
-        margin={margin}
-        data={data}
-        displayXAccessor={displayXAccessor}
-        seriesName="AIInsights"
-        xScale={xScale}
-        xAccessor={xAccessor}
-        xExtents={xExtents}
-        zoomAnchor={lastVisibleItemBasedZoomAnchor}
-      >
-        {/* Panel 1: Price Chart with Overlays (Price + MA + BB - same price scale) */}
-        <Chart
-          id={1}
-          height={priceHeight}
-          yExtents={d => {
-            const extents = [d.high, d.low];
-            if (d.bb) {
-              extents.push(d.bb.top, d.bb.bottom);
-            }
-            return extents;
-          }}
+        <ChartCanvas
+          height={totalH}
+          ratio={2}
+          width={width}
+          margin={margin}
+          data={data}
+          displayXAccessor={displayXAccessor}
+          seriesName="AIInsights"
+          xScale={xScale}
+          xAccessor={xAccessor}
+          xExtents={xExtents}
+          zoomAnchor={lastVisibleItemBasedZoomAnchor}
         >
-          <XAxis {...getXAxisProps({ showTickLabel: false })} />
-          <YAxis tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
+          {/* Chart 1: Price — left Y-axis */}
+          <Chart
+            id={1}
+            height={mainHeight}
+            yExtents={d => {
+              const ext = [d.high, d.low];
+              if (seriesVisible.bb && d.bb) ext.push(d.bb.top, d.bb.bottom);
+              return ext;
+            }}
+          >
+            <XAxis showGridLines {...getXAxisProps({ showTickLabel: !seriesVisible.macd })} />
+            <YAxis showGridLines axisAt="left" orient="left" tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
 
-          <CandlestickSeries />
+            {seriesVisible.candles && <CandlestickSeries />}
+            {seriesVisible.bb && (
+              <BollingerSeries
+                yAccessor={d => d.bb}
+                strokeStyle={{ top: "#8b5cf6", middle: "#a78bfa", bottom: "#8b5cf6" }}
+                fillStyle="rgba(139,92,246,0.08)"
+              />
+            )}
+            {seriesVisible.sma20 && <LineSeries yAccessor={d => d.sma20} strokeStyle="#2563eb" strokeWidth={1} />}
+            {seriesVisible.ema12 && <LineSeries yAccessor={d => d.ema12} strokeStyle="#10b981" strokeWidth={1} />}
+            {seriesVisible.vwap  && <LineSeries yAccessor={d => d.VWAP}  strokeStyle="#14b8a6" strokeWidth={1.5} />}
 
-          {/* Bollinger Bands (same scale as price) */}
-          {showBollingerBands && (
-            <BollingerSeries
-              yAccessor={d => d.bb}
-              strokeStyle={{
-                top: "#8B5CF6",
-                middle: "#A78BFA",
-                bottom: "#8B5CF6"
-              }}
-              fillStyle="rgba(139, 92, 246, 0.1)"
+            <MouseCoordinateY rectWidth={margin.right} displayFormat={pricesDisplayFormat} />
+            <EdgeIndicator
+              itemType="last" rectWidth={margin.right}
+              fill={openCloseColor} lineStroke={openCloseColor}
+              displayFormat={pricesDisplayFormat} yAccessor={d => d.close}
             />
-          )}
-
-          {/* Moving Averages (same scale as price) */}
-          {showMovingAverage && indicators.trend.name === 'SMA' && (
-            <LineSeries yAccessor={d => d.sma20} strokeStyle="#06B6D4" strokeWidth={1.5} />
-          )}
-          {showMovingAverage && indicators.trend.name === 'EMA' && (
-            <LineSeries yAccessor={d => d.ema12} strokeStyle="#84CC16" strokeWidth={1.5} />
-          )}
-
-          {/* VWAP overlay (same scale as price) */}
-          {indicators.volume?.name === 'VWAP' && (
-            <LineSeries yAccessor={d => d.VWAP} strokeStyle="#14B8A6" strokeWidth={2} strokeDasharray="5 5" />
-          )}
-
-          <MouseCoordinateY rectWidth={margin.right} displayFormat={pricesDisplayFormat} />
-          <EdgeIndicator
-            itemType="last"
-            rectWidth={margin.right}
-            fill={openCloseColor}
-            lineStroke={openCloseColor}
-            displayFormat={pricesDisplayFormat}
-            yAccessor={d => d.close}
-          />
-
-          <OHLCTooltip origin={[8, 16]} />
-
-          {showBollingerBands && (
-            <BollingerBandTooltip
-              origin={[8, 60]}
-              yAccessor={d => d.bb}
-              options={{ windowSize: 20, multiplier: 2 }}
-              fill="#8B5CF6"
-            />
-          )}
-
-          {showMovingAverage && (
+            <OHLCTooltip origin={[8, 16]} />
+            {seriesVisible.bb && (
+              <BollingerBandTooltip origin={[8, 60]} yAccessor={d => d.bb} options={{ windowSize: 20, multiplier: 2 }} fill="#8b5cf6" />
+            )}
             <MovingAverageTooltip
               origin={[8, 40]}
               options={[
-                indicators.trend.name === 'SMA' && { yAccessor: d => d.sma20, type: "SMA", stroke: "#06B6D4", windowSize: 20 },
-                indicators.trend.name === 'EMA' && { yAccessor: d => d.ema12, type: "EMA", stroke: "#84CC16", windowSize: 12 },
+                seriesVisible.sma20 && { yAccessor: d => d.sma20, type: "SMA", stroke: "#2563eb", windowSize: 20 },
+                seriesVisible.ema12 && { yAccessor: d => d.ema12, type: "EMA", stroke: "#10b981", windowSize: 12 },
               ].filter(Boolean)}
             />
+            <ZoomButtons />
+            {!seriesVisible.macd && <MouseCoordinateX displayFormat={timeDisplayFormat} />}
+          </Chart>
+
+          {/* Chart 2: Oscillators 0-100 — right Y-axis, overlaid on price panel */}
+          {hasOscillator && (
+            <Chart id={2} height={mainHeight} yExtents={[0, 100]}>
+              <YAxis axisAt="right" orient="right" tickValues={[20, 50, 80]} tickFormat={d => d} {...getYAxisProps()} />
+              <StraightLine yValue={80} strokeStyle="rgba(239,68,68,0.35)" strokeDasharray="Dash" />
+              <StraightLine yValue={20} strokeStyle="rgba(16,185,129,0.35)" strokeDasharray="Dash" />
+              <StraightLine yValue={50} strokeStyle="rgba(156,163,175,0.3)" strokeDasharray="Dot" />
+              {seriesVisible.rsi && (
+                <>
+                  <RSISeries yAccessor={d => d.rsiCalc || d.RSI} strokeStyle={{ line: "#f59e0b" }} />
+                  <SingleValueTooltip yAccessor={d => d.rsiCalc || d.RSI} yLabel="RSI" yDisplayFormat={format(".1f")} origin={[8, 16]} />
+                </>
+              )}
+              {seriesVisible.stoch && (
+                <>
+                  <LineSeries yAccessor={d => d.Stochastic} strokeStyle="#ef4444" strokeWidth={1.5} />
+                  <SingleValueTooltip yAccessor={d => d.Stochastic} yLabel="Stoch" yDisplayFormat={format(".1f")} origin={[8, seriesVisible.rsi ? 36 : 16]} />
+                </>
+              )}
+              {seriesVisible.mfi && (
+                <>
+                  <LineSeries yAccessor={d => d.MFI} strokeStyle="#f97316" strokeWidth={1.5} />
+                  <SingleValueTooltip yAccessor={d => d.MFI} yLabel="MFI" yDisplayFormat={format(".1f")} origin={[8, (seriesVisible.rsi ? 20 : 0) + (seriesVisible.stoch ? 20 : 0) + 16]} />
+                </>
+              )}
+            </Chart>
           )}
 
-          <ZoomButtons />
-        </Chart>
+          {/* Chart 3: Volume inverted at bottom of price panel */}
+          {seriesVisible.volume && (
+            <Chart id={3} height={volHeight} origin={[0, mainHeight - volHeight]} yExtents={d => [0, d.volume]}>
+              <BarSeries fillStyle={volumeColor} yAccessor={d => d.volume} />
+              {seriesVisible.obv && (
+                <LineSeries yAccessor={d => d.OBV ? Math.abs(d.OBV / 100) : 0} strokeStyle="#6366f1" strokeWidth={1} />
+              )}
+              <SingleValueTooltip yAccessor={d => d.volume} yLabel={t('analysis.ai_insights.volume_tooltip_label')} yDisplayFormat={volumeFormat} origin={[8, 4]} />
+            </Chart>
+          )}
 
-        {/* Panel 2: Momentum Indicators (RSI/Stochastic/MFI - 0-100 scale) */}
-        {showMomentumPanel && (
-          <Chart
-            id={2}
-            height={momentumHeight}
-            yExtents={[0, 100]}
-            origin={momentumOrigin}
-            padding={{ top: 10, bottom: 10 }}
-          >
-            <XAxis {...getXAxisProps({ showTickLabel: false })} />
-            <YAxis tickValues={[30, 50, 70]} tickFormat={d => d} {...getYAxisProps()} />
+          {/* Chart 4: MACD sub-panel */}
+          {seriesVisible.macd && (
+            <Chart id={4} height={macdH - 10} origin={[0, mainHeight]} yExtents={d => d.macdCalc} padding={{ top: 10, bottom: 10 }}>
+              <XAxis showGridLines {...getXAxisProps()} />
+              <YAxis axisAt="left" orient="left" tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
+              <MACDSeries yAccessor={d => d.macdCalc} strokeStyle={{ macd: "#10b981", signal: "#059669" }} fillStyle={{ divergence: "#34d399" }} />
+              <SingleValueTooltip yAccessor={d => d.macdCalc?.MACD} yLabel={t('analysis.ai_insights.macd_tooltip_label')} yDisplayFormat={pricesDisplayFormat} origin={[8, 16]} />
+              <SingleValueTooltip yAccessor={d => d.macdCalc?.signal} yLabel={t('analysis.ai_insights.signal_tooltip_label')} yDisplayFormat={pricesDisplayFormat} origin={[80, 16]} />
+              <MouseCoordinateX displayFormat={timeDisplayFormat} />
+              <MouseCoordinateY rectWidth={margin.right} displayFormat={pricesDisplayFormat} />
+            </Chart>
+          )}
 
-            {/* Overbought/Oversold reference lines */}
-            <StraightLine yValue={70} strokeStyle="#ef4444" strokeDasharray="Dash" />
-            <StraightLine yValue={30} strokeStyle="#10b981" strokeDasharray="Dash" />
-            <StraightLine yValue={50} strokeStyle="#9ca3af" strokeDasharray="Dot" />
-
-            {indicators.momentum.name === 'RSI' && (
-              <>
-                <RSISeries yAccessor={d => d.rsiCalc || d.RSI} strokeStyle={{ line: "#F59E0B" }} />
-                <SingleValueTooltip
-                  yAccessor={d => d.rsiCalc || d.RSI}
-                  yLabel={t('analysis.ai_insights.rsi_label')}
-                  yDisplayFormat={format(".2f")}
-                  origin={[8, 16]}
-                />
-              </>
-            )}
-
-            {indicators.momentum.name === 'Stochastic' && (
-              <>
-                <LineSeries yAccessor={d => d.Stochastic} strokeStyle="#EF4444" strokeWidth={1.5} />
-                <SingleValueTooltip
-                  yAccessor={d => d.Stochastic}
-                  yLabel={t('analysis.ai_insights.stochastic_label')}
-                  yDisplayFormat={format(".2f")}
-                  origin={[8, 16]}
-                />
-              </>
-            )}
-
-            {indicators.momentum.name === 'MFI' && (
-              <>
-                <LineSeries yAccessor={d => d.MFI} strokeStyle="#F97316" strokeWidth={1.5} />
-                <SingleValueTooltip
-                  yAccessor={d => d.MFI}
-                  yLabel={t('analysis.ai_insights.mfi_label')}
-                  yDisplayFormat={format(".2f")}
-                  origin={[8, 16]}
-                />
-              </>
-            )}
-
-            <MouseCoordinateY rectWidth={margin.right} displayFormat={format(".0f")} />
-          </Chart>
-        )}
-
-        {/* Panel 3: MACD (centered on zero - separate scale) */}
-        {showMACDPanel && (
-          <Chart
-            id={3}
-            height={macdHeight}
-            yExtents={d => d.macdCalc}
-            origin={macdOrigin}
-            padding={{ top: 10, bottom: 10 }}
-          >
-            <XAxis {...getXAxisProps({ showTickLabel: false })} />
-            <YAxis tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
-
-            <MACDSeries
-              yAccessor={d => d.macdCalc}
-              strokeStyle={{
-                macd: "#10B981",
-                signal: "#059669"
-              }}
-              fillStyle={{
-                divergence: "#34D399"
-              }}
-            />
-
-            <SingleValueTooltip
-              yAccessor={d => d.macdCalc?.MACD}
-              yLabel={t('analysis.ai_insights.macd_tooltip_label')}
-              yDisplayFormat={pricesDisplayFormat}
-              origin={[8, 16]}
-            />
-            <SingleValueTooltip
-              yAccessor={d => d.macdCalc?.signal}
-              yLabel={t('analysis.ai_insights.signal_tooltip_label')}
-              yDisplayFormat={pricesDisplayFormat}
-              origin={[80, 16]}
-            />
-
-            <MouseCoordinateY rectWidth={margin.right} displayFormat={pricesDisplayFormat} />
-          </Chart>
-        )}
-
-        {/* Panel 4: Volume (bar chart - separate scale) */}
-        {showVolumePanel && (
-          <Chart
-            id={4}
-            height={volumeHeight}
-            yExtents={d => d.volume}
-            origin={volumeOrigin}
-            padding={{ top: 10, bottom: 10 }}
-          >
-            <XAxis {...getXAxisProps()} />
-            <YAxis tickFormat={volumeFormat} {...getYAxisProps()} />
-
-            <BarSeries fillStyle={volumeColor} yAccessor={d => d.volume} />
-
-            {indicators.volume.name === 'OBV' && (
-              <LineSeries
-                yAccessor={d => Math.abs(d.OBV / 100)}
-                strokeStyle="#6366F1"
-                strokeWidth={1}
-              />
-            )}
-
-            <MouseCoordinateX displayFormat={timeDisplayFormat} />
-            <MouseCoordinateY rectWidth={margin.right} displayFormat={volumeFormat} />
-
-            <SingleValueTooltip
-              yAccessor={d => d.volume}
-              yLabel={t('analysis.ai_insights.volume_tooltip_label')}
-              yDisplayFormat={volumeFormat}
-              origin={[8, 16]}
-            />
-          </Chart>
-        )}
-
-        <CrossHairCursor />
-      </ChartCanvas>
+          <CrossHairCursor />
+        </ChartCanvas>
       </ChartWrapper>
     );
   };
 
   const renderTechnicalIndicatorsChart = () => {
-    const indicators = indicatorData?.indicators || {};
-
-    // Determine which panels are active for legend
-    const showMomentumPanel = indicators.momentum && ['RSI', 'Stochastic', 'MFI'].includes(indicators.momentum.name);
-    const showMACDPanel = indicators.trend && indicators.trend.name === 'MACD';
-    const showVolumePanel = indicators.volume && ['OBV', 'VWAP'].includes(indicators.volume.name);
-    const showBollingerBands = indicators.volatility && indicators.volatility.name === 'BB';
-    const showMovingAverage = indicators.trend && ['EMA', 'SMA', 'WMA'].includes(indicators.trend.name);
-
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-900">{t('analysis.ai_insights.chart_title')}</h2>
-          <div className="flex items-center space-x-2">
-            {chartLoading && (
-              <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />
-            )}
-            <ChartLine className="w-6 h-6 text-blue-500" />
+          <div className="flex items-center gap-2">
+            {chartLoading && <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />}
+            <SeriesDropdown />
           </div>
         </div>
-
-        {/* Legend */}
-        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-          <div className="flex flex-wrap gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-gray-700">{t('analysis.ai_insights.price_panel_label')}</span>
-              <span className="flex items-center"><span className="w-3 h-3 bg-green-500 mr-1 rounded"></span>{t('analysis.ai_insights.candles_label')}</span>
-              {showBollingerBands && (
-                <span className="flex items-center"><span className="w-3 h-0.5 bg-purple-500 mr-1"></span>{t('analysis.ai_insights.bb_label')}</span>
-              )}
-              {showMovingAverage && (
-                <span className="flex items-center"><span className="w-3 h-0.5 bg-cyan-500 mr-1"></span>{indicators.trend?.name}</span>
-              )}
-              {indicators.volume?.name === 'VWAP' && (
-                <span className="flex items-center"><span className="w-3 h-0.5 bg-teal-500 mr-1" style={{borderStyle: 'dashed'}}></span>{t('analysis.ai_insights.vwap_label')}</span>
-              )}
-            </div>
-            {showMomentumPanel && (
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-700">{t('analysis.ai_insights.momentum_panel_label')}</span>
-                <span className="flex items-center"><span className="w-3 h-0.5 bg-amber-500 mr-1"></span>{indicators.momentum?.name}</span>
-              </div>
-            )}
-            {showMACDPanel && (
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-700">{t('analysis.ai_insights.macd_panel_label')}</span>
-                <span className="flex items-center"><span className="w-3 h-0.5 bg-emerald-500 mr-1"></span>{t('analysis.ai_insights.macd_label')}</span>
-                <span className="flex items-center"><span className="w-3 h-0.5 bg-emerald-700 mr-1"></span>{t('analysis.ai_insights.signal_label')}</span>
-              </div>
-            )}
-            {showVolumePanel && (
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-700">{t('analysis.ai_insights.volume_panel_label')}</span>
-                <span className="flex items-center"><span className="w-3 h-3 bg-gray-400 mr-1 rounded-sm"></span>{t('analysis.ai_insights.vol_bars_label')}</span>
-                {indicators.volume?.name === 'OBV' && (
-                  <span className="flex items-center"><span className="w-3 h-0.5 bg-indigo-500 mr-1"></span>{t('analysis.ai_insights.obv_label')}</span>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Chart Container */}
         <div className="overflow-x-auto">
           <div className="min-w-[1200px]">
             <FinancialIndicatorChart />
           </div>
-        </div>
-
-        <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-          <p className="text-sm text-blue-700">
-            {t('analysis.ai_insights.chart_hint')}
-          </p>
         </div>
       </div>
     );
@@ -1061,7 +893,7 @@ export const AIInsights = () => {
                   : { background: 'transparent', color: '#4b5563' }
                 }
               >
-                <Settings className={`w-4 h-4 ${activeTab === 'parameters' ? 'animate-pulse' : ''}`} />
+                <Activity className={`w-4 h-4 ${activeTab === 'parameters' ? 'animate-pulse' : ''}`} />
                 <span>{t('analysis.ai_insights.parameters_tab')}</span>
               </button>
               <button
@@ -1130,7 +962,7 @@ export const AIInsights = () => {
           {/* Controls - 6-Column Table Layout */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
             <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center">
-              <Settings className="w-4 h-4 mr-2" />
+              <Activity className="w-4 h-4 mr-2" />
               {t('analysis.ai_insights.stock_parameters_title')}
             </h3>
             <table className="w-full text-sm">
