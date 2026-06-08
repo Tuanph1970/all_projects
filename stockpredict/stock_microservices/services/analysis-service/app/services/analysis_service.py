@@ -246,46 +246,11 @@ class AnalysisService:
         return signal, strength, score
 
     async def get_technical_analysis(self, symbol: str, period: int = 100) -> Optional[TechnicalAnalysisResponse]:
-        # Check cache
-        cached = await self.repo.get_cached_analysis(symbol, AnalysisType.TECHNICAL)
-        if cached:
-            cached_price = cached.sma_20 or 0
-            return TechnicalAnalysisResponse(
-                symbol=symbol,
-                current_price=CurrentPriceData(
-                    price=cached_price,
-                    open=None,
-                    high=None,
-                    low=None,
-                    volume=None,
-                    change=None,
-                    change_percent=None
-                ),
-                indicators=[],
-                moving_averages=MovingAverages(
-                    SMA_20=cached.sma_20,
-                    SMA_50=cached.sma_50,
-                    SMA_200=None,
-                    EMA_12=None,
-                    EMA_26=None
-                ),
-                trading_analysis=TradingAnalysis(
-                    recommendation=cached.overall_signal.upper() if cached.overall_signal else "HOLD",
-                    score=cached.technical_score or 0,
-                    confidence=cached.signal_strength or 0.5,
-                    reasons=[]
-                ),
-                chart_data=None,
-                overall_signal=SignalType(cached.overall_signal) if cached.overall_signal else SignalType.HOLD,
-                signal_strength=cached.signal_strength or 0.5,
-                technical_score=cached.technical_score or 0,
-                support_levels=cached.support_levels or [],
-                resistance_levels=cached.resistance_levels or [],
-                trend="neutral",
-                volatility="medium",
-                generated_at=cached.created_at
-            )
-
+        # Cache is intentionally skipped here: the old cache was keyed only by
+        # symbol (no period), so it returned chart_data=None for every period
+        # change after the first load, making the chart go blank.  The
+        # save_analysis call below still runs so portfolio/screener features
+        # continue to get updated metrics.
         df = await self._fetch_historical_data(symbol, period)
         if df is None or len(df) < 20:
             return None
