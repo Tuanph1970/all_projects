@@ -14,7 +14,6 @@ import {
   MessageCircle,
   SearchCode,
   Wallet,
-  Wrench,
   BookOpen,
   Crosshair,
 } from 'lucide-react';
@@ -165,14 +164,6 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
         { key: 'risk-dashboard',    labelKey: 'sidebar.risk_dashboard',    route: 'risk-dashboard' }
       ]
     },
-    {
-      key: 'tools',
-      labelKey: 'sidebar.tools',
-      icon: Wrench,
-      submenu: [
-        { key: 'calculator', labelKey: 'sidebar.calculator', route: 'calculator' }
-      ]
-    }
   ];
 
   const isRouteActive = (route) => {
