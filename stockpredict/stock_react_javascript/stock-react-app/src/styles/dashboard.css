@@ -545,6 +545,12 @@
   .dashboard-footer { flex-direction: column; gap: 6px; }
 }
 
+/* ─── Watched-stocks table (4 cols, no shares/avg-price) ─────── */
+.dashboard-watch-table .dashboard-table-head,
+.dashboard-watch-table .dashboard-table-row {
+  grid-template-columns: 72px 1fr 140px 100px;
+}
+
 /* ─── Section spinner (hourglass while analysis runs) ─────────── */
 .dashboard-section-spinner {
   display: flex;

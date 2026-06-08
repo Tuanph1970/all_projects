@@ -656,6 +656,21 @@ export const stockAPI = {
     }
   },
 
+  getWatchlist: async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.WATCHLIST, {
+        method: 'GET',
+        headers: getAuthHeaders()
+      });
+      if (!response.ok) throw new Error('Failed to fetch watchlist');
+      const data = await response.json();
+      return Array.isArray(data) ? data : (data.items || data.data || []);
+    } catch (error) {
+      console.error('Error fetching watchlist:', error);
+      return [];
+    }
+  },
+
   getLongtermRecommendations: async () => {
     try {
       const response = await fetch(API_ENDPOINTS.AI_LONGTERM_RECOMMENDATIONS, {

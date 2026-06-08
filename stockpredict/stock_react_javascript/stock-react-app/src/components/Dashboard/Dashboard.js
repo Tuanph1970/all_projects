@@ -1,6 +1,6 @@
 // src/components/Dashboard/Dashboard.js
 import React, { useState, useEffect } from 'react';
-import { Inbox, TrendingUp, BarChart2 } from 'lucide-react';
+import { Inbox, TrendingUp, BarChart2, Star } from 'lucide-react';
 import { stockAPI } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -28,6 +28,9 @@ const Dashboard = () => {
   const [portfolio, setPortfolio] = useState([]);
   const [portfolioLoading, setPortfolioLoading] = useState(true);
 
+  const [watchlist, setWatchlist] = useState([]);
+  const [watchlistLoading, setWatchlistLoading] = useState(true);
+
   const [longtermRecs, setLongtermRecs] = useState([]);
   const [longtermLoading, setLongtermLoading] = useState(true);
 
@@ -47,6 +50,14 @@ const Dashboard = () => {
       .then(setPortfolio)
       .catch(() => setPortfolio([]))
       .finally(() => setPortfolioLoading(false));
+  }, []);
+
+  // Watchlist — independent, fast
+  useEffect(() => {
+    stockAPI.getWatchlist()
+      .then(setWatchlist)
+      .catch(() => setWatchlist([]))
+      .finally(() => setWatchlistLoading(false));
   }, []);
 
   // Long-term recs — independent, may take a while
@@ -199,6 +210,83 @@ const Dashboard = () => {
                 })}
               </div>
             )}
+          </div>
+        )}
+      </section>
+
+      {/* Watched Stocks */}
+      <section className="dashboard-card">
+        <div className="dashboard-card-header">
+          <div>
+            <div className="dashboard-card-eyebrow with-icon">
+              <Star className="eyebrow-icon" />
+              <span>Cổ phiếu theo dõi</span>
+            </div>
+            <div className="dashboard-card-subtitle">Đang quan sát, chưa nắm giữ</div>
+          </div>
+          <button
+            type="button"
+            className="dashboard-link-btn"
+            onClick={() => navigate('/watchlist')}
+          >
+            Quản lý ›
+          </button>
+        </div>
+
+        {watchlistLoading ? (
+          <div className="dashboard-card skeleton-tall" />
+        ) : watchlist.length === 0 ? (
+          <div className="dashboard-empty">
+            <div className="dashboard-empty-icon"><Star /></div>
+            <div className="dashboard-empty-title">Chưa có cổ phiếu theo dõi</div>
+            <div className="dashboard-empty-sub">
+              Thêm cổ phiếu vào danh sách theo dõi để xem nhanh tại đây.
+            </div>
+            <button
+              type="button"
+              className="dashboard-secondary-btn"
+              onClick={() => navigate('/watchlist')}
+            >
+              Thêm cổ phiếu
+            </button>
+          </div>
+        ) : (
+          <div className="dashboard-table dashboard-watch-table">
+            <div className="dashboard-table-head">
+              <div className="col col-sym">Mã</div>
+              <div className="col col-name">Công ty</div>
+              <div className="col col-num">Giá hiện tại</div>
+              <div className="col col-num">Thay đổi</div>
+            </div>
+            <div className="dashboard-table-body">
+              {watchlist.map((item) => {
+                const symbol = item.symbol || item;
+                const price = item.price ?? item.current_price ?? item.close;
+                const changePct = item.change_percent ?? item.changePercent;
+                const changeClass = changePct == null ? '' : changePct >= 0 ? 'pos' : 'neg';
+                return (
+                  <div className="dashboard-table-row" key={symbol}>
+                    <div
+                      className="col col-sym sym"
+                      onClick={() => handleSymbolClick(symbol)}
+                    >
+                      {symbol}
+                    </div>
+                    <div className="col col-name">{item.name || '—'}</div>
+                    <div className="col col-num">
+                      {price != null
+                        ? `${Number(price).toLocaleString('vi-VN', { maximumFractionDigits: 0 })} ₫`
+                        : '—'}
+                    </div>
+                    <div className={`col col-num ${changeClass}`}>
+                      {changePct != null
+                        ? `${changePct >= 0 ? '+' : ''}${Number(changePct).toFixed(2)}%`
+                        : '—'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </section>
