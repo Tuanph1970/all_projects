@@ -234,63 +234,59 @@ export const TechnicalAnalysis = () => {
     volume: true
   });
 
-  // Stock search state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [showResults, setShowResults] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
+  // Ticker dropdown options (watchlist + portfolio)
+  const [tickerOptions, setTickerOptions] = useState([]);
+  const [tickersLoading, setTickersLoading] = useState(true);
 
+  // Load ticker options from watchlist + portfolio holdings
   useEffect(() => {
-    if (selectedSymbol && period) {
-      fetchTechnicalAnalysis(selectedSymbol);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, selectedSymbol]);
+    const loadTickers = async () => {
+      setTickersLoading(true);
+      try {
+        const [watchlist, portfolio] = await Promise.all([
+          stockAPI.getWatchlist().catch(() => []),
+          stockAPI.getPortfolio().catch(() => [])
+        ]);
+        const fromWatch = watchlist.map(item => ({
+          symbol: item.symbol || item,
+          name: item.name || item.symbol || String(item)
+        }));
+        const fromPortfolio = portfolio.map(item => ({
+          symbol: item.symbol,
+          name: item.name || item.symbol
+        }));
+        const seen = new Set();
+        const combined = [...fromWatch, ...fromPortfolio].filter(item => {
+          if (!item.symbol || seen.has(item.symbol)) return false;
+          seen.add(item.symbol);
+          return true;
+        });
+        setTickerOptions(combined);
+      } finally {
+        setTickersLoading(false);
+      }
+    };
+    loadTickers();
+  }, []);
 
-  const fetchTechnicalAnalysis = async (symbol) => {
+  const fetchTechnicalAnalysis = useCallback(async (symbol, p) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await analysisAPI.getTechnicalAnalysis(symbol, period);
+      const data = await analysisAPI.getTechnicalAnalysis(symbol, p);
       setAnalysisData(data);
     } catch (err) {
       setError('Failed to fetch technical analysis data: ' + err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // Stock search functionality
-  const handleSearch = async (query) => {
-    if (!query.trim()) {
-      setSearchResults([]);
-      setShowResults(false);
-      return;
+  useEffect(() => {
+    if (selectedSymbol && period) {
+      fetchTechnicalAnalysis(selectedSymbol, period);
     }
-    setIsSearching(true);
-    try {
-      const results = await stockAPI.searchStock(query);
-      setSearchResults(results);
-      setShowResults(true);
-    } catch (error) {
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handleSearchChange = (e) => {
-    const value = e.target.value;
-    setSearchQuery(value);
-    if (window.searchTimeout) clearTimeout(window.searchTimeout);
-    window.searchTimeout = setTimeout(() => handleSearch(value), 300);
-  };
-
-  const handleStockSelect = (stock) => {
-    setSearchQuery(stock.symbol);
-    setShowResults(false);
-    setSelectedSymbol(stock.symbol);
-  };
+  }, [period, selectedSymbol, fetchTechnicalAnalysis]);
 
   const toggleIndicator = (group, indicator) => {
     setIndicatorSettings(prev => ({
@@ -1132,48 +1128,32 @@ export const TechnicalAnalysis = () => {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-bold text-gray-900">{t('analysis.technical.title')}</h1>
 
-        {/* Stock Search */}
-        <div className="relative">
-          <div className="flex items-center bg-white border border-gray-300 rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
-            <Search className="w-5 h-5 text-gray-400 mr-2" />
-            <input
-              type="text"
-              placeholder={t('analysis.search_placeholder')}
-              value={searchQuery}
-              onChange={handleSearchChange}
-              onFocus={() => searchQuery && setShowResults(true)}
-              onBlur={() => setTimeout(() => setShowResults(false), 300)}
-              className="outline-none flex-1 min-w-0 w-64"
-            />
-          </div>
-
-          {showResults && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
-              {isSearching ? (
-                <div className="p-3 text-center text-gray-500">{t('analysis.searching')}</div>
-              ) : searchResults.length > 0 ? (
-                searchResults.map((stock) => (
-                  <button
-                    key={stock.symbol}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      handleStockSelect(stock);
-                    }}
-                  >
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <div className="font-semibold text-gray-900">{stock.symbol}</div>
-                        <div className="text-sm text-gray-600">{stock.name}</div>
-                      </div>
-                      <div className="font-semibold text-blue-600">${stock.price}</div>
-                    </div>
-                  </button>
-                ))
-              ) : (
-                <div className="p-3 text-center text-gray-500">{t('analysis.no_results')}</div>
-              )}
-            </div>
+        {/* Ticker Dropdown */}
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedSymbol}
+            onChange={(e) => {
+              setAnalysisData(null);
+              setError(null);
+              setSelectedSymbol(e.target.value);
+            }}
+            disabled={tickersLoading}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[200px] bg-white"
+          >
+            <option value="">-- Chọn cổ phiếu --</option>
+            {tickerOptions.map(opt => (
+              <option key={opt.symbol} value={opt.symbol}>
+                {opt.symbol}{opt.name && opt.name !== opt.symbol ? ` · ${opt.name}` : ''}
+              </option>
+            ))}
+          </select>
+          {tickersLoading && (
+            <span className="text-xs text-gray-400 animate-pulse">Đang tải...</span>
+          )}
+          {!tickersLoading && tickerOptions.length === 0 && (
+            <span className="text-xs text-gray-400">
+              (Thêm cổ phiếu vào danh sách theo dõi hoặc danh mục)
+            </span>
           )}
         </div>
       </div>
@@ -1186,18 +1166,18 @@ export const TechnicalAnalysis = () => {
             {t('analysis.technical.no_selection_message')}
           </p>
         </div>
-      ) : loading ? (
+      ) : !analysisData && loading ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">{t('analysis.technical.loading_message', { symbol: selectedSymbol })}</p>
         </div>
-      ) : error ? (
+      ) : !analysisData && error ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-700 mb-2">{t('analysis.technical.error_title')}</h2>
           <p className="text-gray-500">{error}</p>
           <button
-            onClick={() => fetchTechnicalAnalysis(selectedSymbol)}
+            onClick={() => fetchTechnicalAnalysis(selectedSymbol, period)}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             {t('analysis.common.retry_button')}
@@ -1237,15 +1217,20 @@ export const TechnicalAnalysis = () => {
                 </div>
               </div>
               <div className="flex items-center space-x-2">
+                {loading && (
+                  <span className="text-xs text-blue-500 animate-pulse">Đang tải…</span>
+                )}
                 <select
                   value={period}
                   onChange={(e) => setPeriod(Number(e.target.value))}
-                  className="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={loading}
+                  className="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
                 >
                   <option value={30}>{t('analysis.technical.period_30_days')}</option>
                   <option value={60}>{t('analysis.technical.period_60_days')}</option>
                   <option value={100}>{t('analysis.technical.period_100_days')}</option>
                   <option value={200}>{t('analysis.technical.period_200_days')}</option>
+                  <option value={300}>300 ngày</option>
                 </select>
                 {activeTab === 'charts' && (
                   <>
