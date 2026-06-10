@@ -733,6 +733,7 @@ const TradeLog = () => {
                     step="any"
                     value={tradeForm.entry_price}
                     onChange={e => setTradeForm({ ...tradeForm, entry_price: e.target.value })}
+                    placeholder={t('journal.trade_log.entry_price_placeholder')}
                     required
                   />
                 </div>
@@ -744,6 +745,7 @@ const TradeLog = () => {
                   >
                     {ENTRY_TYPES.map(et => <option key={et.value} value={et.value}>{t(et.labelKey)}</option>)}
                   </select>
+                  <span className="field-hint">{t(`journal.trade_log.entry_type_hint_${tradeForm.entry_type.toLowerCase()}`)}</span>
                 </div>
                 <div className="form-group">
                   <label>{t('journal.trade_log.initial_stop_label')}</label>
@@ -752,6 +754,7 @@ const TradeLog = () => {
                     step="any"
                     value={tradeForm.initial_stop}
                     onChange={e => setTradeForm({ ...tradeForm, initial_stop: e.target.value })}
+                    placeholder={t('journal.trade_log.initial_stop_placeholder')}
                     required
                   />
                 </div>
@@ -764,6 +767,7 @@ const TradeLog = () => {
                     step="any"
                     value={tradeForm.position_size}
                     onChange={e => setTradeForm({ ...tradeForm, position_size: e.target.value })}
+                    placeholder={t('journal.trade_log.position_size_placeholder')}
                     required
                   />
                 </div>
@@ -774,6 +778,7 @@ const TradeLog = () => {
                     step="any"
                     value={tradeForm.commission}
                     onChange={e => setTradeForm({ ...tradeForm, commission: e.target.value })}
+                    placeholder={t('journal.trade_log.commission_placeholder')}
                   />
                 </div>
               </div>
@@ -785,7 +790,7 @@ const TradeLog = () => {
                     step="any"
                     value={tradeForm.objective_1}
                     onChange={e => setTradeForm({ ...tradeForm, objective_1: e.target.value })}
-                    placeholder={t('journal.trade_log.objective_optional')}
+                    placeholder={t('journal.trade_log.objective_1_placeholder')}
                   />
                 </div>
                 <div className="form-group">
@@ -795,7 +800,7 @@ const TradeLog = () => {
                     step="any"
                     value={tradeForm.objective_2}
                     onChange={e => setTradeForm({ ...tradeForm, objective_2: e.target.value })}
-                    placeholder={t('journal.trade_log.objective_optional')}
+                    placeholder={t('journal.trade_log.objective_2_placeholder')}
                   />
                 </div>
               </div>
@@ -851,6 +856,7 @@ const TradeLog = () => {
                     step="any"
                     value={closeForm.exit_price}
                     onChange={e => setCloseForm({ ...closeForm, exit_price: e.target.value })}
+                    placeholder={t('journal.trade_log.exit_price_placeholder')}
                     required
                   />
                 </div>
@@ -905,6 +911,7 @@ const TradeLog = () => {
                   step="any"
                   value={stopForm.new_stop}
                   onChange={e => setStopForm({ ...stopForm, new_stop: e.target.value })}
+                  placeholder={t('journal.trade_log.new_stop_placeholder')}
                   required
                 />
               </div>
