@@ -13,6 +13,49 @@ const RULE_CATEGORIES = [
   { value: 'General', labelKey: 'journal.accounts.rule_general' }
 ];
 
+const RULE_TEMPLATES = {
+  Risk: [
+    'Never risk more than 2% of account equity on a single trade',
+    'Always set a stop-loss before entering any position',
+    'Do not add to a losing position — no averaging down',
+    'Keep total open risk below 6% of account at any time',
+    'Cut the loss immediately when the stop is hit — no exceptions',
+    'Risk/reward ratio must be at least 1:2 before entering',
+  ],
+  Entry: [
+    'Only enter when price breaks out with above-average volume',
+    'Wait for a pullback to key support before buying',
+    'Enter only when at least 2 independent signals agree',
+    'No new positions in the last 30 minutes before market close',
+    'Only trade stocks with daily volume above 500,000 shares',
+    'Confirm trend direction on a higher timeframe before entry',
+  ],
+  Exit: [
+    'Take 50% profit at 1:1 R:R, trail stop on the remainder',
+    'Exit immediately if the daily close is below the 20-day MA',
+    'Move stop-loss to breakeven once trade reaches 1R profit',
+    'Close all positions before major scheduled news releases',
+    'Scale out: sell 1/3 at target 1, 1/3 at target 2, hold 1/3',
+    'Do not let a winning trade turn into a losing trade',
+  ],
+  Psychology: [
+    'Do not trade when feeling anxious, tired, or frustrated',
+    'Follow the plan — no impulsive or revenge trades',
+    'Review each trade without emotion — focus on process, not P&L',
+    'Step away after 2 consecutive losses in the same session',
+    'Never chase a missed move — another quality setup will come',
+    'Accept that losses are part of the game; protect mental capital',
+  ],
+  General: [
+    'Write a detailed journal entry for every trade taken',
+    'Review trading rules and score compliance every weekend',
+    'Do not trade during the first 15 minutes after market open',
+    'Only trade during pre-planned, focused trading hours',
+    'Wait for A+ setups only — quality over quantity',
+    'Study at least one chart or market concept each trading day',
+  ],
+};
+
 const CURRENCIES = ['VND', 'USD', 'EUR', 'JPY', 'GBP'];
 
 const JournalAccounts = () => {
@@ -397,6 +440,23 @@ const JournalAccounts = () => {
                         </button>
                         <button type="button" className="btn-secondary btn-sm" onClick={resetRuleForm}>{t('journal.accounts.rule_cancel_btn')}</button>
                       </div>
+                    </div>
+                    <div className="form-row rule-template-row">
+                      <span className="rule-template-label">{t('journal.accounts.rule_template_label')}</span>
+                      <select
+                        className="rule-template-select"
+                        value=""
+                        onChange={e => {
+                          if (e.target.value) {
+                            setRuleForm(prev => ({ ...prev, rule_text: e.target.value }));
+                          }
+                        }}
+                      >
+                        <option value="">{t('journal.accounts.rule_template_default')}</option>
+                        {(RULE_TEMPLATES[ruleForm.category] || []).map((tpl, idx) => (
+                          <option key={idx} value={tpl}>{tpl}</option>
+                        ))}
+                      </select>
                     </div>
                   </form>
                 </div>

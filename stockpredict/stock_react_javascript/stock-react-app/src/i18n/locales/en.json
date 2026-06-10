@@ -1030,6 +1030,8 @@
       "trading_rules_header": "Trading rules — {{accountName}}",
       "add_rule_btn": "Add rule",
       "rule_placeholder": "Enter a trading rule...",
+      "rule_template_label": "Use template:",
+      "rule_template_default": "— select a template —",
       "rule_update_btn": "Update",
       "rule_add_btn": "Add",
       "rule_cancel_btn": "Cancel",

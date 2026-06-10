@@ -1030,6 +1030,8 @@
       "trading_rules_header": "Quy tắc giao dịch — {{accountName}}",
       "add_rule_btn": "Thêm quy tắc",
       "rule_placeholder": "Nhập quy tắc giao dịch...",
+      "rule_template_label": "Dùng mẫu:",
+      "rule_template_default": "— chọn mẫu quy tắc —",
       "rule_update_btn": "Cập nhật",
       "rule_add_btn": "Thêm",
       "rule_cancel_btn": "Hủy",
