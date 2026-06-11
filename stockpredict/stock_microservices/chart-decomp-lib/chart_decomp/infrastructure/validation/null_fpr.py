@@ -32,8 +32,9 @@ from typing import Iterable, Optional, Union
 import numpy as np
 
 from chart_decomp.domain.entities import Detection, SwingSkeleton
-from chart_decomp.domain.value_objects import NullFPRParams, SwingParams, TimeSeries
+from chart_decomp.domain.value_objects import DenoiseParams, NullFPRParams, SwingParams, TimeSeries
 from chart_decomp.factories.pattern_detector_factory import detect_patterns
+from chart_decomp.infrastructure.denoise.wavelet_denoiser import WaveletDenoiser
 from chart_decomp.infrastructure.swings.swing_extractor import SwingExtractor
 from chart_decomp.infrastructure.validation.surrogates import random_walk_surrogates
 
@@ -209,6 +210,7 @@ def null_detection_distribution(
     n_null: int = 1000,
     seed: Optional[int] = None,
     swing_params: Optional[SwingParams] = None,
+    denoise_params: Optional[DenoiseParams] = None,
 ) -> NullDistribution:
     """Run the swing→detect pipeline on random-walk surrogates; return raw distributions.
 
@@ -218,18 +220,22 @@ def null_detection_distribution(
 
     Results are cached so repeated calls with identical parameters are free.
     The cache key covers (length, rounded_volatility, detectors, n_null, seed,
-    swing_params); changing any of these forces a fresh sweep.
+    swing_params, denoise_params); changing any of these forces a fresh sweep.
 
     Parameters
     ----------
-    length      : samples per surrogate (>= 2).
-    volatility  : per-step std of surrogate increments.  Pass
-                  ``estimate_volatility(target_series)`` to match a real series.
-    detectors   : 'all' or an iterable of registered detector names.
-    n_null      : number of random-walk surrogates to sweep.
-    seed        : seeds the RNG for reproducibility (NFR-RP1).
-    swing_params: SwingParams forwarded to SwingExtractor.  Defaults to
-                  SwingParams() (same default as null_fpr).
+    length        : samples per surrogate (>= 2).
+    volatility    : per-step std of surrogate increments.  Pass
+                    ``estimate_volatility(target_series)`` to match a real series.
+    detectors     : 'all' or an iterable of registered detector names.
+    n_null        : number of random-walk surrogates to sweep.
+    seed          : seeds the RNG for reproducibility (NFR-RP1).
+    swing_params  : SwingParams forwarded to SwingExtractor.  Defaults to
+                    SwingParams() (same default as null_fpr).
+    denoise_params: If provided, each surrogate is wavelet-denoised before swing
+                    extraction (B2 / FR-MS-5: per-scale null-FPR requires the
+                    correct k_drop for each scale level).  None (default) skips
+                    denoising, preserving the existing single-scale behaviour.
 
     Returns
     -------
@@ -245,11 +251,13 @@ def null_detection_distribution(
         n_null,
         seed,
         swing_params,
+        denoise_params,   # None for single-scale (backward compat)
     )
     if cache_key in _null_dist_cache:
         return _null_dist_cache[cache_key]
 
     extractor = SwingExtractor()
+    denoiser = WaveletDenoiser() if denoise_params is not None else None
     all_scores: dict[str, list[float]] = {}
     # One dict per surrogate recording how many detections each pattern had.
     per_surr_counts: list[dict[str, int]] = []
@@ -261,11 +269,24 @@ def null_detection_distribution(
             per_surr_counts.append({})
             continue
         ts = TimeSeries(x)
-        swings = extractor.extract(ts, swing_params)
+
+        # Per-scale FPR: denoise the surrogate at the target scale before extraction.
+        if denoiser is not None:
+            try:
+                x_proc = denoiser.denoise(ts, denoise_params)
+                ts_proc = TimeSeries(x_proc)
+            except Exception:
+                per_surr_counts.append({})
+                continue
+        else:
+            x_proc = x
+            ts_proc = ts
+
+        swings = extractor.extract(ts_proc, swing_params)
         surr_counts: dict[str, int] = {}
         if len(swings) >= 2:
             skeleton = SwingSkeleton(swings)
-            dets = detect_patterns(skeleton, x, detectors)
+            dets = detect_patterns(skeleton, x_proc, detectors)
             for d in dets:
                 all_scores.setdefault(d.pattern, []).append(d.score)
                 surr_counts[d.pattern] = surr_counts.get(d.pattern, 0) + 1
