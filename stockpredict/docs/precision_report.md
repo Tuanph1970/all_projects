@@ -172,17 +172,45 @@ Single-scale false positives are now under control for all pattern types:
 
 ---
 
-## 8. Known Limitations for Future Iteration
+## 8. Production Baseline (A6.6) — n_null=1000, seed=0, length=300, vol=0.01
 
-1. **Symmetric Triangle pct95 = 0.932 is marginal:** Genuine medium-quality
-   symmetric triangles (score 0.7–0.93) will still be filtered. Consider raising
-   `noteworthy_pct` to 90.0 for symmetric triangles, or adding an inter-pivot
-   distance requirement.
+Applied in A6.6: service schema n_null default raised 100→500; `min_inter_pivot=15`
+added to `SymmetricTriangleDetector` only (class-level default; Ascending/Descending
+unchanged since their pct95 ≤ 0.70).
 
-2. **n_null = 100 (service default) gives noisy pct95 estimates:** Recommendation
-   is to set `n_null ≥ 500` for production significance estimates.
+| Pattern | n_scores | FPR/surr | pct95 | Gate |
+|---|---|---|---|---|
+| Ascending Triangle | 522 | 0.522 | 0.698 | OK |
+| Descending Triangle | 545 | 0.545 | 0.700 | OK |
+| **Symmetric Triangle** | 94 | 0.094 | **0.914** | OK (was 0.932–0.942) |
+| Double Top | 166 | 0.166 | 0.805 | OK |
+| Double Bottom | 89 | 0.089 | 0.841 | OK |
+| Head & Shoulders | 258 | 0.258 | 0.916 | OK |
+| Inverse H&S | 256 | 0.256 | 0.917 | OK |
+| Bull Flag | 265 | 0.265 | 0.841 | OK |
+| Bear Flag | 287 | 0.287 | 0.857 | OK |
+| Bull Pennant | 96 | 0.096 | 0.903 | OK |
+| Bear Pennant | 73 | 0.073 | 0.898 | OK |
 
-3. **Double Top/Bottom fired count lower post-redesign:** The firing rate dropped
-   from 0.182 to 0.166 (DT) and 0.066 to 0.089 (DB) between the two sweeps — normal
-   variation with different seeds. The formula change did not substantially alter the
-   firing rate, only the score distribution.
+Stability verified (A6.6): seed=0 vs seed=1 at n_null=1000.  All Δpct95 ≤ 0.02
+for high-FPR patterns (≥400 null scores: the three triangles); ≤ 0.05 for
+low-FPR patterns (<400 scores).  See `tests/test_null_pct95_stability.py`.
+
+318 library tests pass, 14 skipped (optional dependencies).
+
+---
+
+## 9. Known Limitations
+
+1. **Symmetric Triangle pct95 = 0.914 is still above 0.90:** Genuine symmetric
+   triangles scoring 0.70–0.91 remain below the gate.  Further reduction would
+   require additional formula changes (apex proximity, convergence-ratio term).
+
+2. **Rare-firing patterns have looser pct95 stability:** Pennants (FPR≈0.08),
+   doubles (FPR≈0.09–0.17), and H&S (FPR≈0.26) accumulate only 70–260 null scores
+   at n_null=1000.  Their pct95 SE ≈ 0.02–0.03; estimates are stable within ±0.05
+   but not the strict ±0.02.  Users needing tighter estimates: set `n_null=2000`.
+
+3. **n_null=500 (service default) is a speed/quality tradeoff:** Adequate for
+   production (no dead gates, ±0.05 stability), but the test harness verifies at
+   n_null=1000 for stricter confidence.

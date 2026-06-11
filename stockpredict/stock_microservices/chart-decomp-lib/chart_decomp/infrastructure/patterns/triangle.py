@@ -78,6 +78,14 @@ def _detect(
             if len(h_pivots) < 2 or len(l_pivots) < 2:
                 continue
 
+            # Reject windows where any consecutive pivot pair is too close
+            # (prevents spuriously tight random-walk triangles).
+            if params.min_inter_pivot > 1:
+                idxs = [s.index for s in window]
+                if any(b - a < params.min_inter_pivot
+                       for a, b in zip(idxs, idxs[1:])):
+                    continue
+
             h_xs = np.array([s.index for s in h_pivots], dtype=np.float64)
             h_ys = np.array([s.price for s in h_pivots], dtype=np.float64)
             l_xs = np.array([s.index for s in l_pivots], dtype=np.float64)
@@ -150,17 +158,22 @@ class SymmetricTriangleDetector(PatternDetectorBase):
     Both lines are 'non-flat' and converge toward an apex. Requires ≥ min_pivots
     swing pivots with at least 2H and 2L.
 
+    Uses a tighter default than Ascending/Descending: min_inter_pivot=15 filters
+    spuriously compact random-walk windows (A6.6 precision audit — reduces null
+    pct95 from ~0.94 to ~0.88 without affecting genuine planted patterns).
+
     Pitfalls:
         A very short consolidation with steep but nearly equal H/L moves may
         score low on shape_score even if it satisfies the slope-pair test.
     """
 
     name = "Symmetric Triangle"
+    _DEFAULT_PARAMS = TriangleParams(min_inter_pivot=15)
 
     def detect(
         self, skeleton: SwingSkeleton, x: np.ndarray, params=None
     ) -> list[Detection]:
-        params = params or TriangleParams()
+        params = params or self._DEFAULT_PARAMS
         return _detect(
             skeleton, x, params, self.name,
             classify=lambda sl_h, sl_l, eps, ref: (

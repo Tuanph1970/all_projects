@@ -379,7 +379,7 @@ class PatternDetectResponse(BaseModel):
 class PatternPipelineRequest(PatternDetectRequest):
     """Full pipeline: denoise → swings → detect → optional null-FPR."""
     compute_fpr: bool = False
-    n_null: int = Field(100, ge=10, le=2000)
+    n_null: int = Field(500, ge=10, le=2000)
     fpr_seed: Optional[int] = None
 
 
@@ -390,7 +390,7 @@ class PatternPipelineResponse(PatternDetectResponse):
 class PatternNullFPRRequest(BaseModel):
     series: list[float]
     detectors: list[str] = Field(default_factory=list)
-    n_null: int = Field(100, ge=10, le=2000)
+    n_null: int = Field(500, ge=10, le=2000)
     seed: Optional[int] = None
 
     @field_validator("series")

@@ -307,21 +307,29 @@ class FlagParams:
 class TriangleParams:
     """Triangle detector parameters (FR-PAT-TRI).
 
-    flat_slope_eps : a fitted trendline counts as "flat" when |slope| scaled by
-                     the series range is below this threshold.
-    min_pivots     : minimum pivots required to fit upper/lower bounds.
-                     Raised to 6 (from 4) after A6 null-FPR precision audit:
-                     4-pivot windows fire too often on random walks, saturating
-                     null pct95 at 1.0 and blocking genuine detections.
+    flat_slope_eps   : a fitted trendline counts as "flat" when |slope| scaled
+                       by the series range is below this threshold.
+    min_pivots       : minimum pivots required to fit upper/lower bounds.
+                       Raised to 6 (from 4) after A6 null-FPR precision audit:
+                       4-pivot windows fire too often on random walks, saturating
+                       null pct95 at 1.0 and blocking genuine detections.
+    min_inter_pivot  : minimum bar distance between any two consecutive pivots
+                       in the triangle window (1 = disabled).
+                       SymmetricTriangleDetector defaults this to 15 via its own
+                       class-level TriangleParams; Ascending/Descending leave it
+                       at 1 (disabled) since their pct95 is already acceptable.
     """
     flat_slope_eps: float = 0.04
     min_pivots: int = 6
+    min_inter_pivot: int = 1  # 1 = disabled; SymmetricTriangleDetector defaults to 15
 
     def __post_init__(self) -> None:
         if self.flat_slope_eps < 0:
             raise InputValidationError("TriangleParams flat_slope_eps must be >= 0")
         if self.min_pivots < 4:
             raise InputValidationError("TriangleParams min_pivots must be >= 4")
+        if self.min_inter_pivot < 1:
+            raise InputValidationError("TriangleParams min_inter_pivot must be >= 1")
 
 
 @dataclass(frozen=True)
