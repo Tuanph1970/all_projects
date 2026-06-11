@@ -30,7 +30,11 @@ from chart_decomp.domain.value_objects import (
 from chart_decomp.factories.pattern_detector_factory import detect_patterns
 from chart_decomp.infrastructure.denoise.wavelet_denoiser import WaveletDenoiser
 from chart_decomp.infrastructure.swings.swing_extractor import SwingExtractor
-from chart_decomp.infrastructure.validation.null_fpr import null_fpr
+from chart_decomp.infrastructure.validation.null_fpr import (
+    annotate_significance,
+    null_detection_distribution,
+    null_thresholds,
+)
 from chart_decomp.infrastructure.validation.surrogates import estimate_volatility
 
 
@@ -127,16 +131,18 @@ class RunPatternPipelineUseCase:
         if compute_fpr and detections:
             fpr_params = fpr_params or NullFPRParams()
             vol = max(float(estimate_volatility(x)), 1e-8)
-            null_result = null_fpr(
+            dist = null_detection_distribution(
                 length=n,
                 volatility=vol,
                 detectors=detectors,
-                params=fpr_params,
+                n_null=fpr_params.n_null,
+                seed=fpr_params.seed,
+                swing_params=swing_params,
             )
-            fpr_by_pattern = null_result.fpr_by_pattern
-            pct95 = null_result.score_pct95_by_pattern
-            for d in detections:
-                d.null_percentile = pct95.get(d.pattern)
+            thresholds = annotate_significance(
+                detections, dist, noteworthy_pct=fpr_params.noteworthy_pct
+            )
+            fpr_by_pattern = {p: t.fpr for p, t in thresholds.items()}
 
         return PatternPipelineResult(
             raw=np.asarray(x, dtype=np.float64).copy(),

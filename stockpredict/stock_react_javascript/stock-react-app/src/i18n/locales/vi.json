@@ -2270,6 +2270,7 @@
       "error": "Lỗi phát hiện: {{msg}}",
       "k_drop_label": "k_drop khử nhiễu",
       "threshold_label": "Ngưỡng swing",
+      "compute_fpr_label": "Null FPR (ý nghĩa thống kê)",
       "panel1_title": "Thô vs Khử nhiễu",
       "panel2_title": "Khung xương Swing",
       "panel3_title": "Mẫu hình phát hiện được",

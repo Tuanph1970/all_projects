@@ -234,8 +234,16 @@ class Detection:
     end_index       : last series index covered by the pattern
     pivots          : constituent swing indices
     score           : [0, 1] geometric quality (FR-SCORE-1)
-    null_percentile : where this score sits vs the random-walk null for the same
-                      pattern (FR-FPR-2); None until null comparison is run.
+    null_percentile : percentile rank of this detection's score within the
+                      null (random-walk) score distribution for the same pattern
+                      type, expressed as a value in [0, 100].  100.0 when the
+                      pattern never fired on any null surrogate (vacuously above
+                      all null scores).  None until the null comparison is run
+                      (FR-FPR-2).
+    noteworthy      : True iff score exceeds the noteworthy_pct threshold of the
+                      null distribution (FR-FPR-2).  Unconditionally True when the
+                      pattern never fired on any null surrogate.  None until the
+                      null comparison is run.
     confirmed       : False when the pattern touches the right-edge cone of
                       influence and may still change as new data arrives
                       (Part II Trap B6 / Part I Constraint C2).
@@ -247,6 +255,7 @@ class Detection:
     pivots: list[int]
     score: float
     null_percentile: Optional[float] = None
+    noteworthy: Optional[bool] = None
     confirmed: bool = True
     details: dict = field(default_factory=dict)
 

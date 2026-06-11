@@ -69,3 +69,62 @@ def estimate_volatility(x: np.ndarray) -> float:
     if x.ndim != 1 or len(x) < 2:
         raise InputValidationError("estimate_volatility needs a 1-D series of length >= 2")
     return float(np.std(np.diff(x)))
+
+
+def make_surrogate(
+    returns: np.ndarray,
+    method: str = "shuffle",
+    *,
+    seed: Optional[int] = None,
+) -> np.ndarray:
+    """Return a single surrogate price path from an array of return increments (FR-FPR-1).
+
+    Parameters
+    ----------
+    returns : 1-D array of per-step return increments (e.g. first differences of a
+              log-price series).  Length N.  The surrogate path has the same length.
+    method  : 'shuffle'  — permute the real returns in a random order, then cumsum.
+                           Preserves the full return distribution (fat tails, skew,
+                           kurtosis) while destroying all temporal structure.
+                           The increments of the output are a permutation of the input,
+                           so ``np.sort(np.diff(prepend_zero(output)))`` equals
+                           ``np.sort(returns)`` to floating-point precision.
+              'gaussian' — draw N(0, std(returns)) increments of the same length, then
+                           cumsum.  Matches only the per-step volatility; does not
+                           preserve higher moments.
+    seed    : seeds the RNG for reproducibility (NFR-RP1).  Same seed + same input
+              always yields the same path.
+
+    Returns
+    -------
+    np.ndarray of shape (N,) — the surrogate price path (cumulative sum of the
+    permuted or freshly-drawn increments, anchored at 0 before the first step).
+
+    Notes
+    -----
+    To recover the per-step returns from the output path, use
+    ``np.diff(np.concatenate([[0.0], path]))``.  For ``method='shuffle'`` this
+    gives back the original returns in permuted order.
+    """
+    returns = np.asarray(returns, dtype=np.float64)
+    if returns.ndim != 1:
+        raise InputValidationError(
+            f"make_surrogate expects a 1-D returns array; got shape {returns.shape}"
+        )
+    if len(returns) < 1:
+        raise InputValidationError("make_surrogate needs at least 1 return value")
+    if method not in ("shuffle", "gaussian"):
+        raise InputValidationError(
+            f"make_surrogate method must be 'shuffle' or 'gaussian'; got '{method}'"
+        )
+
+    rng = np.random.default_rng(seed)
+
+    if method == "shuffle":
+        inc = returns.copy()
+        rng.shuffle(inc)
+    else:  # gaussian
+        std = float(np.std(returns)) if len(returns) > 1 else 0.0
+        inc = rng.normal(0.0, std, size=len(returns))
+
+    return np.cumsum(inc)

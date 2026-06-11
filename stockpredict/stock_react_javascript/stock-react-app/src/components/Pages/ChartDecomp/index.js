@@ -879,6 +879,7 @@ const PATTERN_COLORS = [
 function PatternTab({ series, t }) {
   const [kDrop, setKDrop]       = useState(1);
   const [threshold, setThr]     = useState(0.08);
+  const [computeFpr, setComputeFpr] = useState(true);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState(null);
   const [result, setResult]     = useState(null);
@@ -891,7 +892,7 @@ function PatternTab({ series, t }) {
         series,
         k_drop: kDrop,
         threshold,
-        compute_fpr: false,
+        compute_fpr: computeFpr,
       });
       setResult(unwrap(resp));
     } catch (e) {
@@ -938,6 +939,10 @@ function PatternTab({ series, t }) {
                  onChange={e => setThr(+e.target.value)}
                  style={{ marginTop:4, width:70, padding:'3px 8px', borderRadius:4,
                           border:`1px solid ${COLORS.border}`, fontSize:13 }} />
+        </label>
+        <label style={{ fontSize:13, display:'flex', alignItems:'center', gap:6, cursor:'pointer' }}>
+          <input type="checkbox" checked={computeFpr} onChange={e => setComputeFpr(e.target.checked)} />
+          {t('chart_decomp.patterns.compute_fpr_label')}
         </label>
         <button onClick={run} disabled={loading}
                 style={{ padding:'6px 18px', background:COLORS.accent, color:'#fff',
@@ -1061,7 +1066,14 @@ function PatternTab({ series, t }) {
                 : dets.map((d, i) => (
                   <tr key={i} style={{ borderBottom:`1px solid ${COLORS.border}` }}>
                     <td style={{ padding:'7px 12px', fontWeight:500,
-                                 color: PATTERN_COLORS[i % PATTERN_COLORS.length] }}>{d.pattern}</td>
+                                 color: PATTERN_COLORS[i % PATTERN_COLORS.length] }}>
+                      {d.pattern}
+                      {d.noteworthy === true && (
+                        <span title="Above null threshold (noteworthy)"
+                              style={{ marginLeft:6, fontSize:11,
+                                       color:COLORS.success, fontWeight:700 }}>★</span>
+                      )}
+                    </td>
                     <td style={{ padding:'7px 12px' }}>{d.start_index}</td>
                     <td style={{ padding:'7px 12px' }}>{d.end_index}</td>
                     <td style={{ padding:'7px 12px' }}>{(d.score * 100).toFixed(0)}%</td>
@@ -1071,7 +1083,7 @@ function PatternTab({ series, t }) {
                         : <span style={{ color:COLORS.warn, fontSize:11 }}>Edge?</span>}
                     </td>
                     <td style={{ padding:'7px 12px', color:COLORS.axis }}>
-                      {d.null_percentile != null ? `${(d.null_percentile*100).toFixed(0)}%` : '—'}
+                      {d.null_percentile != null ? `${d.null_percentile.toFixed(0)}%` : '—'}
                     </td>
                   </tr>
                 ))

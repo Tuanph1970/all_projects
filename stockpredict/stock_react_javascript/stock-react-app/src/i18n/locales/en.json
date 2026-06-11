@@ -2270,6 +2270,7 @@
       "error": "Detection error: {{msg}}",
       "k_drop_label": "Denoise k_drop",
       "threshold_label": "Swing threshold",
+      "compute_fpr_label": "Null FPR (significance)",
       "panel1_title": "Raw vs Denoised",
       "panel2_title": "Swing Skeleton",
       "panel3_title": "Detected Patterns",

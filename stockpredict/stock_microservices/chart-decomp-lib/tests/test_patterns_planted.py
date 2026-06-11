@@ -327,7 +327,7 @@ class TestDescendingTrianglePlanted:
         assert AscendingTriangleDetector().detect(skeleton_of(x), x) == []
 
     def test_too_few_pivots_rejected(self):
-        # 2H + 1L → no window satisfies ≥2H + ≥2L (min_pivots=4).
+        # 2H + 1L → no window satisfies ≥2H + ≥2L (min_pivots default ≥ 4).
         ctrl = [(0, 80), (30, 150), (70, 80), (110, 150), (150, 130)]
         x = zigzag(ctrl, 160)
         assert SymmetricTriangleDetector().detect(skeleton_of(x), x) == []
@@ -383,4 +383,94 @@ class TestDefaultRegistryEndToEnd:
         dets = detect_patterns(skeleton_of(x), x, "all")
         assert any(d.pattern == "Symmetric Triangle" for d in dets), (
             "Symmetric Triangle not found via default registry"
+        )
+
+
+# ── Double Top — score redesign ────────────────────────────────────────────────
+
+class TestDoubleTopScoreRedesign:
+    """Unit tests for the range-relative depth + trajectory-quality score (A6b)."""
+
+    # Clean M-shape: two equal peaks, deep trough, smooth legs
+    CTRL_CLEAN = [(0, 90), (40, 150), (80, 110), (120, 151), (159, 90)]
+    # Junk: two near-equal peaks but tiny trough (only ~2% below peak) → filtered
+    CTRL_SHALLOW = [(0, 140), (40, 150), (70, 148), (100, 150), (140, 140)]
+
+    def test_clean_double_top_scores_above_0_8(self):
+        x    = zigzag(self.CTRL_CLEAN, 160)
+        dets = DoubleTopDetector().detect(skeleton_of(x), x)
+        assert dets, "planted double top not detected"
+        assert dets[0].score > 0.80, (
+            f"clean double top score={dets[0].score:.3f} should be > 0.80"
+        )
+
+    def test_shallow_trough_still_rejected(self):
+        # ~1.3% trough depth < min_trough_depth=0.03 → [] even before scoring
+        x  = zigzag(self.CTRL_SHALLOW, 150)
+        sk = skeleton_of(x, threshold=1e-9)
+        assert DoubleTopDetector().detect(sk, x) == []
+
+    @pytest.mark.slow
+    def test_planted_clean_double_top_clears_null_gate(self):
+        """MANDATORY (FR-FPR-2): planted double top must beat null pct95 (score redesign)."""
+        from chart_decomp.infrastructure.validation.null_fpr import (
+            annotate_significance,
+            null_detection_distribution,
+        )
+
+        x    = zigzag(self.CTRL_CLEAN, 160)
+        skel = skeleton_of(x)
+        dets = DoubleTopDetector().detect(skel, x)
+        assert dets, "planted double top not detected (precondition)"
+        d = dets[0]
+
+        dist = null_detection_distribution(
+            length=160, volatility=0.01, detectors="all",
+            n_null=200, seed=42,
+        )
+        annotate_significance([d], dist)
+        assert d.noteworthy is True, (
+            f"planted double top (score={d.score:.3f}) did not clear null pct95 "
+            f"(null_percentile={d.null_percentile:.1f})"
+        )
+
+
+# ── Double Bottom — score redesign ────────────────────────────────────────────
+
+class TestDoubleBottomScoreRedesign:
+    """Unit tests for the range-relative height + trajectory-quality score (A6b)."""
+
+    # Clean W-shape: two equal lows, high intervening peak, smooth legs
+    CTRL_CLEAN = [(0, 160), (40, 100), (80, 140), (120, 101), (159, 160)]
+
+    def test_clean_double_bottom_scores_above_0_8(self):
+        x    = zigzag(self.CTRL_CLEAN, 160)
+        dets = DoubleBottomDetector().detect(skeleton_of(x), x)
+        assert dets, "planted double bottom not detected"
+        assert dets[0].score > 0.80, (
+            f"clean double bottom score={dets[0].score:.3f} should be > 0.80"
+        )
+
+    @pytest.mark.slow
+    def test_planted_clean_double_bottom_clears_null_gate(self):
+        """MANDATORY (FR-FPR-2): planted double bottom must beat null pct95."""
+        from chart_decomp.infrastructure.validation.null_fpr import (
+            annotate_significance,
+            null_detection_distribution,
+        )
+
+        x    = zigzag(self.CTRL_CLEAN, 160)
+        skel = skeleton_of(x)
+        dets = DoubleBottomDetector().detect(skel, x)
+        assert dets, "planted double bottom not detected (precondition)"
+        d = dets[0]
+
+        dist = null_detection_distribution(
+            length=160, volatility=0.01, detectors="all",
+            n_null=200, seed=42,
+        )
+        annotate_significance([d], dist)
+        assert d.noteworthy is True, (
+            f"planted double bottom (score={d.score:.3f}) did not clear null pct95 "
+            f"(null_percentile={d.null_percentile:.1f})"
         )

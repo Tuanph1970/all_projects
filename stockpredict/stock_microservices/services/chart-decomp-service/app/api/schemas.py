@@ -346,6 +346,7 @@ class DetectionInfo(BaseModel):
     pivots: list[int]
     score: float
     null_percentile: Optional[float] = None
+    noteworthy: Optional[bool] = None
     confirmed: bool = True
     details: dict[str, Any] = Field(default_factory=dict)
 

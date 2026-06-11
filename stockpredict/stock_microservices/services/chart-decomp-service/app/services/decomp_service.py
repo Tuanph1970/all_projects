@@ -22,7 +22,10 @@ from chart_decomp.domain.value_objects import (
 )
 from chart_decomp.infrastructure.denoise.wavelet_denoiser import WaveletDenoiser
 from chart_decomp.infrastructure.swings.swing_extractor import SwingExtractor
-from chart_decomp.infrastructure.validation.null_fpr import null_fpr
+from chart_decomp.infrastructure.validation.null_fpr import (
+    annotate_significance,
+    null_detection_distribution,
+)
 from chart_decomp.infrastructure.validation.surrogates import estimate_volatility
 
 from app.api.schemas import (
@@ -331,13 +334,15 @@ def run_backtest(req: BacktestRequest) -> BacktestResponse:
 # ---------------------------------------------------------------------------
 
 def _det_to_info(d) -> DetectionInfo:
+    np_val = round(float(d.null_percentile), 1) if d.null_percentile is not None else None
     return DetectionInfo(
         pattern=d.pattern,
         start_index=d.start_index,
         end_index=d.end_index,
         pivots=d.pivots,
         score=round(float(d.score), 4),
-        null_percentile=d.null_percentile,
+        null_percentile=np_val,
+        noteworthy=d.noteworthy,
         confirmed=d.confirmed,
         details={k: (v.tolist() if hasattr(v, "tolist") else v)
                  for k, v in d.details.items()},
@@ -409,13 +414,16 @@ def run_pattern_pipeline(req: PatternPipelineRequest) -> PatternPipelineResponse
     fpr: dict = {}
     if req.compute_fpr and dets:
         fp = NullFPRParams(n_null=req.n_null, seed=req.fpr_seed)
+        sp = SwingParams(order=req.order, threshold=req.threshold,
+                         threshold_mode=req.threshold_mode, min_gap=req.min_gap)
         detectors = req.detectors if req.detectors else "all"
         vol = max(float(estimate_volatility(x)), 1e-8)
-        null_res = null_fpr(len(x), vol, detectors=detectors, params=fp)
-        fpr = null_res.fpr_by_pattern
-        pct95 = null_res.score_pct95_by_pattern
-        for d in dets:
-            d.null_percentile = pct95.get(d.pattern)
+        dist = null_detection_distribution(
+            len(x), vol, detectors=detectors,
+            n_null=fp.n_null, seed=fp.seed, swing_params=sp,
+        )
+        thresholds = annotate_significance(dets, dist, noteworthy_pct=fp.noteworthy_pct)
+        fpr = {p: t.fpr for p, t in thresholds.items()}
     return PatternPipelineResponse(
         denoised=denoised.tolist(),
         swings=[SwingInfo(index=s.index, price=round(s.price, 4), kind=s.kind)
