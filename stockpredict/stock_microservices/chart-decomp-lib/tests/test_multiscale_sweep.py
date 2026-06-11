@@ -126,15 +126,24 @@ class TestScaleTags:
         )
 
     def test_scale_1_detections_tagged_correctly(self, ms_result, ms_x):
-        """Spot-check: re-run single-scale pipeline at k_drop=1, verify same
-        detections are tagged with scale=1 in the multi-scale result.
+        """Spot-check: re-run single-scale pipeline at k_drop=1, verify the same
+        patterns appear in the multi-scale result as detections that 'involve' scale 1.
+
+        After B3 dedup a scale-1 detection may be merged with a coarser-scale copy
+        and promoted to the coarser scale (.scale = 2 or 3); scale 1 then lives in
+        .also_seen_at_scales.  We therefore count detections where scale=1 OR
+        1 ∈ also_seen_at_scales, which correctly captures both unmerged and merged dets.
         """
         from chart_decomp.application.run_pattern_pipeline_usecase import (
             RunPatternPipelineUseCase,
         )
         uc = RunPatternPipelineUseCase()
         single = uc.execute(ms_x, denoise_params=DenoiseParams(k_drop=1), compute_fpr=False)
-        multi_scale1 = [d for d in ms_result.detections if d.scale == 1]
+        # Include detections that were originally at scale 1 but got merged to a coarser scale
+        multi_scale1 = [
+            d for d in ms_result.detections
+            if d.scale == 1 or 1 in d.also_seen_at_scales
+        ]
 
         # Same number of detections and same pattern types (order may differ)
         assert len(multi_scale1) == len(single.detections), (
