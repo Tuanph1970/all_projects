@@ -227,7 +227,7 @@ class SwingSkeleton:
 
 @dataclass
 class Detection:
-    """One detected chart pattern (SRS §II.4 / FR-PAT-*, FR-SCORE-1, FR-FPR-2).
+    """One detected chart pattern (SRS §II.4 / FR-PAT-*, FR-SCORE-1, FR-FPR-2, FR-MS).
 
     pattern         : human-readable name, e.g. 'Head & Shoulders', 'Bull Flag'
     start_index     : first series index covered by the pattern
@@ -248,6 +248,26 @@ class Detection:
                       influence and may still change as new data arrives
                       (Part II Trap B6 / Part I Constraint C2).
     details         : pattern-specific extras (prices, projected target, ...).
+
+    Multi-scale extension fields (B1 / FR-MS) — all optional with safe defaults
+    so single-scale code continues to work unchanged:
+
+    detection_id        : integer unique handle assigned by the pipeline within
+                          a single run; None until the registry/use-case assigns it.
+    scale               : k_drop level at which this detection was found; None for
+                          single-scale results.
+    also_seen_at_scales : other k_drop levels where the same detection survived
+                          before de-duplication (FR-MS-2).
+    parent_id           : detection_id of the immediately enclosing parent pattern
+                          in the nesting forest; None for roots (FR-MS-3).
+    children_ids        : detection_ids of all direct children (FR-MS-3).
+    nesting_depth       : 0 for root detections; n+1 for a child of a depth-n node.
+    directional_bias    : 'bullish' | 'bearish' | 'neutral' — from the pattern
+                          bias lookup table (FR-MS-4).  Advisory metadata only;
+                          carries no predictive claim (Part II L3).
+    relation_to_parent  : 'agreement' | 'conflict' | 'neutral' — whether this
+                          detection's bias matches its parent's bias (FR-MS-4).
+                          None for root detections.
     """
     pattern: str
     start_index: int
@@ -258,6 +278,15 @@ class Detection:
     noteworthy: Optional[bool] = None
     confirmed: bool = True
     details: dict = field(default_factory=dict)
+    # ── multi-scale extension fields (B1 / FR-MS) ────────────────────────────
+    detection_id: Optional[int] = None
+    scale: Optional[int] = None
+    also_seen_at_scales: list = field(default_factory=list)
+    parent_id: Optional[int] = None
+    children_ids: list = field(default_factory=list)
+    nesting_depth: int = 0
+    directional_bias: Optional[str] = None
+    relation_to_parent: Optional[str] = None
 
 
 @dataclass
@@ -279,3 +308,28 @@ class PatternPipelineResult:
     swings: list[Swing]
     detections: list[Detection]
     fpr_by_pattern: dict
+
+
+@dataclass
+class MultiScaleResult:
+    """Multi-scale pattern detection result (B1 / FR-MS, SRS sub-module MS.4).
+
+    raw                    : original input series
+    denoised_by_scale      : mapping k_drop → denoised series (one entry per scale)
+    detections             : flat, de-duplicated, scale-tagged detection list;
+                             each Detection carries detection_id, scale,
+                             also_seen_at_scales, parent_id, children_ids,
+                             nesting_depth, directional_bias, relation_to_parent.
+    roots                  : detection_ids of top-level (parentless) detections
+    fpr_by_pattern_by_scale: per-scale per-pattern false-positive rate;
+                             fpr_by_pattern_by_scale[k_drop][pattern_name] = fpr
+                             (FR-MS-5: null-FPR is computed per scale)
+    spurious_nesting_fpr   : expected parent→child links per random-walk surrogate
+                             (FR-MS-5); set after B6; 0.0 until then.
+    """
+    raw: np.ndarray
+    denoised_by_scale: dict
+    detections: list[Detection]
+    roots: list[int]
+    fpr_by_pattern_by_scale: dict
+    spurious_nesting_fpr: float = 0.0

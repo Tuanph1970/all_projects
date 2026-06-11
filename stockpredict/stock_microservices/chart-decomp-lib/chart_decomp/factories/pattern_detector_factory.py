@@ -70,6 +70,9 @@ class PatternDetectorRegistry:
         for nm in names:
             out.extend(self._detectors[nm].detect(skeleton, x, params.get(nm)))
         out.sort(key=lambda d: d.start_index)
+        # Assign unique sequential IDs within this pipeline run (B1 / FR-MS).
+        for i, d in enumerate(out):
+            d.detection_id = i
         return out
 
     # ── Helpers ──────────────────────────────────────────────────────────────
