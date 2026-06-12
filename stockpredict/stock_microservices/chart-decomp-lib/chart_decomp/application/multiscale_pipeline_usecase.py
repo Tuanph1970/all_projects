@@ -16,7 +16,7 @@ Part B task map
 B2  multi-scale sweep + per-scale null-FPR
 B3  this module: cross-scale de-duplication (_dedup_detections)
 B4  nesting forest via build_nesting_forest (nesting_usecase, containment_tol)
-B5  (future): agreement/conflict annotation
+B5  agreement/conflict annotation via annotate_relations (nesting_usecase)
 B6  (future): spurious-nesting null rate (spurious_nesting_fpr)
 """
 from __future__ import annotations
@@ -25,7 +25,10 @@ from typing import Iterable, Optional, Union
 
 import numpy as np
 
-from chart_decomp.application.nesting_usecase import build_nesting_forest
+from chart_decomp.application.nesting_usecase import (
+    annotate_relations,
+    build_nesting_forest,
+)
 from chart_decomp.domain.entities import MultiScaleResult, SwingSkeleton
 from chart_decomp.domain.value_objects import DenoiseParams, SwingParams, TimeSeries
 from chart_decomp.factories.pattern_detector_factory import detect_patterns
@@ -278,6 +281,9 @@ def detect_multiscale(
     # B4: nesting forest (FR-MS-3) — parent/child/depth links within single legs
     build_nesting_forest(deduped, containment_tol=containment_tol)
     roots = [d.detection_id for d in deduped if d.parent_id is None]
+
+    # B5: descriptive directional-bias + agreement/conflict annotation (FR-MS-4)
+    annotate_relations(deduped)
 
     return MultiScaleResult(
         raw=x.copy(),

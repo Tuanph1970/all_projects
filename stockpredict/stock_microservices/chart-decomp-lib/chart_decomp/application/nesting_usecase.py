@@ -27,10 +27,12 @@ its child, so the scale strictly decreases along every parent→child edge.
 This module is pure reconciliation over the existing ``Detection`` data model;
 it never re-runs denoising, swing extraction, or detection.
 
-Part B task map: B4 (this module).  B5 adds agreement/conflict annotation on top
-of the forest; B6 measures the spurious-nesting null rate.
+Part B task map: B4 (nesting forest) and B5 (agreement/conflict annotation) live
+here.  B6 measures the spurious-nesting null rate.
 """
 from __future__ import annotations
+
+from typing import Optional
 
 from chart_decomp.domain.entities import Detection
 
@@ -159,3 +161,76 @@ def build_nesting_forest(
 
     _assign_depths(detections, by_id)
     return detections
+
+
+# ── B5: agreement/conflict annotation (FR-MS-4) ───────────────────────────────
+
+# Directional bias per pattern type (SRS sub-module MS.6).  This is DESCRIPTIVE
+# metadata only: it records the textbook bias a human associates with each shape,
+# and carries NO predictive claim (Trap MS-B4 / Part II constraint L3).  The
+# system never asserts that a conflict resolves in either direction.
+DEFAULT_BIAS_TABLE: dict[str, str] = {
+    "Head & Shoulders": "bearish",
+    "Inverse Head & Shoulders": "bullish",
+    "Bull Flag": "bullish",
+    "Bull Pennant": "bullish",
+    "Bear Flag": "bearish",
+    "Bear Pennant": "bearish",
+    "Double Top": "bearish",
+    "Double Bottom": "bullish",
+    "Ascending Triangle": "bullish",
+    "Descending Triangle": "bearish",
+    "Symmetric Triangle": "neutral",
+    "Broadening": "neutral",
+    "Broadening Formation": "neutral",
+}
+
+
+def _relation(child_bias: str, parent_bias: str) -> str:
+    """Classify a child's bias against its parent's (FR-MS-4).
+
+    A directional claim is only made when BOTH sides are directional: if either
+    is neutral the relation is 'neutral' (no agreement/conflict is asserted).
+    """
+    if child_bias == "neutral" or parent_bias == "neutral":
+        return "neutral"
+    return "agreement" if child_bias == parent_bias else "conflict"
+
+
+def annotate_relations(
+    detections: list[Detection],
+    bias_table: Optional[dict[str, str]] = None,
+) -> None:
+    """Annotate directional bias and parent agreement/conflict in place (FR-MS-4).
+
+    Sets, for every detection, ``directional_bias`` from ``bias_table`` (pattern
+    types absent from the table fall back to 'neutral').  For every detection
+    with a parent, sets ``relation_to_parent`` ∈ {'agreement', 'conflict',
+    'neutral'} by comparing biases; roots keep ``relation_to_parent = None``.
+
+    Call AFTER :func:`build_nesting_forest`, which establishes ``parent_id``.
+
+    Parameters
+    ----------
+    detections : nesting-linked detection list (parent_id already set by B4).
+    bias_table : pattern-name → bias override; defaults to DEFAULT_BIAS_TABLE.
+
+    Notes
+    -----
+    This annotation is advisory, descriptive metadata only — it is NOT a trading
+    signal and makes no predictive claim (Trap MS-B4 / Part II L3).  The function
+    is idempotent.
+    """
+    table = bias_table if bias_table is not None else DEFAULT_BIAS_TABLE
+    by_id = {d.detection_id: d for d in detections if d.detection_id is not None}
+
+    for d in detections:
+        d.directional_bias = table.get(d.pattern, "neutral")
+
+    for d in detections:
+        if d.parent_id is None or d.parent_id not in by_id:
+            d.relation_to_parent = None
+            continue
+        d.relation_to_parent = _relation(
+            d.directional_bias, by_id[d.parent_id].directional_bias
+        )
