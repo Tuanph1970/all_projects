@@ -15,7 +15,7 @@ Part B task map
 ---------------
 B2  multi-scale sweep + per-scale null-FPR
 B3  this module: cross-scale de-duplication (_dedup_detections)
-B4  (future): nesting forest (containment_tol)
+B4  nesting forest via build_nesting_forest (nesting_usecase, containment_tol)
 B5  (future): agreement/conflict annotation
 B6  (future): spurious-nesting null rate (spurious_nesting_fpr)
 """
@@ -25,6 +25,7 @@ from typing import Iterable, Optional, Union
 
 import numpy as np
 
+from chart_decomp.application.nesting_usecase import build_nesting_forest
 from chart_decomp.domain.entities import MultiScaleResult, SwingSkeleton
 from chart_decomp.domain.value_objects import DenoiseParams, SwingParams, TimeSeries
 from chart_decomp.factories.pattern_detector_factory import detect_patterns
@@ -169,8 +170,8 @@ def detect_multiscale(
     dedup_jaccard : Jaccard overlap threshold for cross-scale de-duplication
                     (FR-MS-2).  Detections of the same pattern at adjacent
                     scales with overlap > this value are merged into one.
-    containment_tol: sample tolerance for date-range containment tests
-                    (FR-MS-3). Reserved for B4; accepted but not used yet.
+    containment_tol: sample tolerance for date-range containment and
+                    single-leg tests when building the nesting forest (FR-MS-3).
     compute_fpr   : if True, run the null-FPR sweep per scale (FR-MS-5) and
                     annotate detections with null_percentile / noteworthy.
                     Slow for large n_null; set False for fast exploratory runs.
@@ -186,7 +187,8 @@ def detect_multiscale(
                                .scale (coarsest surviving level) and a
                                globally-unique .detection_id; merged members
                                record their other scales in .also_seen_at_scales
-      roots                  — [] (populated by B4 build_nesting_forest)
+      roots                  — detection_ids of parentless (top-level)
+                               detections, from build_nesting_forest (FR-MS-3)
       fpr_by_pattern_by_scale— {k_drop: {pattern: fpr}} for every scale;
                                empty inner dict when compute_fpr=False or no
                                detections fired on the null at that scale
@@ -273,11 +275,15 @@ def detect_multiscale(
     # B3: cross-scale de-duplication (FR-MS-2)
     deduped = _dedup_detections(all_detections, dedup_jaccard=dedup_jaccard)
 
+    # B4: nesting forest (FR-MS-3) — parent/child/depth links within single legs
+    build_nesting_forest(deduped, containment_tol=containment_tol)
+    roots = [d.detection_id for d in deduped if d.parent_id is None]
+
     return MultiScaleResult(
         raw=x.copy(),
         denoised_by_scale=denoised_by_scale,
         detections=deduped,
-        roots=[],               # B4 fills this in
+        roots=roots,
         fpr_by_pattern_by_scale=fpr_by_pattern_by_scale,
         spurious_nesting_fpr=0.0,   # B6 fills this in
     )

@@ -51,9 +51,11 @@ class TestMultiScaleReturnType:
     def test_raw_preserved(self, ms_result, ms_x):
         np.testing.assert_array_equal(ms_result.raw, ms_x)
 
-    def test_roots_empty_before_b4(self, ms_result):
-        """Nesting forest is built in B4; roots must be empty at B2 stage."""
-        assert ms_result.roots == []
+    def test_roots_populated_by_b4(self, ms_result):
+        """B4 builds the nesting forest; roots are the parentless detection_ids."""
+        expected = {d.detection_id for d in ms_result.detections
+                    if d.parent_id is None}
+        assert set(ms_result.roots) == expected
 
     def test_spurious_nesting_fpr_zero_before_b6(self, ms_result):
         assert ms_result.spurious_nesting_fpr == 0.0
