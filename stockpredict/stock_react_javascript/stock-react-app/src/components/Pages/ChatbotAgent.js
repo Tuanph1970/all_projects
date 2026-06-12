@@ -9,7 +9,7 @@ import chatbotAgentService from '../../services/chatbotAgentService';
 import '../../styles/chatbot-agent.css';
 
 const ChatbotAgent = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);

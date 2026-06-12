@@ -6,7 +6,7 @@ import { API_ENDPOINTS } from '../../constants/api';
 import { useNavigate } from 'react-router-dom';
 
 const Watchlist = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);

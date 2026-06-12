@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
  * Pure UI component — no backend calls.
  */
 const PositionCalculator = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [equity, setEquity] = useState(100_000_000);
   const [riskPct, setRiskPct] = useState(2);
   const [entry, setEntry] = useState(100);

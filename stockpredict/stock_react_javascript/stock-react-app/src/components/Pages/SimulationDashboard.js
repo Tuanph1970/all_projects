@@ -16,7 +16,7 @@ import { getRechartsGridProps } from "../../constants/chartTheme";
 import "./SimulationDashboard.css";
 
 const SimulationDashboard = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   // State management
   const [tickers, setTickers] = useState([]);
   const [models, setModels] = useState([]);
