@@ -17,7 +17,7 @@ B2  multi-scale sweep + per-scale null-FPR
 B3  this module: cross-scale de-duplication (_dedup_detections)
 B4  nesting forest via build_nesting_forest (nesting_usecase, containment_tol)
 B5  agreement/conflict annotation via annotate_relations (nesting_usecase)
-B6  (future): spurious-nesting null rate (spurious_nesting_fpr)
+B6  spurious-nesting null rate (validation/spurious_nesting.py)
 """
 from __future__ import annotations
 
@@ -38,6 +38,7 @@ from chart_decomp.infrastructure.validation.null_fpr import (
     annotate_significance,
     null_detection_distribution,
 )
+from chart_decomp.infrastructure.validation.spurious_nesting import spurious_nesting_fpr
 from chart_decomp.infrastructure.validation.surrogates import estimate_volatility
 
 
@@ -195,7 +196,8 @@ def detect_multiscale(
       fpr_by_pattern_by_scale— {k_drop: {pattern: fpr}} for every scale;
                                empty inner dict when compute_fpr=False or no
                                detections fired on the null at that scale
-      spurious_nesting_fpr   — 0.0 (populated by B6)
+      spurious_nesting_fpr   — mean parent→child links per random-walk
+                               surrogate (FR-MS-5); 0.0 when compute_fpr=False
 
     Notes
     -----
@@ -285,11 +287,29 @@ def detect_multiscale(
     # B5: descriptive directional-bias + agreement/conflict annotation (FR-MS-4)
     annotate_relations(deduped)
 
+    # B6: spurious-nesting null rate (FR-MS-5) — only when the null sweep is on.
+    # Measured under the same config so the null matches the real run; inner
+    # surrogate runs use compute_fpr=False (no recursion).
+    spurious_fpr = 0.0
+    if compute_fpr:
+        spurious_fpr = spurious_nesting_fpr(
+            length=n,
+            volatility=vol,
+            scales=tuple(sorted(scales)),
+            denoise_kw=denoise_kw,
+            swing_kw=swing_kw,
+            detectors=detectors,
+            dedup_jaccard=dedup_jaccard,
+            containment_tol=containment_tol,
+            n_null=n_null,
+            seed=seed,
+        )
+
     return MultiScaleResult(
         raw=x.copy(),
         denoised_by_scale=denoised_by_scale,
         detections=deduped,
         roots=roots,
         fpr_by_pattern_by_scale=fpr_by_pattern_by_scale,
-        spurious_nesting_fpr=0.0,   # B6 fills this in
+        spurious_nesting_fpr=spurious_fpr,
     )
