@@ -880,21 +880,31 @@ function PatternTab({ series, t }) {
   const [kDrop, setKDrop]       = useState(1);
   const [threshold, setThr]     = useState(0.08);
   const [computeFpr, setComputeFpr] = useState(true);
+  const [multiScale, setMultiScale] = useState(false);
+  const [scales, setScales]     = useState([1, 2, 3]);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState(null);
   const [result, setResult]     = useState(null);
+  const [mode, setMode]         = useState('single');
+
+  const toggleScale = (s) => setScales(prev =>
+    prev.includes(s) ? prev.filter(v => v !== s) : [...prev, s].sort((a, b) => a - b));
 
   const run = async () => {
     if (!series) return;
     setLoading(true); setError(null);
     try {
-      const resp = await chartDecompService.patternPipeline({
-        series,
-        k_drop: kDrop,
-        threshold,
-        compute_fpr: computeFpr,
-      });
-      setResult(unwrap(resp));
+      if (multiScale) {
+        const resp = await chartDecompService.patternMultiScale({
+          series, scales, threshold, compute_fpr: computeFpr,
+        });
+        setResult(unwrap(resp)); setMode('multi');
+      } else {
+        const resp = await chartDecompService.patternPipeline({
+          series, k_drop: kDrop, threshold, compute_fpr: computeFpr,
+        });
+        setResult(unwrap(resp)); setMode('single');
+      }
     } catch (e) {
       setError(e?.response?.data?.detail || e.message);
     } finally {
@@ -906,32 +916,203 @@ function PatternTab({ series, t }) {
     <div style={{ padding: 32, color: COLORS.axis }}>{t('chart_decomp.patterns.no_series')}</div>
   );
 
-  const chartData = result
+  // ── Multi-scale nested view (FR-MS-6 / FR-VIZ-1/2, B7) ───────────────────────
+  const renderMulti = () => {
+    const dbs = result.denoised_by_scale || {};
+    const scaleKeys = Object.keys(dbs).map(Number).sort((a, b) => a - b);
+    const coarsest = scaleKeys.length ? Math.max(...scaleKeys) : null;
+    const msData = series.map((rawV, i) => {
+      const row = { i, raw: rawV };
+      scaleKeys.forEach(k => { row['d' + k] = dbs[k]?.[i]; });
+      return row;
+    });
+    const dets = result.detections ?? [];
+    const byId = {};
+    dets.forEach(d => { byId[d.detection_id] = d; });
+    // Color-link nested detections to their root ancestor (FR-VIZ-1).
+    const rootOf = (d) => {
+      let cur = d, guard = 0;
+      while (cur && cur.parent_id != null && byId[cur.parent_id] && guard++ < 64) cur = byId[cur.parent_id];
+      return cur ? cur.detection_id : d.detection_id;
+    };
+    const rootColor = {};
+    (result.roots ?? []).forEach((rid, idx) => {
+      rootColor[rid] = PATTERN_COLORS[idx % PATTERN_COLORS.length];
+    });
+    const colorFor = (d) => rootColor[rootOf(d)] || PATTERN_COLORS[0];
+    const relColor = (r) => r === 'agreement' ? COLORS.success
+                          : r === 'conflict' ? COLORS.danger : COLORS.axis;
+
+    return (<>
+      {/* Panel — denoised by scale */}
+      <h4 style={{ fontSize:13, color:COLORS.axis, margin:'0 0 6px' }}>
+        {t('chart_decomp.patterns.panel_scales_title')}
+      </h4>
+      <div style={{ background:COLORS.card, border:`1px solid ${COLORS.border}`,
+                    borderRadius:8, padding:'12px 4px', marginBottom:16 }}>
+        <ResponsiveContainer width="100%" height={170}>
+          <LineChart data={msData}>
+            <CartesianGrid strokeDasharray={COLORS.gridDash} stroke={COLORS.grid} />
+            <XAxis dataKey="i" tick={{ fontSize:10 }} />
+            <YAxis tick={{ fontSize:10 }} width={50} />
+            <Tooltip contentStyle={{ fontSize:11 }} />
+            <Line dataKey="raw" stroke={COLORS.original} dot={false} strokeWidth={1}
+                  name={t('chart_decomp.patterns.raw_label')} />
+            {scaleKeys.map((k, idx) => (
+              <Line key={k} dataKey={'d' + k} dot={false} strokeWidth={1.5}
+                    stroke={PATTERN_COLORS[idx % PATTERN_COLORS.length]}
+                    name={`k_drop=${k}`} />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Panel — nested detections, color-linked to parent */}
+      <h4 style={{ fontSize:13, color:COLORS.axis, margin:'0 0 6px' }}>
+        {t('chart_decomp.patterns.panel_nested_title')}
+        <span style={{ marginLeft:8, fontSize:11, color:COLORS.axis }}>({dets.length})</span>
+      </h4>
+      <div style={{ background:COLORS.card, border:`1px solid ${COLORS.border}`,
+                    borderRadius:8, padding:'12px 4px', marginBottom:16 }}>
+        {dets.length === 0
+          ? <p style={{ padding:'24px 16px', color:COLORS.axis, fontSize:13 }}>
+              {t('chart_decomp.patterns.no_detections')}
+            </p>
+          : <ResponsiveContainer width="100%" height={190}>
+              <LineChart data={msData}>
+                <CartesianGrid strokeDasharray={COLORS.gridDash} stroke={COLORS.grid} />
+                <XAxis dataKey="i" tick={{ fontSize:10 }} />
+                <YAxis tick={{ fontSize:10 }} width={50} />
+                <Tooltip contentStyle={{ fontSize:11 }} />
+                {dets.map((d) => (
+                  <ReferenceArea key={d.detection_id} x1={d.start_index} x2={d.end_index}
+                                 fill={colorFor(d)}
+                                 fillOpacity={(d.confirmed ? 0.10 : 0.05) + 0.07 * (d.nesting_depth || 0)}
+                                 stroke={colorFor(d)} strokeOpacity={0.5}
+                                 strokeDasharray={d.confirmed ? 'none' : '4 2'} />
+                ))}
+                {coarsest != null &&
+                  <Line dataKey={'d' + coarsest} stroke={COLORS.original} dot={false} strokeWidth={1.5} />}
+              </LineChart>
+            </ResponsiveContainer>
+        }
+      </div>
+
+      {/* FR-MS-6 — nesting detection report (scale + nested-in + relation) */}
+      <h4 style={{ fontSize:13, color:COLORS.axis, margin:'0 0 6px' }}>
+        {t('chart_decomp.patterns.report_title')}
+      </h4>
+      <div style={{ background:COLORS.card, border:`1px solid ${COLORS.border}`,
+                    borderRadius:8, overflow:'auto' }}>
+        <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+          <thead>
+            <tr style={{ background:COLORS.bg }}>
+              {['col_pattern','col_scale','col_nested_in','col_relation','col_score','col_confirmed','col_null_pct'].map(k => (
+                <th key={k} style={{ padding:'8px 12px', textAlign:'left',
+                                     borderBottom:`1px solid ${COLORS.border}`,
+                                     color:COLORS.axis, fontWeight:600 }}>
+                  {t(`chart_decomp.patterns.${k}`)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {dets.length === 0
+              ? <tr><td colSpan={7} style={{ padding:'12px', color:COLORS.axis, textAlign:'center' }}>
+                  {t('chart_decomp.patterns.no_detections')}
+                </td></tr>
+              : dets.map((d) => (
+                <tr key={d.detection_id} style={{ borderBottom:`1px solid ${COLORS.border}` }}>
+                  <td style={{ padding:'7px 12px', fontWeight:500, color:colorFor(d),
+                               paddingLeft: 12 + 18 * (d.nesting_depth || 0) }}>
+                    {(d.nesting_depth || 0) > 0 && <span style={{ color:COLORS.axis }}>└ </span>}
+                    {d.pattern}
+                    {d.noteworthy === true && (
+                      <span title="Above null threshold (noteworthy)"
+                            style={{ marginLeft:6, fontSize:11, color:COLORS.success, fontWeight:700 }}>★</span>
+                    )}
+                  </td>
+                  <td style={{ padding:'7px 12px' }}>
+                    {d.scale}
+                    {d.also_seen_at_scales?.length > 0 &&
+                      <span style={{ color:COLORS.axis, fontSize:11 }}> (+{d.also_seen_at_scales.join(',')})</span>}
+                  </td>
+                  <td style={{ padding:'7px 12px', color:COLORS.axis }}>{d.parent_label || '—'}</td>
+                  <td style={{ padding:'7px 12px' }}>
+                    {d.relation_to_parent
+                      ? <span style={{ color:relColor(d.relation_to_parent), fontWeight:500 }}>
+                          {t(`chart_decomp.patterns.rel_${d.relation_to_parent}`)}
+                        </span>
+                      : <span style={{ color:COLORS.axis }}>—</span>}
+                  </td>
+                  <td style={{ padding:'7px 12px' }}>{(d.score * 100).toFixed(0)}%</td>
+                  <td style={{ padding:'7px 12px' }}>
+                    {d.confirmed
+                      ? <span style={{ color:COLORS.success }}>✓</span>
+                      : <span style={{ color:COLORS.warn, fontSize:11 }}>Edge?</span>}
+                  </td>
+                  <td style={{ padding:'7px 12px', color:COLORS.axis }}>
+                    {d.null_percentile != null ? `${d.null_percentile.toFixed(0)}%` : '—'}
+                  </td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+        {computeFpr && (
+          <div style={{ padding:'8px 12px', fontSize:11, color:COLORS.axis,
+                        borderTop:`1px solid ${COLORS.border}` }}>
+            {t('chart_decomp.patterns.spurious_label')}: {(result.spurious_nesting_fpr ?? 0).toFixed(3)}
+          </div>
+        )}
+      </div>
+    </>);
+  };
+
+  const chartData = (result && mode === 'single')
     ? result.denoised.map((v, i) => ({ i, raw: series[i], denoised: v }))
     : [];
 
-  // Pivot sets
-  const highPivots = new Set(result?.swings.filter(s => s.kind === 'H').map(s => s.index) ?? []);
-  const lowPivots  = new Set(result?.swings.filter(s => s.kind === 'L').map(s => s.index) ?? []);
+  // Pivot sets (single-scale only)
+  const highPivots = new Set(mode === 'single' ? (result?.swings.filter(s => s.kind === 'H').map(s => s.index) ?? []) : []);
+  const lowPivots  = new Set(mode === 'single' ? (result?.swings.filter(s => s.kind === 'L').map(s => s.index) ?? []) : []);
 
-  // Detection regions for Panel 3
-  const dets = result?.detections ?? [];
+  // Detection regions for Panel 3 (single-scale)
+  const dets = (mode === 'single' ? result?.detections : []) ?? [];
 
   return (
     <div style={{ padding: '0 0 24px' }}>
       {/* Controls */}
-      <div style={{ display:'flex', gap:16, alignItems:'flex-end', marginBottom:20,
+      <div style={{ display:'flex', gap:16, alignItems:'flex-end', marginBottom:20, flexWrap:'wrap',
                     background:COLORS.card, border:`1px solid ${COLORS.border}`,
                     borderRadius:8, padding:'14px 18px' }}>
-        <label style={{ fontSize:13 }}>
-          {t('chart_decomp.patterns.k_drop_label')}
-          <br />
-          <select value={kDrop} onChange={e => setKDrop(+e.target.value)}
-                  style={{ marginTop:4, padding:'3px 8px', borderRadius:4,
-                           border:`1px solid ${COLORS.border}`, fontSize:13 }}>
-            {[0,1,2,3,4].map(v => <option key={v} value={v}>{v}</option>)}
-          </select>
+        <label style={{ fontSize:13, display:'flex', alignItems:'center', gap:6, cursor:'pointer' }}>
+          <input type="checkbox" checked={multiScale} onChange={e => setMultiScale(e.target.checked)} />
+          {t('chart_decomp.patterns.ms_toggle')}
         </label>
+        {multiScale
+          ? <div style={{ fontSize:13 }}>
+              {t('chart_decomp.patterns.ms_scales_label')}
+              <br />
+              <span style={{ display:'inline-flex', gap:10, marginTop:4 }}>
+                {[1,2,3,4].map(s => (
+                  <label key={s} style={{ display:'flex', alignItems:'center', gap:3, cursor:'pointer' }}>
+                    <input type="checkbox" checked={scales.includes(s)} onChange={() => toggleScale(s)} />
+                    {s}
+                  </label>
+                ))}
+              </span>
+            </div>
+          : <label style={{ fontSize:13 }}>
+              {t('chart_decomp.patterns.k_drop_label')}
+              <br />
+              <select value={kDrop} onChange={e => setKDrop(+e.target.value)}
+                      style={{ marginTop:4, padding:'3px 8px', borderRadius:4,
+                               border:`1px solid ${COLORS.border}`, fontSize:13 }}>
+                {[0,1,2,3,4].map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
+            </label>
+        }
         <label style={{ fontSize:13 }}>
           {t('chart_decomp.patterns.threshold_label')}
           <br />
@@ -944,7 +1125,7 @@ function PatternTab({ series, t }) {
           <input type="checkbox" checked={computeFpr} onChange={e => setComputeFpr(e.target.checked)} />
           {t('chart_decomp.patterns.compute_fpr_label')}
         </label>
-        <button onClick={run} disabled={loading}
+        <button onClick={run} disabled={loading || (multiScale && scales.length === 0)}
                 style={{ padding:'6px 18px', background:COLORS.accent, color:'#fff',
                          border:'none', borderRadius:6, cursor:'pointer', fontSize:13 }}>
           {loading ? t('chart_decomp.patterns.running') : t('chart_decomp.patterns.run_btn')}
@@ -954,7 +1135,9 @@ function PatternTab({ series, t }) {
         </span>}
       </div>
 
-      {result && (<>
+      {result && mode === 'multi' && renderMulti()}
+
+      {result && mode === 'single' && (<>
         {/* Panel 1 — Raw vs Denoised (FR-VIZ-1 §1) */}
         <h4 style={{ fontSize:13, color:COLORS.axis, margin:'0 0 6px' }}>
           {t('chart_decomp.patterns.panel1_title')}

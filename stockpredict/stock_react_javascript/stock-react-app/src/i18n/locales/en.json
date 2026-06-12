@@ -2288,7 +2288,18 @@
       "col_null_pct": "Null pct95",
       "confirmed_yes": "✓",
       "confirmed_edge": "Edge?",
-      "no_series": "Load a series first."
+      "no_series": "Load a series first.",
+      "ms_toggle": "Multi-scale (nested)",
+      "ms_scales_label": "Scales (k_drop)",
+      "panel_scales_title": "Denoised by scale",
+      "panel_nested_title": "Nested detections (color-linked to parent)",
+      "col_scale": "Scale",
+      "col_nested_in": "Nested in",
+      "col_relation": "Relation",
+      "spurious_label": "Spurious-nesting null rate",
+      "rel_agreement": "agreement",
+      "rel_conflict": "conflict",
+      "rel_neutral": "neutral"
     }
   },
   "file_manager": {

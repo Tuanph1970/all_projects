@@ -40,12 +40,14 @@ from app.api.schemas import (
     PatternDenoiseResponse,
     PatternDetectRequest,
     PatternDetectResponse,
+    PatternMultiScaleRequest,
     PatternNullFPRRequest,
     PatternNullFPRResponse,
     PatternPipelineRequest,
     PatternPipelineResponse,
     PatternSwingsRequest,
     PatternSwingsResponse,
+    MultiScalePatternResponse,
     RealizedVarRequest,
     RealizedVarResponse,
     VMDHARForecastRequest,
@@ -270,5 +272,19 @@ async def patterns_null_fpr(req: PatternNullFPRRequest) -> PatternNullFPRRespons
     """Run the full pipeline on n_null random-walk surrogates and return per-pattern FPR."""
     try:
         return await run_in_threadpool(svc.run_pattern_null_fpr, req)
+    except Exception as exc:
+        raise _handle(exc) from exc
+
+
+@router.post("/patterns/multiscale", response_model=MultiScalePatternResponse,
+             summary="Multi-scale nested pattern detection (FR-MS-1…6)")
+async def patterns_multiscale(req: PatternMultiScaleRequest) -> MultiScalePatternResponse:
+    """Sweep the pipeline across denoising scales, de-duplicate, build the nesting
+    forest, and annotate agreement/conflict.  Set compute_fpr=true to add per-scale
+    null-FPR and the spurious-nesting rate (slower).  Detections are returned in
+    nesting forest pre-order (parents immediately followed by their children).
+    """
+    try:
+        return await run_in_threadpool(svc.run_pattern_multiscale, req)
     except Exception as exc:
         raise _handle(exc) from exc

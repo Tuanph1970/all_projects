@@ -349,6 +349,16 @@ class DetectionInfo(BaseModel):
     noteworthy: Optional[bool] = None
     confirmed: bool = True
     details: dict[str, Any] = Field(default_factory=dict)
+    # ── multi-scale nesting fields (FR-MS / B1–B7); None/empty for single-scale ──
+    detection_id: Optional[int] = None
+    scale: Optional[int] = None
+    also_seen_at_scales: list[int] = Field(default_factory=list)
+    parent_id: Optional[int] = None
+    parent_label: Optional[str] = None   # FR-MS-6 report: "nested in" reference
+    children_ids: list[int] = Field(default_factory=list)
+    nesting_depth: int = 0               # FR-VIZ-2: table indentation level
+    directional_bias: Optional[str] = None
+    relation_to_parent: Optional[str] = None
 
 
 class PatternDetectRequest(BaseModel):
@@ -385,6 +395,57 @@ class PatternPipelineRequest(PatternDetectRequest):
 
 class PatternPipelineResponse(PatternDetectResponse):
     fpr_by_pattern: dict[str, float] = Field(default_factory=dict)
+
+
+class PatternMultiScaleRequest(BaseModel):
+    """Multi-scale sweep → de-dup → nesting forest → annotation (FR-MS-1…6).
+
+    Runs the existing pipeline at each ``k_drop`` in ``scales`` (fine → coarse),
+    merges cross-scale duplicates, builds the nesting forest, and (when
+    ``compute_fpr``) reports per-scale null-FPR plus the spurious-nesting rate.
+    """
+    series: list[float]
+    wavelet: str = "sym8"
+    level: int = Field(4, ge=1, le=12)
+    denoise_method: str = "drop"
+    order: int = Field(10, ge=1)
+    threshold: float = Field(0.08, gt=0.0)
+    threshold_mode: str = "range_frac"
+    min_gap: int = Field(8, ge=1)
+    detectors: list[str] = Field(default_factory=list)
+    scales: list[int] = Field(default_factory=lambda: [1, 2, 3])
+    dedup_jaccard: float = Field(0.7, gt=0.0, le=1.0)
+    containment_tol: int = Field(2, ge=0)
+    compute_fpr: bool = False
+    n_null: int = Field(500, ge=10, le=2000)
+    fpr_seed: Optional[int] = None
+
+    @field_validator("series")
+    @classmethod
+    def _check(cls, v: list[float]) -> list[float]:
+        return _check_array(v, min_len=8)
+
+    @field_validator("scales")
+    @classmethod
+    def _check_scales(cls, v: list[int]) -> list[int]:
+        if not v:
+            raise ValueError("scales must contain at least one k_drop level")
+        if any(s < 0 for s in v):
+            raise ValueError("scales must be non-negative k_drop levels")
+        return v
+
+
+class MultiScalePatternResponse(BaseModel):
+    """FR-MS-6 output: scale-tagged, de-duplicated, nesting-linked detections.
+
+    ``detections`` is in nesting forest pre-order (each parent immediately
+    followed by its nested children) so the table can indent by ``nesting_depth``.
+    """
+    denoised_by_scale: dict[int, list[float]]
+    detections: list[DetectionInfo]
+    roots: list[int]
+    fpr_by_pattern_by_scale: dict[int, dict[str, float]] = Field(default_factory=dict)
+    spurious_nesting_fpr: float = 0.0
 
 
 class PatternNullFPRRequest(BaseModel):

@@ -2288,7 +2288,18 @@
       "col_null_pct": "Null pct95",
       "confirmed_yes": "✓",
       "confirmed_edge": "Cạnh?",
-      "no_series": "Tải dữ liệu trước."
+      "no_series": "Tải dữ liệu trước.",
+      "ms_toggle": "Đa tỉ lệ (lồng nhau)",
+      "ms_scales_label": "Tỉ lệ (k_drop)",
+      "panel_scales_title": "Khử nhiễu theo tỉ lệ",
+      "panel_nested_title": "Mẫu hình lồng nhau (liên kết màu với mẫu cha)",
+      "col_scale": "Tỉ lệ",
+      "col_nested_in": "Lồng trong",
+      "col_relation": "Quan hệ",
+      "spurious_label": "Tỉ lệ lồng nhau ngẫu nhiên (null)",
+      "rel_agreement": "đồng thuận",
+      "rel_conflict": "mâu thuẫn",
+      "rel_neutral": "trung tính"
     }
   },
   "file_manager": {

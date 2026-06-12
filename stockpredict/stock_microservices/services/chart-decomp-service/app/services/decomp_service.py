@@ -10,6 +10,8 @@ import numpy as np
 
 import chart_decomp as cd
 
+from chart_decomp.application.multiscale_pipeline_usecase import detect_multiscale
+from chart_decomp.application.nesting_report import detection_label, order_forest
 from chart_decomp.application.run_forecast_usecase import RunForecastUseCase
 from chart_decomp.domain.entities import SwingSkeleton
 from chart_decomp.domain.value_objects import (
@@ -53,11 +55,13 @@ from app.api.schemas import (
     PatternDenoiseResponse,
     PatternDetectRequest,
     PatternDetectResponse,
+    PatternMultiScaleRequest,
     PatternNullFPRRequest,
     PatternNullFPRResponse,
     PatternPipelineRequest,
     PatternPipelineResponse,
     PatternSwingsRequest,
+    MultiScalePatternResponse,
     PatternSwingsResponse,
     RealizedVarRequest,
     RealizedVarResponse,
@@ -333,8 +337,11 @@ def run_backtest(req: BacktestRequest) -> BacktestResponse:
 # Part II — Pattern detection (CD-616 / A16)
 # ---------------------------------------------------------------------------
 
-def _det_to_info(d) -> DetectionInfo:
+def _det_to_info(d, by_id: dict | None = None) -> DetectionInfo:
     np_val = round(float(d.null_percentile), 1) if d.null_percentile is not None else None
+    parent_label = None
+    if by_id is not None and d.parent_id is not None and d.parent_id in by_id:
+        parent_label = detection_label(by_id[d.parent_id])
     return DetectionInfo(
         pattern=d.pattern,
         start_index=d.start_index,
@@ -346,6 +353,16 @@ def _det_to_info(d) -> DetectionInfo:
         confirmed=d.confirmed,
         details={k: (v.tolist() if hasattr(v, "tolist") else v)
                  for k, v in d.details.items()},
+        # multi-scale nesting fields (default-safe for single-scale detections)
+        detection_id=d.detection_id,
+        scale=d.scale,
+        also_seen_at_scales=list(d.also_seen_at_scales),
+        parent_id=d.parent_id,
+        parent_label=parent_label,
+        children_ids=list(d.children_ids),
+        nesting_depth=d.nesting_depth,
+        directional_bias=d.directional_bias,
+        relation_to_parent=d.relation_to_parent,
     )
 
 
@@ -430,6 +447,49 @@ def run_pattern_pipeline(req: PatternPipelineRequest) -> PatternPipelineResponse
                 for s in swings],
         detections=[_det_to_info(d) for d in dets],
         fpr_by_pattern=fpr,
+    )
+
+
+def run_pattern_multiscale(req: PatternMultiScaleRequest) -> MultiScalePatternResponse:
+    """Multi-scale sweep + de-dup + nesting forest + annotation (FR-MS-1…6).
+
+    Delegates to the library ``detect_multiscale`` (which runs the existing
+    single-scale pipeline per scale, de-duplicates, builds the nesting forest,
+    annotates agreement/conflict, and — when ``compute_fpr`` — computes per-scale
+    null-FPR plus the spurious-nesting rate).  Detections are returned in nesting
+    forest pre-order so the report can indent children under parents.
+    """
+    x = np.asarray(req.series, dtype=np.float64)
+    detectors = req.detectors if req.detectors else "all"
+    result = detect_multiscale(
+        x,
+        scales=tuple(req.scales),
+        denoise_kw={"wavelet": req.wavelet, "level": req.level,
+                    "method": req.denoise_method},
+        swing_kw={"order": req.order, "threshold": req.threshold,
+                  "threshold_mode": req.threshold_mode, "min_gap": req.min_gap},
+        detectors=detectors,
+        dedup_jaccard=req.dedup_jaccard,
+        containment_tol=req.containment_tol,
+        compute_fpr=req.compute_fpr,
+        n_null=req.n_null,
+        seed=req.fpr_seed,
+    )
+
+    by_id = {d.detection_id: d for d in result.detections
+             if d.detection_id is not None}
+    ordered = order_forest(result.detections)
+
+    return MultiScalePatternResponse(
+        denoised_by_scale={int(k): np.asarray(v).tolist()
+                           for k, v in result.denoised_by_scale.items()},
+        detections=[_det_to_info(d, by_id) for d in ordered],
+        roots=list(result.roots),
+        fpr_by_pattern_by_scale={
+            int(k): {p: round(float(f), 4) for p, f in inner.items()}
+            for k, inner in result.fpr_by_pattern_by_scale.items()
+        },
+        spurious_nesting_fpr=round(float(result.spurious_nesting_fpr), 4),
     )
 
 

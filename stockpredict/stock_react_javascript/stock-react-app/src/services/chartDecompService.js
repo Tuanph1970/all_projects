@@ -73,6 +73,24 @@ class ChartDecompService {
       { series, detectors, n_null, seed });
   }
 
+  // ── FR-MS: multi-scale nested pattern detection (B7) ─────────────────────
+  async patternMultiScale({
+    series,
+    scales = [1, 2, 3],
+    wavelet = 'sym8', level = 4, denoise_method = 'drop',
+    order = 10, threshold = 0.08, threshold_mode = 'range_frac', min_gap = 8,
+    detectors = [],
+    dedup_jaccard = 0.7, containment_tol = 2,
+    compute_fpr = false, n_null = 100, fpr_seed = null,
+  }) {
+    return httpClient.post(API_ENDPOINTS.CHART_DECOMP_PAT_MULTISCALE, {
+      series, scales, wavelet, level, denoise_method,
+      order, threshold, threshold_mode, min_gap,
+      detectors, dedup_jaccard, containment_tol,
+      compute_fpr, n_null, fpr_seed,
+    });
+  }
+
   async forecastCompare({ log_rv, har = {}, vmd = {} }) {
     return httpClient.post(API_ENDPOINTS.CHART_DECOMP_COMPARE, {
       log_rv,

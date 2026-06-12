@@ -396,6 +396,8 @@ export const API_ENDPOINTS = {
   // Part II — pattern detection (CD-616/617)
   CHART_DECOMP_PAT_PIPELINE: `${API_BASE_URLS.CHART_DECOMP_API}/patterns/pipeline`,
   CHART_DECOMP_PAT_NULL_FPR: `${API_BASE_URLS.CHART_DECOMP_API}/patterns/null-fpr`,
+  // FR-MS — multi-scale nested pattern detection (B7)
+  CHART_DECOMP_PAT_MULTISCALE: `${API_BASE_URLS.CHART_DECOMP_API}/patterns/multiscale`,
 };
 
 // HTTP Status Codes
