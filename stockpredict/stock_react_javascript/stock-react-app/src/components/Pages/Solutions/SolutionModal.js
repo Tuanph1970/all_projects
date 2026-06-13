@@ -10,7 +10,6 @@ import {
   ChartCanvas,
   LineSeries,
   BarSeries,
-  StraightLine,
   XAxis,
   YAxis,
   CrossHairCursor,
@@ -31,767 +30,303 @@ import { API_ENDPOINTS } from '../../../constants/api';
 import 'react-datepicker/dist/react-datepicker.css';
 import './SolutionModal.css';
 
-// Financial Prediction Chart Component using react-financial-charts
-const FinancialPredictionChart = ({ data, ticker }) => {
-  if (!data || data.length === 0) {
-    return <div className="text-center text-muted py-5">No prediction data available</div>;
-  }
+// ── Unified single-panel financial chart ────────────────────────────────────
+// One chart "content": price-scale series on the LEFT y-axis, indicators on the
+// RIGHT y-axis (overlaid on the same pane), and volume drawn INVERTED below the
+// date axis. A "Series" dropdown of checkboxes toggles each line. Both the
+// Training and Prediction tabs render this for a consistent look with the rest
+// of the app's charts.
 
-  // Prepare chart data - ensure dates are Date objects
-  const chartData = data.map((item, index) => {
-    let dateObj;
-    if (item.date instanceof Date) {
-      dateObj = item.date;
-    } else if (typeof item.date === 'string') {
-      dateObj = new Date(item.date);
-      if (isNaN(dateObj.getTime())) {
-        const parts = item.date.split('-');
-        if (parts.length === 3) {
-          dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        }
-      }
-    } else {
-      dateObj = new Date();
-      dateObj.setDate(dateObj.getDate() - (data.length - index));
+// Price-scale series (left axis).
+const PRICE_SERIES = [
+  { key: 'close',      label: 'Close',      color: '#111827', field: 'close',      width: 1.5 },
+  { key: 'actual',     label: 'Actual',     color: '#2196F3', field: 'actual',     width: 2 },
+  { key: 'predicted',  label: 'Predicted',  color: '#4CAF50', field: 'predicted',  width: 2, dash: '5,5' },
+  { key: 'validation', label: 'Validation', color: '#FF9800', field: 'validation', width: 2, dash: '3,3' },
+  { key: 'sma_20',     label: 'SMA 20',     color: '#2563eb', field: 'sma_20',     width: 1.5 },
+  { key: 'sma_50',     label: 'SMA 50',     color: '#f59e0b', field: 'sma_50',     width: 1.5 },
+  { key: 'ema_12',     label: 'EMA 12',     color: '#10b981', field: 'ema_12',     width: 1.5 },
+  { key: 'dema',       label: 'DEMA',       color: '#e11d48', field: 'dema',       width: 1.5 },
+  { key: 'tema',       label: 'TEMA',       color: '#7c3aed', field: 'tema',       width: 1.5 },
+  { key: 'wma',        label: 'WMA',        color: '#0891b2', field: 'wma',        width: 1.5 },
+  { key: 'psar',       label: 'PSAR',       color: '#d97706', field: 'psar',       width: 1, dash: '2,2' },
+];
+
+// Bollinger band rendered as one toggle (3 lines).
+const BB_SERIES = { key: 'bb', label: 'Bollinger Bands', color: '#8b5cf6', field: 'bb_upper' };
+
+// Indicators that share the RIGHT y-axis.
+const OSC_SERIES = [
+  { key: 'rsi',   label: 'RSI',        color: '#9c27b0', field: 'rsi' },
+  { key: 'macd',  label: 'MACD',       color: '#2196F3', field: 'macd' },
+  { key: 'cci',   label: 'CCI',        color: '#0ea5e9', field: 'cci' },
+  { key: 'stoch', label: 'Stochastic', color: '#f43f5e', field: 'stoch_k' },
+  { key: 'adx',   label: 'ADX',        color: '#f97316', field: 'adx' },
+  { key: 'atr',   label: 'ATR',        color: '#ec4899', field: 'atr' },
+];
+
+const toChartDate = (item, index, len) => {
+  if (item.date instanceof Date) return item.date;
+  if (typeof item.date === 'string') {
+    let d = new Date(item.date);
+    if (isNaN(d.getTime())) {
+      const p = item.date.split('-');
+      if (p.length === 3) d = new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2]));
     }
-
-    return {
-      ...item,
-      date: dateObj,
-      actual: item.actual || null,
-      predicted: item.predicted || null
-    };
-  }).filter(d => d.date && !isNaN(d.date.getTime()));
-
-  if (chartData.length === 0) {
-    return <div className="text-center text-muted py-5">Invalid prediction data</div>;
+    return d;
   }
-
-  // Check what data is available
-  const hasActual = chartData.some(d => d.actual !== undefined && d.actual !== null && !isNaN(d.actual));
-  const hasPredicted = chartData.some(d => d.predicted !== undefined && d.predicted !== null && !isNaN(d.predicted));
-
-  // Setup time scale provider
-  const ScaleProvider = discontinuousTimeScaleProviderBuilder()
-    .inputDateAccessor(d => d.date);
-
-  const { data: scaledData, xScale, xAccessor, displayXAccessor } = ScaleProvider(chartData);
-
-  // Formatters
-  const pricesDisplayFormat = format(".2f");
-
-  // Calculate extents
-  const max = xAccessor(scaledData[scaledData.length - 1]);
-  const min = xAccessor(scaledData[0]);
-  const xExtents = [min - 1, max + 5];
-
-  // Chart dimensions
-  const width = 1100;
-  const priceHeight = 350;
-  const totalHeight = priceHeight + 50;
-  const margin = { left: 60, right: 70, top: 20, bottom: 30 };
-
-  return (
-    <div style={{ overflow: 'auto' }}>
-      <ChartWrapper yAxisTitle="Price (VND)" xAxisTitle="Date">
-      <ChartCanvas
-        height={totalHeight}
-        ratio={2}
-        width={width}
-        margin={margin}
-        data={scaledData}
-        displayXAccessor={displayXAccessor}
-        seriesName={ticker || "Prediction"}
-        xScale={xScale}
-        xAccessor={xAccessor}
-        xExtents={xExtents}
-        zoomAnchor={lastVisibleItemBasedZoomAnchor}
-      >
-        {/* Main Price Panel: Actual + Predicted */}
-        <Chart
-          id={1}
-          height={priceHeight}
-          yExtents={d => {
-            const values = [d.actual, d.predicted].filter(v => v !== undefined && v !== null && !isNaN(v));
-            return values.length > 0 ? [Math.min(...values) * 0.995, Math.max(...values) * 1.005] : [0, 100];
-          }}
-        >
-          <XAxis showGridLines {...getXAxisProps()} />
-          <YAxis showGridLines tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
-
-          {/* Actual Price Line */}
-          {hasActual && (
-            <LineSeries yAccessor={d => d.actual} strokeStyle="#2196F3" strokeWidth={2.5} />
-          )}
-
-          {/* Predicted Price Line */}
-          {hasPredicted && (
-            <LineSeries yAccessor={d => d.predicted} strokeStyle="#4CAF50" strokeWidth={2.5} strokeDasharray="6,3" />
-          )}
-
-          <MouseCoordinateX />
-          <MouseCoordinateY rectWidth={margin.right} displayFormat={pricesDisplayFormat} />
-
-          <EdgeIndicator
-            itemType="last"
-            rectWidth={margin.right}
-            fill={d => {
-              if (d.predicted !== null && d.predicted !== undefined) return "#4CAF50";
-              return "#2196F3";
-            }}
-            lineStroke={d => {
-              if (d.predicted !== null && d.predicted !== undefined) return "#4CAF50";
-              return "#2196F3";
-            }}
-            displayFormat={pricesDisplayFormat}
-            yAccessor={d => d.predicted !== null && d.predicted !== undefined ? d.predicted : d.actual}
-          />
-
-          {/* Tooltips */}
-          {hasActual && (
-            <SingleValueTooltip
-              yAccessor={d => d.actual}
-              yLabel="Actual"
-              yDisplayFormat={pricesDisplayFormat}
-              origin={[8, 16]}
-              labelFill="#2196F3"
-            />
-          )}
-          {hasPredicted && (
-            <SingleValueTooltip
-              yAccessor={d => d.predicted}
-              yLabel="Predicted"
-              yDisplayFormat={pricesDisplayFormat}
-              origin={[130, 16]}
-              labelFill="#4CAF50"
-            />
-          )}
-
-          <ZoomButtons />
-        </Chart>
-
-        <CrossHairCursor />
-      </ChartCanvas>
-      </ChartWrapper>
-
-      {/* Chart Legend */}
-      <div className="mt-3 p-3" style={{ backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }}>
-        <div className="d-flex flex-wrap align-items-center gap-4" style={{ fontSize: '0.9rem' }}>
-          <div className="d-flex align-items-center">
-            <span className="fw-bold text-muted me-3">📈 {ticker || 'Stock'} Prediction</span>
-          </div>
-          {hasActual && (
-            <span className="d-flex align-items-center gap-2">
-              <span style={{ width: '24px', height: '3px', backgroundColor: '#2196F3', display: 'inline-block' }}></span>
-              <span style={{ color: '#2196F3', fontWeight: 500 }}>Actual Price</span>
-            </span>
-          )}
-          {hasPredicted && (
-            <span className="d-flex align-items-center gap-2">
-              <span style={{ width: '24px', height: '3px', backgroundColor: '#4CAF50', display: 'inline-block', borderTop: '2px dashed #4CAF50' }}></span>
-              <span style={{ color: '#4CAF50', fontWeight: 500 }}>Predicted Price</span>
-            </span>
-          )}
-        </div>
-        <div className="mt-2 text-muted" style={{ fontSize: '0.75rem' }}>
-          Tip: Use mouse wheel to zoom, drag to pan. All time series are displayed in a single panel for easy comparison.
-        </div>
-      </div>
-    </div>
-  );
+  const d = new Date();
+  d.setDate(d.getDate() - (len - index));
+  return d;
 };
 
-// Financial Training Chart Component using react-financial-charts
-const FinancialTrainingChart = ({ data, ticker }) => {
-  if (!data || data.length === 0) {
+const UnifiedFinancialChart = ({ data, ticker }) => {
+  // Price overlays default on; oscillators default off (they share a single
+  // right axis, so turning them all on at once would be unreadable). Volume on.
+  const [visible, setVisible] = useState(() => {
+    const v = { close: true, actual: true, predicted: true, validation: true, bb: true, volume: true };
+    PRICE_SERIES.forEach(s => { if (!(s.key in v)) v[s.key] = true; });
+    OSC_SERIES.forEach(s => { v[s.key] = false; });
+    return v;
+  });
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const srcLen = (data || []).length;
+  const chartData = (data || [])
+    .map((item, index) => ({ ...item, date: toChartDate(item, index, srcLen) }))
+    .filter(d => d.date && !isNaN(d.date.getTime()));
+
+  if (chartData.length === 0) {
     return <div className="text-center text-muted py-5">No chart data available</div>;
   }
 
-  // Prepare chart data - ensure dates are Date objects
-  const chartData = data.map((item, index) => {
-    let dateObj;
-    if (item.date instanceof Date) {
-      dateObj = item.date;
-    } else if (typeof item.date === 'string') {
-      dateObj = new Date(item.date);
-      if (isNaN(dateObj.getTime())) {
-        const parts = item.date.split('-');
-        if (parts.length === 3) {
-          dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        }
-      }
-    } else {
-      dateObj = new Date();
-      dateObj.setDate(dateObj.getDate() - (data.length - index));
-    }
+  const has = (field) => chartData.some(d => d[field] !== undefined && d[field] !== null && !isNaN(d[field]));
+  const availPrice = PRICE_SERIES.filter(s => has(s.field));
+  const availBB = has('bb_upper') && has('bb_lower');
+  const availOsc = OSC_SERIES.filter(s => has(s.field));
+  const hasVolume = chartData.some(d => Number.isFinite(d.volume) && d.volume > 0);
 
-    return {
-      ...item,
-      date: dateObj,
-      open: item.open || item.close || item.actual || 0,
-      high: item.high || Math.max(item.close || 0, item.actual || 0, item.predicted || 0) * 1.001,
-      low: item.low || Math.min(item.close || 0, item.actual || 0, item.predicted || 0) * 0.999,
-      close: item.close || item.actual || 0,
-      volume: item.volume || 0
-    };
-  }).filter(d => d.date && !isNaN(d.date.getTime()));
+  const shownPrice = availPrice.filter(s => visible[s.key]);
+  const shownOsc = availOsc.filter(s => visible[s.key]);
+  const showVolume = hasVolume && visible.volume;
 
-  if (chartData.length === 0) {
-    return <div className="text-center text-muted py-5">Invalid chart data</div>;
-  }
+  const availableKeys = [
+    ...availPrice.map(s => s.key),
+    ...(availBB ? ['bb'] : []),
+    ...availOsc.map(s => s.key),
+    ...(hasVolume ? ['volume'] : []),
+  ];
+  const activeCount = availableKeys.filter(k => visible[k]).length;
 
-  // Check what data is available
-  const hasActual = chartData.some(d => d.actual !== undefined && d.actual !== null && !isNaN(d.actual));
-  const hasPredicted = chartData.some(d => d.predicted !== undefined && d.predicted !== null && !isNaN(d.predicted));
-  const hasValidation = chartData.some(d => d.validation !== undefined && d.validation !== null && !isNaN(d.validation));
-  const hasField = (field) => chartData.some(d => d[field] !== undefined && d[field] !== null && !isNaN(d[field]));
-  const hasSMA20 = hasField('sma_20');
-  const hasSMA50 = hasField('sma_50');
-  const hasEMA12 = hasField('ema_12');
-  const hasDEMA = hasField('dema');
-  const hasTEMA = hasField('tema');
-  const hasWMA = hasField('wma');
-  const hasPSAR = hasField('psar');
-  const hasBBUpper = hasField('bb_upper');
-  const hasRSI = hasField('rsi');
-  const hasMACD = hasField('macd');
-  const hasCCI = hasField('cci');
-  const hasADX = hasField('adx');
-  const hasStoch = hasField('stoch_k');
-  const hasATR = hasField('atr');
-  const hasVolume = chartData.some(d => d.volume !== undefined && d.volume !== null && !isNaN(d.volume) && d.volume > 0);
-
-  // Setup time scale provider
-  const ScaleProvider = discontinuousTimeScaleProviderBuilder()
-    .inputDateAccessor(d => d.date);
-
+  const ScaleProvider = discontinuousTimeScaleProviderBuilder().inputDateAccessor(d => d.date);
   const { data: scaledData, xScale, xAccessor, displayXAccessor } = ScaleProvider(chartData);
 
-  // Formatters
-  const pricesDisplayFormat = format(".2f");
-  const volumeFormat = format(".2s");
-  const percentFormat = format(".1f");
-  const dateTimeFormat = "%d %b";
-  const timeDisplayFormat = timeFormat(dateTimeFormat);
+  const priceFormat = format('.2f');
+  const volumeFormat = format('.2s');
+  const timeDisplayFormat = timeFormat('%d %b');
 
-  // Calculate extents
   const max = xAccessor(scaledData[scaledData.length - 1]);
-  const min = xAccessor(scaledData[Math.max(0, scaledData.length - 100)]);
+  const min = xAccessor(scaledData[Math.max(0, scaledData.length - 120)]);
   const xExtents = [min, max + 5];
 
-  // Chart dimensions
   const width = 1100;
-  const margin = { left: 60, right: 70, top: 10, bottom: 30 };
+  const margin = { left: 60, right: 70, top: 16, bottom: 30 };
+  const mainHeight = 420;
+  const volumeHeight = showVolume ? 90 : 0;
+  const totalHeight = mainHeight + volumeHeight + 16;
 
-  // Calculate panel heights based on available data
-  const priceHeight = 280;
-  const oscillatorHeight = hasRSI ? 100 : 0;
-  const macdHeight = hasMACD ? 100 : 0;
-  const cciHeight = hasCCI ? 100 : 0;
-  const atrHeight = hasATR ? 80 : 0;
-  const stochHeight = hasStoch ? 100 : 0;
-  const adxHeight = hasADX ? 80 : 0;
-  const volumeHeight = hasVolume ? 80 : 0;
-  const totalHeight = priceHeight + oscillatorHeight + macdHeight + cciHeight + atrHeight + stochHeight + adxHeight + volumeHeight + 40;
+  const volumeColor = d => (d.close || d.actual || 0) >= (d.open || d.close || d.actual || 0)
+    ? 'rgba(38,166,154,0.5)' : 'rgba(239,83,80,0.5)';
+  const edgeColor = d => (d.close || d.actual || 0) >= (d.open || d.close || d.actual || 0) ? '#26a69a' : '#ef5350';
 
-  // Calculate panel origins
-  let currentY = priceHeight;
-  const oscillatorOrigin = [0, currentY];
-  currentY += oscillatorHeight;
-  const macdOrigin = [0, currentY];
-  currentY += macdHeight;
-  const cciOrigin = [0, currentY];
-  currentY += cciHeight;
-  const stochOrigin = [0, currentY];
-  currentY += stochHeight;
-  const adxOrigin = [0, currentY];
-  currentY += adxHeight;
-  const atrOrigin = [0, currentY];
-  currentY += atrHeight;
-  const volumeOrigin = [0, currentY];
+  // Left-axis extents over every visible price-scale series (+ Bollinger).
+  const priceFields = shownPrice.map(s => s.field);
+  const priceYExtents = d => {
+    const vals = [];
+    priceFields.forEach(f => { if (Number.isFinite(d[f])) vals.push(d[f]); });
+    if (visible.bb && availBB) {
+      if (Number.isFinite(d.bb_upper)) vals.push(d.bb_upper);
+      if (Number.isFinite(d.bb_lower)) vals.push(d.bb_lower);
+    }
+    if (vals.length === 0) return [0, 1];
+    return [Math.min(...vals) * 0.99, Math.max(...vals) * 1.01];
+  };
 
-  // Color functions
-  const volumeColor = d => (d.close || d.actual || 0) >= (d.open || d.close || d.actual || 0) ? "rgba(38, 166, 154, 0.6)" : "rgba(239, 83, 80, 0.6)";
-  const macdHistogramColor = d => (d.macd_histogram || 0) >= 0 ? "rgba(38, 166, 154, 0.7)" : "rgba(239, 83, 80, 0.7)";
+  // Right-axis extents over every visible indicator series.
+  const oscFields = [];
+  shownOsc.forEach(s => {
+    oscFields.push(s.field);
+    if (s.key === 'macd') oscFields.push('macd_signal');
+    if (s.key === 'stoch') oscFields.push('stoch_d');
+  });
+  const oscYExtents = d => {
+    const vals = [];
+    oscFields.forEach(f => { if (Number.isFinite(d[f])) vals.push(d[f]); });
+    if (vals.length === 0) return [0, 100];
+    const lo = Math.min(...vals), hi = Math.max(...vals);
+    return lo === hi ? [lo - 1, hi + 1] : [lo, hi];
+  };
+
+  const groups = [
+    { title: 'Price (left axis)', items: [...availPrice, ...(availBB ? [BB_SERIES] : [])] },
+    { title: 'Indicators (right axis)', items: availOsc },
+    ...(hasVolume ? [{ title: 'Volume', items: [{ key: 'volume', label: 'Volume', color: '#64748b' }] }] : []),
+  ].filter(g => g.items.length > 0);
 
   return (
-    <div style={{ overflow: 'auto' }}>
-      <ChartWrapper yAxisTitle="Price (VND)" xAxisTitle="Date">
-      <ChartCanvas
-        height={totalHeight}
-        ratio={2}
-        width={width}
-        margin={margin}
-        data={scaledData}
-        displayXAccessor={displayXAccessor}
-        seriesName={ticker || "Training"}
-        xScale={xScale}
-        xAccessor={xAccessor}
-        xExtents={xExtents}
-        zoomAnchor={lastVisibleItemBasedZoomAnchor}
-      >
-        {/* Panel 1: Price Chart with Predictions and Moving Averages */}
-        <Chart
-          id={1}
-          height={priceHeight}
-          yExtents={d => {
-            const values = [d.close, d.actual, d.predicted, d.validation, d.bb_upper, d.bb_lower].filter(v => v !== undefined && v !== null && !isNaN(v));
-            return values.length > 0 ? [Math.min(...values) * 0.99, Math.max(...values) * 1.01] : [0, 100];
-          }}
+    <div>
+      {/* Series toggle dropdown */}
+      <div className="d-flex justify-content-end mb-2" style={{ position: 'relative' }}>
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2"
+          onClick={() => setDropdownOpen(o => !o)}
         >
-          <XAxis showGridLines {...getXAxisProps()} />
-          <YAxis showGridLines tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
-
-          {/* Bollinger Bands - drawn first as background */}
-          {hasBBUpper && (
-            <>
-              <LineSeries yAccessor={d => d.bb_upper} strokeStyle="#ef4444" strokeWidth={1} strokeDasharray="3,3" />
-              <LineSeries yAccessor={d => d.bb_middle} strokeStyle="#9c27b0" strokeWidth={1} />
-              <LineSeries yAccessor={d => d.bb_lower} strokeStyle="#4caf50" strokeWidth={1} strokeDasharray="3,3" />
-            </>
-          )}
-
-          {/* Moving Averages */}
-          {hasSMA20 && (
-            <LineSeries yAccessor={d => d.sma_20} strokeStyle="#2563eb" strokeWidth={1.5} />
-          )}
-          {hasSMA50 && (
-            <LineSeries yAccessor={d => d.sma_50} strokeStyle="#f59e0b" strokeWidth={1.5} />
-          )}
-          {hasEMA12 && (
-            <LineSeries yAccessor={d => d.ema_12} strokeStyle="#10b981" strokeWidth={1.5} />
-          )}
-          {hasDEMA && (
-            <LineSeries yAccessor={d => d.dema} strokeStyle="#e11d48" strokeWidth={1.5} />
-          )}
-          {hasTEMA && (
-            <LineSeries yAccessor={d => d.tema} strokeStyle="#7c3aed" strokeWidth={1.5} />
-          )}
-          {hasWMA && (
-            <LineSeries yAccessor={d => d.wma} strokeStyle="#0891b2" strokeWidth={1.5} />
-          )}
-          {hasPSAR && (
-            <LineSeries yAccessor={d => d.psar} strokeStyle="#d97706" strokeWidth={1} strokeDasharray="2,2" />
-          )}
-
-          {/* Actual Price */}
-          {hasActual && (
-            <LineSeries yAccessor={d => d.actual} strokeStyle="#2196F3" strokeWidth={2} />
-          )}
-
-          {/* Predicted Price */}
-          {hasPredicted && (
-            <LineSeries yAccessor={d => d.predicted} strokeStyle="#4CAF50" strokeWidth={2} strokeDasharray="5,5" />
-          )}
-
-          {/* Validation Price */}
-          {hasValidation && (
-            <LineSeries yAccessor={d => d.validation} strokeStyle="#FF9800" strokeWidth={2} strokeDasharray="3,3" />
-          )}
-
-          <MouseCoordinateY rectWidth={margin.right} displayFormat={pricesDisplayFormat} />
-          <EdgeIndicator
-            itemType="last"
-            rectWidth={margin.right}
-            fill={d => (d.close || d.actual || 0) >= (d.open || d.close || d.actual || 0) ? "#26a69a" : "#ef5350"}
-            lineStroke={d => (d.close || d.actual || 0) >= (d.open || d.close || d.actual || 0) ? "#26a69a" : "#ef5350"}
-            displayFormat={pricesDisplayFormat}
-            yAccessor={d => d.close || d.actual}
-          />
-
-          {/* Tooltips */}
-          {hasActual && (
-            <SingleValueTooltip
-              yAccessor={d => d.actual}
-              yLabel="Actual"
-              yDisplayFormat={pricesDisplayFormat}
-              origin={[8, 16]}
-              labelFill="#2196F3"
-            />
-          )}
-          {hasPredicted && (
-            <SingleValueTooltip
-              yAccessor={d => d.predicted}
-              yLabel="Predicted"
-              yDisplayFormat={pricesDisplayFormat}
-              origin={[120, 16]}
-              labelFill="#4CAF50"
-            />
-          )}
-          {hasSMA20 && (
-            <SingleValueTooltip
-              yAccessor={d => d.sma_20}
-              yLabel="SMA20"
-              yDisplayFormat={pricesDisplayFormat}
-              origin={[240, 16]}
-              labelFill="#2563eb"
-            />
-          )}
-          {hasSMA50 && (
-            <SingleValueTooltip
-              yAccessor={d => d.sma_50}
-              yLabel="SMA50"
-              yDisplayFormat={pricesDisplayFormat}
-              origin={[340, 16]}
-              labelFill="#f59e0b"
-            />
-          )}
-
-          <ZoomButtons />
-        </Chart>
-
-        {/* Panel 2: RSI (0-100 range) */}
-        {hasRSI && (
-          <Chart
-            id={2}
-            height={oscillatorHeight}
-            yExtents={[0, 100]}
-            origin={oscillatorOrigin}
-            padding={{ top: 10, bottom: 10 }}
-          >
-            <XAxis showGridLines {...getXAxisProps()} />
-            <YAxis tickValues={[30, 50, 70]} tickFormat={d => d} {...getYAxisProps()} />
-
-            {/* Overbought/Oversold lines */}
-            <StraightLine yValue={70} strokeStyle="#ef4444" strokeDasharray="Dash" />
-            <StraightLine yValue={30} strokeStyle="#10b981" strokeDasharray="Dash" />
-            <StraightLine yValue={50} strokeStyle="#9ca3af" strokeDasharray="Dot" />
-
-            <LineSeries yAccessor={d => d.rsi} strokeStyle="#9c27b0" strokeWidth={2} />
-
-            <SingleValueTooltip
-              yAccessor={d => d.rsi}
-              yLabel="RSI(14)"
-              yDisplayFormat={percentFormat}
-              origin={[8, 16]}
-              labelFill="#9c27b0"
-            />
-
-            <MouseCoordinateY rectWidth={margin.right} displayFormat={percentFormat} />
-          </Chart>
+          <span>Series</span>
+          <span className="badge bg-primary">{activeCount}</span>
+          <span style={{ fontSize: '0.7rem' }}>{dropdownOpen ? '▲' : '▼'}</span>
+        </button>
+        {dropdownOpen && (
+          <>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 1040 }} onClick={() => setDropdownOpen(false)} />
+            <div
+              style={{
+                position: 'absolute', right: 0, top: '100%', marginTop: 4, zIndex: 1050,
+                background: '#fff', border: '1px solid #dee2e6', borderRadius: 8,
+                boxShadow: '0 6px 18px rgba(0,0,0,0.12)', minWidth: 230, padding: 8,
+                maxHeight: 360, overflowY: 'auto',
+              }}
+            >
+              {groups.map(g => (
+                <div key={g.title} className="mb-1">
+                  <div className="text-muted text-uppercase fw-semibold px-2 py-1" style={{ fontSize: '0.7rem' }}>{g.title}</div>
+                  {g.items.map(s => (
+                    <label
+                      key={s.key}
+                      className="d-flex align-items-center gap-2 px-2 py-1 rounded"
+                      style={{ cursor: 'pointer', fontSize: '0.85rem' }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!!visible[s.key]}
+                        onChange={() => setVisible(p => ({ ...p, [s.key]: !p[s.key] }))}
+                      />
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: s.color, display: 'inline-block' }} />
+                      <span>{s.label}</span>
+                    </label>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </>
         )}
+      </div>
 
-        {/* Panel 3: MACD (centered on zero) */}
-        {hasMACD && (
-          <Chart
-            id={3}
-            height={macdHeight}
-            yExtents={d => {
-              const values = [d.macd, d.macd_signal, d.macd_histogram].filter(v => v !== undefined && v !== null && !isNaN(v));
-              if (values.length === 0) return [-1, 1];
-              const max = Math.max(...values.map(Math.abs)) * 1.1;
-              return [-max, max];
-            }}
-            origin={macdOrigin}
-            padding={{ top: 10, bottom: 10 }}
+      <div style={{ overflow: 'auto' }}>
+        <ChartWrapper yAxisTitle="Price (VND)" xAxisTitle="Date">
+          <ChartCanvas
+            height={totalHeight}
+            ratio={2}
+            width={width}
+            margin={margin}
+            data={scaledData}
+            displayXAccessor={displayXAccessor}
+            seriesName={ticker || 'Series'}
+            xScale={xScale}
+            xAccessor={xAccessor}
+            xExtents={xExtents}
+            zoomAnchor={lastVisibleItemBasedZoomAnchor}
           >
-            <XAxis showGridLines {...getXAxisProps()} />
-            <YAxis tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
+            {/* Price pane — left Y-axis */}
+            <Chart id={1} height={mainHeight} origin={[0, 0]} yExtents={priceYExtents}>
+              <XAxis showGridLines {...getXAxisProps()} />
+              <YAxis showGridLines axisAt="left" orient="left" tickFormat={priceFormat} {...getYAxisProps()} />
 
-            <StraightLine yValue={0} strokeStyle="#666666" />
+              {visible.bb && availBB && (
+                <>
+                  <LineSeries yAccessor={d => d.bb_upper} strokeStyle="#8b5cf6" strokeWidth={1} strokeDasharray="3,3" />
+                  <LineSeries yAccessor={d => d.bb_middle} strokeStyle="#a78bfa" strokeWidth={1} />
+                  <LineSeries yAccessor={d => d.bb_lower} strokeStyle="#8b5cf6" strokeWidth={1} strokeDasharray="3,3" />
+                </>
+              )}
+              {shownPrice.map(s => (
+                <LineSeries
+                  key={s.key}
+                  yAccessor={d => d[s.field]}
+                  strokeStyle={s.color}
+                  strokeWidth={s.width}
+                  strokeDasharray={s.dash ? s.dash : undefined}
+                />
+              ))}
 
-            {/* MACD Histogram as bars */}
-            <BarSeries
-              yAccessor={d => d.macd_histogram}
-              fillStyle={macdHistogramColor}
-            />
+              <MouseCoordinateY rectWidth={margin.right} displayFormat={priceFormat} />
+              <EdgeIndicator
+                itemType="last"
+                rectWidth={margin.right}
+                fill={edgeColor}
+                lineStroke={edgeColor}
+                displayFormat={priceFormat}
+                yAccessor={d => (Number.isFinite(d.close) ? d.close : d.actual)}
+              />
+              {shownPrice.slice(0, 4).map((s, i) => (
+                <SingleValueTooltip
+                  key={s.key}
+                  yAccessor={d => d[s.field]}
+                  yLabel={s.label}
+                  yDisplayFormat={priceFormat}
+                  origin={[8 + i * 110, 16]}
+                  labelFill={s.color}
+                />
+              ))}
+              <ZoomButtons />
+              <MouseCoordinateX displayFormat={timeDisplayFormat} />
+            </Chart>
 
-            {/* MACD Line */}
-            <LineSeries yAccessor={d => d.macd} strokeStyle="#2196F3" strokeWidth={2} />
+            {/* Indicators — right Y-axis, overlaid on the price pane */}
+            {shownOsc.length > 0 && (
+              <Chart id={2} height={mainHeight} origin={[0, 0]} yExtents={oscYExtents}>
+                <YAxis axisAt="right" orient="right" tickFormat={d => priceFormat(d)} {...getYAxisProps()} showGridLines={false} />
+                {shownOsc.map((s, i) => (
+                  <React.Fragment key={s.key}>
+                    <LineSeries yAccessor={d => d[s.field]} strokeStyle={s.color} strokeWidth={1.5} />
+                    {s.key === 'macd' && <LineSeries yAccessor={d => d.macd_signal} strokeStyle="#FF9800" strokeWidth={1.5} />}
+                    {s.key === 'stoch' && <LineSeries yAccessor={d => d.stoch_d} strokeStyle="#FF9800" strokeWidth={1.5} />}
+                    <SingleValueTooltip
+                      yAccessor={d => d[s.field]}
+                      yLabel={s.label}
+                      yDisplayFormat={priceFormat}
+                      origin={[8 + i * 90, 36]}
+                      labelFill={s.color}
+                    />
+                  </React.Fragment>
+                ))}
+              </Chart>
+            )}
 
-            {/* Signal Line */}
-            <LineSeries yAccessor={d => d.macd_signal} strokeStyle="#FF9800" strokeWidth={2} />
+            {/* Volume — inverted bars drawn below the date axis */}
+            {showVolume && (
+              <Chart id={3} height={volumeHeight} origin={[0, mainHeight]} yExtents={d => [0, d.volume]} flipYScale>
+                <YAxis axisAt="left" orient="left" ticks={2} tickFormat={volumeFormat} {...getYAxisProps()} showGridLines={false} />
+                <BarSeries fillStyle={volumeColor} yAccessor={d => d.volume} />
+                <SingleValueTooltip yAccessor={d => d.volume} yLabel="Volume" yDisplayFormat={volumeFormat} origin={[8, 14]} />
+                <MouseCoordinateY rectWidth={margin.right} displayFormat={volumeFormat} />
+              </Chart>
+            )}
 
-            <SingleValueTooltip
-              yAccessor={d => d.macd}
-              yLabel="MACD"
-              yDisplayFormat={pricesDisplayFormat}
-              origin={[8, 16]}
-              labelFill="#2196F3"
-            />
-            <SingleValueTooltip
-              yAccessor={d => d.macd_signal}
-              yLabel="Signal"
-              yDisplayFormat={pricesDisplayFormat}
-              origin={[100, 16]}
-              labelFill="#FF9800"
-            />
-
-            <MouseCoordinateY rectWidth={margin.right} displayFormat={pricesDisplayFormat} />
-          </Chart>
-        )}
-
-        {/* Panel: CCI (oscillator centered on 0, typical range -200 to +200) */}
-        {hasCCI && (
-          <Chart
-            id={5}
-            height={cciHeight}
-            yExtents={d => {
-              const v = d.cci;
-              if (v === undefined || v === null || isNaN(v)) return [-200, 200];
-              return [Math.min(v, -200) * 1.1, Math.max(v, 200) * 1.1];
-            }}
-            origin={cciOrigin}
-            padding={{ top: 10, bottom: 10 }}
-          >
-            <XAxis showGridLines {...getXAxisProps()} />
-            <YAxis tickValues={[-200, -100, 0, 100, 200]} tickFormat={d => d} {...getYAxisProps()} />
-
-            <StraightLine yValue={100} strokeStyle="#ef4444" strokeDasharray="Dash" />
-            <StraightLine yValue={-100} strokeStyle="#10b981" strokeDasharray="Dash" />
-            <StraightLine yValue={0} strokeStyle="#9ca3af" strokeDasharray="Dot" />
-
-            <LineSeries yAccessor={d => d.cci} strokeStyle="#0ea5e9" strokeWidth={2} />
-
-            <SingleValueTooltip
-              yAccessor={d => d.cci}
-              yLabel="CCI"
-              yDisplayFormat={pricesDisplayFormat}
-              origin={[8, 16]}
-              labelFill="#0ea5e9"
-            />
-
-            <MouseCoordinateY rectWidth={margin.right} displayFormat={pricesDisplayFormat} />
-          </Chart>
-        )}
-
-        {/* Panel: Stochastic Oscillator (0-100 range) */}
-        {hasStoch && (
-          <Chart
-            id={6}
-            height={stochHeight}
-            yExtents={[0, 100]}
-            origin={stochOrigin}
-            padding={{ top: 10, bottom: 10 }}
-          >
-            <XAxis showGridLines {...getXAxisProps()} />
-            <YAxis tickValues={[20, 50, 80]} tickFormat={d => d} {...getYAxisProps()} />
-
-            <StraightLine yValue={80} strokeStyle="#ef4444" strokeDasharray="Dash" />
-            <StraightLine yValue={20} strokeStyle="#10b981" strokeDasharray="Dash" />
-
-            <LineSeries yAccessor={d => d.stoch_k} strokeStyle="#2196F3" strokeWidth={2} />
-            <LineSeries yAccessor={d => d.stoch_d} strokeStyle="#FF9800" strokeWidth={2} />
-
-            <SingleValueTooltip
-              yAccessor={d => d.stoch_k}
-              yLabel="%K"
-              yDisplayFormat={percentFormat}
-              origin={[8, 16]}
-              labelFill="#2196F3"
-            />
-            <SingleValueTooltip
-              yAccessor={d => d.stoch_d}
-              yLabel="%D"
-              yDisplayFormat={percentFormat}
-              origin={[80, 16]}
-              labelFill="#FF9800"
-            />
-
-            <MouseCoordinateY rectWidth={margin.right} displayFormat={percentFormat} />
-          </Chart>
-        )}
-
-        {/* Panel: ADX (0-100 range) */}
-        {hasADX && (
-          <Chart
-            id={7}
-            height={adxHeight}
-            yExtents={[0, 100]}
-            origin={adxOrigin}
-            padding={{ top: 10, bottom: 10 }}
-          >
-            <XAxis showGridLines {...getXAxisProps()} />
-            <YAxis tickValues={[20, 40, 60]} tickFormat={d => d} {...getYAxisProps()} />
-
-            <StraightLine yValue={25} strokeStyle="#9ca3af" strokeDasharray="Dash" />
-
-            <LineSeries yAccessor={d => d.adx} strokeStyle="#f97316" strokeWidth={2} />
-
-            <SingleValueTooltip
-              yAccessor={d => d.adx}
-              yLabel="ADX"
-              yDisplayFormat={percentFormat}
-              origin={[8, 16]}
-              labelFill="#f97316"
-            />
-
-            <MouseCoordinateY rectWidth={margin.right} displayFormat={percentFormat} />
-          </Chart>
-        )}
-
-        {/* Panel: ATR */}
-        {hasATR && (
-          <Chart
-            id={8}
-            height={atrHeight}
-            yExtents={d => {
-              const v = d.atr;
-              if (v === undefined || v === null || isNaN(v)) return [0, 1];
-              return [0, v * 1.5];
-            }}
-            origin={atrOrigin}
-            padding={{ top: 10, bottom: 10 }}
-          >
-            <XAxis showGridLines {...getXAxisProps()} />
-            <YAxis tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
-
-            <LineSeries yAccessor={d => d.atr} strokeStyle="#ec4899" strokeWidth={2} />
-
-            <SingleValueTooltip
-              yAccessor={d => d.atr}
-              yLabel="ATR"
-              yDisplayFormat={pricesDisplayFormat}
-              origin={[8, 16]}
-              labelFill="#ec4899"
-            />
-
-            <MouseCoordinateY rectWidth={margin.right} displayFormat={pricesDisplayFormat} />
-          </Chart>
-        )}
-
-        {/* Panel: Volume */}
-        {hasVolume && (
-          <Chart
-            id={4}
-            height={volumeHeight}
-            yExtents={d => [0, d.volume * 1.1]}
-            origin={volumeOrigin}
-            padding={{ top: 10, bottom: 10 }}
-          >
-            <XAxis showGridLines {...getXAxisProps()} />
-            <YAxis tickFormat={volumeFormat} {...getYAxisProps()} />
-
-            <BarSeries fillStyle={volumeColor} yAccessor={d => d.volume} />
-
-            <MouseCoordinateX displayFormat={timeDisplayFormat} />
-            <MouseCoordinateY rectWidth={margin.right} displayFormat={volumeFormat} />
-
-            <SingleValueTooltip
-              yAccessor={d => d.volume}
-              yLabel="Vol"
-              yDisplayFormat={volumeFormat}
-              origin={[8, 16]}
-            />
-          </Chart>
-        )}
-
-        <CrossHairCursor />
-      </ChartCanvas>
-      </ChartWrapper>
-
-      {/* Chart Legend */}
-      <div className="mt-3 p-3" style={{ backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }}>
-        <div className="d-flex flex-wrap gap-3" style={{ fontSize: '0.85rem' }}>
-          <span className="fw-bold text-muted">Legend:</span>
-          {hasActual && (
-            <span className="d-flex align-items-center gap-1">
-              <span style={{ width: '20px', height: '3px', backgroundColor: '#2196F3', display: 'inline-block' }}></span>
-              Actual
-            </span>
-          )}
-          {hasPredicted && (
-            <span className="d-flex align-items-center gap-1">
-              <span style={{ width: '20px', height: '3px', backgroundColor: '#4CAF50', display: 'inline-block', borderTop: '2px dashed #4CAF50' }}></span>
-              Predicted
-            </span>
-          )}
-          {hasValidation && (
-            <span className="d-flex align-items-center gap-1">
-              <span style={{ width: '20px', height: '3px', backgroundColor: '#FF9800', display: 'inline-block' }}></span>
-              Validation
-            </span>
-          )}
-          {hasSMA20 && (
-            <span className="d-flex align-items-center gap-1">
-              <span style={{ width: '20px', height: '2px', backgroundColor: '#2563eb', display: 'inline-block' }}></span>
-              SMA20
-            </span>
-          )}
-          {hasSMA50 && (
-            <span className="d-flex align-items-center gap-1">
-              <span style={{ width: '20px', height: '2px', backgroundColor: '#f59e0b', display: 'inline-block' }}></span>
-              SMA50
-            </span>
-          )}
-          {hasDEMA && (
-            <span className="d-flex align-items-center gap-1">
-              <span style={{ width: '20px', height: '2px', backgroundColor: '#e11d48', display: 'inline-block' }}></span>
-              DEMA
-            </span>
-          )}
-          {hasTEMA && (
-            <span className="d-flex align-items-center gap-1">
-              <span style={{ width: '20px', height: '2px', backgroundColor: '#7c3aed', display: 'inline-block' }}></span>
-              TEMA
-            </span>
-          )}
-          {hasWMA && (
-            <span className="d-flex align-items-center gap-1">
-              <span style={{ width: '20px', height: '2px', backgroundColor: '#0891b2', display: 'inline-block' }}></span>
-              WMA
-            </span>
-          )}
-          {hasPSAR && (
-            <span className="d-flex align-items-center gap-1">
-              <span style={{ width: '20px', height: '2px', backgroundColor: '#d97706', display: 'inline-block', borderTop: '1px dashed #d97706' }}></span>
-              PSAR
-            </span>
-          )}
-          {hasBBUpper && (
-            <span className="d-flex align-items-center gap-1">
-              <span style={{ width: '20px', height: '2px', backgroundColor: '#ef4444', display: 'inline-block', borderTop: '1px dashed #ef4444' }}></span>
-              BB
-            </span>
-          )}
-          {hasRSI && (
-            <span className="d-flex align-items-center gap-1">
-              <span style={{ width: '20px', height: '2px', backgroundColor: '#9c27b0', display: 'inline-block' }}></span>
-              RSI
-            </span>
-          )}
-          {hasMACD && (
-            <span className="d-flex align-items-center gap-1">
-              <span style={{ width: '20px', height: '2px', backgroundColor: '#2196F3', display: 'inline-block' }}></span>
-              MACD
-              <span style={{ width: '20px', height: '2px', backgroundColor: '#FF9800', display: 'inline-block' }}></span>
-              Signal
-            </span>
-          )}
-          {hasCCI && (
-            <span className="d-flex align-items-center gap-1">
-              <span style={{ width: '20px', height: '2px', backgroundColor: '#0ea5e9', display: 'inline-block' }}></span>
-              CCI
-            </span>
-          )}
-          {hasStoch && (
-            <span className="d-flex align-items-center gap-1">
-              <span style={{ width: '20px', height: '2px', backgroundColor: '#2196F3', display: 'inline-block' }}></span>
-              %K
-              <span style={{ width: '20px', height: '2px', backgroundColor: '#FF9800', display: 'inline-block' }}></span>
-              %D
-            </span>
-          )}
-          {hasADX && (
-            <span className="d-flex align-items-center gap-1">
-              <span style={{ width: '20px', height: '2px', backgroundColor: '#f97316', display: 'inline-block' }}></span>
-              ADX
-            </span>
-          )}
-          {hasATR && (
-            <span className="d-flex align-items-center gap-1">
-              <span style={{ width: '20px', height: '2px', backgroundColor: '#ec4899', display: 'inline-block' }}></span>
-              ATR
-            </span>
-          )}
-        </div>
-        <div className="mt-2 text-muted" style={{ fontSize: '0.75rem' }}>
-          Tip: Use mouse wheel to zoom, drag to pan. All time series with same data range are displayed in the Price panel.
-        </div>
+            <CrossHairCursor />
+          </ChartCanvas>
+        </ChartWrapper>
+      </div>
+      <div className="mt-2 text-muted" style={{ fontSize: '0.75rem' }}>
+        Tip: use the <strong>Series</strong> menu to toggle lines. Left axis = price, right axis = indicators, volume below the date axis. Scroll to zoom, drag to pan.
       </div>
     </div>
   );
 };
+
+// Both tabs render the same unified single-panel chart for a consistent look.
+const FinancialPredictionChart = ({ data, ticker }) => <UnifiedFinancialChart data={data} ticker={ticker} />;
+const FinancialTrainingChart = ({ data, ticker }) => <UnifiedFinancialChart data={data} ticker={ticker} />;
 
 const SolutionModal = ({ show, onHide, solution, onSave }) => {
   const { t } = useTranslation();
