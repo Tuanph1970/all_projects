@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from sqlalchemy import text
 from starlette.responses import Response
 import time
 import logging
@@ -149,7 +150,7 @@ async def readiness_check():
     """Kubernetes readiness probe"""
     try:
         async with engine.connect() as conn:
-            await conn.execute("SELECT 1")
+            await conn.execute(text("SELECT 1"))
         return {"status": "ready", "database": "connected"}
     except Exception as e:
         return JSONResponse(

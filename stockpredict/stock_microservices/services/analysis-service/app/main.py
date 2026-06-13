@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from sqlalchemy import text
 from starlette.responses import Response
 import time
 import logging
@@ -75,7 +76,7 @@ async def liveness_check():
 async def readiness_check():
     try:
         async with engine.connect() as conn:
-            await conn.execute("SELECT 1")
+            await conn.execute(text("SELECT 1"))
         return {"status": "ready"}
     except Exception as e:
         return JSONResponse(status_code=503, content={"status": "not ready", "error": str(e)})

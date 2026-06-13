@@ -662,7 +662,7 @@ async def readiness_check():
     """Kubernetes readiness probe"""
     try:
         async with engine.connect() as conn:
-            await conn.execute("SELECT 1")
+            await conn.execute(text("SELECT 1"))
         return {"status": "ready", "database": "connected"}
     except Exception as e:
         return JSONResponse(
