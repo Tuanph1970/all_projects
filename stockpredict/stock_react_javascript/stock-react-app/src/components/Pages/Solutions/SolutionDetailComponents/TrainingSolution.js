@@ -8,10 +8,28 @@ import ModelDetail from "../../models/ModelDetail";
 import httpClient from "../../../../services/httpClient";
 import { API_ENDPOINTS } from "../../../../constants/api";
 
+// A solution can be saved without training dates (NULL in the DB). `new Date(null)`
+// silently collapses to the 1970 epoch, so the tab would POST a 1970-01-01 range
+// that has no price data and training fails with a 404. Parse defensively and fall
+// back to a sane default window (last 2 years) when the stored value is missing or
+// unparseable.
+const parseTrainingDate = (value, fallback) => {
+    if (value === null || value === undefined || value === '') return fallback;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? fallback : parsed;
+};
+
+const defaultEndDate = () => new Date();
+const defaultStartDate = () => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 2);
+    return d;
+};
+
 const TrainingSolution = (props)=>{
     const { t } = useTranslation();
-    const [startDate,setStartDate] = useState(new Date(props.solution['start_training_date']));
-    const [endDate,setEndDate] = useState(new Date(props.solution['end_training_date']))
+    const [startDate,setStartDate] = useState(() => parseTrainingDate(props.solution['start_training_date'], defaultStartDate()));
+    const [endDate,setEndDate] = useState(() => parseTrainingDate(props.solution['end_training_date'], defaultEndDate()))
     const [validation,setValidation] = useState(true)
     const [validateionNumber,setValidationNumber] = useState(0.2)
     const [rmseValue,setRmseValue] = useState(null)
@@ -104,6 +122,17 @@ const TrainingSolution = (props)=>{
     }, []);
 
     const formSubmit = async () => {
+        // Guard against missing/invalid dates (e.g. the field was cleared) so we
+        // never POST a bogus range that the backend rejects with a 404.
+        if (!startDate || !endDate || Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+            setTrainingStatus(t('solutions.training_invalid_dates'));
+            return;
+        }
+        if (startDate >= endDate) {
+            setTrainingStatus(t('solutions.training_invalid_range'));
+            return;
+        }
+
         let data = {
             id: props.solution['id'],
             validation:validation,
@@ -177,7 +206,7 @@ const TrainingSolution = (props)=>{
                                 id="start_date"
                                 selected={startDate}
                                 dateFormat={"yyyy-MM-dd"}
-                                onChange={(date)=>setStartDate(new Date(date))}
+                                onChange={(date)=>setStartDate(date)}
                                 className="form-control form-control-sm"
                             />
                         </div>
@@ -187,7 +216,7 @@ const TrainingSolution = (props)=>{
                                 id="end_date"
                                 selected={endDate}
                                 dateFormat={"yyyy-MM-dd"}
-                                onChange={(date)=>setEndDate(new Date(date))}
+                                onChange={(date)=>setEndDate(date)}
                                 className="form-control form-control-sm"
                             />
                         </div>

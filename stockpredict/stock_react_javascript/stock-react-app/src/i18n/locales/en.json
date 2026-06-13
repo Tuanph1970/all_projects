@@ -1477,6 +1477,8 @@
     "training_complete": "Training completed successfully!",
     "training_timeout": "Training timed out. Please retry or contact support.",
     "training_not_found": "Training session not found on server. Please retry.",
+    "training_invalid_dates": "Please pick a valid start and end date before training.",
+    "training_invalid_range": "Start date must be before end date.",
     "training_in_progress": "Training in progress...",
     "training_results_title": "Training Results Visualization",
     "chart_pending": "Chart will be displayed after training completion",

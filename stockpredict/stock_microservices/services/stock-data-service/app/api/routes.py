@@ -166,7 +166,11 @@ async def get_historical_data(
     if not data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Company not found: {symbol}",
+            detail=(
+                f"No price data for '{symbol}' in the requested range "
+                f"({start_date or 'default'} to {end_date or 'today'}). "
+                f"The symbol may not exist or has no data for that period."
+            ),
         )
     return data
 
@@ -273,7 +277,11 @@ async def get_company_historical_data(
     if not data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Company not found: {symbol}",
+            detail=(
+                f"No price data for '{symbol}' in the requested range "
+                f"({start_date or 'default'} to {end_date or 'today'}). "
+                f"The symbol may not exist or has no data for that period."
+            ),
         )
     return data
 

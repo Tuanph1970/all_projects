@@ -1477,6 +1477,8 @@
     "training_complete": "Huấn luyện hoàn tất!",
     "training_timeout": "Quá thời gian huấn luyện. Vui lòng thử lại hoặc liên hệ hỗ trợ.",
     "training_not_found": "Không tìm thấy phiên huấn luyện trên máy chủ. Vui lòng thử lại.",
+    "training_invalid_dates": "Vui lòng chọn ngày bắt đầu và ngày kết thúc hợp lệ trước khi huấn luyện.",
+    "training_invalid_range": "Ngày bắt đầu phải trước ngày kết thúc.",
     "training_in_progress": "Đang huấn luyện...",
     "training_results_title": "Biểu đồ kết quả huấn luyện",
     "chart_pending": "Biểu đồ sẽ hiển thị sau khi huấn luyện xong",
