@@ -13,6 +13,10 @@ if not hasattr(pd.DataFrame, "applymap"):
     pd.DataFrame.applymap = pd.DataFrame.map  # type: ignore[attr-defined]
 
 from vnstock import Vnstock
+try:
+    from vnai.beam.quota import RateLimitExceeded as _VnaiRateLimitExceeded
+except Exception:
+    _VnaiRateLimitExceeded = None
 
 from app.config import get_settings
 from app.models.domain import Company, StockPrice, Industry, PriceBoard, CompanyProfile, FinancialStatement
@@ -39,6 +43,10 @@ from app.repositories.stock_repository import StockRepository
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+
+def _is_rate_limit(exc: Exception) -> bool:
+    return _VnaiRateLimitExceeded is not None and isinstance(exc, _VnaiRateLimitExceeded)
 
 
 class StockService:
@@ -209,7 +217,10 @@ class StockService:
             return companies
 
         except Exception as e:
-            logger.error(f"Error fetching companies from vnstock: {e}")
+            if _is_rate_limit(e):
+                logger.warning(f"vnstock rate limit hit fetching company list — retry later")
+            else:
+                logger.error(f"Error fetching companies from vnstock: {e}")
             return []
 
     async def get_companies_by_group_live(self, group: str = "VN30") -> List[CompanyListingResponse]:
@@ -243,7 +254,10 @@ class StockService:
             return companies
 
         except Exception as e:
-            logger.error(f"Error fetching companies by group {group}: {e}")
+            if _is_rate_limit(e):
+                logger.warning(f"vnstock rate limit hit fetching group {group} — retry later")
+            else:
+                logger.error(f"Error fetching companies by group {group}: {e}")
             return []
 
     async def search_companies_live(self, query: str, limit: int = 20) -> List[CompanyListingResponse]:
@@ -457,7 +471,10 @@ class StockService:
             return records
 
         except Exception as e:
-            logger.error(f"Error fetching company profile for {symbol}: {e}")
+            if _is_rate_limit(e):
+                logger.warning(f"vnstock rate limit hit fetching profile for {symbol} — retry later")
+            else:
+                logger.error(f"Error fetching company profile for {symbol}: {e}")
             return []
 
     @staticmethod
@@ -553,7 +570,10 @@ class StockService:
             return records
 
         except Exception as e:
-            logger.error(f"Error fetching {statement_type} for {symbol}: {e}")
+            if _is_rate_limit(e):
+                logger.warning(f"vnstock rate limit hit fetching {statement_type} for {symbol} — retry later")
+            else:
+                logger.error(f"Error fetching {statement_type} for {symbol}: {e}")
             return []
 
     async def get_company_news_data(self, symbol: str) -> List[dict]:
@@ -580,7 +600,10 @@ class StockService:
             return records
 
         except Exception as e:
-            logger.error(f"Error fetching company news for {symbol}: {e}")
+            if _is_rate_limit(e):
+                logger.warning(f"vnstock rate limit hit fetching news for {symbol} — retry later")
+            else:
+                logger.error(f"Error fetching company news for {symbol}: {e}")
             return []
 
     async def get_company_events_data(self, symbol: str) -> List[dict]:
@@ -602,7 +625,10 @@ class StockService:
             return records
 
         except Exception as e:
-            logger.error(f"Error fetching company events for {symbol}: {e}")
+            if _is_rate_limit(e):
+                logger.warning(f"vnstock rate limit hit fetching events for {symbol} — retry later")
+            else:
+                logger.error(f"Error fetching company events for {symbol}: {e}")
             return []
 
     async def get_company_dividends_data(self, symbol: str) -> List[dict]:
@@ -633,7 +659,10 @@ class StockService:
             logger.info(f"Dividend data not supported for {symbol} - source limitation")
             return []
         except Exception as e:
-            logger.error(f"Error fetching company dividends for {symbol}: {e}")
+            if _is_rate_limit(e):
+                logger.warning(f"vnstock rate limit hit fetching dividends for {symbol} — retry later")
+            else:
+                logger.error(f"Error fetching company dividends for {symbol}: {e}")
             return []
 
     # ==================== Cached Company Data (DB-first) ====================

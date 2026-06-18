@@ -6,6 +6,20 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+# vnai (vnstock dependency) calls sys.exit() when rate limit is exceeded, killing the
+# entire uvicorn process. Patch CleanErrorContext to raise RateLimitExceeded instead so
+# the caller can handle it gracefully without taking down the server.
+try:
+    import vnai.beam.quota as _vnai_quota
+    class _SafeCleanErrorContext(_vnai_quota.CleanErrorContext):
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            if exc_type is _vnai_quota.RateLimitExceeded:
+                return False  # re-raise as exception instead of calling sys.exit()
+            return False
+    _vnai_quota.CleanErrorContext = _SafeCleanErrorContext
+except Exception:
+    pass
+
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
