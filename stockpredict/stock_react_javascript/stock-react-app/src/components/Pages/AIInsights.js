@@ -1,60 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
-import { TrendingUp, TrendingDown, AlertTriangle, Brain, Activity, Shield, Target, RefreshCw, BarChart3, ChartLine, ChevronDown } from 'lucide-react';
-import { format } from "d3-format";
-import { timeFormat } from "d3-time-format";
-import { getXAxisProps, getYAxisProps } from "../../constants/chartTheme";
-import ChartWrapper from "../ui/ChartWrapper";
-
-import {
-  discontinuousTimeScaleProviderBuilder,
-  Chart,
-  ChartCanvas,
-  CandlestickSeries,
-  LineSeries,
-  BarSeries,
-  StraightLine,
-  XAxis,
-  YAxis,
-  CrossHairCursor,
-  EdgeIndicator,
-  MouseCoordinateX,
-  MouseCoordinateY,
-  ZoomButtons,
-  OHLCTooltip,
-  SingleValueTooltip,
-  MovingAverageTooltip,
-  BollingerSeries,
-  BollingerBandTooltip,
-  MACDSeries,
-  RSISeries,
-  lastVisibleItemBasedZoomAnchor,
-  ema,
-  sma,
-  bollingerBand,
-  macd,
-  rsi
-} from "react-financial-charts";
+import { TrendingUp, TrendingDown, AlertTriangle, Brain, Activity, Shield, Target, RefreshCw, BarChart3, ChartLine } from 'lucide-react';
+import UnifiedFinancialChart from '../ui/UnifiedFinancialChart';
 
 import { API_BASE_URLS, API_ENDPOINTS } from '../../constants/api';
 
 // eslint-disable-next-line no-unused-vars -- kept for upcoming chart palette wiring
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
-
-const AI_SERIES_CONFIG = [
-  { key:'candles', name:'Nến giá',        color:'#26a69a', group:'Giá' },
-  { key:'sma20',   name:'SMA 20',          color:'#2563eb', group:'Giá' },
-  { key:'ema12',   name:'EMA 12',          color:'#10b981', group:'Giá' },
-  { key:'bb',      name:'Bollinger Bands', color:'#8b5cf6', group:'Giá' },
-  { key:'vwap',    name:'VWAP',            color:'#14b8a6', group:'Giá' },
-  { key:'rsi',     name:'RSI',             color:'#f59e0b', group:'Dao động (trục phải)' },
-  { key:'stoch',   name:'Stochastic',      color:'#ef4444', group:'Dao động (trục phải)' },
-  { key:'mfi',     name:'MFI',             color:'#f97316', group:'Dao động (trục phải)' },
-  { key:'macd',    name:'MACD',            color:'#10b981', group:'Bảng phụ' },
-  { key:'volume',  name:'Volume',          color:'#64748b', group:'Khối lượng' },
-  { key:'obv',     name:'OBV',             color:'#6366f1', group:'Khối lượng' },
-];
 
 // Use centralized API configuration - AI endpoints
 const API_BASE_URL = API_BASE_URLS.AI_API;
@@ -80,14 +33,6 @@ export const AIInsights = () => {
   const [activeTab, setActiveTab] = useState('parameters'); // 'parameters' or 'charts'
   const [indicatorData, setIndicatorData] = useState(null);
   const [chartLoading, setChartLoading] = useState(false);
-
-  // Which series are visible in the chart
-  const [seriesVisible, setSeriesVisible] = useState({
-    candles: true, sma20: true, ema12: false, bb: true, vwap: false,
-    rsi: true, stoch: false, mfi: false,
-    macd: true, volume: true, obv: false,
-  });
-  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   // Fetch portfolio holdings for stock dropdown
   const fetchPortfolioHoldings = useCallback(async () => {
@@ -328,296 +273,62 @@ export const AIInsights = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStock, dateRange.start, dateRange.end, selectedIndicators.trend, selectedIndicators.momentum, selectedIndicators.volatility, selectedIndicators.volume]);
 
-  // Prepare chart data for react-financial-charts
+  // Prepare chart data for the shared UnifiedFinancialChart. The backend
+  // (ai-insights-service) already returns OHLC and pre-calculated indicators in
+  // canonical snake_case fields, so we pass them straight through (only aliasing
+  // wma_20 -> wma). Older mock data used CamelCase names, kept here as fallbacks.
   const prepareChartData = useCallback(() => {
-    if (!indicatorData || !indicatorData.data || indicatorData.data.length === 0) return [];
+    const rows = indicatorData && indicatorData.data;
+    if (!rows || rows.length === 0) return [];
 
-    return indicatorData.data.map((item, index) => {
-      // Parse date string to Date object properly
-      let dateObj;
-      if (item.date instanceof Date) {
-        dateObj = item.date;
-      } else if (typeof item.date === 'string') {
-        // Handle various date formats
-        dateObj = new Date(item.date);
-        // If invalid, try parsing as ISO string
-        if (isNaN(dateObj.getTime())) {
-          const parts = item.date.split('-');
-          if (parts.length === 3) {
-            dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-          }
-        }
-      } else {
-        // Fallback: create date based on index
-        dateObj = new Date();
-        dateObj.setDate(dateObj.getDate() - (indicatorData.data.length - index));
-      }
+    const num = (v) => (v === null || v === undefined || isNaN(v) ? undefined : Number(v));
 
-      // Ensure we have a valid date
-      if (isNaN(dateObj.getTime())) {
-        dateObj = new Date();
-        dateObj.setDate(dateObj.getDate() - (indicatorData.data.length - index));
-      }
-
-      const price = item.price || 100;
-      const vol = item.volume || (item.OBV ? Math.abs(item.OBV / 100) : 700000);
-
-      return {
-        date: dateObj,
-        open: price * (1 - Math.random() * 0.01),
-        high: price * (1 + Math.random() * 0.015),
-        low: price * (1 - Math.random() * 0.015),
-        close: price,
-        volume: vol,
-        RSI: item.RSI,
-        Stochastic: item.Stochastic,
-        MFI: item.MFI,
-        MACD: item.MACD,
-        MACD_signal: item.MACD_signal,
-        MACD_histogram: item.MACD_histogram,
-        BB_upper: item.BB_upper,
-        BB_middle: item.BB_middle,
-        BB_lower: item.BB_lower,
-        OBV: item.OBV,
-        VWAP: item.VWAP,
-        EMA: item.EMA,
-        SMA: item.SMA,
-      };
-    });
+    return rows.map((item) => ({
+      date: item.date,
+      // OHLCV (real backend data — no synthetic candles)
+      open: num(item.open) ?? num(item.price),
+      high: num(item.high),
+      low: num(item.low),
+      close: num(item.close) ?? num(item.price),
+      volume: num(item.volume),
+      // Price-scale overlays (left axis)
+      sma_20: num(item.sma_20) ?? num(item.SMA),
+      sma_50: num(item.sma_50),
+      ema_12: num(item.ema_12) ?? num(item.EMA),
+      wma: num(item.wma_20),
+      vwap: num(item.vwap) ?? num(item.VWAP),
+      bb_upper: num(item.bb_upper) ?? num(item.BB_upper),
+      bb_middle: num(item.bb_middle) ?? num(item.BB_middle),
+      bb_lower: num(item.bb_lower) ?? num(item.BB_lower),
+      // Oscillators (right axis)
+      rsi: num(item.rsi) ?? num(item.RSI),
+      macd: num(item.macd) ?? num(item.MACD),
+      macd_signal: num(item.macd_signal) ?? num(item.MACD_signal),
+      stoch_k: num(item.stoch_k) ?? num(item.Stochastic),
+      stoch_d: num(item.stoch_d),
+      mfi: num(item.mfi) ?? num(item.MFI),
+      atr: num(item.atr),
+    }));
   }, [indicatorData]);
 
-  // Series checkbox dropdown for the AI chart
-  const SeriesDropdown = () => {
-    const groups = {};
-    AI_SERIES_CONFIG.forEach(s => {
-      if (!groups[s.group]) groups[s.group] = [];
-      groups[s.group].push(s);
-    });
-    const count = Object.values(seriesVisible).filter(Boolean).length;
+  // Technical-indicator chart (Charts tab) — uses the shared UnifiedFinancialChart
+  const renderTechnicalIndicatorsChart = () => {
+    const chartData = prepareChartData();
     return (
-      <div className="relative">
-        <button
-          onClick={() => setDropdownOpen(o => !o)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50"
-        >
-          <BarChart3 className="w-4 h-4 text-gray-600" />
-          <span>{t('analysis.ai_insights.series_button')}</span>
-          <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-700">{count}</span>
-          <ChevronDown className="w-3 h-3 text-gray-400" />
-        </button>
-        {dropdownOpen && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setDropdownOpen(false)} />
-            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 min-w-[220px] p-2">
-              {Object.entries(groups).map(([grp, items]) => (
-                <div key={grp} className="mb-1">
-                  <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 py-1">{grp}</div>
-                  {items.map(s => (
-                    <label key={s.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={!!seriesVisible[s.key]}
-                        onChange={() => setSeriesVisible(p => ({ ...p, [s.key]: !p[s.key] }))}
-                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
-                      <span className="text-sm text-gray-700">{s.name}</span>
-                    </label>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
-
-  // Dual-axis chart: left=price, right=0-100 oscillators, inverted volume, optional MACD panel
-  const FinancialIndicatorChart = () => {
-    const rawData = prepareChartData();
-    if (!rawData || rawData.length === 0) {
-      return (
-        <div className="bg-white rounded-lg p-6 border border-gray-200">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900">{t('analysis.ai_insights.chart_title')}</h2>
+          {chartLoading && <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />}
+        </div>
+        {chartData.length === 0 ? (
           <div className="text-center py-8">
             <ChartLine className="w-12 h-12 text-gray-400 mx-auto mb-3" />
             <p className="text-gray-600">{t('analysis.ai_insights.no_indicator_data')}</p>
             <p className="text-sm text-gray-500 mt-2">{t('analysis.ai_insights.select_indicators_hint')}</p>
           </div>
-        </div>
-      );
-    }
-
-    // Apply calculators for series that use calc-based accessors
-    const sma20Calc = sma().options({ windowSize: 20 }).merge((d, c) => { d.sma20 = c; }).accessor(d => d.sma20);
-    const ema12Calc = ema().options({ windowSize: 12 }).merge((d, c) => { d.ema12 = c; }).accessor(d => d.ema12);
-    const bbCalc    = bollingerBand().options({ windowSize: 20, multiplier: 2 }).merge((d, c) => { d.bb = c; }).accessor(d => d.bb);
-    const macdCalc  = macd().options({ fast: 12, slow: 26, signal: 9 }).merge((d, c) => { d.macdCalc = c; }).accessor(d => d.macdCalc);
-    const rsiCalc   = rsi().options({ windowSize: 14 }).merge((d, c) => { d.rsiCalc = c; }).accessor(d => d.rsiCalc);
-
-    let calcData = rawData;
-    if (seriesVisible.sma20) calcData = sma20Calc(calcData);
-    if (seriesVisible.ema12) calcData = ema12Calc(calcData);
-    if (seriesVisible.bb)    calcData = bbCalc(calcData);
-    if (seriesVisible.macd)  calcData = macdCalc(calcData);
-    if (seriesVisible.rsi)   calcData = rsiCalc(calcData);
-
-    const ScaleProvider = discontinuousTimeScaleProviderBuilder().inputDateAccessor(d => d.date);
-    const { data, xScale, xAccessor, displayXAccessor } = ScaleProvider(calcData);
-
-    const pricesDisplayFormat = format(".2f");
-    const volumeFormat = format(".2s");
-    const timeDisplayFormat = timeFormat("%d %b");
-
-    const max = xAccessor(data[data.length - 1]);
-    const min = xAccessor(data[Math.max(0, data.length - 100)]);
-    const xExtents = [min, max + 5];
-
-    const width = 1200;
-    const margin = { left: 50, right: 70, top: 10, bottom: 30 };
-    const mainHeight = 480;
-    const volHeight  = 70;
-    const macdH      = seriesVisible.macd ? 130 : 0;
-    const totalH     = mainHeight + macdH;
-
-    const openCloseColor = d => d.close > d.open ? "#26a69a" : "#ef5350";
-    const volumeColor    = d => d.close > d.open ? "rgba(38,166,154,0.35)" : "rgba(239,83,80,0.35)";
-    const hasOscillator  = seriesVisible.rsi || seriesVisible.stoch || seriesVisible.mfi;
-
-    return (
-      <ChartWrapper yAxisTitle={t('analysis.technical.price_axis_label')} xAxisTitle={t('analysis.technical.date_axis_label')}>
-        <ChartCanvas
-          height={totalH}
-          ratio={2}
-          width={width}
-          margin={margin}
-          data={data}
-          displayXAccessor={displayXAccessor}
-          seriesName="AIInsights"
-          xScale={xScale}
-          xAccessor={xAccessor}
-          xExtents={xExtents}
-          zoomAnchor={lastVisibleItemBasedZoomAnchor}
-        >
-          {/* Chart 1: Price — left Y-axis */}
-          <Chart
-            id={1}
-            height={mainHeight}
-            yExtents={d => {
-              const ext = [d.high, d.low];
-              if (seriesVisible.bb && d.bb) ext.push(d.bb.top, d.bb.bottom);
-              return ext;
-            }}
-          >
-            <XAxis showGridLines {...getXAxisProps({ showTickLabel: !seriesVisible.macd })} />
-            <YAxis showGridLines axisAt="left" orient="left" tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
-
-            {seriesVisible.candles && <CandlestickSeries />}
-            {seriesVisible.bb && (
-              <BollingerSeries
-                yAccessor={d => d.bb}
-                strokeStyle={{ top: "#8b5cf6", middle: "#a78bfa", bottom: "#8b5cf6" }}
-                fillStyle="rgba(139,92,246,0.08)"
-              />
-            )}
-            {seriesVisible.sma20 && <LineSeries yAccessor={d => d.sma20} strokeStyle="#2563eb" strokeWidth={1} />}
-            {seriesVisible.ema12 && <LineSeries yAccessor={d => d.ema12} strokeStyle="#10b981" strokeWidth={1} />}
-            {seriesVisible.vwap  && <LineSeries yAccessor={d => d.VWAP}  strokeStyle="#14b8a6" strokeWidth={1.5} />}
-
-            <MouseCoordinateY rectWidth={margin.right} displayFormat={pricesDisplayFormat} />
-            <EdgeIndicator
-              itemType="last" rectWidth={margin.right}
-              fill={openCloseColor} lineStroke={openCloseColor}
-              displayFormat={pricesDisplayFormat} yAccessor={d => d.close}
-            />
-            <OHLCTooltip origin={[8, 16]} />
-            {seriesVisible.bb && (
-              <BollingerBandTooltip origin={[8, 60]} yAccessor={d => d.bb} options={{ windowSize: 20, multiplier: 2 }} fill="#8b5cf6" />
-            )}
-            <MovingAverageTooltip
-              origin={[8, 40]}
-              options={[
-                seriesVisible.sma20 && { yAccessor: d => d.sma20, type: "SMA", stroke: "#2563eb", windowSize: 20 },
-                seriesVisible.ema12 && { yAccessor: d => d.ema12, type: "EMA", stroke: "#10b981", windowSize: 12 },
-              ].filter(Boolean)}
-            />
-            <ZoomButtons />
-            {!seriesVisible.macd && <MouseCoordinateX displayFormat={timeDisplayFormat} />}
-          </Chart>
-
-          {/* Chart 2: Oscillators 0-100 — right Y-axis, overlaid on price panel */}
-          {hasOscillator && (
-            <Chart id={2} height={mainHeight} yExtents={[0, 100]}>
-              <YAxis axisAt="right" orient="right" tickValues={[20, 50, 80]} tickFormat={d => d} {...getYAxisProps()} />
-              <StraightLine yValue={80} strokeStyle="rgba(239,68,68,0.35)" strokeDasharray="Dash" />
-              <StraightLine yValue={20} strokeStyle="rgba(16,185,129,0.35)" strokeDasharray="Dash" />
-              <StraightLine yValue={50} strokeStyle="rgba(156,163,175,0.3)" strokeDasharray="Dot" />
-              {seriesVisible.rsi && (
-                <>
-                  <RSISeries yAccessor={d => d.rsiCalc || d.RSI} strokeStyle={{ line: "#f59e0b" }} />
-                  <SingleValueTooltip yAccessor={d => d.rsiCalc || d.RSI} yLabel="RSI" yDisplayFormat={format(".1f")} origin={[8, 16]} />
-                </>
-              )}
-              {seriesVisible.stoch && (
-                <>
-                  <LineSeries yAccessor={d => d.Stochastic} strokeStyle="#ef4444" strokeWidth={1.5} />
-                  <SingleValueTooltip yAccessor={d => d.Stochastic} yLabel="Stoch" yDisplayFormat={format(".1f")} origin={[8, seriesVisible.rsi ? 36 : 16]} />
-                </>
-              )}
-              {seriesVisible.mfi && (
-                <>
-                  <LineSeries yAccessor={d => d.MFI} strokeStyle="#f97316" strokeWidth={1.5} />
-                  <SingleValueTooltip yAccessor={d => d.MFI} yLabel="MFI" yDisplayFormat={format(".1f")} origin={[8, (seriesVisible.rsi ? 20 : 0) + (seriesVisible.stoch ? 20 : 0) + 16]} />
-                </>
-              )}
-            </Chart>
-          )}
-
-          {/* Chart 3: Volume inverted at bottom of price panel */}
-          {seriesVisible.volume && (
-            <Chart id={3} height={volHeight} origin={[0, mainHeight - volHeight]} yExtents={d => [0, d.volume]}>
-              <BarSeries fillStyle={volumeColor} yAccessor={d => d.volume} />
-              {seriesVisible.obv && (
-                <LineSeries yAccessor={d => d.OBV ? Math.abs(d.OBV / 100) : 0} strokeStyle="#6366f1" strokeWidth={1} />
-              )}
-              <SingleValueTooltip yAccessor={d => d.volume} yLabel={t('analysis.ai_insights.volume_tooltip_label')} yDisplayFormat={volumeFormat} origin={[8, 4]} />
-            </Chart>
-          )}
-
-          {/* Chart 4: MACD sub-panel */}
-          {seriesVisible.macd && (
-            <Chart id={4} height={macdH - 10} origin={[0, mainHeight]} yExtents={d => d.macdCalc} padding={{ top: 10, bottom: 10 }}>
-              <XAxis showGridLines {...getXAxisProps()} />
-              <YAxis axisAt="left" orient="left" tickFormat={pricesDisplayFormat} {...getYAxisProps()} />
-              <MACDSeries yAccessor={d => d.macdCalc} strokeStyle={{ macd: "#10b981", signal: "#059669" }} fillStyle={{ divergence: "#34d399" }} />
-              <SingleValueTooltip yAccessor={d => d.macdCalc?.MACD} yLabel={t('analysis.ai_insights.macd_tooltip_label')} yDisplayFormat={pricesDisplayFormat} origin={[8, 16]} />
-              <SingleValueTooltip yAccessor={d => d.macdCalc?.signal} yLabel={t('analysis.ai_insights.signal_tooltip_label')} yDisplayFormat={pricesDisplayFormat} origin={[80, 16]} />
-              <MouseCoordinateX displayFormat={timeDisplayFormat} />
-              <MouseCoordinateY rectWidth={margin.right} displayFormat={pricesDisplayFormat} />
-            </Chart>
-          )}
-
-          <CrossHairCursor />
-        </ChartCanvas>
-      </ChartWrapper>
-    );
-  };
-
-  const renderTechnicalIndicatorsChart = () => {
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">{t('analysis.ai_insights.chart_title')}</h2>
-          <div className="flex items-center gap-2">
-            {chartLoading && <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />}
-            <SeriesDropdown />
-          </div>
-        </div>
-        <div className="overflow-x-auto">
-          <div className="min-w-[1200px]">
-            <FinancialIndicatorChart />
-          </div>
-        </div>
+        ) : (
+          <UnifiedFinancialChart data={chartData} ticker={selectedStock} />
+        )}
       </div>
     );
   };
