@@ -3,6 +3,7 @@ Stock Service - Business logic for stock data operations
 """
 import asyncio
 import logging
+import re
 from datetime import datetime, date, timedelta
 from typing import Optional, List, Tuple
 import json
@@ -1967,56 +1968,55 @@ class StockService:
             # Try to get financial ratios from vnstock
             try:
                 ratio_df = stock.finance.ratio(period="quarter", lang="en")
+                latest = self._latest_metrics(ratio_df)
 
-                if ratio_df is not None and not ratio_df.empty:
-                    latest = ratio_df.iloc[0] if len(ratio_df) > 0 else None
+                if latest:
+                    # Extract ratios by metric name (long-format item_en values)
+                    pe = self._pick(latest, 'P/E')
+                    pb = self._pick(latest, 'P/B')
+                    ps = self._pick(latest, 'P/S')
+                    roe = self._as_percent(self._pick(latest, 'ROE (%)'))
+                    roa = self._as_percent(self._pick(latest, 'ROA (%)'))
+                    de = self._pick(latest, 'Debt to Equity')
+                    cr = self._pick(latest, 'Current Ratio')
+                    qr = self._pick(latest, 'Quick Ratio')
+                    gm = self._as_percent(self._pick(latest, 'Gross Margin (%)'))
+                    om = self._as_percent(self._pick(latest, 'EBIT Margin (%)'))
+                    npm = self._as_percent(self._pick(latest, 'After-tax Profit Margin (%)'))
+                    ev_ebitda = self._pick(latest, 'EV/EBITDA')
+                    div_yield = self._as_percent(self._pick(latest, 'Dividend Yield (%)'))
+                    mcap = self._pick(latest, 'Market Cap')
 
-                    if latest is not None:
-                        # Extract ratios
-                        pe = self._get_multilevel_value(latest, 'P/E')
-                        pb = self._get_multilevel_value(latest, 'P/B')
-                        ps = self._get_multilevel_value(latest, 'P/S')
-                        roe = self._get_multilevel_value(latest, 'ROE (%)')
-                        roa = self._get_multilevel_value(latest, 'ROA (%)')
-                        eps = self._get_multilevel_value(latest, 'EPS (VND)')
-                        bvps = self._get_multilevel_value(latest, 'BVPS (VND)')
-                        de = self._get_multilevel_value(latest, 'Debt/Equity')
-                        npm = self._get_multilevel_value(latest, 'Net Profit Margin (%)')
-                        mcap = self._get_multilevel_value(latest, 'Market Capital (Bn. VND)')
+                    # Set flat fields
+                    financials.pe_ratio = pe
+                    financials.pb_ratio = pb
+                    financials.ps_ratio = ps
+                    financials.roe = roe
+                    financials.roa = roa
+                    financials.debt_to_equity = de
+                    financials.current_ratio = cr
+                    financials.quick_ratio = qr
+                    financials.gross_margin = gm
+                    financials.operating_margin = om
+                    financials.profit_margin = npm
+                    financials.ev_ebitda = ev_ebitda
+                    financials.dividend_yield = div_yield
+                    financials.market_cap = mcap
 
-                        # Convert to percentage if needed
-                        if roe is not None and roe < 1:
-                            roe = roe * 100
-                        if roa is not None and roa < 1:
-                            roa = roa * 100
-                        if npm is not None and npm < 1:
-                            npm = npm * 100
+                    # Set nested financial_ratios
+                    financial_ratios.pe = pe
+                    financial_ratios.pb = pb
+                    financial_ratios.ps = ps
+                    financial_ratios.roe = roe
+                    financial_ratios.roa = roa
+                    financial_ratios.debtToEquity = de
+                    financial_ratios.currentRatio = cr
+                    financial_ratios.quickRatio = qr
+                    financial_ratios.grossMargin = gm
+                    financial_ratios.operatingMargin = om
+                    financial_ratios.netMargin = npm
 
-                        # Set flat fields
-                        financials.pe_ratio = pe
-                        financials.pb_ratio = pb
-                        financials.ps_ratio = ps
-                        financials.roe = roe
-                        financials.roa = roa
-                        financials.eps = eps
-                        financials.book_value_per_share = bvps
-                        financials.debt_to_equity = de
-                        financials.profit_margin = npm
-                        financials.market_cap = mcap
-
-                        # Set nested financial_ratios
-                        financial_ratios.pe = pe
-                        financial_ratios.pb = pb
-                        financial_ratios.ps = ps
-                        financial_ratios.roe = roe
-                        financial_ratios.roa = roa
-                        financial_ratios.debtToEquity = de
-                        financial_ratios.netMargin = npm
-
-                        # Set EPS in income statement
-                        income_statement.eps = eps
-
-                        logger.info(f"Fetched financial ratios for {symbol}: PE={pe}, ROE={roe}")
+                    logger.info(f"Fetched financial ratios for {symbol}: PE={pe}, ROE={roe}")
 
             except Exception as ratio_error:
                 logger.warning(f"Could not fetch financial ratios for {symbol}: {ratio_error}")
@@ -2024,31 +2024,40 @@ class StockService:
             # Try to get income statement for revenue, net income, and growth
             try:
                 is_df = stock.finance.income_statement(period="quarter", lang="en")
+                latest_is = self._latest_metrics(is_df)
 
-                if is_df is not None and not is_df.empty and len(is_df) > 0:
-                    latest_is = is_df.iloc[0]
+                if latest_is:
+                    # Get revenue and income data (long-format item_en values)
+                    revenue = self._pick(latest_is, 'Net sales', 'Sales', 'Revenue',
+                                         'Net Interest Income')  # banks
+                    gross_profit = self._pick(latest_is, 'Gross Profit')
+                    operating_income = self._pick(latest_is, 'Operating profit/(loss)')
+                    net_income = self._pick(latest_is, 'Attributable to parent company',
+                                            'Net profit/(loss) after tax')
+                    eps = self._pick(latest_is, 'EPS basic (VND)', 'EPS diluted (VND)')
 
-                    # Get revenue and income data
-                    revenue = self._get_simple_value(latest_is, 'Revenue (Bn. VND)')
-                    net_income = self._get_simple_value(latest_is, 'Attribute to parent company (Bn. VND)')
-                    revenue_yoy = self._get_simple_value(latest_is, 'Revenue YoY (%)')
-                    earnings_yoy = self._get_simple_value(latest_is, 'Attribute to parent company YoY (%)')
-
-                    # Convert YoY to percentage
-                    if revenue_yoy is not None:
-                        revenue_yoy = revenue_yoy * 100 if abs(revenue_yoy) < 10 else revenue_yoy
-                    if earnings_yoy is not None:
-                        earnings_yoy = earnings_yoy * 100 if abs(earnings_yoy) < 10 else earnings_yoy
+                    # Year-over-year growth from a same-quarter-prior-year column, when present
+                    revenue_yoy = self._yoy(is_df, 'Net sales', 'Sales', 'Revenue', 'Net Interest Income')
+                    earnings_yoy = self._yoy(is_df, 'Attributable to parent company',
+                                             'Net profit/(loss) after tax')
+                    eps_yoy = self._yoy(is_df, 'EPS basic (VND)')
 
                     # Set income statement
                     income_statement.revenue = revenue
+                    income_statement.grossProfit = gross_profit
+                    income_statement.operatingIncome = operating_income
                     income_statement.netIncome = net_income
+                    income_statement.eps = eps
+
+                    # Set flat fields
+                    financials.eps = eps
+                    financials.revenue_growth = revenue_yoy
+                    financials.earnings_growth = earnings_yoy
 
                     # Set growth metrics
                     growth_metrics.revenueGrowth = revenue_yoy
                     growth_metrics.earningsGrowth = earnings_yoy
-                    financials.revenue_growth = revenue_yoy
-                    financials.earnings_growth = earnings_yoy
+                    growth_metrics.epsGrowth = eps_yoy
 
                     logger.info(f"Fetched income statement for {symbol}: Revenue={revenue}, NetIncome={net_income}")
 
@@ -2058,35 +2067,24 @@ class StockService:
             # Try to get balance sheet for assets, liabilities, equity
             try:
                 bs_df = stock.finance.balance_sheet(period="quarter", lang="en")
+                latest_bs = self._latest_metrics(bs_df)
 
-                if bs_df is not None and not bs_df.empty and len(bs_df) > 0:
-                    latest_bs = bs_df.iloc[0]
+                if latest_bs:
+                    total_assets = self._pick(latest_bs, 'Total Assets', 'TOTAL ASSETS')
+                    cash = self._pick(latest_bs, 'Cash and cash equivalents')
+                    total_equity = self._pick(latest_bs, "Owner's Equity", 'Total Equity')
+                    total_liabilities = self._pick(latest_bs, 'Liabilities', 'Total Liabilities')
+                    long_term_debt = self._pick(latest_bs, 'Long-term liabilities', 'Long-term borrowings')
 
-                    total_assets = self._get_simple_value(latest_bs, 'TOTAL ASSETS (Bn. VND)')
-                    cash = self._get_simple_value(latest_bs, 'Cash and cash equivalents (Bn. VND)')
-
-                    # For banks, liabilities = total assets - equity (need to find equity column)
-                    # Look for equity and liabilities columns
-                    total_equity = None
-                    total_liabilities = None
-
-                    # Try different column names for equity
-                    for col in latest_bs.index:
-                        col_str = str(col).lower()
-                        if 'equity' in col_str and 'total' in col_str:
-                            total_equity = self._get_simple_value(latest_bs, col)
-                            break
-                        elif "owner" in col_str and "equity" in col_str:
-                            total_equity = self._get_simple_value(latest_bs, col)
-
-                    # Calculate liabilities if we have assets and equity
-                    if total_assets and total_equity:
+                    # Fall back to assets - equity if liabilities not reported directly
+                    if total_liabilities is None and total_assets and total_equity:
                         total_liabilities = total_assets - total_equity
 
                     balance_sheet.totalAssets = total_assets
                     balance_sheet.totalLiabilities = total_liabilities
                     balance_sheet.totalEquity = total_equity
                     balance_sheet.cash = cash
+                    balance_sheet.longTermDebt = long_term_debt
 
                     logger.info(f"Fetched balance sheet for {symbol}: Assets={total_assets}, Cash={cash}")
 
@@ -2096,24 +2094,28 @@ class StockService:
             # Try to get cash flow statement
             try:
                 cf_df = stock.finance.cash_flow(period="quarter", lang="en")
+                latest_cf = self._latest_metrics(cf_df)
 
-                if cf_df is not None and not cf_df.empty and len(cf_df) > 0:
-                    latest_cf = cf_df.iloc[0]
-
-                    operating_cf = self._get_simple_value(latest_cf, 'Net Cash Flows from Operating Activities before BIT')
-                    investing_cf = self._get_simple_value(latest_cf, 'Net Cash Flows from Investing Activities')
-                    financing_cf = self._get_simple_value(latest_cf, 'Cash flows from financial activities')
-                    net_cf = self._get_simple_value(latest_cf, 'Net increase/decrease in cash and cash equivalents')
+                if latest_cf:
+                    operating_cf = self._pick(latest_cf, 'Net cash inflows/(outflows) from operating activities',
+                                              'Net cash from operating activities')  # banks
+                    investing_cf = self._pick(latest_cf, 'Net cash inflows/(outflows) from investing activities',
+                                              'Net cash from investing activities')  # banks
+                    financing_cf = self._pick(latest_cf, 'Net cash inflows/(outflows) from financing activities',
+                                              'Net cash from financing activities')  # banks
+                    net_cf = self._pick(latest_cf, 'Net increase in cash and cash equivalents',
+                                        'Net increase/decrease in cash and cash equivalents')
 
                     cash_flow.operatingCashFlow = operating_cf
                     cash_flow.investingCashFlow = investing_cf
                     cash_flow.financingCashFlow = financing_cf
                     cash_flow.netCashFlow = net_cf
 
-                    # Calculate free cash flow (Operating - CapEx)
-                    capex = self._get_simple_value(latest_cf, 'Purchase of fixed assets')
+                    # Calculate free cash flow (Operating - CapEx); capex is reported negative
+                    capex = self._pick(latest_cf, 'Purchases of fixed assets and other long term assets',
+                                       'Purchase of fixed assets')
                     if operating_cf is not None and capex is not None:
-                        cash_flow.freeCashFlow = operating_cf + capex  # capex is negative
+                        cash_flow.freeCashFlow = operating_cf + capex
 
                     logger.info(f"Fetched cash flow for {symbol}: Operating={operating_cf}, Net={net_cf}")
 
@@ -2132,6 +2134,84 @@ class StockService:
         except Exception as e:
             logger.error(f"Error fetching financials for {symbol}: {e}")
             return None
+
+    @staticmethod
+    def _period_columns(df: pd.DataFrame) -> List[str]:
+        """Return the period columns (e.g. '2026-Q1', '2025') in a long-format
+        vnstock financial statement, ordered newest-first."""
+        cols = [str(c) for c in df.columns
+                if re.match(r"^\d{4}-Q\d$", str(c)) or re.match(r"^\d{4}$", str(c))]
+
+        def key(p: str):
+            year = int(p[:4])
+            quarter = int(p.split("Q")[-1]) if "Q" in p else 0
+            return (year, quarter)
+
+        return sorted(cols, key=key, reverse=True)
+
+    def _latest_metrics(self, df: Optional[pd.DataFrame]) -> dict:
+        """Collapse a long-format vnstock statement (one metric per row in the
+        'item_en' column, one column per period) into a {metric_name: value}
+        dict for the most recent reported period.
+
+        vnstock 4.x returns statements transposed versus older versions, and the
+        period ordering differs across statements, so we select the latest period
+        by parsing the column labels rather than relying on position.
+        """
+        if df is None or df.empty or "item_en" not in df.columns:
+            return {}
+        periods = self._period_columns(df)
+        if not periods:
+            return {}
+        latest = periods[0]
+        metrics = {}
+        for name, value in zip(df["item_en"], df[latest]):
+            if name is None or pd.isna(value):
+                continue
+            metrics.setdefault(str(name), value)  # keep first occurrence
+        return metrics
+
+    @staticmethod
+    def _pick(metrics: dict, *names: str) -> Optional[float]:
+        """Return the first available numeric value among the given metric names."""
+        for name in names:
+            if name in metrics:
+                try:
+                    value = float(metrics[name])
+                    if pd.notna(value):
+                        return value
+                except (ValueError, TypeError):
+                    continue
+        return None
+
+    @staticmethod
+    def _as_percent(value: Optional[float]) -> Optional[float]:
+        """vnstock reports margins/returns as fractions (0.41 == 41%); scale to %."""
+        if value is None:
+            return None
+        return value * 100 if abs(value) < 1 else value
+
+    def _yoy(self, df: Optional[pd.DataFrame], *names: str) -> Optional[float]:
+        """Year-over-year growth (%) for a metric, computed from the latest period
+        and the same quarter one year earlier, when both columns are present."""
+        if df is None or df.empty or "item_en" not in df.columns:
+            return None
+        periods = self._period_columns(df)
+        if not periods:
+            return None
+        latest = periods[0]
+        m = re.match(r"^(\d{4})(-Q\d)?$", latest)
+        if not m:
+            return None
+        prior = f"{int(m.group(1)) - 1}{m.group(2) or ''}"
+        if prior not in [str(c) for c in df.columns]:
+            return None
+        cur = self._pick(self._latest_metrics(df), *names)
+        prior_row = dict(zip(df["item_en"].astype(str), df[prior]))
+        prev = self._pick(prior_row, *names)
+        if cur is None or prev in (None, 0):
+            return None
+        return (cur - prev) / abs(prev) * 100
 
     def _get_ratio_value(self, row: pd.Series, possible_names: list) -> Optional[float]:
         """
