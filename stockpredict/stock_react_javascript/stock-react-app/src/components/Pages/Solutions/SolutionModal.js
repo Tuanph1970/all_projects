@@ -396,7 +396,9 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
             actual: item.actual_price !== undefined ? item.actual_price : (item.actual !== undefined ? item.actual : item.close),
             predicted: item.predicted_price !== undefined ? item.predicted_price : (item.predicted !== undefined ? item.predicted : item.prediction),
             validation: item.validation_price !== undefined ? item.validation_price : item.validation,
-            close: item.close || item.price,
+            // `close` deliberately omitted: in training data it equals `actual`, so
+            // emitting both draws two identical overlapping lines. The chart falls
+            // back to `actual` for volume coloring / edge indicator when close is absent.
 
             // Trend indicators - map all possible names
             sma_20: item.sma_20 || item.sma,

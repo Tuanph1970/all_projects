@@ -472,7 +472,12 @@ async def _run_training(solution_id: int, train_params: dict):
                 point = {
                     'date': date_str,
                     'actual_price': float(feature_df['close'].iloc[i]),
-                    'predicted_price': float(all_pred[i]) if is_validation else None,
+                    # Full fitted/target line across the whole window so the chart
+                    # always shows a "target train price" series (not just the tail).
+                    'predicted_price': float(all_pred[i]),
+                    # Out-of-sample portion, exposed separately so it can be
+                    # highlighted/toggled distinctly from the in-sample fit.
+                    'validation_price': float(all_pred[i]) if is_validation else None,
                     'close': float(feature_df['close'].iloc[i]),
                     'open': float(df.loc[d, 'open']) if d in df.index else None,
                     'high': float(df.loc[d, 'high']) if d in df.index else None,
