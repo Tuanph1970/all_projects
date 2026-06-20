@@ -15,6 +15,89 @@ import './SolutionModal.css';
 const FinancialPredictionChart = ({ data, ticker }) => <UnifiedFinancialChart data={data} ticker={ticker} />;
 const FinancialTrainingChart = ({ data, ticker }) => <UnifiedFinancialChart data={data} ticker={ticker} />;
 
+// Map a backend point (training `predictions[]` or prediction `chart[]`) to the
+// canonical chart shape UnifiedFinancialChart expects. Shared by the Training and
+// Prediction tabs so both charts show the same series. `close` is deliberately
+// omitted — it equals `actual`, so emitting both draws duplicate overlapping lines
+// (the chart falls back to `actual` for volume coloring / edge indicator).
+const apiPointToChartPoint = (item) => ({
+  date: item.date || item.tradingdate || item.timestamp,
+  actual: item.actual_price !== undefined ? item.actual_price : (item.actual !== undefined ? item.actual : item.close),
+  predicted: item.predicted_price !== undefined ? item.predicted_price : (item.predicted !== undefined ? item.predicted : item.prediction),
+  validation: item.validation_price !== undefined ? item.validation_price : item.validation,
+  // Trend (left/price axis)
+  sma_20: item.sma_20 || item.sma,
+  sma_50: item.sma_50,
+  ema_12: item.ema_12 || item.ema,
+  wma: item.wma,
+  dema: item.dema,
+  tema: item.tema,
+  psar: item.psar,
+  adx: item.adx,
+  // Momentum (right axis)
+  rsi: item.rsi,
+  rsi_signal: item.rsi_signal,
+  macd: item.macd,
+  macd_signal: item.macd_signal || item.signal,
+  macd_histogram: item.macd_histogram || item.histogram,
+  cci: item.cci,
+  stoch_k: item.stoch_k,
+  stoch_d: item.stoch_d,
+  williams_r: item.williams_r,
+  roc: item.roc,
+  mom: item.mom,
+  // Volatility
+  atr: item.atr,
+  bb_upper: item.bb_upper,
+  bb_middle: item.bb_middle,
+  bb_lower: item.bb_lower,
+  // Volume
+  volume: item.volume,
+  volume_sma: item.volume_sma,
+  vwap: item.vwap,
+  obv: item.obv,
+  mfi: item.mfi,
+  cmf: item.cmf,
+});
+
+// Build the Prediction-tab chart series from a /solutions/predict response (or a
+// persisted prediction_result). Prefers the rich `chart` array (real history with
+// indicators + volume + a backtest line, same shape as the Training tab); falls
+// back to the legacy bare `actual`/`predict` closes. The `future` forecast is
+// always appended as a predicted-only extension. Returns chronologically sorted data.
+const buildPredictionChartData = (predData) => {
+  if (!predData) return [];
+  const hasRich = Array.isArray(predData.chart) && predData.chart.length > 0;
+  let chartData = [];
+
+  if (hasRich) {
+    chartData = predData.chart.map(apiPointToChartPoint);
+  } else if (Array.isArray(predData.actual)) {
+    predData.actual.forEach(item => {
+      chartData.push({ date: item.tradingdate, actual: item.close, predicted: null });
+    });
+    if (Array.isArray(predData.predict)) {
+      predData.predict.forEach(item => {
+        const i = chartData.findIndex(d => d.date === item.tradingdate);
+        if (i >= 0) chartData[i].predicted = item.close;
+        else chartData.push({ date: item.tradingdate, actual: null, predicted: item.close });
+      });
+    }
+  }
+
+  // Future forecast — the only data present when forecasting a future date range.
+  if (Array.isArray(predData.future)) {
+    predData.future.forEach(item => {
+      const i = chartData.findIndex(d => d.date === item.tradingdate);
+      if (i >= 0) chartData[i].predicted = item.close;
+      else chartData.push({ date: item.tradingdate, actual: null, predicted: item.close });
+    });
+  }
+
+  chartData.sort((a, b) => new Date(a.date) - new Date(b.date));
+  return chartData;
+};
+
 const SolutionModal = ({ show, onHide, solution, onSave }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('general');
@@ -182,38 +265,11 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
       processTrainingResults(sol.training_result);
     }
 
-    // Restore persisted prediction result (actual/predicted arrays + chart)
+    // Restore persisted prediction result (same builder as the Predict button).
     if (sol.prediction_result && typeof sol.prediction_result === 'object') {
       console.log('[SolutionModal] Restoring persisted prediction result');
       setPredictionResult(sol.prediction_result);
-
-      // Rebuild prediction chart data (same logic as handlePredict success path)
-      const chartData = [];
-      if (sol.prediction_result.actual) {
-        sol.prediction_result.actual.forEach(item => {
-          chartData.push({ date: item.tradingdate, actual: item.close, predicted: null });
-        });
-      }
-      if (sol.prediction_result.predict) {
-        sol.prediction_result.predict.forEach(item => {
-          const existingIndex = chartData.findIndex(d => d.date === item.tradingdate);
-          if (existingIndex >= 0) {
-            chartData[existingIndex].predicted = item.close;
-          } else {
-            chartData.push({ date: item.tradingdate, actual: null, predicted: item.close });
-          }
-        });
-      }
-      if (sol.prediction_result.future) {
-        sol.prediction_result.future.forEach(item => {
-          const existingIndex = chartData.findIndex(d => d.date === item.tradingdate);
-          if (existingIndex >= 0) {
-            chartData[existingIndex].predicted = item.close;
-          } else {
-            chartData.push({ date: item.tradingdate, actual: null, predicted: item.close });
-          }
-        });
-      }
+      const chartData = buildPredictionChartData(sol.prediction_result);
       if (chartData.length > 0) {
         setPredictionChartData(chartData);
       }
@@ -384,61 +440,9 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
         console.log('🔍 TRAINING DATA - First data point:', JSON.stringify(dataPoints[0], null, 2));
         console.log('🔍 TRAINING DATA - Available fields:', Object.keys(dataPoints[0]));
 
-        // Transform training results into chart data
-        const chartData = dataPoints.map((item, index, array) => {
-          const prevClose = index > 0 ? (array[index - 1].actual || array[index - 1].actual_price || array[index - 1].close) : (item.actual || item.actual_price || item.close);
-          const currentClose = item.actual || item.actual_price || item.close;
-          const volumeColor = currentClose >= prevClose ? '#26a69a' : '#ef5350';
-
-          return {
-            date: item.date || item.tradingdate || item.timestamp,
-            // Consistent field mapping: prioritize specific prediction fields
-            actual: item.actual_price !== undefined ? item.actual_price : (item.actual !== undefined ? item.actual : item.close),
-            predicted: item.predicted_price !== undefined ? item.predicted_price : (item.predicted !== undefined ? item.predicted : item.prediction),
-            validation: item.validation_price !== undefined ? item.validation_price : item.validation,
-            // `close` deliberately omitted: in training data it equals `actual`, so
-            // emitting both draws two identical overlapping lines. The chart falls
-            // back to `actual` for volume coloring / edge indicator when close is absent.
-
-            // Trend indicators - map all possible names
-            sma_20: item.sma_20 || item.sma,
-            sma_50: item.sma_50,
-            ema_12: item.ema_12 || item.ema,
-            wma: item.wma,
-            dema: item.dema,
-            tema: item.tema,
-            psar: item.psar,
-            adx: item.adx,
-
-            // Momentum indicators
-            rsi: item.rsi,
-            rsi_signal: item.rsi_signal,
-            macd: item.macd,
-            macd_signal: item.macd_signal || item.signal,
-            macd_histogram: item.macd_histogram || item.histogram,
-            cci: item.cci,
-            stoch_k: item.stoch_k,
-            stoch_d: item.stoch_d,
-            williams_r: item.williams_r,
-            roc: item.roc,
-            mom: item.mom,
-
-            // Volatility indicators
-            atr: item.atr,
-            bb_upper: item.bb_upper,
-            bb_middle: item.bb_middle,
-            bb_lower: item.bb_lower,
-
-            // Volume indicators
-            volume: item.volume,
-            volumeColor: volumeColor,
-            volume_sma: item.volume_sma,
-            vwap: item.vwap,
-            obv: item.obv,
-            mfi: item.mfi,
-            cmf: item.cmf
-          };
-        });
+        // Transform training results into chart data (shared mapper keeps the
+        // Training and Prediction tabs visually identical).
+        const chartData = dataPoints.map(apiPointToChartPoint);
 
         console.log('✓ Successfully created chart data:', chartData.length, 'points');
         console.log('Sample chart data point:', chartData[0]);
@@ -1231,38 +1235,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
 
       if (response.success && response.data) {
         setPredictionResult(response.data);
-
-        // Transform data for chart
-        const chartData = [];
-
-        // Add actual data
-        if (response.data.actual) {
-          response.data.actual.forEach(item => {
-            chartData.push({
-              date: item.tradingdate,
-              actual: item.close,
-              predicted: null
-            });
-          });
-        }
-
-        // Add predicted data
-        if (response.data.predict) {
-          response.data.predict.forEach(item => {
-            const existingIndex = chartData.findIndex(d => d.date === item.tradingdate);
-            if (existingIndex >= 0) {
-              chartData[existingIndex].predicted = item.close;
-            } else {
-              chartData.push({
-                date: item.tradingdate,
-                actual: null,
-                predicted: item.close
-              });
-            }
-          });
-        }
-
-        setPredictionChartData(chartData);
+        setPredictionChartData(buildPredictionChartData(response.data));
         setSuccess(t('solutions.predict_success'));
       } else {
         throw new Error(response.error?.message || 'Prediction failed');

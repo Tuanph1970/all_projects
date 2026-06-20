@@ -1095,7 +1095,7 @@ async def predict_solution(
         df = df.dropna()
 
         # Step 6: Build features using shared function
-        indicator_feature_df, _ = _prepare_indicator_features(df, indicator_rows)
+        indicator_feature_df, indicator_data_by_date = _prepare_indicator_features(df, indicator_rows)
         feature_df = _build_feature_df(df, indicator_feature_df)
         feature_df = feature_df.dropna()
 
@@ -1135,6 +1135,9 @@ async def predict_solution(
 
         # Compute affine bias correction from backtest (scale + shift)
         # Simple additive bias keeps flat predictions flat; affine amplifies tiny model variations
+        actual_mean = pred_mean = actual_std = pred_std = 0.0
+        prediction_bias = 0.0
+        use_affine = use_shift = False
         if actual_prices and predicted_prices:
             actual_vals = np.array([p['close'] for p in actual_prices])
             pred_vals = np.array([p['close'] for p in predicted_prices])
@@ -1143,19 +1146,22 @@ async def predict_solution(
             actual_std = float(np.std(actual_vals))
             pred_std = float(np.std(pred_vals))
             prediction_bias = actual_mean - pred_mean  # for future predictions
-
-            # Affine correction: scale predictions to match actual distribution
             if pred_std > 1e-6 and actual_std > 1e-6:
-                # Scale tiny model variations to match actual price movement
-                corrected = actual_mean + (actual_std / pred_std) * (pred_vals - pred_mean)
-                for i, p in enumerate(predicted_prices):
-                    p['close'] = float(corrected[i])
+                use_affine = True
             elif abs(prediction_bias) > 0.01:
-                # Fallback: simple shift if no variation at all
-                for p in predicted_prices:
-                    p['close'] = p['close'] + prediction_bias
-        else:
-            prediction_bias = 0.0
+                use_shift = True
+
+        def _correct_pred(v):
+            """Apply the same backtest-derived correction used for in-range points."""
+            if use_affine:
+                return float(actual_mean + (actual_std / pred_std) * (v - pred_mean))
+            if use_shift:
+                return float(v + prediction_bias)
+            return float(v)
+
+        # Affine correction: scale in-range backtest predictions to match actuals
+        for p in predicted_prices:
+            p['close'] = _correct_pred(p['close'])
 
         # Step 8: Future predictions (iterative, day-by-day)
         future_predictions = []
@@ -1260,11 +1266,39 @@ async def predict_solution(
         else:
             rmse = mae = r2 = None
 
+        # Build a rich chart series so the Prediction tab renders the same
+        # multi-series view as the Training tab: recent real OHLCV history with
+        # merged indicators plus a continuous backtest predicted line. The
+        # forecast (`future`) extends this on the frontend. Bounded to the most
+        # recent rows to keep the payload small.
+        CHART_CONTEXT_ROWS = 300
+        chart_points = []
+        ctx_index = feature_df.index[-CHART_CONTEXT_ROWS:] if len(feature_df.index) > CHART_CONTEXT_ROWS else feature_df.index
+        pos_by_date = {d: i for i, d in enumerate(feature_df.index)}
+        for d in ctx_index:
+            i_global = pos_by_date[d]
+            point = {
+                'date': d.strftime('%Y-%m-%d'),
+                'actual_price': float(feature_df['close'].iloc[i_global]),
+                'predicted_price': _correct_pred(float(y_pred[i_global])),
+                'open': float(df.loc[d, 'open']) if d in df.index else None,
+                'high': float(df.loc[d, 'high']) if d in df.index else None,
+                'low': float(df.loc[d, 'low']) if d in df.index else None,
+                'volume': float(df.loc[d, 'volume']) if d in df.index else None,
+            }
+            key = d.isoformat()
+            if key in indicator_data_by_date:
+                point.update(indicator_data_by_date[key])
+            elif d.strftime('%Y-%m-%d') in indicator_data_by_date:
+                point.update(indicator_data_by_date[d.strftime('%Y-%m-%d')])
+            chart_points.append(point)
+
         # Build response
         prediction_response = {
             "solution_id": solution_id,
             "ticker": ticker,
             "train_status": "predicted",
+            "chart": chart_points,
             "actual": actual_prices,
             "predict": predicted_prices,
             "future": future_predictions,
