@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { LoadingSpinner, ErrorMessage, DataTable, ConfirmDialog } from '../../ui';
 import { TrendingUp, TrendingDown, Plus, Trash2, DollarSign, Coins, Building2 } from 'lucide-react';
 import portfolioService from '../../../services/portfolioService';
-import { formatVND, formatStockPrice } from '../../../utils/currencyFormatter';
+import { formatVND } from '../../../utils/currencyFormatter';
 import '../../../styles/holdings.css';
 
 const Holdings = () => {
@@ -179,13 +179,13 @@ const Holdings = () => {
     
     if (symbol) {
       const stock = stockOptions.find(s => s.symbol === symbol);
-      // stock.price arrives in thousands-quote (e.g. 73.5 = 73,500 VND/share).
-      // The price input stores actual VND end-to-end, so convert at the boundary.
+      // stock.price (priceboard matchPrice) is already in full VND (e.g. 22200).
+      // The price input stores actual VND end-to-end, so use it as-is.
       setFormData({
         symbol: stock.symbol,
         companyName: stock.name,
         shares: '',
-        price: ((stock.price || 0) * 1000).toString()
+        price: (stock.price || 0).toString()
       });
     } else {
       setFormData({ symbol: '', companyName: '', shares: '', price: '' });
@@ -360,7 +360,7 @@ const Holdings = () => {
                     <option value="">{t('portfolio.holdings.select_option')}</option>
                     {stockOptions.map((stock) => (
                       <option key={stock.symbol} value={stock.symbol}>
-                        {stock.symbol} - {stock.name} ({formatStockPrice(stock.price)})
+                        {stock.symbol} - {stock.name} ({formatVND(stock.price)})
                       </option>
                     ))}
                   </select>
