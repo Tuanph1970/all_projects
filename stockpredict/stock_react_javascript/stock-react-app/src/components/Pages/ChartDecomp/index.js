@@ -1208,12 +1208,16 @@ function PatternTab({ series, t }) {
               <XAxis dataKey="i" tick={{ fontSize:10 }} />
               <YAxis tick={{ fontSize:10 }} width={50} domain={yDomain} allowDecimals />
               <Tooltip contentStyle={{ fontSize:11 }} />
-              {seriesVis.detections && dets.map((d, idx) => (
+              {/* Always render the areas; toggle visibility via opacity. recharts does
+                  not reliably remove ReferenceArea children when they are conditionally
+                  unmounted, so an opacity prop change is the dependable on/off switch. */}
+              {dets.map((d, idx) => (
                 <ReferenceArea key={idx} x1={d.start_index} x2={d.end_index}
                                fill={PATTERN_COLORS[idx % PATTERN_COLORS.length]}
-                               fillOpacity={d.confirmed ? 0.15 : 0.07}
+                               fillOpacity={seriesVis.detections ? (d.confirmed ? 0.15 : 0.07) : 0}
                                stroke={PATTERN_COLORS[idx % PATTERN_COLORS.length]}
-                               strokeOpacity={0.4} strokeDasharray={d.confirmed ? 'none' : '4 2'} />
+                               strokeOpacity={seriesVis.detections ? 0.4 : 0}
+                               strokeDasharray={d.confirmed ? 'none' : '4 2'} />
               ))}
               {seriesVis.raw && (
                 <Line dataKey="raw" stroke={COLORS.original} dot={false} strokeWidth={1}
