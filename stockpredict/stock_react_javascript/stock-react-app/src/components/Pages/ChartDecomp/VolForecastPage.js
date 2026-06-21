@@ -137,7 +137,11 @@ function DataPanel({ onDataReady, t }) {
     try {
       const resp = await companyService.getCompanyCharts(ticker, period);
       if (!resp.success) throw new Error(resp.error);
-      const prices = (Array.isArray(resp.data) ? resp.data : [])
+      // The history endpoint returns { symbol, name, exchange, data: [...] }; older
+      // callers expected a bare array. Accept both shapes.
+      const raw = resp.data;
+      const rows = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+      const prices = rows
         .map(d => d.close ?? d.c ?? d.price).filter(v => v != null && isFinite(v));
       if (prices.length < 300) throw new Error(`Only ${prices.length} data points returned; need ≥300`);
       onDataReady(prices, ticker);
@@ -281,7 +285,8 @@ function ConfigPanel({ cfg, setCfg, onRun, loading, hasData, t }) {
 // ── Forecast Comparison Panel ─────────────────────────────────────────────────
 
 function ComparePanel({ result, t }) {
-  if (!result) return null;
+  // Guard against malformed/error payloads so a bad response never blanks the page.
+  if (!result || !result.har || !result.vmd_har) return null;
   const { har, vmd_har, dm_stat, winner } = result;
   const isVmdWinner = winner === 'vmd_har';
 
@@ -475,7 +480,11 @@ function BacktestPanel({ compareResult, prices, t }) {
         max_leverage:  cfg.max_lev,
         cost_bps:      cfg.cost_bps,
       });
+      if (!resp || resp.success === false) {
+        throw new Error(resp?.error?.data?.detail ?? resp?.error?.message ?? 'Backtest failed');
+      }
       const d = resp.data ?? resp;
+      if (!d || !Array.isArray(d.pnl_net)) throw new Error('Unexpected response from backtest');
 
       // Enrich with cumulative curves and drawdown
       const cumData   = buildCumPnl(d.pnl_net, alignedReturns);
@@ -649,7 +658,12 @@ function BacktestPanel({ compareResult, prices, t }) {
 
 const DEFAULT_CFG = {
   har_ridge_alpha: 5,   har_min_train: 252, har_refit_every: 60,
-  vmd_K: 4, vmd_alpha: 2000, vmd_window: 1000, vmd_edge_lag: 5,
+  // vmd_window must fit within the loaded series: VMD-HAR needs min_train + window + 2
+  // observations. The history API returns ~1000 rows max (≈5y), and a 2y load is only
+  // ~500, so the old default of 1000 could never run. 200 (the backend minimum) keeps
+  // the default comparison runnable on a 2-year load; raise it via Advanced params when
+  // more history is loaded.
+  vmd_K: 4, vmd_alpha: 2000, vmd_window: 200, vmd_edge_lag: 5,
   vmd_ridge_alpha: 5, vmd_min_train: 252, vmd_refit_vmd_every: 20, vmd_refit_model_every: 60,
 };
 
@@ -692,7 +706,15 @@ export default function VolForecastPage() {
           refit_model_every: cfg.vmd_refit_model_every,
         },
       });
-      setCompare(resp.data ?? resp);
+      // httpClient never throws — it returns { success, data } | { success:false, error }.
+      // Surface backend errors (e.g. 422 "series too short") instead of feeding a malformed
+      // object to ComparePanel, which would crash the whole page on har.timestamps.
+      if (!resp || resp.success === false) {
+        throw new Error(resp?.error?.data?.detail ?? resp?.error?.message ?? 'Forecast comparison failed');
+      }
+      const body = resp.data ?? resp;
+      if (!body?.har || !body?.vmd_har) throw new Error('Unexpected response from forecast/compare');
+      setCompare(body);
     } catch (e) {
       setError(t('vol_forecast.config.error', { msg: e.response?.data?.detail ?? e.message }));
     } finally {

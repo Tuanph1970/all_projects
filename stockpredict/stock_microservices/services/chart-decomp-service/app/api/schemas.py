@@ -293,6 +293,7 @@ class ForecastCompareResponse(BaseModel):
     har: ForecastResponse
     vmd_har: ForecastResponse
     dm_stat: Optional[float] = Field(None, description="Diebold-Mariano stat (VMD-HAR vs HAR); >1.96 → VMD-HAR significantly better")
+    winner: str = Field("har", description="'har' | 'vmd_har' — VMD-HAR wins only if it beats HAR on RMSE + QLIKE with DM > 1.96 (Constraint C4)")
 
 
 # ---------------------------------------------------------------------------

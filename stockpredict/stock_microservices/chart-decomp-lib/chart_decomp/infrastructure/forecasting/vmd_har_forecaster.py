@@ -103,9 +103,16 @@ class VMDHARForecaster:
                 vmd_modes, vmd_window_lo = self._fit_vmd(x_window, lo, params)
                 last_vmd_refit = t
 
-            # ── Read VMD features with edge_lag ───────────────────────────────
-            lag_idx = (t - vmd_window_lo) - params.edge_lag
-            if lag_idx < 21 or vmd_modes is None:
+            # ── Read VMD features at edge_lag from the window's RIGHT EDGE ─────
+            # The modes only span [vmd_window_lo, refit_t]. Indexing by the
+            # current t (t - vmd_window_lo) walks past the end of the mode arrays
+            # once t advances beyond the refit point (IndexError). Reading the
+            # fixed offset back from the right edge keeps it in-bounds and matches
+            # the documented "edge_lag offset from the right edge of the window".
+            if vmd_modes is None:
+                continue
+            lag_idx = (vmd_modes.shape[1] - 1) - params.edge_lag
+            if lag_idx < 21:
                 # Not enough lag buffer; skip this step
                 continue
 
@@ -202,7 +209,9 @@ class VMDHARForecaster:
                 vmd_modes_cache, vmd_cache_lo = self._fit_vmd(x_win, lo, params)
                 vmd_last_fit = t
 
-            lag_idx = (t - vmd_cache_lo) - params.edge_lag
+            # Same right-edge read as the forecast loop, so training and inference
+            # features are constructed identically (avoids train/serve skew).
+            lag_idx = (vmd_modes_cache.shape[1] - 1) - params.edge_lag
             if lag_idx < 21:
                 continue
 
