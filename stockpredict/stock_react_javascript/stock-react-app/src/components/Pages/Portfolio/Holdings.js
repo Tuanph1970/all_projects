@@ -390,7 +390,10 @@ const Holdings = () => {
 
               {formData.shares && formData.price && (
                 <div className="total-cost-card">
-                  <p>{t('portfolio.holdings.total_cost_label')}{formatVND(portfolioService.calculateTotalCost(formData.shares, formData.price) * 1000)}</p>
+                  {/* formData.price is already in full VND (handleStockSelect converts the
+                      thousands-quote at the boundary), so calculateTotalCost already returns
+                      VND — do NOT multiply by 1000 again or the total is 1000x too large. */}
+                  <p>{t('portfolio.holdings.total_cost_label')}{formatVND(portfolioService.calculateTotalCost(formData.shares, formData.price))}</p>
                 </div>
               )}
 
