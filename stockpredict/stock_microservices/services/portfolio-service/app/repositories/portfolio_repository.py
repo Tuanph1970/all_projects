@@ -42,11 +42,17 @@ class PortfolioRepository:
         return list(result.scalars().all())
 
     async def get_default_portfolio(self, user_id: int) -> Optional[Portfolio]:
+        # A user may end up with more than one is_default row (e.g. duplicate
+        # get-or-create races); scalar_one_or_none() would raise MultipleResultsFound
+        # and 500 every default-portfolio/watchlist call. Deterministically return the
+        # oldest default instead so the endpoint is robust to duplicates.
         result = await self.session.execute(
             select(Portfolio)
             .where(and_(Portfolio.user_id == user_id, Portfolio.is_default == True))
+            .order_by(Portfolio.created_at.asc(), Portfolio.id.asc())
+            .limit(1)
         )
-        return result.scalar_one_or_none()
+        return result.scalars().first()
 
     async def update_portfolio(self, portfolio_id: int, user_id: int, **kwargs) -> Optional[Portfolio]:
         kwargs["updated_at"] = datetime.utcnow()
