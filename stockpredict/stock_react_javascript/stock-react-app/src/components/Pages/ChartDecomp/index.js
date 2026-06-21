@@ -5,7 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceArea,
 } from 'recharts';
-import { Activity, RefreshCw, TrendingUp, Zap, BarChart2, GitBranch } from 'lucide-react';
+import { Activity, RefreshCw, TrendingUp, Zap, BarChart2, GitBranch, Info, ArrowRight, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import chartDecompService from '../../../services/chartDecompService';
 import companyService from '../../../services/companyService';
@@ -1281,9 +1281,10 @@ function PatternTab({ series, t }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-const TABS = ['decomp', 'time_freq', 'hurst', 'forecast', 'patterns'];
+const TABS = ['overview', 'decomp', 'time_freq', 'hurst', 'forecast', 'patterns'];
 
 const TAB_ICONS = {
+  overview:  Info,
   decomp:    Activity,
   time_freq: BarChart2,
   hurst:     TrendingUp,
@@ -1291,9 +1292,168 @@ const TAB_ICONS = {
   patterns:  GitBranch,
 };
 
+// ── Overview tab — static "what is this & why" pipeline with hover descriptions ──
+
+const PIPELINE_STAGES = [
+  { key: 'decomp',    icon: Activity,    color: '#3b82f6' },
+  { key: 'time_freq', icon: BarChart2,   color: '#06b6d4' },
+  { key: 'hurst',     icon: TrendingUp,  color: '#10b981' },
+  { key: 'forecast',  icon: Zap,         color: '#f59e0b' },
+  { key: 'patterns',  icon: GitBranch,   color: '#8b5cf6' },
+];
+
+function OverviewTab({ t, onJump }) {
+  const [hovered, setHovered] = useState(null);
+  const benefits = t('chart_decomp.overview.benefits', { returnObjects: true });
+  const benefitList = Array.isArray(benefits) ? benefits : [];
+
+  const ov = {
+    hero: {
+      background: 'linear-gradient(135deg, #eef2ff 0%, #f0f9ff 100%)',
+      border: `1px solid ${COLORS.border}`, borderRadius: 12,
+      padding: '18px 22px', marginBottom: 12,
+    },
+    heroTitle: { fontSize: 20, fontWeight: 800, color: '#111827', margin: 0 },
+    heroSub:   { fontSize: 13, color: '#4b5563', lineHeight: 1.6, marginTop: 8, maxWidth: 880 },
+    twoCol: { display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 },
+    goalCard: {
+      flex: '1 1 340px', background: COLORS.card, border: `1px solid ${COLORS.border}`,
+      borderRadius: 10, padding: '14px 16px',
+    },
+    sectionTitle: { fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#374151', marginBottom: 8 },
+    goalBody: { fontSize: 12.5, color: '#4b5563', lineHeight: 1.65 },
+    benefitsCard: {
+      flex: '1 1 340px', background: COLORS.card, border: `1px solid ${COLORS.border}`,
+      borderRadius: 10, padding: '14px 16px',
+    },
+    benefitItem: { display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12.5, color: '#374151', lineHeight: 1.5, marginBottom: 7 },
+    check: { color: COLORS.success, flexShrink: 0, marginTop: 1 },
+    pipeWrap: { background: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: '16px 18px' },
+    pipeHint: { fontSize: 11, color: '#9ca3af', marginBottom: 14, fontWeight: 500 },
+    flowRow: { display: 'flex', alignItems: 'stretch', gap: 0, flexWrap: 'wrap' },
+    startChip: {
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      minWidth: 84, padding: '0 10px', fontSize: 11, fontWeight: 700, color: '#6b7280', textAlign: 'center',
+    },
+    startDot: { width: 12, height: 12, borderRadius: 99, background: COLORS.original, marginBottom: 6 },
+  };
+
+  const stageCard = (active, color) => ({
+    flex: '1 1 150px', minWidth: 150, cursor: 'pointer',
+    background: active ? '#fff' : '#fafafb',
+    border: `1.5px solid ${active ? color : COLORS.border}`,
+    borderRadius: 10, padding: '12px 12px 13px',
+    boxShadow: active ? `0 6px 18px -6px ${color}66` : 'none',
+    transform: active ? 'translateY(-2px)' : 'none',
+    transition: 'all 0.16s ease', position: 'relative',
+  });
+
+  const arrow = (
+    <div style={{ display: 'flex', alignItems: 'center', padding: '0 4px', color: '#cbd5e1' }}>
+      <ArrowRight size={18} />
+    </div>
+  );
+
+  return (
+    <div>
+      {/* Hero */}
+      <div style={ov.hero}>
+        <h2 style={ov.heroTitle}>{t('chart_decomp.overview.hero_title')}</h2>
+        <p style={ov.heroSub}>{t('chart_decomp.overview.hero_subtitle')}</p>
+      </div>
+
+      {/* Goal + benefits */}
+      <div style={ov.twoCol}>
+        <div style={ov.goalCard}>
+          <div style={ov.sectionTitle}>{t('chart_decomp.overview.goal_title')}</div>
+          <div style={ov.goalBody}>{t('chart_decomp.overview.goal_body')}</div>
+        </div>
+        <div style={ov.benefitsCard}>
+          <div style={ov.sectionTitle}>{t('chart_decomp.overview.benefits_title')}</div>
+          {benefitList.map((b, i) => (
+            <div key={i} style={ov.benefitItem}>
+              <Check size={14} style={ov.check} />
+              <span>{b}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Pipeline */}
+      <div style={ov.pipeWrap}>
+        <div style={ov.sectionTitle}>{t('chart_decomp.overview.pipeline_title')}</div>
+        <div style={ov.pipeHint}>{t('chart_decomp.overview.pipeline_hint')}</div>
+
+        <div style={ov.flowRow}>
+          <div style={ov.startChip}>
+            <div style={ov.startDot} />
+            {t('chart_decomp.overview.flow_label')}
+          </div>
+          {arrow}
+          {PIPELINE_STAGES.map((stage, i) => {
+            const Icon = stage.icon;
+            const active = hovered === stage.key;
+            return (
+              <React.Fragment key={stage.key}>
+                <div
+                  style={stageCard(active, stage.color)}
+                  onMouseEnter={() => setHovered(stage.key)}
+                  onMouseLeave={() => setHovered(null)}
+                  onClick={() => onJump && onJump(stage.key)}
+                  title={t(`chart_decomp.overview.stages.${stage.key}.role`)}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+                    <div style={{
+                      width: 26, height: 26, borderRadius: 7, background: `${stage.color}1a`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}>
+                      <Icon size={15} color={stage.color} />
+                    </div>
+                    <div style={{ fontSize: 11.5, fontWeight: 800, color: '#111827', lineHeight: 1.2 }}>
+                      {t(`chart_decomp.overview.stages.${stage.key}.title`)}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 10.5, fontWeight: 600, color: stage.color, marginBottom: 6 }}>
+                    {t(`chart_decomp.overview.stages.${stage.key}.role`)}
+                  </div>
+
+                  {/* Hover reveal: description + benefit */}
+                  <div style={{
+                    maxHeight: active ? 260 : 0, opacity: active ? 1 : 0, overflow: 'hidden',
+                    transition: 'max-height 0.22s ease, opacity 0.18s ease',
+                  }}>
+                    <div style={{ fontSize: 11, color: '#4b5563', lineHeight: 1.5, marginBottom: 7 }}>
+                      {t(`chart_decomp.overview.stages.${stage.key}.desc`)}
+                    </div>
+                    <div style={{
+                      fontSize: 10.5, color: '#065f46', background: '#ecfdf5',
+                      borderRadius: 6, padding: '6px 8px', lineHeight: 1.45, marginBottom: 6,
+                    }}>
+                      <strong>✓ </strong>{t(`chart_decomp.overview.stages.${stage.key}.benefit`)}
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: 9.5, color: '#9ca3af', fontWeight: 600, letterSpacing: '0.02em' }}>
+                    {t(`chart_decomp.overview.stages.${stage.key}.methods`)}
+                  </div>
+                </div>
+                {i < PIPELINE_STAGES.length - 1 && arrow}
+              </React.Fragment>
+            );
+          })}
+        </div>
+
+        <div style={{ fontSize: 11.5, color: '#6b7280', marginTop: 14, fontStyle: 'italic' }}>
+          {t('chart_decomp.overview.cta')}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ChartDecompPage() {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState('decomp');
+  const [activeTab, setActiveTab] = useState('overview');
   const [series, setSeries]       = useState(null);
 
   return (
@@ -1309,8 +1469,8 @@ export default function ChartDecompPage() {
         <p style={s.subtitle}>{t('chart_decomp.page_subtitle')}</p>
       </div>
 
-      {/* Input panel (always visible) */}
-      <InputPanel onSeriesReady={(s) => setSeries(s)} t={t} />
+      {/* Input panel (hidden on the Overview tab) */}
+      {activeTab !== 'overview' && <InputPanel onSeriesReady={(s) => setSeries(s)} t={t} />}
 
       {/* Tab bar */}
       <div style={s.tabBar}>
@@ -1326,6 +1486,7 @@ export default function ChartDecompPage() {
       </div>
 
       {/* Tab panels */}
+      {activeTab === 'overview'  && <OverviewTab  t={t} onJump={setActiveTab} />}
       {activeTab === 'decomp'    && <DecompTab    series={series} t={t} />}
       {activeTab === 'time_freq' && <TimeFreqTab  series={series} t={t} />}
       {activeTab === 'hurst'     && <HurstTab     series={series} t={t} />}

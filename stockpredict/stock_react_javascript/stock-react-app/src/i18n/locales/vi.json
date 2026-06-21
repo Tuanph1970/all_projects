@@ -2141,12 +2141,68 @@
     "page_title": "Phân rã & Phân tích đa tỷ lệ",
     "page_subtitle": "Phân tích chuỗi giá chứng khoán theo nhiều tần số — MODWT, EMD, VMD, CWT, Hurst, HAR",
     "tabs": {
+      "overview": "Tổng quan",
       "combined": "Xem tổng hợp",
       "decomp": "Phân rã tín hiệu",
       "time_freq": "Thời tần",
       "hurst": "Hurst & Tương quan",
       "forecast": "Dự báo biến động",
       "patterns": "Phát hiện Mẫu hình"
+    },
+    "overview": {
+      "hero_title": "Đọc giá đúng theo cách thị trường vận động",
+      "hero_subtitle": "Một đường giá thô gộp mọi lực tác động lên cổ phiếu vào một đường ngoằn ngoèo duy nhất. Không gian phân tích này tách đường đó thành các lớp tạo nên nó — xu hướng chậm, các chu kỳ trung bình và nhiễu nhanh — rồi đo lường, dự báo và nhận diện mẫu hình cho từng lớp.",
+      "goal_title": "Mục tiêu là gì?",
+      "goal_body": "Biến một đường giá đầy nhiễu thành tập hợp các tín hiệu rõ ràng, tách biệt mà bạn có thể hành động: biết tỷ lệ thời gian nào đang dẫn dắt biến động, cổ phiếu đang theo xu hướng hay hồi quy về trung bình, ngày mai rủi ro ra sao, và liệu một mẫu hình thực sự có đang hình thành — kèm các cơ chế bảo vệ để không nhầm nhiễu thành tín hiệu.",
+      "pipeline_title": "Quy trình phân tích",
+      "pipeline_hint": "Di chuột vào từng bước để xem nó làm gì và lợi ích ra sao",
+      "flow_label": "Chuỗi giá",
+      "stages": {
+        "decomp": {
+          "title": "Phân rã tín hiệu",
+          "role": "Tách giá thành xu hướng + chu kỳ",
+          "desc": "Tách chuỗi giá thành một xu hướng mượt (xấp xỉ) và nhiều thành phần dao động (chi tiết) bằng MODWT, EMD, EEMD hoặc VMD. Mỗi thành phần nắm bắt biến động ở một tốc độ khác nhau — các đợt sóng dài so với nhiễu nhanh.",
+          "benefit": "Nhìn ra tỷ lệ thời gian nào thực sự dẫn dắt biến động, và khử nhiễu chuỗi giá trước khi mô hình hóa.",
+          "methods": "MODWT · EMD · EEMD · VMD"
+        },
+        "time_freq": {
+          "title": "Thời tần",
+          "role": "Mỗi chu kỳ xảy ra khi nào",
+          "desc": "Biểu diễn cường độ của từng tần số thay đổi theo thời gian bằng giản đồ tỷ lệ CWT và phổ Hilbert-Huang. Các dải sáng cho thấy nhịp nào chiếm ưu thế tại mỗi thời điểm; nón ảnh hưởng đánh dấu vùng mà hiệu ứng biên khiến số liệu không đáng tin.",
+          "benefit": "Phát hiện chuyển đổi trạng thái — khi xu hướng chậm nhường chỗ cho giao dịch nhanh, giật cục.",
+          "methods": "Giản đồ CWT · Hilbert-Huang"
+        },
+        "hurst": {
+          "title": "Hurst & Tương quan",
+          "role": "Theo xu hướng hay hồi quy?",
+          "desc": "Ước lượng số mũ Hurst trên lợi suất để biết chuỗi đang theo xu hướng (H>0.5), hồi quy về trung bình (H<0.5) hay gần như ngẫu nhiên (H≈0.5). Tương quan wavelet đo mức độ hai chuỗi cùng vận động qua các tỷ lệ.",
+          "benefit": "Chọn đúng chiến lược — theo đà hay hồi quy — và phát hiện mối liên hệ dẫn-trễ giữa các cổ phiếu.",
+          "methods": "Số mũ Hurst · Tương quan wavelet"
+        },
+        "forecast": {
+          "title": "Dự báo biến động",
+          "role": "Ngày mai rủi ro ra sao",
+          "desc": "Dự báo biến động thực hiện bằng mô hình HAR và biến thể VMD-HAR, luôn báo cáo cạnh mốc chuẩn HAR với RMSE, MAE, R² và QLIKE để một 'cải thiện' phải thực sự xứng đáng.",
+          "benefit": "Định cỡ vị thế và đặt cắt lỗ theo rủi ro kỳ vọng, chứ không theo sự bình lặng hay hoảng loạn của hôm qua.",
+          "methods": "HAR · Mốc chuẩn VMD-HAR"
+        },
+        "patterns": {
+          "title": "Phát hiện mẫu hình",
+          "role": "Tự động tìm cấu trúc đồ thị",
+          "desc": "Phát hiện các điểm đảo chiều (swing pivot) và các mẫu hình đồ thị cổ điển trên nhiều tỷ lệ, kèm kiểm định null kiểu bước ngẫu nhiên trên tỷ lệ dương tính giả để nhiễu ngẫu nhiên không bị gán nhãn là mẫu hình.",
+          "benefit": "Làm nổi bật cấu trúc có ý nghĩa — xu hướng, đảo chiều, mẫu hình lồng nhau — mà không phải soi từng đồ thị bằng mắt.",
+          "methods": "Swing đa tỷ lệ · Khớp mẫu hình"
+        }
+      },
+      "benefits_title": "Vì sao nên dùng",
+      "benefits": [
+        "Tách xu hướng thật khỏi nhiễu ngắn hạn",
+        "Thấy tỷ lệ thời gian nào đang dẫn dắt biến động hiện tại",
+        "Biết nên giao dịch theo đà hay hồi quy về trung bình",
+        "Dự báo rủi ro và định cỡ vị thế tương ứng",
+        "Phát hiện mẫu hình một cách khách quan, có rào chắn dương tính giả"
+      ],
+      "cta": "Mở bất kỳ tab nào ở trên để chạy bước đó trên mã cổ phiếu bạn chọn."
     },
     "combined": {
       "series_label": "Chuỗi",

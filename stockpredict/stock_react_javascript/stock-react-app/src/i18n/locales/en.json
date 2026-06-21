@@ -2141,12 +2141,68 @@
     "page_title": "Decomposition & Multi-Scale Analysis",
     "page_subtitle": "Analyse price series across multiple frequencies — MODWT, EMD, VMD, CWT, Hurst, HAR",
     "tabs": {
+      "overview": "Overview",
       "combined": "Combined View",
       "decomp": "Signal Decomposition",
       "time_freq": "Time-Frequency",
       "hurst": "Hurst & Coherence",
       "forecast": "Volatility Forecast",
       "patterns": "Pattern Detection"
+    },
+    "overview": {
+      "hero_title": "Read price the way the market actually moves",
+      "hero_subtitle": "A raw price line blends every force acting on a stock into a single wiggle. This workspace pulls that line apart into the layers that drive it — the slow trend, the medium cycles and the fast noise — then measures, forecasts and pattern-matches each one.",
+      "goal_title": "What is the goal?",
+      "goal_body": "Turn one noisy price line into a set of clear, separate signals you can actually act on: know which timescale is driving the move, whether the stock is trending or mean-reverting, how risky tomorrow is, and whether a real chart pattern is forming — with guardrails so noise is not mistaken for signal.",
+      "pipeline_title": "The analysis pipeline",
+      "pipeline_hint": "Hover any stage to see what it does and why it helps",
+      "flow_label": "Price series",
+      "stages": {
+        "decomp": {
+          "title": "Signal Decomposition",
+          "role": "Split price into trend + cycles",
+          "desc": "Separates the price series into a smooth trend (approximation) and several oscillating components (details) using MODWT, EMD, EEMD or VMD. Each component captures movement at a different speed — long swings versus fast chatter.",
+          "benefit": "See which timescale is really driving the move, and denoise the series before you model it.",
+          "methods": "MODWT · EMD · EEMD · VMD"
+        },
+        "time_freq": {
+          "title": "Time-Frequency",
+          "role": "When did each cycle happen",
+          "desc": "Maps how the strength of each frequency changes over time with the CWT scalogram and the Hilbert-Huang spectrum. Bright bands show which rhythms dominate at each date; the cone of influence marks where edge effects make readings unreliable.",
+          "benefit": "Spot regime changes — when a slow trend gives way to fast, choppy trading.",
+          "methods": "CWT scalogram · Hilbert-Huang"
+        },
+        "hurst": {
+          "title": "Hurst & Coherence",
+          "role": "Trending or mean-reverting?",
+          "desc": "Estimates the Hurst exponent on returns to tell whether the series trends (H>0.5), mean-reverts (H<0.5) or is essentially random (H≈0.5). Wavelet coherence measures how strongly two series move together across scales.",
+          "benefit": "Pick the right playbook — momentum versus reversion — and uncover lead-lag links between stocks.",
+          "methods": "Hurst exponent · Wavelet coherence"
+        },
+        "forecast": {
+          "title": "Volatility Forecast",
+          "role": "How risky is tomorrow",
+          "desc": "Forecasts realised volatility with the HAR model and a VMD-HAR variant, always reported next to the HAR benchmark with RMSE, MAE, R² and QLIKE so an 'improvement' has to earn it.",
+          "benefit": "Size positions and set stops to expected risk, not to yesterday's calm or panic.",
+          "methods": "HAR · VMD-HAR benchmark"
+        },
+        "patterns": {
+          "title": "Pattern Detection",
+          "role": "Find chart structure automatically",
+          "desc": "Detects swing pivots and classical chart patterns across multiple scales, with a random-walk null check on the false-positive rate so random noise is not labelled as a pattern.",
+          "benefit": "Surface meaningful structure — trends, reversals, nested formations — without eyeballing every chart.",
+          "methods": "Multi-scale swings · Pattern matching"
+        }
+      },
+      "benefits_title": "Why use this",
+      "benefits": [
+        "Separate genuine trend from short-term noise",
+        "See which timescale is driving the current move",
+        "Know whether to trade momentum or mean-reversion",
+        "Forecast risk and size positions accordingly",
+        "Detect chart patterns objectively, with a false-positive guardrail"
+      ],
+      "cta": "Open any tab above to run that stage on a ticker of your choice."
     },
     "combined": {
       "series_label": "Series",
