@@ -886,6 +886,9 @@ function PatternTab({ series, t }) {
   const [error, setError]       = useState(null);
   const [result, setResult]     = useState(null);
   const [mode, setMode]         = useState('single');
+  // Single combined chart: which series are visible (toggled via checkbox dropdown)
+  const [seriesVis, setSeriesVis] = useState({ raw: true, denoised: true, pivots: true, detections: true });
+  const [seriesDropOpen, setSeriesDropOpen] = useState(false);
 
   const toggleScale = (s) => setScales(prev =>
     prev.includes(s) ? prev.filter(v => v !== s) : [...prev, s].sort((a, b) => a - b));
@@ -1077,8 +1080,25 @@ function PatternTab({ series, t }) {
   const highPivots = new Set(mode === 'single' ? (result?.swings.filter(s => s.kind === 'H').map(s => s.index) ?? []) : []);
   const lowPivots  = new Set(mode === 'single' ? (result?.swings.filter(s => s.kind === 'L').map(s => s.index) ?? []) : []);
 
-  // Detection regions for Panel 3 (single-scale)
+  // Detection regions (single-scale)
   const dets = (mode === 'single' ? result?.detections : []) ?? [];
+
+  // Series available in the single combined chart (drives the toggle dropdown + legend)
+  const SERIES_DEFS = [
+    { key: 'raw',        label: t('chart_decomp.patterns.raw_label'),         color: COLORS.original },
+    { key: 'denoised',   label: t('chart_decomp.patterns.denoised_label'),    color: COLORS.accent },
+    { key: 'pivots',     label: t('chart_decomp.patterns.series_pivots'),     color: COLORS.success },
+    { key: 'detections', label: t('chart_decomp.patterns.series_detections'), color: PATTERN_COLORS[0] },
+  ];
+  const activeCount = SERIES_DEFS.filter(sd => seriesVis[sd.key]).length;
+
+  // Tight Y-domain (with 5% padding) so series fill the chart height instead of
+  // collapsing to near-flat lines under recharts' default 0-anchored axis.
+  const yVals = chartData.flatMap(d => [d.raw, d.denoised]).filter(v => Number.isFinite(v));
+  const yMin = yVals.length ? Math.min(...yVals) : 0;
+  const yMax = yVals.length ? Math.max(...yVals) : 0;
+  const yPad = (yMax - yMin) * 0.05 || 1;
+  const yDomain = yVals.length ? [yMin - yPad, yMax + yPad] : ['auto', 'auto'];
 
   return (
     <div style={{ padding: '0 0 24px' }}>
@@ -1138,89 +1158,105 @@ function PatternTab({ series, t }) {
       {result && mode === 'multi' && renderMulti()}
 
       {result && mode === 'single' && (<>
-        {/* Panel 1 — Raw vs Denoised (FR-VIZ-1 §1) */}
-        <h4 style={{ fontSize:13, color:COLORS.axis, margin:'0 0 6px' }}>
-          {t('chart_decomp.patterns.panel1_title')}
-        </h4>
-        <div style={{ background:COLORS.card, border:`1px solid ${COLORS.border}`,
-                      borderRadius:8, padding:'12px 4px', marginBottom:16 }}>
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray={COLORS.gridDash} stroke={COLORS.grid} />
-              <XAxis dataKey="i" tick={{ fontSize:10 }} />
-              <YAxis tick={{ fontSize:10 }} width={50} />
-              <Tooltip contentStyle={{ fontSize:11 }} />
-              <Line dataKey="raw" stroke={COLORS.original} dot={false} strokeWidth={1}
-                    name={t('chart_decomp.patterns.raw_label')} />
-              <Line dataKey="denoised" stroke={COLORS.accent} dot={false} strokeWidth={1.5}
-                    name={t('chart_decomp.patterns.denoised_label')} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+        {/* Single combined chart — all series on one Y axis, toggled via dropdown (FR-VIZ-1) */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+                      margin:'0 0 6px', gap:12, flexWrap:'wrap' }}>
+          <h4 style={{ fontSize:13, color:COLORS.axis, margin:0 }}>
+            {t('chart_decomp.patterns.combined_title')}
+            <span style={{ marginLeft:8, fontSize:11, color:COLORS.axis }}>
+              ({result.swings.length} {t('chart_decomp.patterns.pivots_short')} · {dets.length} {t('chart_decomp.patterns.patterns_short')})
+            </span>
+          </h4>
 
-        {/* Panel 2 — Swing Skeleton (FR-VIZ-1 §2) */}
-        <h4 style={{ fontSize:13, color:COLORS.axis, margin:'0 0 6px' }}>
-          {t('chart_decomp.patterns.panel2_title')}
-          <span style={{ marginLeft:8, fontSize:11, color:COLORS.axis }}>
-            ({result.swings.length} pivots)
-          </span>
-        </h4>
-        <div style={{ background:COLORS.card, border:`1px solid ${COLORS.border}`,
-                      borderRadius:8, padding:'12px 4px', marginBottom:16 }}>
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray={COLORS.gridDash} stroke={COLORS.grid} />
-              <XAxis dataKey="i" tick={{ fontSize:10 }} />
-              <YAxis tick={{ fontSize:10 }} width={50} />
-              <Tooltip contentStyle={{ fontSize:11 }} />
-              <Line dataKey="denoised" stroke={COLORS.accent} dot={(props) => {
-                const { cx, cy, payload } = props;
-                if (highPivots.has(payload.i))
-                  return <circle key={payload.i} cx={cx} cy={cy} r={4}
-                                 fill={COLORS.danger} stroke="none" />;
-                if (lowPivots.has(payload.i))
-                  return <circle key={payload.i} cx={cx} cy={cy} r={4}
-                                 fill={COLORS.success} stroke="none" />;
-                return null;
-              }} strokeWidth={1.5} name={t('chart_decomp.patterns.denoised_label')} />
-            </LineChart>
-          </ResponsiveContainer>
-          <div style={{ display:'flex', gap:16, padding:'4px 12px', fontSize:11 }}>
-            <span><span style={{ color:COLORS.danger }}>●</span> {t('chart_decomp.patterns.high_label')}</span>
-            <span><span style={{ color:COLORS.success }}>●</span> {t('chart_decomp.patterns.low_label')}</span>
+          {/* Series toggle dropdown */}
+          <div style={{ position:'relative' }}>
+            <button type="button" onClick={() => setSeriesDropOpen(o => !o)}
+                    style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 10px',
+                             background:'#fff', border:`1px solid ${COLORS.border}`, borderRadius:6,
+                             fontSize:12, fontFamily:FONT, cursor:'pointer', color:'#374151' }}>
+              {t('chart_decomp.patterns.series_btn')}
+              <span style={{ background:COLORS.accent, color:'#fff', borderRadius:99, fontSize:10,
+                             padding:'1px 6px', fontWeight:700 }}>{activeCount}</span>
+              <span style={{ fontSize:9 }}>{seriesDropOpen ? '▲' : '▼'}</span>
+            </button>
+            {seriesDropOpen && (<>
+              <div style={{ position:'fixed', inset:0, zIndex:40 }} onClick={() => setSeriesDropOpen(false)} />
+              <div style={{ position:'absolute', right:0, top:'100%', marginTop:4, zIndex:50,
+                            background:'#fff', border:`1px solid ${COLORS.border}`, borderRadius:8,
+                            boxShadow:'0 6px 18px rgba(0,0,0,0.12)', minWidth:200, padding:6 }}>
+                {SERIES_DEFS.map(sd => (
+                  <label key={sd.key} style={{ display:'flex', alignItems:'center', gap:8,
+                                padding:'5px 8px', borderRadius:6, cursor:'pointer',
+                                fontSize:12.5, color:'#374151' }}>
+                    <input type="checkbox" checked={!!seriesVis[sd.key]}
+                           onChange={() => setSeriesVis(p => ({ ...p, [sd.key]: !p[sd.key] }))} />
+                    <span style={{ width:10, height:10, borderRadius:'50%', background:sd.color,
+                                   display:'inline-block', flexShrink:0 }} />
+                    <span>{sd.label}</span>
+                  </label>
+                ))}
+              </div>
+            </>)}
           </div>
         </div>
 
-        {/* Panel 3 — Detected Patterns (FR-VIZ-1 §3) */}
-        <h4 style={{ fontSize:13, color:COLORS.axis, margin:'0 0 6px' }}>
-          {t('chart_decomp.patterns.panel3_title')}
-          <span style={{ marginLeft:8, fontSize:11, color:COLORS.axis }}>
-            ({dets.length} {t('chart_decomp.patterns.no_detections').startsWith('No') ? 'found' : ''})
-          </span>
-        </h4>
         <div style={{ background:COLORS.card, border:`1px solid ${COLORS.border}`,
                       borderRadius:8, padding:'12px 4px', marginBottom:16 }}>
-          {dets.length === 0
-            ? <p style={{ padding:'24px 16px', color:COLORS.axis, fontSize:13 }}>
-                {t('chart_decomp.patterns.no_detections')}
-              </p>
-            : <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray={COLORS.gridDash} stroke={COLORS.grid} />
-                  <XAxis dataKey="i" tick={{ fontSize:10 }} />
-                  <YAxis tick={{ fontSize:10 }} width={50} />
-                  <Tooltip contentStyle={{ fontSize:11 }} />
-                  {dets.map((d, idx) => (
-                    <ReferenceArea key={idx} x1={d.start_index} x2={d.end_index}
-                                   fill={PATTERN_COLORS[idx % PATTERN_COLORS.length]}
-                                   fillOpacity={d.confirmed ? 0.15 : 0.07}
-                                   stroke={PATTERN_COLORS[idx % PATTERN_COLORS.length]}
-                                   strokeOpacity={0.4} strokeDasharray={d.confirmed ? 'none' : '4 2'} />
-                  ))}
-                  <Line dataKey="denoised" stroke={COLORS.original} dot={false} strokeWidth={1.5} />
-                </LineChart>
-              </ResponsiveContainer>
-          }
+          <ResponsiveContainer width="100%" height={380}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray={COLORS.gridDash} stroke={COLORS.grid} />
+              <XAxis dataKey="i" tick={{ fontSize:10 }} />
+              <YAxis tick={{ fontSize:10 }} width={50} domain={yDomain} allowDecimals />
+              <Tooltip contentStyle={{ fontSize:11 }} />
+              {seriesVis.detections && dets.map((d, idx) => (
+                <ReferenceArea key={idx} x1={d.start_index} x2={d.end_index}
+                               fill={PATTERN_COLORS[idx % PATTERN_COLORS.length]}
+                               fillOpacity={d.confirmed ? 0.15 : 0.07}
+                               stroke={PATTERN_COLORS[idx % PATTERN_COLORS.length]}
+                               strokeOpacity={0.4} strokeDasharray={d.confirmed ? 'none' : '4 2'} />
+              ))}
+              {seriesVis.raw && (
+                <Line dataKey="raw" stroke={COLORS.original} dot={false} strokeWidth={1}
+                      name={t('chart_decomp.patterns.raw_label')} isAnimationActive={false} />
+              )}
+              {seriesVis.denoised && (
+                <Line dataKey="denoised" stroke={COLORS.accent} dot={false} strokeWidth={1.5}
+                      name={t('chart_decomp.patterns.denoised_label')} isAnimationActive={false} />
+              )}
+              {seriesVis.pivots && (
+                <Line dataKey="denoised" stroke="none" isAnimationActive={false} legendType="none"
+                      name={t('chart_decomp.patterns.series_pivots')}
+                      dot={(props) => {
+                        const { cx, cy, payload } = props;
+                        if (highPivots.has(payload.i))
+                          return <circle key={`h${payload.i}`} cx={cx} cy={cy} r={4}
+                                         fill={COLORS.danger} stroke="none" />;
+                        if (lowPivots.has(payload.i))
+                          return <circle key={`l${payload.i}`} cx={cx} cy={cy} r={4}
+                                         fill={COLORS.success} stroke="none" />;
+                        return null;
+                      }} />
+              )}
+            </LineChart>
+          </ResponsiveContainer>
+
+          {/* Legend (only for visible series) */}
+          <div style={{ display:'flex', gap:16, padding:'6px 12px 0', fontSize:11, flexWrap:'wrap' }}>
+            {seriesVis.raw &&
+              <span><span style={{ color:COLORS.original }}>▬</span> {t('chart_decomp.patterns.raw_label')}</span>}
+            {seriesVis.denoised &&
+              <span><span style={{ color:COLORS.accent }}>▬</span> {t('chart_decomp.patterns.denoised_label')}</span>}
+            {seriesVis.pivots && <>
+              <span><span style={{ color:COLORS.danger }}>●</span> {t('chart_decomp.patterns.high_label')}</span>
+              <span><span style={{ color:COLORS.success }}>●</span> {t('chart_decomp.patterns.low_label')}</span>
+            </>}
+            {seriesVis.detections && dets.length > 0 &&
+              <span><span style={{ color:PATTERN_COLORS[0] }}>▦</span> {t('chart_decomp.patterns.series_detections')}</span>}
+          </div>
+          {seriesVis.detections && dets.length === 0 &&
+            <div style={{ padding:'2px 12px 0', color:COLORS.axis, fontSize:11 }}>
+              {t('chart_decomp.patterns.no_detections')}
+            </div>}
         </div>
 
         {/* FR-VIZ-2 — Detection report */}
