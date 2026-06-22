@@ -609,6 +609,23 @@ const ResultChart = ({ data, transactions }) => {
     };
   });
 
+  // Tight Y-axis domain + scale-aware tick labels. Prices arrive in thousand-VND
+  // units (e.g. 20.25 ≈ 20,250 VND), so the old "(value/1000)+K" formatter printed
+  // "0K" for every tick, and a 0-based domain crushed the ~19–22 variation against
+  // the top of the plot. Derive the domain from the data (with padding) so the two
+  // lines fill the chart, and format ticks to the actual price scale.
+  const yPrices = chartData.flatMap(d => [d.actual_price, d.predicted_price]).filter(v => Number.isFinite(v));
+  const yMin = yPrices.length ? Math.min(...yPrices) : 0;
+  const yMax = yPrices.length ? Math.max(...yPrices) : 1;
+  const yPad = yMax - yMin > 0 ? (yMax - yMin) * 0.1 : Math.max(yMax * 0.02, 1);
+  const yDomain = [Math.floor(yMin - yPad), Math.ceil(yMax + yPad)];
+  const formatYTick = (v) => {
+    const a = Math.abs(v);
+    if (a >= 1000) return (v / 1000).toFixed(0) + 'K';
+    if (a >= 10) return v.toFixed(0);
+    return v.toFixed(1);
+  };
+
   // Custom tooltip
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -662,7 +679,9 @@ const ResultChart = ({ data, transactions }) => {
             }}
           />
           <YAxis
-            tickFormatter={(value) => (value / 1000).toFixed(0) + 'K'}
+            domain={yDomain}
+            allowDecimals={false}
+            tickFormatter={formatYTick}
             tick={getRechartsGridProps().tick}
             tickMargin={6}
             width={64}
