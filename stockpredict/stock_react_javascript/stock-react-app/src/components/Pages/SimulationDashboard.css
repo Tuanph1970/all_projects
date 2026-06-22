@@ -244,6 +244,18 @@
   margin-bottom: 20px;
 }
 
+/*
+ * Make the result-chart grid clearly visible. A global rule in SolutionModal.css
+ * (bundled app-wide by CRA) forces every recharts grid line to stroke-opacity 0.3,
+ * which CSS applies over the SVG stroke attribute set on <CartesianGrid> — leaving
+ * the grid all but invisible. Scope a more specific rule here to restore it.
+ */
+.chart-section .recharts-cartesian-grid-horizontal line,
+.chart-section .recharts-cartesian-grid-vertical line {
+  stroke: #AEB6C2;
+  stroke-opacity: 1;
+}
+
 /* Transaction Section */
 .transaction-section {
   margin-top: 40px;
