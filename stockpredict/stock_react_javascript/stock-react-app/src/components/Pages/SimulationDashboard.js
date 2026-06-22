@@ -9,6 +9,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ResponsiveContainer
 } from "recharts";
 import { Settings, TrendingUp, BarChart3 } from "lucide-react";
@@ -636,49 +637,65 @@ const ResultChart = ({ data, transactions }) => {
   return (
     <div className="chart-section">
       <h2>{t('simulation.section_chart_title')}</h2>
-      <div className="chart-legend-custom">
-        <span className="legend-item">
-          <span className="legend-line actual"></span> {t('simulation.legend_actual_price')}
-        </span>
-        <span className="legend-item">
-          <span className="legend-line predicted"></span> {t('simulation.legend_predicted_price')}
-        </span>
-        <span className="legend-item buy-signal">
-          <span className="signal-marker">^</span> {t('simulation.legend_buy_signal')}
-        </span>
-        <span className="legend-item sell-signal">
-          <span className="signal-marker">V</span> {t('simulation.legend_sell_signal')}
-        </span>
-      </div>
       <ResponsiveContainer width="100%" height={620}>
-        <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+        <LineChart data={chartData} margin={{ top: 16, right: 36, left: 28, bottom: 28 }}>
           <CartesianGrid {...getRechartsGridProps().grid} />
           <XAxis
             dataKey="date"
             tickFormatter={(date) => new Date(date).toLocaleDateString(dateLocale)}
             tick={getRechartsGridProps().tick}
+            tickMargin={8}
+            minTickGap={40}
+            axisLine={{ stroke: "#D1D5DB" }}
+            tickLine={{ stroke: "#9CA3AF" }}
+            label={{
+              value: t('simulation.axis_date', 'Date'),
+              position: "insideBottom",
+              offset: -16,
+              fontSize: 12,
+              fill: "#6B7280"
+            }}
           />
           <YAxis
             tickFormatter={(value) => (value / 1000).toFixed(0) + 'K'}
             tick={getRechartsGridProps().tick}
+            tickMargin={6}
+            width={64}
+            axisLine={{ stroke: "#D1D5DB" }}
+            tickLine={{ stroke: "#9CA3AF" }}
+            label={{
+              value: t('simulation.axis_price', 'Price (VND)'),
+              angle: -90,
+              position: "insideLeft",
+              style: { textAnchor: "middle" },
+              fontSize: 12,
+              fill: "#6B7280"
+            }}
           />
           <Tooltip content={<CustomTooltip />} />
+          <Legend
+            verticalAlign="top"
+            height={32}
+            iconType="plainline"
+            wrapperStyle={{ fontSize: 13 }}
+          />
           <Line
             type="monotone"
             dataKey="actual_price"
-            stroke="#8884d8"
-            strokeWidth={2}
-            name="Actual Price"
+            stroke="#2563eb"
+            strokeWidth={1.5}
+            name={t('simulation.legend_actual_price')}
             dot={false}
+            activeDot={{ r: 3 }}
           />
           <Line
             type="monotone"
             dataKey="predicted_price"
-            stroke="#82ca9d"
-            strokeWidth={2}
-            name="Predicted Price"
-            strokeDasharray="5 5"
+            stroke="#dc2626"
+            strokeWidth={1.5}
+            name={t('simulation.legend_predicted_price')}
             dot={false}
+            activeDot={{ r: 3 }}
           />
           <Line
             type="monotone"
@@ -686,6 +703,7 @@ const ResultChart = ({ data, transactions }) => {
             stroke="transparent"
             dot={<BuySignalShape />}
             name="Buy Signal"
+            legendType="none"
             isAnimationActive={false}
           />
           <Line
@@ -694,6 +712,7 @@ const ResultChart = ({ data, transactions }) => {
             stroke="transparent"
             dot={<SellSignalShape />}
             name="Sell Signal"
+            legendType="none"
             isAnimationActive={false}
           />
         </LineChart>

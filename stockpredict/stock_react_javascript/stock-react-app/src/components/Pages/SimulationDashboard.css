@@ -544,59 +544,6 @@
   margin-top: 0;
 }
 
-/* Custom Chart Legend */
-.chart-legend-custom {
-  display: flex;
-  justify-content: center;
-  gap: 30px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.9rem;
-  color: #555;
-}
-
-.legend-line {
-  width: 30px;
-  height: 3px;
-  display: inline-block;
-}
-
-.legend-line.actual {
-  background: #8884d8;
-}
-
-.legend-line.predicted {
-  background: #82ca9d;
-  background-image: repeating-linear-gradient(
-    90deg,
-    #82ca9d,
-    #82ca9d 5px,
-    transparent 5px,
-    transparent 10px
-  );
-}
-
-.legend-item.buy-signal {
-  color: #2196F3;
-  font-weight: 600;
-}
-
-.legend-item.sell-signal {
-  color: #f44336;
-  font-weight: 600;
-}
-
-.signal-marker {
-  font-size: 1.2rem;
-  font-weight: bold;
-}
-
 /* Custom Tooltip */
 .custom-tooltip {
   background: white;
@@ -662,13 +609,5 @@
 
   .tab-actions button {
     width: 100%;
-  }
-
-  .chart-legend-custom {
-    gap: 15px;
-  }
-
-  .legend-item {
-    font-size: 0.8rem;
   }
 }
