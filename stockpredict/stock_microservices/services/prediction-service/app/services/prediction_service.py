@@ -119,6 +119,13 @@ class PredictionService:
         # Target: next day's closing price
         df["target"] = df["close"].shift(-1)
 
+        # Drop columns that are entirely NaN before the row-wise dropna() below.
+        # The data service may leave raw fields (adj_close, value, change,
+        # change_percent) fully unpopulated; without this, dropna() would treat
+        # every row as incomplete and discard the whole frame, and these junk
+        # columns would otherwise leak into _get_feature_columns().
+        df = df.dropna(axis=1, how="all")
+
         return df.dropna()
 
     def _get_feature_columns(self, df: pd.DataFrame) -> List[str]:
