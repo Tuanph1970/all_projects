@@ -639,7 +639,12 @@ const ResultChart = ({ data, transactions }) => {
       <h2>{t('simulation.section_chart_title')}</h2>
       <ResponsiveContainer width="100%" height={620}>
         <LineChart data={chartData} margin={{ top: 16, right: 36, left: 28, bottom: 28 }}>
-          <CartesianGrid {...getRechartsGridProps().grid} />
+          <CartesianGrid
+            stroke="#AEB6C2"
+            strokeDasharray="3 3"
+            horizontal
+            vertical
+          />
           <XAxis
             dataKey="date"
             tickFormatter={(date) => new Date(date).toLocaleDateString(dateLocale)}
