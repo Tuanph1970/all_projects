@@ -61,6 +61,27 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables created")
 
+    # One-time, idempotent data heal: collapse duplicate default portfolios.
+    # A get-or-create race could leave a user with several is_default rows, which
+    # made get_default_portfolio raise MultipleResultsFound. Keep the oldest default
+    # per user (smallest id == earliest, since id is autoincrement) and unset the
+    # rest. After the first run there are no dups, so this is a no-op on reboot.
+    async with engine.begin() as conn:
+        result = await conn.execute(text("""
+            UPDATE portfolios p
+            JOIN (
+                SELECT user_id, MIN(id) AS keep_id
+                FROM portfolios
+                WHERE is_default = 1
+                GROUP BY user_id
+                HAVING COUNT(*) > 1
+            ) dups ON p.user_id = dups.user_id
+            SET p.is_default = 0
+            WHERE p.is_default = 1 AND p.id <> dups.keep_id
+        """))
+        if result.rowcount:
+            logger.info("Cleaned up %s duplicate default portfolio row(s)", result.rowcount)
+
     # Subscribe to stock.price.updated events for event-driven alert evaluation.
     # Returns None silently if RabbitMQ is unavailable — service still serves CRUD.
     await start_alert_consumer(service_name=settings.SERVICE_NAME)
