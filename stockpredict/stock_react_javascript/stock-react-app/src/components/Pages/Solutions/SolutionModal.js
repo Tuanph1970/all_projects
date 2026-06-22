@@ -25,7 +25,7 @@ const apiPointToChartPoint = (item) => ({
   actual: item.actual_price !== undefined ? item.actual_price : (item.actual !== undefined ? item.actual : item.close),
   predicted: item.predicted_price !== undefined ? item.predicted_price : (item.predicted !== undefined ? item.predicted : item.prediction),
   validation: item.validation_price !== undefined ? item.validation_price : item.validation,
-  // Trend (left/price axis)
+  // Trend — price/left axis (overlays)
   sma_20: item.sma_20 || item.sma,
   sma_50: item.sma_50,
   ema_12: item.ema_12 || item.ema,
@@ -33,8 +33,19 @@ const apiPointToChartPoint = (item) => ({
   dema: item.dema,
   tema: item.tema,
   psar: item.psar,
+  vwap: item.vwap,
+  supertrend: item.supertrend,
+  ichimoku_conv: item.ichimoku_conv,
+  ichimoku_base: item.ichimoku_base,
+  ichimoku_a: item.ichimoku_a,
+  ichimoku_b: item.ichimoku_b,
+  // Trend — right axis (oscillators)
   adx: item.adx,
-  // Momentum (right axis)
+  aroon_up: item.aroon_up,
+  aroon_down: item.aroon_down,
+  vortex_pos: item.vortex_pos,
+  vortex_neg: item.vortex_neg,
+  // Momentum — right axis
   rsi: item.rsi,
   rsi_signal: item.rsi_signal,
   macd: item.macd,
@@ -43,21 +54,41 @@ const apiPointToChartPoint = (item) => ({
   cci: item.cci,
   stoch_k: item.stoch_k,
   stoch_d: item.stoch_d,
+  stoch_rsi_k: item.stoch_rsi_k,
+  stoch_rsi_d: item.stoch_rsi_d,
   williams_r: item.williams_r,
   roc: item.roc,
   mom: item.mom,
-  // Volatility
+  tsi: item.tsi,
+  uo: item.uo,
+  ao: item.ao,
+  // Volatility — bands on price axis, scalars on right axis
   atr: item.atr,
+  stddev: item.stddev,
+  hv: item.hv,
   bb_upper: item.bb_upper,
   bb_middle: item.bb_middle,
   bb_lower: item.bb_lower,
-  // Volume
+  kc_upper: item.kc_upper,
+  kc_middle: item.kc_middle,
+  kc_lower: item.kc_lower,
+  dc_upper: item.dc_upper,
+  dc_middle: item.dc_middle,
+  dc_lower: item.dc_lower,
+  // Volume — right axis (flow/oscillators), raw volume drawn below
   volume: item.volume,
   volume_sma: item.volume_sma,
-  vwap: item.vwap,
+  volume_ma: item.volume_ma,
   obv: item.obv,
   mfi: item.mfi,
   cmf: item.cmf,
+  cho: item.cho,
+  eom: item.eom,
+  fi: item.fi,
+  nvi: item.nvi,
+  pvi: item.pvi,
+  vosc: item.vosc,
+  ad: item.ad,
 });
 
 // Build the Prediction-tab chart series from a /solutions/predict response (or a
