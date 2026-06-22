@@ -92,15 +92,33 @@ def _create_ml_model(model_type: str, model_sub_type: str = '', config_json=None
 
     defaults = MODEL_DEFAULTS.get(model_type, {})
 
-    # User config overrides defaults
     user_config = {}
     if config_json:
         try:
             user_config = json.loads(config_json) if isinstance(config_json, str) else config_json
         except (json.JSONDecodeError, TypeError):
             user_config = {}
+    if not isinstance(user_config, dict):
+        user_config = {}
 
-    cfg = {**defaults, **user_config}
+    # config_json holds the DARTS/neural-net hyperparameters chosen in the UI
+    # (input_chunk_length, hidden_dim, n_rnn_layers, dropout, batch_size,
+    # n_epochs, learning_rate ~1e-4, ...). These DARTS model types are surrogated
+    # to gradient-boosting / random-forest models here, and the neural
+    # hyperparameters do NOT translate. In particular a neural learning_rate
+    # (~1e-4) shares its name with the boosting learning_rate but not its scale:
+    # applied to XGBoost it shrinks all n_estimators trees to nearly zero
+    # contribution, so the ensemble stays at its base score and every prediction
+    # collapses to the training mean — a flat line parallel to the X axis.
+    # Only adopt keys that are genuine ML hyperparameters for the surrogate model;
+    # drop the neural-only ones (including the incompatible learning_rate) and
+    # fall back to the curated per-model defaults above.
+    ML_HYPERPARAM_KEYS = {
+        'n_estimators', 'max_depth', 'subsample', 'colsample_bytree',
+        'num_leaves', 'min_samples_split', 'min_samples_leaf',
+    }
+    safe_user = {k: v for k, v in user_config.items() if k in ML_HYPERPARAM_KEYS}
+    cfg = {**defaults, **safe_user}
 
     if ml_type == 'xgboost':
         return xgb.XGBRegressor(
