@@ -245,14 +245,14 @@ const Backtest = () => {
                   <Target size={16} color="#8b5cf6" />
                   <span style={{ fontWeight: 500 }}>{t('backtest.direction_accuracy')}</span>
                   <span data-testid="bt-direction-accuracy" style={{ marginLeft: 'auto', fontWeight: 600 }}>
-                    {fmtPct(result.direction_accuracy)}
+                    {`${Number(result.direction_accuracy).toFixed(2)}%`}
                   </span>
                 </div>
                 <div style={{ background: '#e5e7eb', borderRadius: 4, height: 10, overflow: 'hidden' }}>
                   <div
                     style={{
-                      width: `${Math.min(100, Math.max(0, result.direction_accuracy * 100))}%`,
-                      background: result.direction_accuracy >= 0.5 ? '#22c55e' : '#ef4444',
+                      width: `${Math.min(100, Math.max(0, result.direction_accuracy))}%`,
+                      background: result.direction_accuracy >= 50 ? '#22c55e' : '#ef4444',
                       height: '100%',
                     }}
                   />

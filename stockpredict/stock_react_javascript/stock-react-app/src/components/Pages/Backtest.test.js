@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import i18n from '../../i18n';
 import Backtest from './Backtest';
 import modelService from '../../services/modelService';
 
@@ -11,14 +12,17 @@ const sampleResult = {
   period: '2025-11-01 → 2026-05-01',
   total_predictions: 120,
   correct_direction: 78,
-  direction_accuracy: 0.65,
+  direction_accuracy: 65.0, // backend returns a percentage (0–100), not a fraction
   mean_absolute_error: 0.5421,
   root_mean_squared_error: 0.7812,
   average_confidence: 0.74,
 };
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.resetAllMocks();
+  // i18n is bootstrapped on import but jsdom's navigator would resolve to
+  // English; these tests assert against the app's Vietnamese default copy.
+  await i18n.changeLanguage('vi');
 });
 
 describe('Backtest page', () => {
