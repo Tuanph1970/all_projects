@@ -19,9 +19,11 @@ and environment-dependent).
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 
+import joblib
 import numpy as np
 import pandas as pd
 import httpx
@@ -99,6 +101,11 @@ class SimulationService:
             return None
 
     async def run_simulation(self, req: SimulationRequest) -> SimulationResult:
+        # When the user ticks "use a pretrained model", load and walk the solution's
+        # SAVED model forward instead of training a fresh one in-window.
+        if req.use_pretrained_model and req.pretrained_solution_id:
+            return await self._run_with_pretrained(req)
+
         start = pd.Timestamp(req.start_date)
         end = pd.Timestamp(req.end_date)
         if end <= start:
@@ -136,6 +143,108 @@ class SimulationService:
         model.fit(train_df[feature_cols], train_df["target"])
         preds = np.asarray(model.predict(sim_df[feature_cols]), dtype=float)
 
+        return self._simulate_trading(req, sim_df, preds, feature_cols)
+
+    # ── Pretrained-model path ──────────────────────────────────────────────────
+
+    async def _load_solution_indicators(self, solution_id: int) -> list:
+        """Load the indicator rows configured for a solution (same query training uses)."""
+        from sqlalchemy import text
+        result = await self.session.execute(
+            text(
+                """
+                SELECT si.indicator_id, si.indicator_category, si.covariate_type, si.parameters,
+                       ti.name, ti.type, ti.default_parameters, ti.calculation_function
+                FROM solution_indicators si
+                LEFT JOIN technical_indicators ti ON si.indicator_id = ti.id
+                WHERE si.solution_id = :sid
+                """
+            ),
+            {"sid": solution_id},
+        )
+        return [dict(r) for r in result.mappings().all()]
+
+    async def _run_with_pretrained(self, req: SimulationRequest) -> SimulationResult:
+        """Backtest using the solution's SAVED trained model (no in-window retraining).
+
+        Loads the joblib artifact persisted by solution training and rebuilds features
+        exactly the way that training did (the shared ``_build_feature_df`` plus the
+        solution's configured indicators), then walks the saved model forward across the
+        window. This is a true out-of-sample test of the model the user actually trained.
+        """
+        # Lazy import keeps the (heavy) routes module out of package import time and
+        # avoids any import cycle; these are pure feature-builder helpers.
+        from app.api.solution_routes import _build_feature_df, _prepare_indicator_features
+
+        sid = req.pretrained_solution_id
+        model_file = os.path.join(settings.MODEL_PATH, f"solution_{sid}_model.joblib")
+        if not os.path.exists(model_file):
+            raise SimulationError(
+                f"No saved model for solution {sid}. Train the solution first, then re-run."
+            )
+        try:
+            artifact = joblib.load(model_file)
+        except Exception as e:  # noqa: BLE001
+            raise SimulationError(f"Failed to load saved model for solution {sid}: {e}")
+
+        model = artifact.get("model")
+        feature_cols = artifact.get("feature_cols") or []
+        if model is None or not feature_cols:
+            raise SimulationError(f"Saved model for solution {sid} is incomplete; retrain it.")
+
+        saved_ticker = artifact.get("ticker")
+        if saved_ticker and saved_ticker != req.ticker:
+            raise SimulationError(
+                f"Solution {sid} was trained on {saved_ticker}, not {req.ticker}. "
+                f"Pick {saved_ticker} or train a solution for {req.ticker}."
+            )
+
+        start = pd.Timestamp(req.start_date)
+        end = pd.Timestamp(req.end_date)
+        if end <= start:
+            raise SimulationError("end_date must be after start_date")
+
+        fetch_start = (start - timedelta(days=_TRAIN_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
+        df = await self._fetch_range(req.ticker, fetch_start, end.strftime("%Y-%m-%d"))
+        if df is None or len(df) < 80:
+            raise SimulationError(
+                f"Insufficient historical data for {req.ticker} "
+                f"({0 if df is None else len(df)} rows; need ≥ 80)"
+            )
+
+        # Rebuild features the SAME way solution training did (indicators included),
+        # so the saved model sees the feature distribution it was fit on.
+        dfi = (
+            df.set_index("date")[["open", "high", "low", "close", "volume"]]
+            .apply(pd.to_numeric, errors="coerce")
+            .dropna()
+        )
+        indicator_rows = await self._load_solution_indicators(sid)
+        ind_feat, _ = _prepare_indicator_features(dfi, indicator_rows)
+        feat = _build_feature_df(dfi, ind_feat)
+        feat["target"] = feat["close"].shift(-1)
+        feat = feat.dropna().reset_index()  # restore 'date' as a column
+
+        missing = [c for c in feature_cols if c not in feat.columns]
+        if missing:
+            raise SimulationError(
+                f"Saved model expects features that can't be reproduced now: {missing}. "
+                f"Retrain solution {sid}."
+            )
+
+        sim_df = feat[(feat["date"] >= start) & (feat["date"] <= end)].reset_index(drop=True)
+        if len(sim_df) < 2:
+            raise SimulationError("Simulation window too short (need ≥ 2 trading days)")
+
+        # Training fit on numpy arrays, so predict on .values too (no feature-name check).
+        preds = np.asarray(model.predict(sim_df[feature_cols].values), dtype=float)
+
+        # Reflect the real model in the result (e.g. "BlockRNN" rather than the default).
+        req.model_type = artifact.get("model_type") or req.model_type
+        logger.info(
+            "Simulation (pretrained) solution=%s ticker=%s model=%s sim_rows=%d",
+            sid, req.ticker, req.model_type, len(sim_df),
+        )
         return self._simulate_trading(req, sim_df, preds, feature_cols)
 
     # ── Trading engine ─────────────────────────────────────────────────────────
