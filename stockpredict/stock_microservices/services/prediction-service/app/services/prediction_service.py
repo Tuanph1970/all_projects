@@ -402,25 +402,92 @@ class PredictionService:
     async def backtest(self, symbol: str, model_type: ModelType,
                       start_date: datetime, end_date: datetime,
                       prediction_horizon: int = 5) -> Optional[BacktestResult]:
-        """Backtest a prediction model"""
-        # Simplified backtest implementation
-        predictions = await self.repo.get_predictions(symbol, start_date, end_date, limit=1000)
-        if not predictions:
+        """Walk-forward backtest of a prediction model over a historical window.
+
+        The previous implementation only *summarized* predictions that had been
+        stored live during the window, so a "Run backtest" request for any
+        symbol/period that was never run live returned nothing (HTTP 404). This
+        instead re-runs the model on historical data: for every trading day t in
+        [start_date, end_date] it predicts the next close from features known at
+        t and scores it against the realized close.
+
+        Per-step features are causal (rolling windows ending at t). The model is
+        the active trained model, so treat the result as indicative rather than a
+        strictly leakage-free evaluation.
+        """
+        # Pull enough history to cover the window plus the feature warm-up that
+        # _prepare_features needs (rolling windows up to 50 rows).
+        warmup_days = 120
+        span_days = max((datetime.now() - start_date).days + warmup_days, 60)
+        df = await self._fetch_historical_data(symbol, span_days)
+        if df is None or df.empty:
             return None
 
-        total = len(predictions)
-        correct = sum(1 for p in predictions if p.is_correct)
-        mae = sum(p.prediction_error or 0 for p in predictions) / total if total > 0 else 0
-        avg_conf = sum(p.confidence or 0 for p in predictions) / total if total > 0 else 0
+        # Build causal features and the next-day target.
+        df = self._prepare_features(df)
+        if df.empty:
+            return None
+
+        # Restrict scoring to the requested window. Each row's target is the
+        # realized next-day close, so every windowed row has an outcome to score.
+        window = df[(df["date"] >= start_date) & (df["date"] <= end_date)]
+        if window.empty:
+            return None
+
+        # Load the active model, training one on demand if needed (mirrors predict()).
+        model = await self.repo.get_active_model(model_type, symbol) \
+            or await self.repo.get_active_model(model_type, None)
+        if not model or not model.file_path:
+            train_result = await self.train_model(model_type, symbol)
+            if train_result.status != "completed":
+                return None
+            model = await self.repo.get_model_by_id(train_result.model_id)
+            if not model or not model.file_path:
+                return None
+
+        try:
+            ml_model = joblib.load(model.file_path)
+        except Exception as e:
+            logger.error(f"Backtest failed to load model for {symbol}: {e}")
+            return None
+
+        feature_cols = [
+            c for c in (model.feature_columns or self._get_feature_columns(df))
+            if c in window.columns
+        ]
+        if not feature_cols:
+            return None
+
+        try:
+            preds = np.asarray(ml_model.predict(window[feature_cols]), dtype=float)
+        except Exception as e:
+            logger.error(f"Backtest prediction failed for {symbol}: {e}")
+            return None
+
+        closes = window["close"].to_numpy(dtype=float)
+        actuals = window["target"].to_numpy(dtype=float)  # realized next-day close
+        total = len(preds)
+        if total == 0:
+            return None
+
+        # Direction hit-rate: did the model call the up/down move correctly?
+        correct = int(np.sum((preds > closes) == (actuals > closes)))
+
+        mae = float(np.mean(np.abs(preds - actuals)))
+        rmse = float(np.sqrt(np.mean((preds - actuals) ** 2)))
+
+        # Confidence proxy from realized volatility over the window.
+        avg_vol = float(window["volatility_20"].mean()) if "volatility_20" in window.columns else 0.02
+        avg_conf = max(0.5, min(0.95, 1 - avg_vol * 10))
 
         return BacktestResult(
-            symbol=symbol,
+            symbol=symbol.upper(),
             model_type=model_type.value,
             period=f"{start_date.date()} to {end_date.date()}",
             total_predictions=total,
             correct_direction=correct,
-            direction_accuracy=correct / total * 100 if total > 0 else 0,
+            direction_accuracy=correct / total * 100,
             mean_absolute_error=mae,
-            root_mean_squared_error=np.sqrt(mae),
+            root_mean_squared_error=rmse,
             average_confidence=avg_conf
         )

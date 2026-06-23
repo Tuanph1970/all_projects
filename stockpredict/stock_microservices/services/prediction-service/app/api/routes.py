@@ -223,7 +223,7 @@ async def run_backtest(
         prediction_horizon=data.prediction_horizon
     )
     if not result:
-        raise HTTPException(status_code=404, detail="No historical predictions found for backtest")
+        raise HTTPException(status_code=404, detail="Could not run backtest: insufficient historical data for this symbol/period")
     return result
 
 

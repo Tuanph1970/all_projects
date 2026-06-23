@@ -170,10 +170,13 @@ export const authAPI = {
         return { valid: false, user: null };
       }
 
-      // Use verify endpoint to validate token
+      // Use verify endpoint to validate token. The backend's TokenVerify
+      // schema requires the token in the JSON body (not just the Authorization
+      // header) — omitting it returns HTTP 422.
       const response = await fetch(API_ENDPOINTS.AUTH_VERIFY, {
         method: 'POST',
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ token })
       });
 
       if (!response.ok) {

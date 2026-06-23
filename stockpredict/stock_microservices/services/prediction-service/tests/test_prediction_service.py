@@ -361,9 +361,10 @@ async def test_get_feature_importance_unwraps_sklearn_importances(monkeypatch):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_backtest_returns_none_when_no_predictions():
+async def test_backtest_returns_none_when_no_history():
+    """No historical price data for the symbol → nothing to backtest."""
     svc = _make_service()
-    svc.repo.get_predictions = AsyncMock(return_value=[])
+    svc._fetch_historical_data = AsyncMock(return_value=None)
     out = await svc.backtest(
         "FPT", ModelType.XGBOOST,
         start_date=datetime(2026, 1, 1),
@@ -373,22 +374,32 @@ async def test_backtest_returns_none_when_no_predictions():
 
 
 @pytest.mark.asyncio
-async def test_backtest_summarizes_predictions():
+async def test_backtest_runs_walk_forward_over_window():
+    """Backtest re-runs the model over the window without any stored predictions."""
     svc = _make_service()
-    preds = [
-        MagicMock(is_correct=True, prediction_error=0.5, confidence=0.8),
-        MagicMock(is_correct=True, prediction_error=1.5, confidence=0.7),
-        MagicMock(is_correct=False, prediction_error=2.0, confidence=0.6),
-    ]
-    svc.repo.get_predictions = AsyncMock(return_value=preds)
-    out = await svc.backtest(
-        "FPT", ModelType.XGBOOST,
-        start_date=datetime(2026, 1, 1),
-        end_date=datetime(2026, 5, 1),
-    )
+    df = _sample_ohlcv_df(rows=120)
+    svc._fetch_historical_data = AsyncMock(return_value=df)
+
+    feature_cols = svc._get_feature_columns(svc._prepare_features(df))
+    model = MagicMock(file_path="/tmp/model.pkl", feature_columns=feature_cols)
+    svc.repo.get_active_model = AsyncMock(return_value=model)
+
+    # Stub model predicts the prior close + a small offset for every row.
+    fake_model = MagicMock()
+    fake_model.predict = lambda X: (X["close_lag_1"] + 0.25).to_numpy()
+
+    with patch("app.services.prediction_service.joblib.load", return_value=fake_model):
+        out = await svc.backtest(
+            "FPT", ModelType.XGBOOST,
+            start_date=datetime(2026, 1, 1),
+            end_date=datetime(2026, 5, 1),
+        )
+
     assert out is not None
-    assert out.total_predictions == 3
-    assert out.correct_direction == 2
-    assert out.direction_accuracy == pytest.approx(66.66666, rel=1e-3)
-    assert out.mean_absolute_error == pytest.approx((0.5 + 1.5 + 2.0) / 3)
-    assert out.average_confidence == pytest.approx((0.8 + 0.7 + 0.6) / 3)
+    assert out.symbol == "FPT"
+    assert out.total_predictions > 0
+    assert 0 <= out.correct_direction <= out.total_predictions
+    assert 0 <= out.direction_accuracy <= 100
+    assert out.mean_absolute_error >= 0
+    assert out.root_mean_squared_error >= out.mean_absolute_error
+    assert 0.5 <= out.average_confidence <= 0.95
