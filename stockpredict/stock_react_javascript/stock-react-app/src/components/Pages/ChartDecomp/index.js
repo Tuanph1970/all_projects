@@ -1035,7 +1035,7 @@ function PatternTab({ series, dates, t }) {
                     borderRadius:8, padding:'12px 4px', marginBottom:16 }}>
         <ResponsiveContainer width="100%" height={170}>
           <LineChart data={msData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" horizontal vertical />
+            <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" horizontal vertical />
             <XAxis dataKey="i" tick={{ fontSize:10 }} ticks={xTicks}
                    tickFormatter={xTickFmt} minTickGap={20} />
             <YAxis tick={{ fontSize:10 }} width={52} tickFormatter={yTickFmt} />
@@ -1064,7 +1064,7 @@ function PatternTab({ series, dates, t }) {
             </p>
           : <ResponsiveContainer width="100%" height={190}>
               <LineChart data={msData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" horizontal vertical />
+                <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" horizontal vertical />
                 <XAxis dataKey="i" tick={{ fontSize:10 }} ticks={xTicks}
                        tickFormatter={xTickFmt} minTickGap={20} />
                 <YAxis tick={{ fontSize:10 }} width={52} tickFormatter={yTickFmt} />
@@ -1292,7 +1292,7 @@ function PatternTab({ series, dates, t }) {
                       borderRadius:8, padding:'12px 4px', marginBottom:16 }}>
           <ResponsiveContainer width="100%" height={380}>
             <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" horizontal vertical />
+              <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" horizontal vertical />
               <XAxis dataKey="i" tick={{ fontSize:10 }} ticks={xTicks}
                      tickFormatter={xTickFmt} minTickGap={20} />
               <YAxis tick={{ fontSize:10 }} width={52} domain={yDomain}
