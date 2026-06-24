@@ -167,11 +167,17 @@ function InputPanel({ onSeriesReady, t }) {
       const rows = Array.isArray(raw)
         ? raw
         : Array.isArray(raw?.data) ? raw.data : [];
-      const prices = rows
-        .map(d => d.close ?? d.c ?? d.price)
-        .filter(v => v != null && isFinite(v));
+      // Keep price + date paired so the filter below can't desync them.
+      const pairs = rows
+        .map(d => ({
+          v: d.close ?? d.c ?? d.price,
+          date: d.date ?? d.time ?? d.t ?? d.tradingdate ?? null,
+        }))
+        .filter(p => p.v != null && isFinite(p.v));
+      const prices = pairs.map(p => p.v);
+      const seriesDates = pairs.map(p => p.date);
       if (prices.length < 64) throw new Error('Not enough price data returned');
-      onSeriesReady(prices, ticker);
+      onSeriesReady(prices, ticker, seriesDates);
       setInfo(t('chart_decomp.input.series_info', { n: prices.length }));
     } catch (e) {
       setError(t('chart_decomp.input.error_load', { msg: e.message }));
@@ -182,7 +188,7 @@ function InputPanel({ onSeriesReady, t }) {
 
   const loadDemo = () => {
     const x = generateDemoSeries(512);
-    onSeriesReady(x, 'DEMO');
+    onSeriesReady(x, 'DEMO', null);
     setInfo(t('chart_decomp.input.series_info', { n: x.length }));
     setError(null);
   };
@@ -876,7 +882,59 @@ const PATTERN_COLORS = [
   '#06b6d4','#ec4899','#84cc16','#fb923c',
 ];
 
-function PatternTab({ series, t }) {
+// Patterns scoring below this are hidden from the report tables / chart regions.
+const MIN_PATTERN_SCORE = 0.70;
+
+// Format an ISO date (YYYY-MM-DD…) as dd/mm/yy for compact axis ticks.
+function fmtDDMMYY(iso) {
+  if (iso == null) return '';
+  const [y, m, d] = String(iso).slice(0, 10).split('-');
+  if (!y || !m || !d) return String(iso);
+  return `${d}/${m}/${y.slice(2)}`;
+}
+
+// Pick index ticks roughly every 3 months (first trading day of each new quarter
+// window) so the X axis stays readable instead of one tick per day.
+function quarterlyTickIndices(dates) {
+  if (!Array.isArray(dates) || dates.length === 0) return undefined;
+  const ticks = [];
+  let lastY = null, lastM = null;
+  for (let i = 0; i < dates.length; i++) {
+    if (dates[i] == null) continue;
+    const [ys, ms] = String(dates[i]).slice(0, 10).split('-');
+    const y = +ys, m = +ms;
+    if (!Number.isFinite(y) || !Number.isFinite(m)) continue;
+    if (lastY == null) { ticks.push(i); lastY = y; lastM = m; continue; }
+    if ((y - lastY) * 12 + (m - lastM) >= 3) { ticks.push(i); lastY = y; lastM = m; }
+  }
+  return ticks.length ? ticks : undefined;
+}
+
+// Small hoverable ⓘ icon that surfaces a help tip via the native title tooltip.
+function InfoTip({ text }) {
+  return (
+    <span title={text} style={{ display:'inline-flex', alignItems:'center',
+                                marginLeft:4, cursor:'help', color:COLORS.axis,
+                                verticalAlign:'middle' }}>
+      <Info size={13} />
+    </span>
+  );
+}
+
+// Bounding box [yMin, yMax] of the given series within an inclusive index range.
+function rangeYBounds(arrays, start, end) {
+  const vals = [];
+  for (let i = start; i <= end; i++) {
+    for (const arr of arrays) {
+      const v = arr?.[i];
+      if (Number.isFinite(v)) vals.push(v);
+    }
+  }
+  if (!vals.length) return {};
+  return { y1: Math.min(...vals), y2: Math.max(...vals) };
+}
+
+function PatternTab({ series, dates, t }) {
   const [kDrop, setKDrop]       = useState(1);
   const [threshold, setThr]     = useState(0.08);
   const [computeFpr, setComputeFpr] = useState(true);
@@ -919,6 +977,14 @@ function PatternTab({ series, t }) {
     <div style={{ padding: 32, color: COLORS.axis }}>{t('chart_decomp.patterns.no_series')}</div>
   );
 
+  // X axis as dates (dd/mm/yy, ~one tick per 3 months) when dates are available;
+  // falls back to the raw index for the demo series (no dates).
+  const xTicks   = quarterlyTickIndices(dates);
+  const xTickFmt = (i) => (dates && dates[i] != null) ? fmtDDMMYY(dates[i]) : i;
+  // Y axis: one decimal so prices read cleanly (e.g. 21.2) instead of long,
+  // clipped fractions under the narrow axis width.
+  const yTickFmt = (v) => Number(v).toFixed(1);
+
   // ── Multi-scale nested view (FR-MS-6 / FR-VIZ-1/2, B7) ───────────────────────
   const renderMulti = () => {
     const dbs = result.denoised_by_scale || {};
@@ -932,6 +998,9 @@ function PatternTab({ series, t }) {
     const dets = result.detections ?? [];
     const byId = {};
     dets.forEach(d => { byId[d.detection_id] = d; });
+    // Hide low-confidence detections (< 70%) from regions and the report; keep the
+    // full byId map above so colour-linkage to a filtered parent still resolves.
+    const visDets = dets.filter(d => (d.score ?? 0) >= MIN_PATTERN_SCORE);
     // Color-link nested detections to their root ancestor (FR-VIZ-1).
     const rootOf = (d) => {
       let cur = d, guard = 0;
@@ -956,9 +1025,10 @@ function PatternTab({ series, t }) {
         <ResponsiveContainer width="100%" height={170}>
           <LineChart data={msData}>
             <CartesianGrid strokeDasharray={COLORS.gridDash} stroke={COLORS.grid} />
-            <XAxis dataKey="i" tick={{ fontSize:10 }} />
-            <YAxis tick={{ fontSize:10 }} width={50} />
-            <Tooltip contentStyle={{ fontSize:11 }} />
+            <XAxis dataKey="i" tick={{ fontSize:10 }} ticks={xTicks}
+                   tickFormatter={xTickFmt} minTickGap={20} />
+            <YAxis tick={{ fontSize:10 }} width={52} tickFormatter={yTickFmt} />
+            <Tooltip contentStyle={{ fontSize:11 }} labelFormatter={xTickFmt} />
             <Line dataKey="raw" stroke={COLORS.original} dot={false} strokeWidth={1}
                   name={t('chart_decomp.patterns.raw_label')} />
             {scaleKeys.map((k, idx) => (
@@ -973,22 +1043,24 @@ function PatternTab({ series, t }) {
       {/* Panel — nested detections, color-linked to parent */}
       <h4 style={{ fontSize:13, color:COLORS.axis, margin:'0 0 6px' }}>
         {t('chart_decomp.patterns.panel_nested_title')}
-        <span style={{ marginLeft:8, fontSize:11, color:COLORS.axis }}>({dets.length})</span>
+        <span style={{ marginLeft:8, fontSize:11, color:COLORS.axis }}>({visDets.length})</span>
       </h4>
       <div style={{ background:COLORS.card, border:`1px solid ${COLORS.border}`,
                     borderRadius:8, padding:'12px 4px', marginBottom:16 }}>
-        {dets.length === 0
+        {visDets.length === 0
           ? <p style={{ padding:'24px 16px', color:COLORS.axis, fontSize:13 }}>
               {t('chart_decomp.patterns.no_detections')}
             </p>
           : <ResponsiveContainer width="100%" height={190}>
               <LineChart data={msData}>
                 <CartesianGrid strokeDasharray={COLORS.gridDash} stroke={COLORS.grid} />
-                <XAxis dataKey="i" tick={{ fontSize:10 }} />
-                <YAxis tick={{ fontSize:10 }} width={50} />
-                <Tooltip contentStyle={{ fontSize:11 }} />
-                {dets.map((d) => (
+                <XAxis dataKey="i" tick={{ fontSize:10 }} ticks={xTicks}
+                       tickFormatter={xTickFmt} minTickGap={20} />
+                <YAxis tick={{ fontSize:10 }} width={52} tickFormatter={yTickFmt} />
+                <Tooltip contentStyle={{ fontSize:11 }} labelFormatter={xTickFmt} />
+                {visDets.map((d) => (
                   <ReferenceArea key={d.detection_id} x1={d.start_index} x2={d.end_index}
+                                 {...rangeYBounds([dbs[d.scale], dbs[coarsest], series], d.start_index, d.end_index)}
                                  fill={colorFor(d)}
                                  fillOpacity={(d.confirmed ? 0.10 : 0.05) + 0.07 * (d.nesting_depth || 0)}
                                  stroke={colorFor(d)} strokeOpacity={0.5}
@@ -1020,11 +1092,11 @@ function PatternTab({ series, t }) {
             </tr>
           </thead>
           <tbody>
-            {dets.length === 0
+            {visDets.length === 0
               ? <tr><td colSpan={7} style={{ padding:'12px', color:COLORS.axis, textAlign:'center' }}>
                   {t('chart_decomp.patterns.no_detections')}
                 </td></tr>
-              : dets.map((d) => (
+              : visDets.map((d) => (
                 <tr key={d.detection_id} style={{ borderBottom:`1px solid ${COLORS.border}` }}>
                   <td style={{ padding:'7px 12px', fontWeight:500, color:colorFor(d),
                                paddingLeft: 12 + 18 * (d.nesting_depth || 0) }}>
@@ -1080,8 +1152,10 @@ function PatternTab({ series, t }) {
   const highPivots = new Set(mode === 'single' ? (result?.swings.filter(s => s.kind === 'H').map(s => s.index) ?? []) : []);
   const lowPivots  = new Set(mode === 'single' ? (result?.swings.filter(s => s.kind === 'L').map(s => s.index) ?? []) : []);
 
-  // Detection regions (single-scale)
-  const dets = (mode === 'single' ? result?.detections : []) ?? [];
+  // Detection regions (single-scale). Hide low-confidence patterns (< 70%) from
+  // both the chart regions and the report table.
+  const dets = ((mode === 'single' ? result?.detections : []) ?? [])
+    .filter(d => (d.score ?? 0) >= MIN_PATTERN_SCORE);
 
   // Series available in the single combined chart (drives the toggle dropdown + legend)
   const SERIES_DEFS = [
@@ -1109,10 +1183,12 @@ function PatternTab({ series, t }) {
         <label style={{ fontSize:13, display:'flex', alignItems:'center', gap:6, cursor:'pointer' }}>
           <input type="checkbox" checked={multiScale} onChange={e => setMultiScale(e.target.checked)} />
           {t('chart_decomp.patterns.ms_toggle')}
+          <InfoTip text={t('chart_decomp.patterns.ms_toggle_tip')} />
         </label>
         {multiScale
           ? <div style={{ fontSize:13 }}>
               {t('chart_decomp.patterns.ms_scales_label')}
+              <InfoTip text={t('chart_decomp.patterns.ms_scales_tip')} />
               <br />
               <span style={{ display:'inline-flex', gap:10, marginTop:4 }}>
                 {[1,2,3,4].map(s => (
@@ -1125,6 +1201,7 @@ function PatternTab({ series, t }) {
             </div>
           : <label style={{ fontSize:13 }}>
               {t('chart_decomp.patterns.k_drop_label')}
+              <InfoTip text={t('chart_decomp.patterns.k_drop_tip')} />
               <br />
               <select value={kDrop} onChange={e => setKDrop(+e.target.value)}
                       style={{ marginTop:4, padding:'3px 8px', borderRadius:4,
@@ -1205,14 +1282,18 @@ function PatternTab({ series, t }) {
           <ResponsiveContainer width="100%" height={380}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray={COLORS.gridDash} stroke={COLORS.grid} />
-              <XAxis dataKey="i" tick={{ fontSize:10 }} />
-              <YAxis tick={{ fontSize:10 }} width={50} domain={yDomain} allowDecimals />
-              <Tooltip contentStyle={{ fontSize:11 }} />
+              <XAxis dataKey="i" tick={{ fontSize:10 }} ticks={xTicks}
+                     tickFormatter={xTickFmt} minTickGap={20} />
+              <YAxis tick={{ fontSize:10 }} width={52} domain={yDomain}
+                     tickFormatter={yTickFmt} allowDecimals />
+              <Tooltip contentStyle={{ fontSize:11 }} labelFormatter={xTickFmt} />
               {/* Always render the areas; toggle visibility via opacity. recharts does
                   not reliably remove ReferenceArea children when they are conditionally
-                  unmounted, so an opacity prop change is the dependable on/off switch. */}
+                  unmounted, so an opacity prop change is the dependable on/off switch.
+                  Each region is boxed to the data's min/max Y over its index range. */}
               {dets.map((d, idx) => (
                 <ReferenceArea key={idx} x1={d.start_index} x2={d.end_index}
+                               {...rangeYBounds([result.denoised, series], d.start_index, d.end_index)}
                                fill={PATTERN_COLORS[idx % PATTERN_COLORS.length]}
                                fillOpacity={seriesVis.detections ? (d.confirmed ? 0.15 : 0.07) : 0}
                                stroke={PATTERN_COLORS[idx % PATTERN_COLORS.length]}
@@ -1495,6 +1576,7 @@ export default function ChartDecompPage() {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('overview');
   const [series, setSeries]       = useState(null);
+  const [dates, setDates]         = useState(null);
 
   return (
     <div style={s.page}>
@@ -1510,7 +1592,9 @@ export default function ChartDecompPage() {
       </div>
 
       {/* Input panel (hidden on the Overview tab) */}
-      {activeTab !== 'overview' && <InputPanel onSeriesReady={(s) => setSeries(s)} t={t} />}
+      {activeTab !== 'overview' && (
+        <InputPanel onSeriesReady={(s, _ticker, d) => { setSeries(s); setDates(d || null); }} t={t} />
+      )}
 
       {/* Tab bar */}
       <div style={s.tabBar}>
@@ -1531,7 +1615,7 @@ export default function ChartDecompPage() {
       {activeTab === 'time_freq' && <TimeFreqTab  series={series} t={t} />}
       {activeTab === 'hurst'     && <HurstTab     series={series} t={t} />}
       {activeTab === 'forecast'  && <ForecastTab  series={series} t={t} />}
-      {activeTab === 'patterns'  && <PatternTab   series={series} t={t} />}
+      {activeTab === 'patterns'  && <PatternTab   series={series} dates={dates} t={t} />}
     </div>
   );
 }
