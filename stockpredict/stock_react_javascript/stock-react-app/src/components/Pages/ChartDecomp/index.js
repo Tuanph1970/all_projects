@@ -893,6 +893,14 @@ function fmtDDMMYY(iso) {
   return `${d}/${m}/${y.slice(2)}`;
 }
 
+// Format an ISO date (YYYY-MM-DD…) as dd/mm/yyyy for the report table.
+function fmtDDMMYYYY(iso) {
+  if (iso == null) return '';
+  const [y, m, d] = String(iso).slice(0, 10).split('-');
+  if (!y || !m || !d) return String(iso);
+  return `${d}/${m}/${y}`;
+}
+
 // Pick index ticks roughly every 3 months (first trading day of each new quarter
 // window) so the X axis stays readable instead of one tick per day.
 function quarterlyTickIndices(dates) {
@@ -981,6 +989,9 @@ function PatternTab({ series, dates, t }) {
   // falls back to the raw index for the demo series (no dates).
   const xTicks   = quarterlyTickIndices(dates);
   const xTickFmt = (i) => (dates && dates[i] != null) ? fmtDDMMYY(dates[i]) : i;
+  // Report-table start/end as a full date (dd/mm/yyyy); falls back to the raw
+  // index when no dates are available (demo series).
+  const idxDate  = (i) => (dates && dates[i] != null) ? fmtDDMMYYYY(dates[i]) : i;
   // Y axis: one decimal so prices read cleanly (e.g. 21.2) instead of long,
   // clipped fractions under the narrow axis width.
   const yTickFmt = (v) => Number(v).toFixed(1);
@@ -1024,7 +1035,7 @@ function PatternTab({ series, dates, t }) {
                     borderRadius:8, padding:'12px 4px', marginBottom:16 }}>
         <ResponsiveContainer width="100%" height={170}>
           <LineChart data={msData}>
-            <CartesianGrid strokeDasharray={COLORS.gridDash} stroke={COLORS.grid} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" horizontal vertical />
             <XAxis dataKey="i" tick={{ fontSize:10 }} ticks={xTicks}
                    tickFormatter={xTickFmt} minTickGap={20} />
             <YAxis tick={{ fontSize:10 }} width={52} tickFormatter={yTickFmt} />
@@ -1053,7 +1064,7 @@ function PatternTab({ series, dates, t }) {
             </p>
           : <ResponsiveContainer width="100%" height={190}>
               <LineChart data={msData}>
-                <CartesianGrid strokeDasharray={COLORS.gridDash} stroke={COLORS.grid} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" horizontal vertical />
                 <XAxis dataKey="i" tick={{ fontSize:10 }} ticks={xTicks}
                        tickFormatter={xTickFmt} minTickGap={20} />
                 <YAxis tick={{ fontSize:10 }} width={52} tickFormatter={yTickFmt} />
@@ -1281,7 +1292,7 @@ function PatternTab({ series, dates, t }) {
                       borderRadius:8, padding:'12px 4px', marginBottom:16 }}>
           <ResponsiveContainer width="100%" height={380}>
             <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray={COLORS.gridDash} stroke={COLORS.grid} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" horizontal vertical />
               <XAxis dataKey="i" tick={{ fontSize:10 }} ticks={xTicks}
                      tickFormatter={xTickFmt} minTickGap={20} />
               <YAxis tick={{ fontSize:10 }} width={52} domain={yDomain}
@@ -1378,8 +1389,8 @@ function PatternTab({ series, dates, t }) {
                                        color:COLORS.success, fontWeight:700 }}>★</span>
                       )}
                     </td>
-                    <td style={{ padding:'7px 12px' }}>{d.start_index}</td>
-                    <td style={{ padding:'7px 12px' }}>{d.end_index}</td>
+                    <td style={{ padding:'7px 12px' }}>{idxDate(d.start_index)}</td>
+                    <td style={{ padding:'7px 12px' }}>{idxDate(d.end_index)}</td>
                     <td style={{ padding:'7px 12px' }}>{(d.score * 100).toFixed(0)}%</td>
                     <td style={{ padding:'7px 12px' }}>
                       {d.confirmed
