@@ -55,6 +55,13 @@
   /* blue accent token for opt-in helpers */
   --accent: var(--c-primary);
 
+  /* Re-point the app's centralized UI-primary system (theme-ui.css) to the
+     AIKnow blue. .app-theme sits on a closer ancestor than :root, so content
+     inside it inherits these values for primary buttons, links, focus, etc. */
+  --ui-primary:        #4192f7;
+  --ui-primary-hover:  #5a9ef8;
+  --ui-primary-active: #2f7fe0;
+
   font-family: var(--font-sans);
   background-color: #ffffff !important;
 }
@@ -117,16 +124,25 @@
   cursor: pointer;
 }
 
-/* Opt-in primary / secondary helpers matching the reference */
-.app-theme .btn-primary {
+/* Primary actions -> AIKnow blue. Covers the app's blue button families
+   AND the legacy dark "primary" buttons (e.g. .dashboard-primary-btn behind
+   the Dashboard "+ Add stock"), which use var(--ink) and would stay near-black. */
+.app-theme .btn-primary,
+.app-theme .btn.btn-primary,
+.app-theme .btn-submit,
+.app-theme .add-new-button,
+.app-theme .dashboard-primary-btn,
+.app-theme [class*="primary-btn"] {
   background: var(--c-primary) !important;
   color: #fff !important;
   border: 1px solid var(--c-primary) !important;
-  padding: 9px 14px;
-  font-size: 15px;
   border-radius: var(--radius-btn) !important;
 }
-.app-theme .btn-primary:hover { filter: brightness(0.95); }
+.app-theme .btn-primary:hover:not(:disabled),
+.app-theme .btn-submit:hover:not(:disabled),
+.app-theme .add-new-button:hover:not(:disabled),
+.app-theme .dashboard-primary-btn:hover,
+.app-theme [class*="primary-btn"]:hover { filter: brightness(0.95); }
 
 .app-theme .btn-secondary {
   background: #fff !important;
