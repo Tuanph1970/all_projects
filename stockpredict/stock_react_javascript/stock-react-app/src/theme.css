@@ -28,12 +28,36 @@
   --font-sans:     'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-/* Base font for the content area only.
-   NOTE: rules below use !important so the theme overrides the app's heavy
-   inline styles and per-page CSS classes. Scope stays limited to .app-theme
-   (content area) — sidebar/header are outside it and the Price Board route
-   omits the class. Grid cell TEXT COLOR is deliberately never set. */
-.app-theme { font-family: var(--font-sans); }
+/* ── Centralized retheme ──────────────────────────────────────
+   The app's "cream + serif" identity is driven by CSS variables in
+   index.css (--paper, --font-serif/mono, --line, …). We re-point those
+   tokens to the AIKnow palette INSIDE .app-theme only, so every content
+   page that reads them is restyled from one place. The sidebar/header
+   are outside .page-content and the Price Board route omits .app-theme,
+   so both keep the original tokens. Special screens can override locally.
+
+   Base text color (--ink) is left as-is so data-grid TEXT COLOR doesn't
+   change (per request); only surfaces, borders, muted text and fonts flip.
+   Element rules further below use !important to beat heavy inline styles. */
+.app-theme {
+  /* surfaces -> white */
+  --paper:  #ffffff;
+  --panel:  #ffffff;
+  --line:   #e4e7ec;
+  --rule:   #eef0f3;
+  /* muted / secondary text -> cool grays */
+  --ink2:   #667085;
+  --ink3:   #98a2b3;
+  /* fonts -> Inter everywhere (removes the serif + mono editorial look) */
+  --font-sans:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-serif: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* blue accent token for opt-in helpers */
+  --accent: var(--c-primary);
+
+  font-family: var(--font-sans);
+  background-color: #ffffff !important;
+}
 
 /* Headings */
 .app-theme h1,
