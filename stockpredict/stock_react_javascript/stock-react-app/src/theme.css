@@ -1,0 +1,127 @@
+/* ============================================================
+   App content theme — derived from the AIKnow reference UI
+   (http://aiknow-dev.technica.vn, Documents screen).
+
+   Scope: .app-theme only — applied to the .page-content area.
+   The left sidebar and top header live OUTSIDE .page-content, so
+   they are intentionally NOT affected. The Price Board route omits
+   the .app-theme class (see MainLayout), so it stays unchanged.
+
+   NOTE: data-grid cell text COLOR is intentionally left untouched
+   (per request) — only borders, spacing and font are themed.
+   Components that use inline styles keep their own look; this only
+   restyles native / class-based (non-inline) elements.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --c-primary:     #4192f7;
+  --c-primary-rgb: 65, 146, 247;
+  --c-text:        #344054;
+  --c-heading:     #101828;
+  --c-muted:       #7e8083;
+  --c-border:      #d0d5dd;
+  --c-border-soft: #e4e7ec;
+  --radius-input:  8px;
+  --radius-btn:    4px;
+  --font-sans:     'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Base font for the content area only */
+.app-theme { font-family: var(--font-sans); }
+
+/* Headings */
+.app-theme h1,
+.app-theme h2,
+.app-theme h3 {
+  font-family: var(--font-sans);
+  color: var(--c-heading);
+}
+
+/* ── Text fields, textareas & dropdowns ───────────────────── */
+.app-theme input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),
+.app-theme textarea,
+.app-theme select {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--c-text);
+  background-color: #fff;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-input);
+  padding: 9px 14px;
+  min-height: 44px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.app-theme textarea { min-height: 80px; }
+
+.app-theme input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]):focus,
+.app-theme textarea:focus,
+.app-theme select:focus {
+  border-color: var(--c-primary);
+  box-shadow: 0 0 0 3px rgba(var(--c-primary-rgb), 0.15);
+}
+
+.app-theme input::placeholder,
+.app-theme textarea::placeholder { color: var(--c-muted); }
+
+/* Dropdown chevron (native select) */
+.app-theme select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  padding-right: 38px;
+}
+
+/* ── Buttons ──────────────────────────────────────────────── */
+.app-theme button {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  border-radius: var(--radius-btn);
+  cursor: pointer;
+}
+
+/* Opt-in primary / secondary helpers matching the reference */
+.app-theme .btn-primary {
+  background: var(--c-primary);
+  color: #fff;
+  border: 1px solid var(--c-primary);
+  padding: 9px 14px;
+  font-size: 16px;
+  border-radius: var(--radius-btn);
+}
+.app-theme .btn-primary:hover { filter: brightness(0.95); }
+
+.app-theme .btn-secondary {
+  background: #fff;
+  color: var(--c-text);
+  border: 1px solid var(--c-border);
+  padding: 9px 14px;
+  font-size: 16px;
+  border-radius: var(--radius-btn);
+}
+
+/* ── Data grid / tables ───────────────────────────────────── */
+/* Borders, spacing and font only — cell text color left as-is. */
+.app-theme table { font-family: var(--font-sans); border-collapse: collapse; }
+
+.app-theme thead th,
+.app-theme table th {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  border-bottom: 1px solid var(--c-border-soft);
+  padding: 10px 12px;
+}
+
+.app-theme tbody td,
+.app-theme table td {
+  border-bottom: 1px solid var(--c-border-soft);
+  padding: 10px 12px;
+}

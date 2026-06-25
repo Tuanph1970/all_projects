@@ -6,7 +6,7 @@
 // useParams via tiny wrapper components so the existing page components
 // keep their original prop signatures.
 import React, { useState, useEffect, useCallback } from 'react';
-import { Route, Routes, useParams } from 'react-router-dom';
+import { Route, Routes, useParams, useLocation } from 'react-router-dom';
 
 import Sidebar from './Sidebar';
 import Header from './Header';
@@ -71,6 +71,10 @@ const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Start collapsed by default to maximize chart/content area
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  // Content-area theme (AIKnow-derived). Applied to every page EXCEPT the
+  // Price Board, which must stay exactly as-is. The sidebar/header sit outside
+  // .page-content so they are never affected.
+  const isPriceBoard = useLocation().pathname.startsWith('/priceboard');
   const { alerts, connected, unread, markAllRead, clearAlerts } = useAlertStream();
 
   const handleToggleCollapse = useCallback(() => {
@@ -107,7 +111,7 @@ const MainLayout = () => {
           }
         />
 
-        <main className="page-content">
+        <main className={`page-content ${isPriceBoard ? '' : 'app-theme'}`}>
           <Routes>
             {/* Dashboard is both / and /dashboard so the legacy default-route
                 behavior (any unknown path → Dashboard) keeps working. */}
