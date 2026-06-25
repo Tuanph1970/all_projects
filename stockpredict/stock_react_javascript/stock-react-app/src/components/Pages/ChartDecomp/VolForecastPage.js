@@ -320,6 +320,22 @@ function ComparePanel({ result, t }) {
     vmd:    vmd_har.predictions[vmdIdx[ts]],
   }));
 
+  // Independent left/right Y axes (both in log-RV units). The actual log-RV is a
+  // 1-day proxy that spikes from ~-5 down to ~-27, while the model forecasts stay
+  // smooth near the mean — on a single shared axis the predictions look flat. So
+  // the noisy actual gets the LEFT axis (full range) and the two forecasts share
+  // the RIGHT axis, auto-zoomed to their own range so their movement is visible.
+  const padDomain = (vals) => {
+    const xs = vals.filter(Number.isFinite);
+    if (!xs.length) return ['auto', 'auto'];
+    const lo = Math.min(...xs), hi = Math.max(...xs);
+    const pad = (hi - lo) * 0.08 || 1;
+    return [lo - pad, hi + pad];
+  };
+  const leftDomain  = padDomain(chartData.map(d => d.actual));
+  const rightDomain = padDomain(chartData.flatMap(d => [d.har, d.vmd]));
+  const yFmt = (v) => Number(v).toFixed(1);
+
   return (
     <div style={s.card}>
       {/* Winner banner */}
@@ -414,12 +430,22 @@ function ComparePanel({ result, t }) {
       <div style={s.chartTitle}>{t('vol_forecast.compare.chart_title')}</div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
         <span style={s.badge()}>{t('vol_forecast.compare.oos_samples', { n: common.length })}</span>
+        <span style={{ fontSize: 11, color: C.light }}>{t('vol_forecast.compare.dual_axis_hint')}</span>
       </div>
       <ResponsiveContainer width="100%" height={400}>
         <LineChart data={chartData} margin={{ left: 8, right: 16, top: 4, bottom: 0 }}>
-          <CartesianGrid stroke={C.border} strokeDasharray="3 3" />
+          <CartesianGrid stroke="#94a3b8" strokeDasharray="3 3" horizontal vertical />
           <XAxis dataKey="ts" tick={{ fontSize: 9, fontFamily: FONT, fill: C.gray }} tickFormatter={v => `t${v}`} />
-          <YAxis tick={{ fontSize: 10, fontFamily: FONT, fill: C.gray }} />
+          {/* LEFT axis — noisy actual log-RV (full range) */}
+          <YAxis yAxisId="left" orientation="left" domain={leftDomain} tickFormatter={yFmt}
+            tick={{ fontSize: 10, fontFamily: FONT, fill: C.dark }} width={48}
+            label={{ value: t('vol_forecast.compare.axis_actual'), angle: -90, position: 'insideLeft',
+                     style: { fontSize: 10, fill: C.dark, textAnchor: 'middle' } }} />
+          {/* RIGHT axis — model forecasts, auto-zoomed to their own range */}
+          <YAxis yAxisId="right" orientation="right" domain={rightDomain} tickFormatter={yFmt}
+            tick={{ fontSize: 10, fontFamily: FONT, fill: C.purple }} width={48}
+            label={{ value: t('vol_forecast.compare.axis_pred'), angle: 90, position: 'insideRight',
+                     style: { fontSize: 10, fill: C.purple, textAnchor: 'middle' } }} />
           <Tooltip
             contentStyle={{ fontSize: 11, fontFamily: FONT, borderRadius: 6 }}
             formatter={(v, name) => {
@@ -430,9 +456,9 @@ function ComparePanel({ result, t }) {
           <Legend iconSize={10} iconType="line"
             formatter={v => ({ actual: t('vol_forecast.compare.actual'), har: t('vol_forecast.compare.har_pred'), vmd: t('vol_forecast.compare.vmd_pred') }[v] || v)}
           />
-          <Line type="monotone" dataKey="actual" stroke={C.dark}  strokeWidth={1.5} dot={false} isAnimationActive={false} name="actual" />
-          <Line type="monotone" dataKey="har"    stroke={C.accent} strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="har" />
-          <Line type="monotone" dataKey="vmd"    stroke={C.purple} strokeWidth={1.5} strokeDasharray="2 2" dot={false} isAnimationActive={false} name="vmd" />
+          <Line yAxisId="left"  type="monotone" dataKey="actual" stroke={C.dark}  strokeWidth={1.5} dot={false} isAnimationActive={false} name="actual" />
+          <Line yAxisId="right" type="monotone" dataKey="har"    stroke={C.accent} strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="har" />
+          <Line yAxisId="right" type="monotone" dataKey="vmd"    stroke={C.purple} strokeWidth={1.5} strokeDasharray="2 2" dot={false} isAnimationActive={false} name="vmd" />
         </LineChart>
       </ResponsiveContainer>
     </div>

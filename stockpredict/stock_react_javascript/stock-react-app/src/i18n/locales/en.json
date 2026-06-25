@@ -2439,7 +2439,10 @@
       "actual": "Actual",
       "har_pred": "HAR forecast",
       "vmd_pred": "VMD-HAR forecast",
-      "oos_samples": "{{n}} OOS samples"
+      "oos_samples": "{{n}} OOS samples",
+      "dual_axis_hint": "Left axis = actual log-RV · right axis = forecasts (both log-RV, separate ranges)",
+      "axis_actual": "Actual log-RV (left)",
+      "axis_pred": "Forecast log-RV (right)"
     },
     "backtest": {
       "title": "Vol-targeting Backtest",

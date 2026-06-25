@@ -2439,7 +2439,10 @@
       "actual": "Thực tế",
       "har_pred": "HAR dự báo",
       "vmd_pred": "VMD-HAR dự báo",
-      "oos_samples": "{{n}} mẫu OOS"
+      "oos_samples": "{{n}} mẫu OOS",
+      "dual_axis_hint": "Trục trái = log-RV thực tế · trục phải = dự báo (cùng đơn vị log-RV, thang đo riêng)",
+      "axis_actual": "log-RV thực tế (trái)",
+      "axis_pred": "log-RV dự báo (phải)"
     },
     "backtest": {
       "title": "Backtest vol-targeting",
