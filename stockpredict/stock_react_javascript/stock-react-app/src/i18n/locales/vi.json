@@ -2464,7 +2464,8 @@
       "oos_samples": "{{n}} mẫu OOS",
       "dual_axis_hint": "Trục trái = log-RV thực tế · trục phải = dự báo (cùng đơn vị log-RV, thang đo riêng)",
       "axis_actual": "log-RV thực tế (trái)",
-      "axis_pred": "log-RV dự báo (phải)"
+      "axis_pred": "log-RV dự báo (phải)",
+      "series_btn": "Chuỗi"
     },
     "backtest": {
       "title": "Backtest vol-targeting",
@@ -2491,7 +2492,11 @@
       "benchmark_label": "Buy & Hold",
       "strategy_label": "Vol-Target",
       "gross_label": "Lãi/Lỗ gộp",
-      "net_label": "Net P&L (sau phí)"
+      "net_label": "Net P&L (sau phí)",
+      "combined_title": "Backtest — tất cả chuỗi",
+      "dual_axis_hint": "Trục trái = P&L & mức sụt giảm · trục phải = đòn bẩy & vòng quay",
+      "axis_pnl": "P&L / Mức sụt giảm (trái)",
+      "axis_exposure": "Đòn bẩy / Vòng quay (phải)"
     },
     "common": {
       "need_data": "Cần ít nhất 300 điểm giá",

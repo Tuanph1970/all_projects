@@ -3,9 +3,9 @@
 // vol-targeting backtest with full equity-curve and drawdown analysis.
 import React, { useState, useCallback, useMemo } from 'react';
 import {
-  LineChart, Line, AreaChart, Area,
+  LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, ReferenceLine, ComposedChart, Bar,
+  ResponsiveContainer, ReferenceLine, ComposedChart,
 } from 'recharts';
 import {
   TrendingUp, RefreshCw, Zap, BarChart2, Award,
@@ -77,6 +77,43 @@ const MetricCard = ({ label, value, color, sub }) => (
     {sub && <div style={{ fontSize: 11, color: C.light, marginTop: 2 }}>{sub}</div>}
   </div>
 );
+
+// Checkbox dropdown to toggle chart series on/off (shared by the forecast and
+// backtest charts so overlapping lines can be isolated).
+function SeriesToggle({ defs, vis, setVis, label }) {
+  const [open, setOpen] = useState(false);
+  const n = defs.filter(d => vis[d.key]).length;
+  return (
+    <div style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} style={{
+        display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px',
+        background: '#fff', border: `1px solid ${C.border}`, borderRadius: 6,
+        fontSize: 12, fontFamily: FONT, cursor: 'pointer', color: C.mid }}>
+        {label}
+        <span style={{ background: C.accent, color: '#fff', borderRadius: 99, fontSize: 10,
+                       padding: '1px 6px', fontWeight: 700 }}>{n}</span>
+        <span style={{ fontSize: 9 }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (<>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} />
+        <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, zIndex: 50,
+          background: '#fff', border: `1px solid ${C.border}`, borderRadius: 8,
+          boxShadow: '0 6px 18px rgba(0,0,0,0.12)', minWidth: 210, padding: 6 }}>
+          {defs.map(d => (
+            <label key={d.key} style={{ display: 'flex', alignItems: 'center', gap: 8,
+              padding: '5px 8px', borderRadius: 6, cursor: 'pointer', fontSize: 12.5, color: C.mid }}>
+              <input type="checkbox" checked={!!vis[d.key]}
+                onChange={() => setVis(p => ({ ...p, [d.key]: !p[d.key] }))} />
+              <span style={{ width: 18, height: 0, borderTop: `2px ${d.dash ? 'dashed' : 'solid'} ${d.color}`,
+                             display: 'inline-block', flexShrink: 0 }} />
+              <span>{d.label}</span>
+            </label>
+          ))}
+        </div>
+      </>)}
+    </div>
+  );
+}
 
 // ── Utility ───────────────────────────────────────────────────────────────────
 
@@ -353,10 +390,17 @@ function ConfigPanel({ cfg, setCfg, onRun, loading, hasData, t }) {
 // ── Forecast Comparison Panel ─────────────────────────────────────────────────
 
 function ComparePanel({ result, t }) {
+  // Hooks must run before any early return (rules-of-hooks).
+  const [vis, setVis] = useState({ actual: true, har: true, vmd: true });
   // Guard against malformed/error payloads so a bad response never blanks the page.
   if (!result || !result.har || !result.vmd_har) return null;
   const { har, vmd_har, dm_stat, winner } = result;
   const isVmdWinner = winner === 'vmd_har';
+  const seriesDefs = [
+    { key: 'actual', label: t('vol_forecast.compare.actual'),   color: C.dark },
+    { key: 'har',    label: t('vol_forecast.compare.har_pred'), color: C.accent, dash: true },
+    { key: 'vmd',    label: t('vol_forecast.compare.vmd_pred'), color: C.purple, dash: true },
+  ];
 
   const metricDelta = (key) => {
     const a = vmd_har.metrics[key];
@@ -496,9 +540,12 @@ function ComparePanel({ result, t }) {
 
       {/* Forecast chart */}
       <div style={s.chartTitle}>{t('vol_forecast.compare.chart_title')}</div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 12, flexWrap: 'wrap' }}>
         <span style={s.badge()}>{t('vol_forecast.compare.oos_samples', { n: common.length })}</span>
-        <span style={{ fontSize: 11, color: C.light }}>{t('vol_forecast.compare.dual_axis_hint')}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, color: C.light }}>{t('vol_forecast.compare.dual_axis_hint')}</span>
+          <SeriesToggle defs={seriesDefs} vis={vis} setVis={setVis} label={t('vol_forecast.compare.series_btn')} />
+        </div>
       </div>
       <ResponsiveContainer width="100%" height={400}>
         <LineChart data={chartData} margin={{ left: 8, right: 16, top: 4, bottom: 0 }}>
@@ -524,9 +571,9 @@ function ComparePanel({ result, t }) {
           <Legend iconSize={10} iconType="line"
             formatter={v => ({ actual: t('vol_forecast.compare.actual'), har: t('vol_forecast.compare.har_pred'), vmd: t('vol_forecast.compare.vmd_pred') }[v] || v)}
           />
-          <Line yAxisId="left"  type="monotone" dataKey="actual" stroke={C.dark}  strokeWidth={1.5} dot={false} isAnimationActive={false} name="actual" />
-          <Line yAxisId="right" type="monotone" dataKey="har"    stroke={C.accent} strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="har" />
-          <Line yAxisId="right" type="monotone" dataKey="vmd"    stroke={C.purple} strokeWidth={1.5} strokeDasharray="2 2" dot={false} isAnimationActive={false} name="vmd" />
+          {vis.actual && <Line yAxisId="left"  type="monotone" dataKey="actual" stroke={C.dark}  strokeWidth={1.5} dot={false} isAnimationActive={false} name="actual" />}
+          {vis.har    && <Line yAxisId="right" type="monotone" dataKey="har"    stroke={C.accent} strokeWidth={1.5} strokeDasharray="4 2" dot={false} isAnimationActive={false} name="har" />}
+          {vis.vmd    && <Line yAxisId="right" type="monotone" dataKey="vmd"    stroke={C.purple} strokeWidth={1.5} strokeDasharray="2 2" dot={false} isAnimationActive={false} name="vmd" />}
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -547,8 +594,7 @@ function BacktestPanel({ compareResult, prices, t }) {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
   const [result, setResult]   = useState(null);
-  const [showPos, setShowPos] = useState(false);
-  const [showTurn, setShowTurn] = useState(false);
+  const [vis, setVis]         = useState({ net: true, bh: true, dd: true, pos: true, turn: true });
 
   const canRun = compareResult && prices && prices.length > 300;
 
@@ -667,80 +713,66 @@ function BacktestPanel({ compareResult, prices, t }) {
               ))}
             </div>
 
-            {/* Equity curve */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={s.chartTitle}>{t('vol_forecast.backtest.equity_title')}</div>
-              <ResponsiveContainer width="100%" height={340}>
-                <ComposedChart data={result.cumData} margin={{ left: 8, right: 16, top: 4, bottom: 0 }}>
-                  <CartesianGrid stroke={C.border} strokeDasharray="3 3" />
-                  <XAxis dataKey="i" tick={{ fontSize: 9, fill: C.gray }} tickFormatter={v => `t${v}`} />
-                  <YAxis tick={{ fontSize: 10, fill: C.gray }} tickFormatter={v => v.toFixed(3)} />
-                  <Tooltip contentStyle={{ fontSize: 11, borderRadius: 6 }}
-                    formatter={(v, n) => [v?.toFixed(5), n === 'net' ? t('vol_forecast.backtest.net_label') : t('vol_forecast.backtest.benchmark_label')]} />
-                  <Legend iconSize={10}
-                    formatter={n => n === 'net' ? t('vol_forecast.backtest.net_label') : t('vol_forecast.backtest.benchmark_label')} />
-                  <ReferenceLine y={0} stroke={C.gray} strokeDasharray="3 3" />
-                  <Line type="monotone" dataKey="bh" stroke={C.light} strokeWidth={1} dot={false} strokeDasharray="4 2" isAnimationActive={false} name="bh" />
-                  <Area type="monotone" dataKey="net" stroke={C.accent} strokeWidth={2}
-                    fill={C.accentL} dot={false} isAnimationActive={false} name="net" />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Drawdown */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={s.chartTitle}>{t('vol_forecast.backtest.drawdown_title')}</div>
-              <ResponsiveContainer width="100%" height={120}>
-                <AreaChart data={result.ddData} margin={{ left: 8, right: 16, top: 4, bottom: 0 }}>
-                  <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="i" hide />
-                  <YAxis tick={{ fontSize: 9, fill: C.gray }} tickFormatter={v => v.toFixed(3)} />
-                  <Tooltip contentStyle={{ fontSize: 11, borderRadius: 6 }} formatter={v => [v?.toFixed(5), 'Drawdown']} />
-                  <Area type="monotone" dataKey="dd" stroke={C.danger} fill="rgba(239,68,68,0.15)"
-                    strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Collapsible position chart */}
-            <div style={{ marginBottom: 8 }}>
-              <button onClick={() => setShowPos(p => !p)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: C.mid, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0' }}>
-                {showPos ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                {t('vol_forecast.backtest.position_title')}
-              </button>
-              {showPos && (
-                <ResponsiveContainer width="100%" height={120}>
-                  <ComposedChart data={result.positions.map((w, i) => ({ i, w }))} margin={{ left: 8, right: 16, top: 4, bottom: 0 }}>
-                    <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="i" hide />
-                    <YAxis tick={{ fontSize: 9, fill: C.gray }} />
-                    <Tooltip formatter={v => [v?.toFixed(3), 'w[t]']} contentStyle={{ fontSize: 11 }} />
-                    <ReferenceLine y={0} stroke={C.gray} />
-                    <Bar dataKey="w" fill={C.accent} opacity={0.6} isAnimationActive={false} />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-
-            {/* Collapsible turnover chart */}
-            <div>
-              <button onClick={() => setShowTurn(p => !p)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: C.mid, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0' }}>
-                {showTurn ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                {t('vol_forecast.backtest.turnover_title')}
-              </button>
-              {showTurn && (
-                <ResponsiveContainer width="100%" height={100}>
-                  <AreaChart data={result.turnover.map((v, i) => ({ i, v }))} margin={{ left: 8, right: 16, top: 4, bottom: 0 }}>
-                    <CartesianGrid stroke={C.border} strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="i" hide />
-                    <YAxis tick={{ fontSize: 9, fill: C.gray }} tickFormatter={v => v.toFixed(2)} />
-                    <Tooltip formatter={v => [v?.toFixed(4), 'Turnover']} contentStyle={{ fontSize: 11 }} />
-                    <Area type="monotone" dataKey="v" stroke={C.sky} fill="rgba(14,165,233,0.12)"
-                      strokeWidth={1} dot={false} isAnimationActive={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+            {/* Merged backtest chart — all series, left/right axes, grid, toggle */}
+            {(() => {
+              const btDefs = [
+                { key: 'net',  label: t('vol_forecast.backtest.net_label'),       color: C.accent, axis: 'left'  },
+                { key: 'bh',   label: t('vol_forecast.backtest.benchmark_label'), color: C.light,  axis: 'left', dash: true },
+                { key: 'dd',   label: t('vol_forecast.backtest.drawdown_title'),  color: C.danger, axis: 'left'  },
+                { key: 'pos',  label: t('vol_forecast.backtest.position_title'),  color: C.purple, axis: 'right' },
+                { key: 'turn', label: t('vol_forecast.backtest.turnover_title'),  color: C.sky,    axis: 'right' },
+              ];
+              const merged = result.cumData.map((row, i) => ({
+                i: row.i, net: row.net, bh: row.bh,
+                dd:   result.ddData[i]?.dd,
+                pos:  result.positions?.[i],
+                turn: result.turnover?.[i],
+              }));
+              const pad = (arr) => {
+                const xs = arr.filter(Number.isFinite);
+                if (!xs.length) return ['auto', 'auto'];
+                const lo = Math.min(...xs), hi = Math.max(...xs);
+                const p = (hi - lo) * 0.08 || 1;
+                return [lo - p, hi + p];
+              };
+              const leftDomain  = pad(merged.flatMap(d => [vis.net && d.net, vis.bh && d.bh, vis.dd && d.dd].filter(v => v !== false)));
+              const rightDomain = pad(merged.flatMap(d => [vis.pos && d.pos, vis.turn && d.turn].filter(v => v !== false)));
+              const lbl = Object.fromEntries(btDefs.map(d => [d.key, d.label]));
+              return (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 12, flexWrap: 'wrap' }}>
+                    <div style={s.chartTitle}>{t('vol_forecast.backtest.combined_title')}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, color: C.light }}>{t('vol_forecast.backtest.dual_axis_hint')}</span>
+                      <SeriesToggle defs={btDefs} vis={vis} setVis={setVis} label={t('vol_forecast.compare.series_btn')} />
+                    </div>
+                  </div>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <ComposedChart data={merged} margin={{ left: 8, right: 16, top: 4, bottom: 0 }}>
+                      <CartesianGrid stroke="#94a3b8" strokeDasharray="3 3" horizontal vertical />
+                      <XAxis dataKey="i" tick={{ fontSize: 9, fill: C.gray }} tickFormatter={v => `t${v}`} />
+                      <YAxis yAxisId="left" orientation="left" domain={leftDomain} width={48}
+                        tick={{ fontSize: 10, fill: C.dark }} tickFormatter={v => Number(v).toFixed(2)}
+                        label={{ value: t('vol_forecast.backtest.axis_pnl'), angle: -90, position: 'insideLeft',
+                                 style: { fontSize: 10, fill: C.dark, textAnchor: 'middle' } }} />
+                      <YAxis yAxisId="right" orientation="right" domain={rightDomain} width={48}
+                        tick={{ fontSize: 10, fill: C.purple }} tickFormatter={v => Number(v).toFixed(2)}
+                        label={{ value: t('vol_forecast.backtest.axis_exposure'), angle: 90, position: 'insideRight',
+                                 style: { fontSize: 10, fill: C.purple, textAnchor: 'middle' } }} />
+                      <Tooltip contentStyle={{ fontSize: 11, borderRadius: 6 }}
+                        formatter={(v, n) => [v?.toFixed(4), lbl[n] || n]} />
+                      <Legend iconSize={10} formatter={n => lbl[n] || n} />
+                      <ReferenceLine yAxisId="left" y={0} stroke={C.gray} strokeDasharray="3 3" />
+                      {vis.net  && <Line yAxisId="left"  type="monotone" dataKey="net"  stroke={C.accent} strokeWidth={2}   dot={false} isAnimationActive={false} name="net" />}
+                      {vis.bh   && <Line yAxisId="left"  type="monotone" dataKey="bh"   stroke={C.light}  strokeWidth={1}   strokeDasharray="4 2" dot={false} isAnimationActive={false} name="bh" />}
+                      {vis.dd   && <Line yAxisId="left"  type="monotone" dataKey="dd"   stroke={C.danger} strokeWidth={1.5} dot={false} isAnimationActive={false} name="dd" />}
+                      {vis.pos  && <Line yAxisId="right" type="monotone" dataKey="pos"  stroke={C.purple} strokeWidth={1.5} dot={false} isAnimationActive={false} name="pos" />}
+                      {vis.turn && <Line yAxisId="right" type="monotone" dataKey="turn" stroke={C.sky}    strokeWidth={1}   dot={false} isAnimationActive={false} name="turn" />}
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              );
+            })()}
           </>
         );
       })()}

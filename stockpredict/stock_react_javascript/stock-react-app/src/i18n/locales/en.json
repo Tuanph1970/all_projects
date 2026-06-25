@@ -2464,7 +2464,8 @@
       "oos_samples": "{{n}} OOS samples",
       "dual_axis_hint": "Left axis = actual log-RV · right axis = forecasts (both log-RV, separate ranges)",
       "axis_actual": "Actual log-RV (left)",
-      "axis_pred": "Forecast log-RV (right)"
+      "axis_pred": "Forecast log-RV (right)",
+      "series_btn": "Series"
     },
     "backtest": {
       "title": "Vol-targeting Backtest",
@@ -2491,7 +2492,11 @@
       "benchmark_label": "Buy & Hold",
       "strategy_label": "Vol-Target",
       "gross_label": "Gross P&L",
-      "net_label": "Net P&L (after costs)"
+      "net_label": "Net P&L (after costs)",
+      "combined_title": "Backtest — all series",
+      "dual_axis_hint": "Left axis = P&L & drawdown · right axis = leverage & turnover",
+      "axis_pnl": "P&L / Drawdown (left)",
+      "axis_exposure": "Leverage / Turnover (right)"
     },
     "common": {
       "need_data": "Need at least 300 price points",
