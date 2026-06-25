@@ -2389,7 +2389,26 @@
   },
   "vol_forecast": {
     "page_title": "Volatility Forecast & Backtest",
-    "page_subtitle": "HAR vs VMD-HAR comparison · Diebold-Mariano test · Vol-targeting backtest with transaction costs",
+    "page_subtitle": "Rolling Parkinson realized variance · HAR vs VMD-HAR comparison · Diebold-Mariano test · Vol-targeting backtest with transaction costs",
+    "intro": {
+      "tab": "Introduction",
+      "forecast_tab": "Forecast & Backtest",
+      "title": "Volatility Forecast & Backtest — what this is",
+      "lede": "Forecast how much a Vietnamese stock is likely to move tomorrow, check whether an advanced model beats a simple benchmark, and backtest whether that forecast would have improved a risk-managed strategy.",
+      "def_title": "Definition",
+      "def_body": "Volatility is the size of a stock's price swings — high volatility means large, risky moves; low volatility means calm trading. This tool measures realized volatility from daily price data using a rolling Parkinson high–low estimator (which reads the day's high-to-low range, far less noisy than a single close-to-close return), then forecasts the next day's volatility with two models: HAR — the Heterogeneous AutoRegressive model, a standard volatility benchmark that blends daily, weekly and monthly averages — and VMD-HAR, the same model fed signals from Variational Mode Decomposition (VMD), which splits the series into smooth frequency components first.",
+      "goal_title": "Goal — what it does for you",
+      "goal_body": "Volatility drives risk and how big a position you can safely hold. Knowing tomorrow's likely volatility lets you (1) size positions to a target risk level, (2) judge — with statistics, not eyeballing — whether the more complex VMD-HAR model actually beats the simple HAR benchmark out-of-sample, and (3) see, through a realistic backtest that charges trading costs, whether acting on the forecast would have improved net return and drawdown versus simply buying and holding.",
+      "how_title": "How to achieve the goal",
+      "how_steps": [
+        "Load data: on the ‘Forecast & Backtest’ tab, enter a ticker (e.g. VCB) and a period, then click Load. Real historical open/high/low/close prices are fetched from the market database (the green Demo button uses synthetic data instead).",
+        "Set the realized-variance window: choose the rolling window (in days) for the Parkinson estimator — a smaller window reacts faster but is noisier; a larger window is smoother (5 ≈ one trading week).",
+        "Tune the models (optional): adjust HAR and VMD-HAR parameters, or leave the sensible defaults; open Advanced params for finer control.",
+        "Run the comparison: the tool walks forward out-of-sample and reports RMSE, MAE, R² and QLIKE for both models plus a Diebold-Mariano significance test. A model only ‘wins’ if it beats the benchmark with statistical significance.",
+        "Read the chart: the actual log realized variance is on the left axis (it is naturally spiky); the HAR and VMD-HAR forecasts are on the right axis (smooth, tracking the trend).",
+        "Backtest: run the volatility-targeting backtest to scale exposure by the forecast, with transaction costs, and compare net P&L, drawdown and turnover against buy-and-hold."
+      ]
+    },
     "input": {
       "title": "Price Data",
       "ticker_label": "Ticker",
@@ -2408,6 +2427,9 @@
     },
     "config": {
       "title": "Model Configuration",
+      "rv_section": "Realized variance (Parkinson)",
+      "rv_window": "Rolling window (days)",
+      "rv_hint": "Rolling window for the Parkinson high–low realized-variance target. Larger = smoother (5 ≈ one trading week).",
       "har_section": "HAR (baseline)",
       "vmd_section": "VMD-HAR (enhanced)",
       "ridge_alpha": "Ridge α",

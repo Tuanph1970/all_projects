@@ -1,7 +1,7 @@
 // CD-4 — Volatility Forecast & Backtest UI
 // HAR vs VMD-HAR comparison with Diebold-Mariano test +
 // vol-targeting backtest with full equity-curve and drawdown analysis.
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -10,6 +10,7 @@ import {
 import {
   TrendingUp, RefreshCw, Zap, BarChart2, Award,
   AlertTriangle, CheckCircle, ChevronDown, ChevronUp, Activity,
+  BookOpen, Target, ListChecks,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import chartDecompService from '../../../services/chartDecompService';
@@ -88,11 +89,45 @@ function generateDemo(n = 756) {
   return prices;
 }
 
-function pricesToLogRV(prices) {
-  return prices.slice(1).map((p, i) => {
-    const r = Math.log(p / prices[i]);
-    return Math.log(r * r + 1e-12);
-  });
+// Per-day variance from the Parkinson high–low range estimator
+//   σ²_P = (ln(H/L))² / (4·ln2)
+// which is far less noisy than a single squared close-to-close return. Falls back
+// to the squared close-to-close return when H/L are missing. Output index i is the
+// variance of day i+1, aligned with the close-to-close return log(P[i+1]/P[i]) so
+// the rest of the pipeline (and the backtest's return alignment) is unchanged.
+function dailyParkinsonVar(highs, lows, closes) {
+  const k = 1 / (4 * Math.log(2));
+  const out = [];
+  for (let i = 0; i < closes.length - 1; i++) {
+    const H = highs?.[i + 1], L = lows?.[i + 1];
+    let v;
+    if (H != null && L != null && H > 0 && L > 0 && H >= L) {
+      const lr = Math.log(H / L);
+      v = k * lr * lr;
+    } else {
+      const r = Math.log(closes[i + 1] / closes[i]);
+      v = r * r;
+    }
+    out.push(v > 0 ? v : 1e-12);
+  }
+  return out;
+}
+
+// Rolling-window mean of the daily Parkinson variance, then log → log-RV target.
+// Uses an expanding mean for the first (window-1) points so the series keeps full
+// length (those early points fall inside the model's training warm-up anyway).
+function rollingParkinsonLogRV(highs, lows, closes, window = 5) {
+  const daily = dailyParkinsonVar(highs, lows, closes);
+  const w = Math.max(1, Math.round(window));
+  const out = [];
+  let sum = 0;
+  const q = [];
+  for (let i = 0; i < daily.length; i++) {
+    q.push(daily[i]); sum += daily[i];
+    if (q.length > w) sum -= q.shift();
+    out.push(Math.log(sum / q.length + 1e-12));
+  }
+  return out;
 }
 
 function logRVToAnnVol(logRV) {
@@ -141,10 +176,20 @@ function DataPanel({ onDataReady, t }) {
       // callers expected a bare array. Accept both shapes.
       const raw = resp.data;
       const rows = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
-      const prices = rows
-        .map(d => d.close ?? d.c ?? d.price).filter(v => v != null && isFinite(v));
+      // Keep OHLC together so the Parkinson high–low estimator can use the daily
+      // range; rows without a valid close are dropped (high/low stay aligned).
+      const bars = rows
+        .map(d => ({
+          close: d.close ?? d.c ?? d.price,
+          high:  d.high  ?? d.h ?? null,
+          low:   d.low   ?? d.l ?? null,
+        }))
+        .filter(b => b.close != null && isFinite(b.close));
+      const prices = bars.map(b => b.close);
+      const highs  = bars.map(b => (b.high != null && isFinite(b.high) ? b.high : null));
+      const lows   = bars.map(b => (b.low  != null && isFinite(b.low)  ? b.low  : null));
       if (prices.length < 300) throw new Error(`Only ${prices.length} data points returned; need ≥300`);
-      onDataReady(prices, ticker);
+      onDataReady({ prices, highs, lows });
       setInfo(t('vol_forecast.input.series_info', { n: prices.length, m: prices.length - 1 }));
     } catch (e) {
       setError(t('vol_forecast.input.error_load', { msg: e.message }));
@@ -155,7 +200,11 @@ function DataPanel({ onDataReady, t }) {
 
   const demo = () => {
     const p = generateDemo(756);
-    onDataReady(p, 'DEMO');
+    // Synthesize a plausible intraday high/low band around each close so the
+    // Parkinson estimator has a range to work with on the demo series.
+    const highs = p.map(c => c * (1 + 0.004 + Math.random() * 0.012));
+    const lows  = p.map(c => c * (1 - 0.004 - Math.random() * 0.012));
+    onDataReady({ prices: p, highs, lows });
     setInfo(t('vol_forecast.input.series_info', { n: p.length, m: p.length - 1 }));
     setError(null);
   };
@@ -207,6 +256,25 @@ function ConfigPanel({ cfg, setCfg, onRun, loading, hasData, t }) {
           {showAdv ? 'Hide advanced' : 'Advanced params'}
         </button>
       </div>
+
+      {/* Realized-variance target (Parkinson rolling window) */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.sky, marginBottom: 8 }}>
+          {t('vol_forecast.config.rv_section')}
+        </div>
+        <div style={s.configGrid}>
+          <div style={s.field}>
+            <span style={s.label}>{t('vol_forecast.config.rv_window')}</span>
+            <input type="number" style={s.input} min={1} max={66} step={1}
+              value={cfg.rv_window} onChange={set('rv_window')} />
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: C.light, marginTop: 6 }}>
+          {t('vol_forecast.config.rv_hint')}
+        </div>
+      </div>
+
+      <div style={s.divider} />
 
       {/* HAR */}
       <div style={{ marginBottom: 12 }}>
@@ -680,9 +748,73 @@ function BacktestPanel({ compareResult, prices, t }) {
   );
 }
 
+// ── Introduction Tab ──────────────────────────────────────────────────────────
+
+function IntroTab({ t }) {
+  const steps = t('vol_forecast.intro.how_steps', { returnObjects: true });
+  const stepList = Array.isArray(steps) ? steps : [];
+  const section = (icon, color, title, body) => (
+    <div style={{ ...s.card, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <div style={{ width: 30, height: 30, borderRadius: 8, background: `${color}1a`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {icon}
+        </div>
+        <span style={{ fontSize: 15, fontWeight: 800, color: C.dark }}>{title}</span>
+      </div>
+      <div style={{ fontSize: 13.5, lineHeight: 1.65, color: C.mid }}>{body}</div>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ ...s.card, marginBottom: 16, background: C.accentL, border: `1px solid #c7d2fe` }}>
+        <div style={{ fontSize: 16, fontWeight: 800, color: C.accent, marginBottom: 4 }}>
+          {t('vol_forecast.intro.title')}
+        </div>
+        <div style={{ fontSize: 13, color: C.mid, lineHeight: 1.6 }}>
+          {t('vol_forecast.intro.lede')}
+        </div>
+      </div>
+
+      {section(<BookOpen size={17} color={C.accent} />, C.accent,
+        t('vol_forecast.intro.def_title'), t('vol_forecast.intro.def_body'))}
+
+      {section(<Target size={17} color={C.success} />, C.success,
+        t('vol_forecast.intro.goal_title'), t('vol_forecast.intro.goal_body'))}
+
+      {/* How to achieve — numbered steps */}
+      <div style={{ ...s.card }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <div style={{ width: 30, height: 30, borderRadius: 8, background: `${C.purple}1a`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ListChecks size={17} color={C.purple} />
+          </div>
+          <span style={{ fontSize: 15, fontWeight: 800, color: C.dark }}>
+            {t('vol_forecast.intro.how_title')}
+          </span>
+        </div>
+        <ol style={{ margin: 0, paddingLeft: 0, listStyle: 'none' }}>
+          {stepList.map((step, i) => (
+            <li key={i} style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'flex-start' }}>
+              <span style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 99,
+                             background: C.purple, color: '#fff', fontSize: 12, fontWeight: 800,
+                             display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {i + 1}
+              </span>
+              <span style={{ fontSize: 13.5, lineHeight: 1.55, color: C.mid }}>{step}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 const DEFAULT_CFG = {
+  rv_window: 5,         // rolling window (days) for the Parkinson realized-variance target
   har_ridge_alpha: 5,   har_min_train: 252, har_refit_every: 60,
   // vmd_window must fit within the loaded series: VMD-HAR needs min_train + window + 2
   // observations. The history API returns ~1000 rows max (≈5y), and a 2y load is only
@@ -695,16 +827,26 @@ const DEFAULT_CFG = {
 
 export default function VolForecastPage() {
   const { t } = useTranslation();
+  const [tab, setTab]                 = useState('intro');
   const [prices, setPrices]           = useState(null);
-  const [logRV, setLogRV]             = useState(null);
+  const [bars, setBars]               = useState(null);   // { highs, lows }
   const [cfg, setCfg]                 = useState(DEFAULT_CFG);
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState(null);
   const [compareResult, setCompare]   = useState(null);
 
-  const onDataReady = useCallback((p) => {
+  // Rolling Parkinson realized-variance target, re-derived whenever the data or
+  // the rolling window changes.
+  const logRV = useMemo(
+    () => (prices && bars)
+      ? rollingParkinsonLogRV(bars.highs, bars.lows, prices, cfg.rv_window)
+      : null,
+    [prices, bars, cfg.rv_window],
+  );
+
+  const onDataReady = useCallback(({ prices: p, highs, lows }) => {
     setPrices(p);
-    setLogRV(pricesToLogRV(p));
+    setBars({ highs, lows });
     setCompare(null);
   }, []);
 
@@ -765,24 +907,49 @@ export default function VolForecastPage() {
         </p>
       </div>
 
-      {/* Data input */}
-      <DataPanel onDataReady={onDataReady} t={t} />
+      {/* Tab bar */}
+      <div style={{ display: 'flex', gap: 0, borderBottom: `2px solid ${C.border}`, marginBottom: 16 }}>
+        {[
+          { key: 'intro',    label: t('vol_forecast.intro.tab'),    icon: BookOpen },
+          { key: 'forecast', label: t('vol_forecast.intro.forecast_tab'), icon: Activity },
+        ].map(({ key, label, icon: Icon }) => {
+          const active = tab === key;
+          return (
+            <button key={key} onClick={() => setTab(key)} style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
+              cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: FONT,
+              background: 'none', border: 'none', marginBottom: -2,
+              color: active ? C.accent : C.gray,
+              borderBottom: `2px solid ${active ? C.accent : 'transparent'}`,
+            }}>
+              <Icon size={14} />{label}
+            </button>
+          );
+        })}
+      </div>
 
-      {/* Model config + run */}
-      <ConfigPanel
-        cfg={cfg} setCfg={setCfg}
-        onRun={runCompare} loading={loading}
-        hasData={!!logRV}
-        t={t}
-      />
+      {tab === 'intro' && <IntroTab t={t} />}
 
-      {error && <div style={{ ...s.error, marginBottom: 16 }}>{error}</div>}
+      {tab === 'forecast' && <>
+        {/* Data input */}
+        <DataPanel onDataReady={onDataReady} t={t} />
 
-      {/* Forecast comparison results */}
-      {compareResult && <ComparePanel result={compareResult} t={t} />}
+        {/* Model config + run */}
+        <ConfigPanel
+          cfg={cfg} setCfg={setCfg}
+          onRun={runCompare} loading={loading}
+          hasData={!!logRV}
+          t={t}
+        />
 
-      {/* Backtest */}
-      <BacktestPanel compareResult={compareResult} prices={prices} t={t} />
+        {error && <div style={{ ...s.error, marginBottom: 16 }}>{error}</div>}
+
+        {/* Forecast comparison results */}
+        {compareResult && <ComparePanel result={compareResult} t={t} />}
+
+        {/* Backtest */}
+        <BacktestPanel compareResult={compareResult} prices={prices} t={t} />
+      </>}
     </div>
   );
 }

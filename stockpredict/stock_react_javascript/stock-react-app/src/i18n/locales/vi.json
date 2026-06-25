@@ -2389,7 +2389,26 @@
   },
   "vol_forecast": {
     "page_title": "Dự báo & Kiểm thử biến động",
-    "page_subtitle": "So sánh HAR vs VMD-HAR · Kiểm định Diebold-Mariano · Backtest vol-targeting có phí giao dịch",
+    "page_subtitle": "Phương sai thực tế Parkinson trượt · So sánh HAR vs VMD-HAR · Kiểm định Diebold-Mariano · Backtest vol-targeting có phí giao dịch",
+    "intro": {
+      "tab": "Giới thiệu",
+      "forecast_tab": "Dự báo & Kiểm thử",
+      "title": "Dự báo & Kiểm thử biến động — đây là gì",
+      "lede": "Dự báo mức dao động có thể xảy ra của một cổ phiếu Việt Nam vào ngày mai, kiểm tra xem mô hình nâng cao có thắng mô hình chuẩn đơn giản hay không, và backtest xem dự báo đó có giúp cải thiện một chiến lược quản trị rủi ro hay không.",
+      "def_title": "Định nghĩa",
+      "def_body": "Biến động là mức dao động giá của cổ phiếu — biến động cao nghĩa là các bước giá lớn, rủi ro; biến động thấp nghĩa là giao dịch êm ả. Công cụ này đo biến động thực tế từ dữ liệu giá hàng ngày bằng ước lượng Parkinson cao–thấp trượt (đọc biên độ cao–thấp trong ngày, ít nhiễu hơn nhiều so với một lợi suất đóng–đóng đơn lẻ), rồi dự báo biến động ngày kế tiếp bằng hai mô hình: HAR — mô hình Tự hồi quy Không đồng nhất, một chuẩn so sánh biến động phổ biến trộn các trung bình ngày, tuần và tháng — và VMD-HAR, cũng mô hình đó nhưng được cấp tín hiệu từ Phân rã Mode Biến phân (VMD), vốn tách chuỗi thành các thành phần tần số mượt trước.",
+      "goal_title": "Mục tiêu — nó làm gì cho bạn",
+      "goal_body": "Biến động quyết định rủi ro và khối lượng vị thế bạn có thể nắm giữ an toàn. Biết được biến động khả dĩ của ngày mai cho phép bạn (1) định cỡ vị thế theo một mức rủi ro mục tiêu, (2) đánh giá — bằng thống kê chứ không phải ước lượng bằng mắt — liệu mô hình phức tạp hơn VMD-HAR có thực sự thắng chuẩn HAR đơn giản ngoài mẫu hay không, và (3) thấy được, qua một backtest thực tế có tính phí giao dịch, liệu hành động theo dự báo có cải thiện lợi nhuận ròng và mức sụt giảm so với mua-và-giữ hay không.",
+      "how_title": "Cách đạt mục tiêu",
+      "how_steps": [
+        "Tải dữ liệu: ở thẻ ‘Dự báo & Kiểm thử’, nhập mã (vd VCB) và kỳ, rồi bấm Tải. Giá lịch sử mở/cao/thấp/đóng thật được lấy từ cơ sở dữ liệu thị trường (nút Dữ liệu mẫu màu xanh dùng dữ liệu tổng hợp).",
+        "Đặt cửa sổ phương sai thực tế: chọn cửa sổ trượt (theo ngày) cho ước lượng Parkinson — cửa sổ nhỏ phản ứng nhanh nhưng nhiễu hơn; cửa sổ lớn mượt hơn (5 ≈ một tuần giao dịch).",
+        "Tinh chỉnh mô hình (tùy chọn): điều chỉnh tham số HAR và VMD-HAR, hoặc giữ mặc định hợp lý; mở Tham số nâng cao để tinh chỉnh sâu hơn.",
+        "Chạy so sánh: công cụ chạy walk-forward ngoài mẫu và báo cáo RMSE, MAE, R² và QLIKE cho cả hai mô hình cùng kiểm định ý nghĩa Diebold-Mariano. Một mô hình chỉ ‘thắng’ nếu vượt chuẩn với ý nghĩa thống kê.",
+        "Đọc biểu đồ: log phương sai thực tế nằm ở trục trái (vốn gai góc); các dự báo HAR và VMD-HAR nằm ở trục phải (mượt, bám theo xu hướng).",
+        "Backtest: chạy backtest nhắm mục tiêu biến động để điều chỉnh mức tiếp xúc theo dự báo, có phí giao dịch, rồi so sánh P&L ròng, mức sụt giảm và vòng quay với mua-và-giữ."
+      ]
+    },
     "input": {
       "title": "Dữ liệu giá",
       "ticker_label": "Mã cổ phiếu",
@@ -2408,6 +2427,9 @@
     },
     "config": {
       "title": "Cấu hình mô hình",
+      "rv_section": "Phương sai thực tế (Parkinson)",
+      "rv_window": "Cửa sổ trượt (ngày)",
+      "rv_hint": "Cửa sổ trượt cho mục tiêu phương sai thực tế Parkinson cao–thấp. Lớn hơn = mượt hơn (5 ≈ một tuần giao dịch).",
       "har_section": "HAR (cơ sở)",
       "vmd_section": "VMD-HAR (nâng cao)",
       "ridge_alpha": "Hệ số Ridge (α)",
