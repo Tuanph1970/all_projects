@@ -48,7 +48,8 @@
     "performance": "Performance",
     "alerts": "Price alerts",
     "journal": "Trade journal",
-    "journal_dashboard": "Overview",
+    "journal_overview": "Overview",
+    "journal_dashboard": "Dashboard",
     "journal_accounts": "Accounts",
     "trade_log": "Trade log",
     "trade_diary": "Diary",
@@ -924,6 +925,34 @@
     }
   },
   "journal": {
+    "overview": {
+      "title": "Trade Journal — Overview",
+      "subtitle": "Why keeping a trading journal matters, and how the journal workflow fits together",
+      "why_title": "Why a trade journal matters",
+      "why_body": "A trade journal is a structured record of every trade you take — your plan, your entry and exit, position size, and the reasoning and emotions behind each decision. Markets are noisy and human memory is unreliable, so without a written record it is almost impossible to tell genuine skill from luck, or to notice the recurring patterns in your own behaviour. Journaling turns scattered trades into data you can actually learn from — it transforms trading from gambling into a repeatable, measurable, and continuously improvable process.",
+      "benefits_title": "What it does for you",
+      "benefits": [
+        "Learn from mistakes — spot recurring errors (chasing price, oversizing, cutting winners too early) before they cost you again.",
+        "Separate skill from luck — judge each decision by the quality of your process, not just by whether the trade happened to make money.",
+        "Enforce discipline — a pre-trade plan plus an honest post-trade review reduces impulsive, emotion-driven trades.",
+        "Measure what actually works — see which setups, timeframes and market conditions truly generate your profits.",
+        "Build consistency — a repeatable plan → execute → review loop compounds small improvements over time.",
+        "Manage risk & emotions — tracking position sizing and how you felt exposes risk creep and tilt early."
+      ],
+      "pipeline_title": "The journaling workflow",
+      "flow_plan": "Plan",
+      "flow_execute": "Execute",
+      "flow_execute_sub": "trade the plan",
+      "flow_log": "Log",
+      "flow_reflect": "Reflect",
+      "flow_review": "Review",
+      "flow_improve": "Improve",
+      "flow_improve_sub": "refine your rules",
+      "loop_note": "Continuous-improvement loop — each review sharpens your next plan",
+      "legend_plan": "Plan / Review",
+      "legend_record": "Record & improve",
+      "legend_reflect": "Reflect on emotions"
+    },
     "common": {
       "error_loading_accounts": "Couldn't load the account list",
       "connection_error": "Server connection error",

@@ -36,6 +36,7 @@ import JournalAccounts from '../Pages/Journal/JournalAccounts';
 import TradeLog from '../Pages/Journal/TradeLog';
 import TradeDiary from '../Pages/Journal/TradeDiary';
 import JournalDashboard from '../Pages/Journal/JournalDashboard';
+import JournalOverview from '../Pages/Journal/JournalOverview';
 import DailyPlanning from '../Pages/Journal/DailyPlanning';
 import WeeklyReview from '../Pages/Journal/WeeklyReview';
 import KnowledgeQAChat from '../Pages/KnowledgeQAChat';
@@ -152,6 +153,7 @@ const MainLayout = () => {
             <Route path="/alerts" element={<Alerts />} />
 
             {/* Journal */}
+            <Route path="/journal-overview" element={<JournalOverview />} />
             <Route path="/journal-accounts" element={<JournalAccounts />} />
             <Route path="/journal-dashboard" element={<div className="chart-dense"><JournalDashboard /></div>} />
             <Route path="/trade-log" element={<TradeLog />} />

@@ -137,6 +137,7 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
       labelKey: 'sidebar.journal',
       icon: BookOpen,
       submenu: [
+        { key: 'journal-overview',  labelKey: 'sidebar.journal_overview',  route: 'journal-overview' },
         { key: 'journal-dashboard', labelKey: 'sidebar.journal_dashboard', route: 'journal-dashboard' },
         { key: 'journal-accounts',  labelKey: 'sidebar.journal_accounts',  route: 'journal-accounts' },
         { key: 'trade-log',         labelKey: 'sidebar.trade_log',         route: 'trade-log' },

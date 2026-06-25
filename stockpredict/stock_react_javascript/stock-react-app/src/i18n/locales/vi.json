@@ -48,7 +48,8 @@
     "performance": "Hiệu suất",
     "alerts": "Cảnh báo giá",
     "journal": "Nhật ký giao dịch",
-    "journal_dashboard": "Tổng quan",
+    "journal_overview": "Tổng quan",
+    "journal_dashboard": "Bảng thống kê",
     "journal_accounts": "Tài khoản",
     "trade_log": "Sổ giao dịch",
     "trade_diary": "Nhật ký",
@@ -924,6 +925,34 @@
     }
   },
   "journal": {
+    "overview": {
+      "title": "Nhật ký giao dịch — Tổng quan",
+      "subtitle": "Vì sao ghi nhật ký giao dịch lại quan trọng, và quy trình nhật ký vận hành ra sao",
+      "why_title": "Vì sao nhật ký giao dịch quan trọng",
+      "why_body": "Nhật ký giao dịch là bản ghi có cấu trúc cho mọi lệnh bạn thực hiện — kế hoạch, điểm vào và ra, khối lượng vị thế, cùng lý do và cảm xúc đằng sau mỗi quyết định. Thị trường rất nhiễu và trí nhớ con người không đáng tin, nên nếu không có bản ghi, gần như không thể phân biệt kỹ năng thật với may mắn, hay nhận ra những thói quen lặp đi lặp lại trong hành vi của chính mình. Ghi nhật ký biến những lệnh rời rạc thành dữ liệu để học hỏi — biến giao dịch từ cờ bạc thành một quy trình lặp lại được, đo lường được và cải thiện liên tục.",
+      "benefits_title": "Nó mang lại gì cho bạn",
+      "benefits": [
+        "Học từ sai lầm — phát hiện các lỗi lặp lại (đu giá, vào lệnh quá lớn, chốt lời quá sớm) trước khi chúng lại gây thiệt hại.",
+        "Phân biệt kỹ năng với may mắn — đánh giá mỗi quyết định theo chất lượng quy trình, không chỉ theo việc lệnh có lãi hay không.",
+        "Rèn kỷ luật — kế hoạch trước lệnh cộng với rà soát trung thực sau lệnh giúp giảm các giao dịch bốc đồng theo cảm xúc.",
+        "Đo lường điều thực sự hiệu quả — thấy được mẫu hình, khung thời gian và điều kiện thị trường nào thật sự tạo ra lợi nhuận.",
+        "Xây dựng sự nhất quán — vòng lặp lập kế hoạch → thực thi → rà soát giúp tích lũy những cải thiện nhỏ theo thời gian.",
+        "Quản trị rủi ro & cảm xúc — theo dõi khối lượng vị thế và cảm xúc giúp phát hiện sớm rủi ro leo thang và tâm lý mất bình tĩnh."
+      ],
+      "pipeline_title": "Quy trình ghi nhật ký",
+      "flow_plan": "Lập kế hoạch",
+      "flow_execute": "Thực thi",
+      "flow_execute_sub": "giao dịch theo kế hoạch",
+      "flow_log": "Ghi lệnh",
+      "flow_reflect": "Suy ngẫm",
+      "flow_review": "Rà soát",
+      "flow_improve": "Cải thiện",
+      "flow_improve_sub": "tinh chỉnh quy tắc",
+      "loop_note": "Vòng lặp cải thiện liên tục — mỗi lần rà soát giúp kế hoạch kế tiếp sắc bén hơn",
+      "legend_plan": "Lập kế hoạch / Rà soát",
+      "legend_record": "Ghi nhận & cải thiện",
+      "legend_reflect": "Suy ngẫm cảm xúc"
+    },
     "common": {
       "error_loading_accounts": "Không thể tải danh sách tài khoản",
       "connection_error": "Lỗi kết nối server",
