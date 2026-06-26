@@ -14,9 +14,9 @@
     "language": "Ngôn ngữ"
   },
   "header": {
-    "market_status_open": "THỊ TRƯỜNG MỞ",
-    "market_status_closed": "THỊ TRƯỜNG ĐÓNG",
-    "updated_at": "CẬP NHẬT"
+    "market_status_open": "Thị trường mở",
+    "market_status_closed": "Thị trường đóng",
+    "updated_at": "Cập nhật"
   },
   "sidebar": {
     "dashboard": "Bảng điều khiển",

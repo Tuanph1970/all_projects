@@ -74,6 +74,13 @@
   color: var(--c-heading);
 }
 
+/* No shouty ALL-CAPS in the content area. Most uppercase labels come from
+   CSS text-transform:uppercase over already-sentence-case strings, so turning
+   it off renders them as e.g. "Total value". Literal acronyms (QLIKE, VMD-HAR,
+   SMA 20) live in the strings themselves and are unaffected. */
+.app-theme,
+.app-theme * { text-transform: none !important; }
+
 /* ── Text fields, textareas & dropdowns ───────────────────── */
 .app-theme input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),
 .app-theme textarea,

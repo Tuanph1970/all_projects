@@ -14,9 +14,9 @@
     "language": "Language"
   },
   "header": {
-    "market_status_open": "MARKET OPEN",
-    "market_status_closed": "MARKET CLOSED",
-    "updated_at": "UPDATED"
+    "market_status_open": "Market open",
+    "market_status_closed": "Market closed",
+    "updated_at": "Updated"
   },
   "sidebar": {
     "dashboard": "Dashboard",
@@ -77,7 +77,7 @@
   "page_titles": {
     "dashboard": {
       "title": "Dashboard",
-      "emphasis": "board"
+      "emphasis": "Dashboard"
     },
     "priceboard": {
       "title": "Price board",
@@ -386,7 +386,7 @@
   },
   "dashboard": {
     "stat_total_value": "Total value",
-    "stat_pnl": "Profit / Loss",
+    "stat_pnl": "Profit / loss",
     "stat_holdings": "Holdings",
     "stat_day_change": "Day change",
     "stat_no_investments": "No investments yet",
