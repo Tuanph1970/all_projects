@@ -1108,3 +1108,41 @@
     margin: 10px;
   }
 }
+
+/* ============================================================
+   Unified data-grid look (AIKnow) — applied LAST so it wins.
+   Simplifies the colourful per-column gradient headers across the
+   screener / stocklist / industry tables into one subtle gray header,
+   and gives every row a clean #e4e7ec divider. Semantic cell text
+   colours (up/down green/red) are NOT touched. The Price Board uses
+   .custom-table (not .stocks-table) so it is unaffected.
+   ============================================================ */
+.stocks-table thead tr {
+  background: #fafafa !important;
+  background-image: none !important;
+}
+.stocks-table thead th,
+.stocks-table th[class*="th-"] {
+  background: #fafafa !important;
+  background-image: none !important;
+  color: #475467 !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  text-shadow: none !important;
+  border: none !important;
+  border-bottom: 1px solid #e4e7ec !important;
+}
+.stocks-table td {
+  border-bottom: 1px solid #e4e7ec !important;
+}
+/* No zebra; clean white rows + soft hover */
+.stocks-table tbody tr,
+.stocks-table tbody tr.row-even,
+.stocks-table tbody tr.row-odd {
+  background-color: #ffffff !important;
+}
+.stocks-table tbody tr:hover {
+  background-color: #f9fafb !important;
+}
