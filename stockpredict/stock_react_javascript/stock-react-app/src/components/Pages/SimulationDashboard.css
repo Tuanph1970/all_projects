@@ -281,49 +281,54 @@
 }
 
 .transaction-table thead {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: #fafafa;
+  color: #475467;
 }
 
 .transaction-table th {
-  padding: 15px;
+  padding: 8px 12px;
   text-align: left;
   font-weight: 600;
-  text-transform: uppercase;
-  font-size: 0.85rem;
-  letter-spacing: 0.5px;
+  text-transform: none;
+  font-size: 12px;
+  letter-spacing: normal;
+  color: #475467;
+  border-bottom: 1px solid #e4e7ec;
 }
 
 .transaction-table td {
-  padding: 12px 15px;
-  border-bottom: 1px solid #e0e0e0;
+  padding: 6px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid #e4e7ec;
 }
 
 .transaction-table tbody tr:hover {
-  background: #f8f9fa;
+  background: #f9fafb;
 }
 
 .transaction-table tbody tr:last-child td {
   border-bottom: none;
 }
 
+/* Buy/Sell as plain colored text (semantic), no pill */
 .badge {
   display: inline-block;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 0.85rem;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 13px;
   font-weight: 600;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .badge-buy {
-  background: #2196F3;
-  color: white;
+  background: none;
+  color: #2196F3;
 }
 
 .badge-sell {
-  background: #f44336;
-  color: white;
+  background: none;
+  color: #f44336;
 }
 
 /* Responsive Design */
