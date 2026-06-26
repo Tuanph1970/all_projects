@@ -161,22 +161,9 @@
 }
 
 /* ── Data grid / tables ───────────────────────────────────── */
-/* Font, size, borders & spacing — cell text COLOR intentionally left as-is. */
-.app-theme table { font-family: var(--font-sans) !important; border-collapse: collapse; }
-
-.app-theme thead th,
-.app-theme table th {
-  font-family: var(--font-sans) !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  border-bottom: 1px solid var(--c-border-soft) !important;
-  padding: 10px 12px !important;
-}
-
-.app-theme tbody td,
-.app-theme table td {
-  font-family: var(--font-sans) !important;
-  font-size: 13px !important;
-  border-bottom: 1px solid var(--c-border-soft) !important;
-  padding: 10px 12px !important;
-}
+/* The unified data-grid look is the single source of truth in theme-ui.css
+   (white rows, no zebra, horizontal #e4e7ec dividers, subtle header, 14px
+   Inter cells, semantic cell text color preserved). We intentionally do NOT
+   set table th/td here anymore so we don't fight that stylesheet — grids
+   inherit Inter from the .app-theme base font above. */
+.app-theme table { font-family: var(--font-sans); border-collapse: collapse; }

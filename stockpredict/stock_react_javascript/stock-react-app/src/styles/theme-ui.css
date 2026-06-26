@@ -36,7 +36,7 @@
   --ui-bg-head:   #fafafa;   /* table header / hover */
   --ui-bg-hover:  #fafafa;
   --ui-border:    #d9d9d9;   /* control border */
-  --ui-split:     #f0f0f0;   /* table row divider */
+  --ui-split:     #e4e7ec;   /* table row divider (AIKnow grid) */
 
   /* Status */
   --ui-danger:        #ff4d4f;
@@ -272,9 +272,9 @@
 .page-content th,
 .page-content .custom-header {
   background-color: var(--ui-bg-head);
-  color: var(--ui-text);
+  color: var(--ui-text-secondary);
   font-weight: 600;
-  font-size: var(--ui-font);
+  font-size: 12px;            /* AIKnow grid: smaller header than cells */
   text-align: left;
   text-transform: none;
   letter-spacing: normal;
