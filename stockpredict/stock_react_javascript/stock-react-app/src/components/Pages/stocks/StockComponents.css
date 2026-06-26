@@ -1146,3 +1146,20 @@
 .stocks-table tbody tr:hover {
   background-color: #f9fafb !important;
 }
+
+/* Unify the primary action buttons to the AIKnow blue (drop the green/teal/
+   gradient variants). The neutral gray .details-button stays as secondary. */
+.screen-button,
+.search-button,
+.analysis-button {
+  background: #4192f7 !important;
+  background-image: none !important;
+  border: none !important;
+  color: #ffffff !important;
+}
+.screen-button:hover,
+.search-button:hover,
+.analysis-button:hover {
+  background: #2f7fe0 !important;
+  background-image: none !important;
+}
