@@ -707,3 +707,33 @@
 .summary-value { font-size: 15px !important; }
 .portfolio-table thead th { padding: 8px 12px !important; }
 .portfolio-table tbody td { padding: 6px 12px !important; }
+
+/* Flatten the coloured cell pills to plain text (keep symbol as a blue link).
+   Semantic up/down classes (.positive/.negative) are not touched. */
+.symbol-badge {
+  background: none !important;
+  background-image: none !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: #4192f7 !important;
+  font-weight: 600 !important;
+}
+.symbol-badge:hover { transform: none !important; box-shadow: none !important; }
+.shares-badge,
+.price-value,
+.total-value-badge {
+  background: none !important;
+  background-image: none !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  color: #344054 !important;
+  font-weight: 400 !important;
+}
+/* Hide the small decorative currency/coin icons so the cells are plain text */
+.price-value > svg,
+.total-value-badge > svg,
+.total-value-badge .currency-icon { display: none !important; }
