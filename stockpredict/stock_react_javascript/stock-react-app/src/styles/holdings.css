@@ -647,3 +647,48 @@
   color: #6b7280;
   font-size: 0.8125rem;
 }
+
+/* ============================================================
+   Unified AIKnow grid + simplified (non-colourful) styling.
+   Appended LAST so it overrides the gradient rules above.
+   Semantic up/down cell colours are not touched.
+   ============================================================ */
+.portfolio-table thead,
+.portfolio-table thead.table-dark,
+.portfolio-table .table thead {
+  background: #fafafa !important;
+  background-image: none !important;
+}
+.portfolio-table thead th,
+.portfolio-table thead.table-dark th {
+  background: #fafafa !important;
+  background-image: none !important;
+  color: #475467 !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  border-bottom: 1px solid #e4e7ec !important;
+}
+.portfolio-table tbody td {
+  border-bottom: 1px solid #e4e7ec !important;
+  font-size: 13px !important;
+}
+.portfolio-table tbody tr,
+.portfolio-table tbody tr:nth-child(even),
+.portfolio-table tbody tr:nth-child(odd) {
+  background: #ffffff !important;
+}
+.portfolio-table tbody tr:hover {
+  background: #f9fafb !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+/* De-colourise the decorative gradient-text summary values */
+.summary-item:first-child .summary-value,
+.summary-item:last-child .summary-value {
+  background: none !important;
+  -webkit-text-fill-color: currentColor !important;
+  color: #101828 !important;
+  font-family: var(--font-sans, 'Inter'), sans-serif !important;
+}

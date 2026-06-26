@@ -476,3 +476,53 @@
     height: 2rem;
   }
 }
+
+/* ============================================================
+   Unified AIKnow grid + simplified (non-colourful) styling.
+   Appended LAST so it overrides the gradient rules above.
+   ============================================================ */
+.alerts-table thead,
+.alerts-table thead.table-dark,
+.alerts-table .table thead {
+  background: #fafafa !important;
+  background-image: none !important;
+}
+.alerts-table thead th,
+.alerts-table thead.table-dark th {
+  background: #fafafa !important;
+  background-image: none !important;
+  color: #475467 !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  border-bottom: 1px solid #e4e7ec !important;
+}
+.alerts-table tbody td {
+  border-bottom: 1px solid #e4e7ec !important;
+  font-size: 13px !important;
+}
+.alerts-table tbody tr,
+.alerts-table tbody tr:nth-child(even),
+.alerts-table tbody tr:nth-child(odd) {
+  background: #ffffff !important;
+}
+.alerts-table tbody tr:hover {
+  background: #f9fafb !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+/* De-colourise the decorative gradient-text stat values + colour borders */
+.stat-item:nth-child(1) .stat-value,
+.stat-item:nth-child(2) .stat-value,
+.stat-item:nth-child(3) .stat-value {
+  background: none !important;
+  -webkit-text-fill-color: currentColor !important;
+  color: #101828 !important;
+  font-family: var(--font-sans, 'Inter'), sans-serif !important;
+}
+.stat-item:nth-child(1),
+.stat-item:nth-child(2),
+.stat-item:nth-child(3) {
+  border-bottom: 1px solid #e4e7ec !important;
+}
