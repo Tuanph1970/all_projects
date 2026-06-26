@@ -692,3 +692,18 @@
   color: #101828 !important;
   font-family: var(--font-sans, 'Inter'), sans-serif !important;
 }
+
+/* Compact sizing — smaller title, shorter summary cards & table rows */
+.holdings-page .page-header h1 { font-size: 14px !important; }
+.portfolio-summary { margin-bottom: 1rem !important; }
+.summary-card { padding: 10px 14px !important; gap: 1rem !important; }
+.summary-item {
+  padding: 6px 12px !important;
+  gap: 0.625rem !important;
+}
+.summary-item:hover { transform: none !important; box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important; }
+.summary-icon { width: 1.75rem !important; height: 1.75rem !important; padding: 0.375rem !important; }
+.summary-item h3 { font-size: 11px !important; }
+.summary-value { font-size: 15px !important; }
+.portfolio-table thead th { padding: 8px 12px !important; }
+.portfolio-table tbody td { padding: 6px 12px !important; }
