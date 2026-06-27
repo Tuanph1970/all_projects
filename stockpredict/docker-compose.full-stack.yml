@@ -69,8 +69,10 @@ services:
       context: ./stock_react_javascript/stock-react-app
       dockerfile: Dockerfile
       args:
-        # API Gateway URL for direct frontend access on port 3004
-        - REACT_APP_API_URL=http://localhost:18004
+        # API Gateway URL baked into the frontend at build time. Defaults to
+        # localhost; deploy-interactive.sh sets it to the host's LAN IP so the
+        # app also works from other machines on the network.
+        - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:18004}
     container_name: stock_frontend
     environment:
       - NODE_ENV=production

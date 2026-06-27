@@ -36,6 +36,7 @@ ENV_FILE="$BASE_DIR/.deploy-env"
 # Deployment settings
 BUILD_FLAG=""
 NO_CACHE_FLAG=""
+FORCE_FRONTEND_REBUILD=false   # set when the baked API URL changes
 SELECTED_PROJECTS=()
 SETUP_OLLAMA=false
 OLLAMA_PROFILE=""
@@ -417,14 +418,42 @@ generate_secret() {
     fi
 }
 
+# Detect the host's primary LAN IPv4 (the source IP of the default route).
+# Falls back to `hostname -I`, then to localhost. Used so the frontend's baked
+# API URL works from other machines on the network, not just from the host.
+detect_host_ip() {
+    local ip=""
+    if command -v ip >/dev/null 2>&1; then
+        ip=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')
+    fi
+    if [ -z "$ip" ] && command -v hostname >/dev/null 2>&1; then
+        ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    fi
+    [ -z "$ip" ] && ip="localhost"
+    echo "$ip"
+}
+
+# Resolve the API gateway URL baked into the frontend. An explicit
+# REACT_APP_API_URL in the environment wins; otherwise auto-detect the host IP.
+resolve_api_url() {
+    if [ -n "${REACT_APP_API_URL:-}" ]; then
+        echo "$REACT_APP_API_URL"
+    else
+        echo "http://$(detect_host_ip):18004"
+    fi
+}
+
 # Ensure stockpredict/.env exists with non-placeholder secrets so the production
 # secret-validator does not refuse to boot on a fresh clone (.env is gitignored).
-# Only creates the file when missing — never clobbers an existing one. The RabbitMQ
+# Never clobbers existing secrets; it does keep REACT_APP_API_URL in sync with the
+# detected host IP (and flags a frontend rebuild when it changes). The RabbitMQ
 # password is kept fixed because it must match the committed rabbitmq/definitions.json.
 STOCK_ENV_FILE="$BASE_DIR/stockpredict/.env"
 ensure_stock_env() {
+    local api_url; api_url="$(resolve_api_url)"
+
     if [ -f "$STOCK_ENV_FILE" ]; then
-        # Keep existing secrets, but repair a missing/placeholder JWT key just in case.
+        # Repair a missing/placeholder JWT key just in case.
         if ! grep -qE '^JWT_SECRET_KEY=.+' "$STOCK_ENV_FILE" \
            || grep -qE '^JWT_SECRET_KEY=(your-secret-key-change-in-production|dev-secret-key-change-in-production|change-me-in-production)$' "$STOCK_ENV_FILE"; then
             local jwt; jwt="$(generate_secret)"
@@ -432,13 +461,23 @@ ensure_stock_env() {
             echo "JWT_SECRET_KEY=$jwt" >> "$STOCK_ENV_FILE.tmp"
             mv "$STOCK_ENV_FILE.tmp" "$STOCK_ENV_FILE"
             print_color $YELLOW "↻ Injected a freshly generated JWT_SECRET_KEY into existing stockpredict/.env"
+        fi
+        # Keep the baked API URL in sync with the detected host IP. If it changes,
+        # the frontend must be rebuilt (the URL is compiled into the static bundle).
+        local current_url; current_url="$(grep -E '^REACT_APP_API_URL=' "$STOCK_ENV_FILE" | head -1 | cut -d= -f2-)"
+        if [ "$current_url" != "$api_url" ]; then
+            grep -v '^REACT_APP_API_URL=' "$STOCK_ENV_FILE" > "$STOCK_ENV_FILE.tmp" 2>/dev/null || true
+            echo "REACT_APP_API_URL=$api_url" >> "$STOCK_ENV_FILE.tmp"
+            mv "$STOCK_ENV_FILE.tmp" "$STOCK_ENV_FILE"
+            FORCE_FRONTEND_REBUILD=true
+            print_color $YELLOW "↻ Set REACT_APP_API_URL=$api_url (host IP) — frontend will be rebuilt"
         else
-            print_color $GREEN "✓ stockpredict/.env present — keeping existing secrets"
+            print_color $GREEN "✓ stockpredict/.env present — secrets kept, API URL = $api_url"
         fi
         return 0
     fi
 
-    print_color $YELLOW "🔐 Generating stockpredict/.env with a fresh 32-byte JWT secret..."
+    print_color $YELLOW "🔐 Generating stockpredict/.env (fresh 32-byte JWT; API URL = $api_url)..."
     local jwt; jwt="$(generate_secret)"
     cat > "$STOCK_ENV_FILE" <<EOF
 # =============================================================================
@@ -448,6 +487,10 @@ ensure_stock_env() {
 # =============================================================================
 ENVIRONMENT=production
 DEBUG=0
+
+# Frontend → API gateway URL, baked into the build. Auto-set to the host IP so
+# the app also works from other machines; override by exporting REACT_APP_API_URL.
+REACT_APP_API_URL=$api_url
 
 # Database — matches the mysql service defaults + stock_microservices/mysql/init
 MYSQL_ROOT_PASSWORD=Mysql_2025
@@ -643,9 +686,13 @@ deploy_project() {
             # Ensure secrets exist (.env is gitignored) so the production
             # secret-validator won't refuse to boot on a fresh clone.
             ensure_stock_env
-            # A fresh clone has no images — force a build so "up" doesn't fail.
-            if [ -z "$BUILD_FLAG" ] && ! stock_images_exist; then
-                print_color $YELLOW "ℹ No Stock Predict images found — building for first run..."
+            # A fresh clone has no images, or the baked API URL changed — build.
+            if [ -z "$BUILD_FLAG" ] && { ! stock_images_exist || [ "$FORCE_FRONTEND_REBUILD" = true ]; }; then
+                if [ "$FORCE_FRONTEND_REBUILD" = true ]; then
+                    print_color $YELLOW "ℹ Host API URL changed — rebuilding so the frontend points to it..."
+                else
+                    print_color $YELLOW "ℹ No Stock Predict images found — building for first run..."
+                fi
                 BUILD_FLAG="--build"; build_args="--build"
                 prepull_base_images
             fi
@@ -925,14 +972,18 @@ main() {
         echo
         wait_for_stock_ready || true
         echo
+        local host_ip; host_ip="$(detect_host_ip)"
         print_header "Deployment Complete!"
         print_color $GREEN "Stock Predict full stack is up."
         echo
         print_color $WHITE  "  ┌─ Open the app ──────────────────────────────────────────┐"
-        print_color $YELLOW "  │ Web App:      http://localhost:3004/stock-app"
-        print_color $YELLOW "  │ API Gateway:  http://localhost:18004"
-        print_color $YELLOW "  │ Grafana:      http://localhost:3100   (admin / admin)"
+        print_color $YELLOW "  │ Web App:      http://$host_ip:3004/stock-app"
+        print_color $YELLOW "  │ API Gateway:  http://$host_ip:18004"
+        print_color $YELLOW "  │ Grafana:      http://$host_ip:3100   (admin / admin)"
         print_color $WHITE  "  └─────────────────────────────────────────────────────────┘"
+        echo
+        print_color $CYAN  "On this machine you can also use http://localhost:3004/stock-app"
+        print_color $CYAN  "From other devices on the network, use the http://$host_ip:... links above."
         echo
         print_color $CYAN "Status:  docker compose -f stockpredict/docker-compose.full-stack.yml -p stockpredict ps"
         return 0
