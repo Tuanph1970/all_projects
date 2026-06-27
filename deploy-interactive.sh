@@ -41,6 +41,27 @@ SETUP_OLLAMA=false
 OLLAMA_PROFILE=""
 SETUP_NGINX=false
 
+# Non-interactive mode: `./deploy-interactive.sh --auto` (aliases: --stock, -y)
+# deploys the Stock Predict full stack end-to-end with no prompts — it generates
+# secrets, builds images if needed, starts everything, waits until the web app
+# answers, and prints the URL. Without a flag the interactive menu runs as before.
+AUTO_MODE=false
+for _arg in "$@"; do
+    case "$_arg" in
+        --auto|--stock|-y) AUTO_MODE=true ;;
+        --build)           BUILD_FLAG="--build" ;;
+        --no-cache)        BUILD_FLAG="--build"; NO_CACHE_FLAG="--no-cache" ;;
+        -h|--help)
+            echo "Usage: ./deploy-interactive.sh [--auto] [--build] [--no-cache]"
+            echo "  --auto, --stock, -y   Non-interactive: deploy the Stock Predict full"
+            echo "                        stack (MySQL + backend + frontend) and wait."
+            echo "  --build               Force an image (re)build."
+            echo "  --no-cache            Force a clean rebuild (implies --build)."
+            echo "  (no flag)             Interactive multi-project menu."
+            exit 0 ;;
+    esac
+done
+
 # Function to print colored output
 print_color() {
     local color=$1
@@ -185,6 +206,47 @@ fix_system_dns() {
         print_color $RED "✗ systemd-resolved failed to restart — check: journalctl -u systemd-resolved"
         return 1
     fi
+}
+
+# Function to pre-pull Dockerfile base images before building.
+# Why: `docker compose build` uses buildkit, which on hosts where docker.io
+# resolves to IPv6-first but IPv6 egress is broken (common here) stalls on
+# "load metadata for docker.io/library/..." for ~20s and then ERRORs.
+# The dockerd daemon used by `docker pull` falls back to IPv4 and succeeds, so
+# pulling the bases first lands them in the local cache and buildkit's metadata
+# load becomes an instant cache hit. Failures here are non-fatal — the build
+# may still find them cached or reach the registry on its own.
+prepull_base_images() {
+    # Keep in sync with the FROM lines in the service + frontend Dockerfiles.
+    local base_images=(
+        "python:3.11-slim"   # all microservices
+        "node:20-alpine"     # React frontend (build stage)
+        "nginx:1.25-alpine"  # React frontend (runtime stage)
+    )
+
+    print_color $BLUE "🔍 Pre-pulling base images (avoids buildkit IPv6 metadata stalls)..."
+    for img in "${base_images[@]}"; do
+        if docker image inspect "$img" >/dev/null 2>&1; then
+            print_color $GREEN "✓ $img already present"
+            continue
+        fi
+        print_color $YELLOW "⬇  Pulling $img..."
+        local attempt
+        local pulled=false
+        for attempt in 1 2 3; do
+            if docker pull "$img" >/dev/null 2>&1; then
+                pulled=true
+                break
+            fi
+            print_color $YELLOW "  …attempt $attempt failed, retrying"
+            sleep 2
+        done
+        if [ "$pulled" = true ]; then
+            print_color $GREEN "✓ Pulled $img"
+        else
+            print_color $YELLOW "⚠ Could not pre-pull $img after 3 tries — build will try the registry directly"
+        fi
+    done
 }
 
 # Function to check if Docker is running
@@ -346,6 +408,108 @@ EOF
     fi
 }
 
+# Generate a random 32-byte secret as 64 hex chars (openssl, with urandom fallback).
+generate_secret() {
+    if command -v openssl >/dev/null 2>&1; then
+        openssl rand -hex 32
+    else
+        head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'
+    fi
+}
+
+# Ensure stockpredict/.env exists with non-placeholder secrets so the production
+# secret-validator does not refuse to boot on a fresh clone (.env is gitignored).
+# Only creates the file when missing — never clobbers an existing one. The RabbitMQ
+# password is kept fixed because it must match the committed rabbitmq/definitions.json.
+STOCK_ENV_FILE="$BASE_DIR/stockpredict/.env"
+ensure_stock_env() {
+    if [ -f "$STOCK_ENV_FILE" ]; then
+        # Keep existing secrets, but repair a missing/placeholder JWT key just in case.
+        if ! grep -qE '^JWT_SECRET_KEY=.+' "$STOCK_ENV_FILE" \
+           || grep -qE '^JWT_SECRET_KEY=(your-secret-key-change-in-production|dev-secret-key-change-in-production|change-me-in-production)$' "$STOCK_ENV_FILE"; then
+            local jwt; jwt="$(generate_secret)"
+            grep -v '^JWT_SECRET_KEY=' "$STOCK_ENV_FILE" > "$STOCK_ENV_FILE.tmp" 2>/dev/null || true
+            echo "JWT_SECRET_KEY=$jwt" >> "$STOCK_ENV_FILE.tmp"
+            mv "$STOCK_ENV_FILE.tmp" "$STOCK_ENV_FILE"
+            print_color $YELLOW "↻ Injected a freshly generated JWT_SECRET_KEY into existing stockpredict/.env"
+        else
+            print_color $GREEN "✓ stockpredict/.env present — keeping existing secrets"
+        fi
+        return 0
+    fi
+
+    print_color $YELLOW "🔐 Generating stockpredict/.env with a fresh 32-byte JWT secret..."
+    local jwt; jwt="$(generate_secret)"
+    cat > "$STOCK_ENV_FILE" <<EOF
+# =============================================================================
+# Auto-generated by deploy-interactive.sh — full-stack (dev/self-host) deploy.
+# Safe to delete: it is regenerated (with a NEW JWT secret) on the next deploy.
+# Passwords here are deliberately simple for a single-machine deployment.
+# =============================================================================
+ENVIRONMENT=production
+DEBUG=0
+
+# Database — matches the mysql service defaults + stock_microservices/mysql/init
+MYSQL_ROOT_PASSWORD=Mysql_2025
+MYSQL_USER=stockuser
+MYSQL_PASSWORD=stockpass
+MYSQL_DATABASE=defaultdb
+
+# RabbitMQ — password MUST match the committed rabbitmq/definitions.json hash
+RABBITMQ_USER=stockuser
+RABBITMQ_PASSWORD=a3e251720650ac3458dc3264f105c4a1
+RABBITMQ_VHOST=/stock
+
+# JWT — freshly generated 32-byte (64 hex) secret (passes the prod validator)
+JWT_SECRET_KEY=$jwt
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=30
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# Monitoring
+GRAFANA_USER=admin
+GRAFANA_PASSWORD=admin
+GRAFANA_PORT=3100
+
+# Market data source
+VNSTOCK_DATA_SOURCE=VCI
+EOF
+    print_color $GREEN "✓ Created stockpredict/.env (JWT secret generated, 32 bytes)"
+}
+
+# True if the Stock Predict images have already been built locally.
+stock_images_exist() {
+    docker image inspect stockpredict-frontend >/dev/null 2>&1
+}
+
+# Poll the web app until it answers (or time out). Non-fatal.
+wait_for_stock_ready() {
+    local url="http://localhost:3004/stock-app/"
+    local timeout=300 elapsed=0 step=5
+    local getter=""
+    if command -v curl >/dev/null 2>&1; then getter="curl -fsS -o /dev/null"
+    elif command -v wget >/dev/null 2>&1; then getter="wget -q -O /dev/null"; fi
+
+    if [ -z "$getter" ]; then
+        print_color $YELLOW "⚠ Neither curl nor wget found — skipping readiness wait."
+        return 0
+    fi
+
+    print_color $BLUE "⏳ Waiting for the web app to come up (first run can take a few minutes)..."
+    while [ "$elapsed" -lt "$timeout" ]; do
+        if $getter "$url" >/dev/null 2>&1; then
+            echo
+            print_color $GREEN "✓ Web app is responding."
+            return 0
+        fi
+        sleep "$step"; elapsed=$((elapsed + step)); printf "."
+    done
+    echo
+    print_color $YELLOW "⚠ Timed out after ${timeout}s. Services may still be starting — check:"
+    print_color $WHITE  "    docker compose -f stockpredict/docker-compose.full-stack.yml -p stockpredict ps"
+    return 1
+}
+
 # Function to load environment variables
 load_env() {
     if [ -f "$ENV_FILE" ]; then
@@ -448,6 +612,10 @@ deploy_project() {
         build_args="--build"
         print_color $YELLOW "🔨 Building images..."
 
+        # Ensure base images are cached locally so buildkit doesn't stall on
+        # "load metadata for docker.io/library/..." over broken IPv6.
+        prepull_base_images
+
         # If no-cache is requested, we need to build separately first
         if [ -n "$NO_CACHE_FLAG" ]; then
             print_color $YELLOW "🔨 Building with --no-cache (this may take longer)..."
@@ -472,6 +640,15 @@ deploy_project() {
             fi
             ;;
         stock)
+            # Ensure secrets exist (.env is gitignored) so the production
+            # secret-validator won't refuse to boot on a fresh clone.
+            ensure_stock_env
+            # A fresh clone has no images — force a build so "up" doesn't fail.
+            if [ -z "$BUILD_FLAG" ] && ! stock_images_exist; then
+                print_color $YELLOW "ℹ No Stock Predict images found — building for first run..."
+                BUILD_FLAG="--build"; build_args="--build"
+                prepull_base_images
+            fi
             # Stock uses full-stack compose file (API + Frontend + MySQL)
             local fullstack_compose="$BASE_DIR/stockpredict/docker-compose.full-stack.yml"
             if [ -f "$fullstack_compose" ]; then
@@ -737,7 +914,30 @@ main() {
     # Create and load environment
     create_env_file
     load_env
-    
+
+    # ── Non-interactive one-shot: deploy the Stock Predict full stack ──────────
+    if [ "$AUTO_MODE" = true ]; then
+        print_header "Automatic Stock Predict Deployment"
+        print_color $CYAN "No prompts: generating secrets, building if needed, starting MySQL + backend + frontend, then waiting for the web app."
+        echo
+        SELECTED_PROJECTS=(stock)
+        deploy_project stock
+        echo
+        wait_for_stock_ready || true
+        echo
+        print_header "Deployment Complete!"
+        print_color $GREEN "Stock Predict full stack is up."
+        echo
+        print_color $WHITE  "  ┌─ Open the app ──────────────────────────────────────────┐"
+        print_color $YELLOW "  │ Web App:      http://localhost:3004/stock-app"
+        print_color $YELLOW "  │ API Gateway:  http://localhost:18004"
+        print_color $YELLOW "  │ Grafana:      http://localhost:3100   (admin / admin)"
+        print_color $WHITE  "  └─────────────────────────────────────────────────────────┘"
+        echo
+        print_color $CYAN "Status:  docker compose -f stockpredict/docker-compose.full-stack.yml -p stockpredict ps"
+        return 0
+    fi
+
     echo
     print_header "Project Status Overview"
     
