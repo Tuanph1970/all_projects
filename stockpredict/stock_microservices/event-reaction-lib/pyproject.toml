@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "event-reaction"
+version = "0.1.0"
+description = "Event-reaction measurement library — price reaction to the surprise of discrete events"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.0",
+    "scipy>=1.12",
+    "statsmodels>=0.14",
+]
+
+# NOTE: the pure-stats stages reuse volatility/surrogate helpers from the in-repo
+# `chart-decomp` package (chart_decomp.infrastructure.validation.surrogates,
+# chart_decomp ... RealizedVolCalculator). It is installed editable alongside this
+# lib in the service Dockerfile (COPY chart-decomp-lib && pip install -e). It is not
+# published to PyPI, so it is intentionally NOT listed in `dependencies` above to keep
+# `pip install -e .` resolvable; the environment must provide it.
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["event_reaction*"]
