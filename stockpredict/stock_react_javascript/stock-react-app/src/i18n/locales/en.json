@@ -2538,6 +2538,34 @@
     "subtitle": "How prices react to the surprise of discrete events — markets price the surprise, not the event.",
     "tab_overview": "Overview",
     "tab_analysis": "Analysis",
+    "overview": {
+      "hero_title": "Trade the surprise, not the headline",
+      "hero_subtitle": "This screen measures how a stock’s price reacts to the surprise in an event — the part the market did not already expect — and how systematically your portfolio is exposed to it.",
+      "benefits_title": "What it does for you",
+      "benefits": [
+        "Measure how a stock reacts to the SURPRISE in an event (earnings, rate decision, macro release) — not the headline itself. Markets price what they did not already expect.",
+        "Strip out the market-wide move (β × market) so you see the stock’s genuine abnormal return (CAR), not just “everything went up today”.",
+        "Tell a real price jump from ordinary volatility with the Lee–Mykland jump test, and calibrate its false-positive rate.",
+        "Quantify your portfolio’s exposure to surprises (γ₁): how systematically your names move per unit of surprise, with clustering-robust inference for same-day events.",
+        "No look-ahead bias: only the observed surprise and the post-event window are used — nothing from the future leaks in."
+      ],
+      "howto_title": "How to use the GUI",
+      "steps": [
+        { "title": "Measure an event", "desc": "On the Analysis tab, fill in Symbol, Market index, Event kind, Event date, Actual and Consensus, then click Measure. Surprise = Actual − Consensus." },
+        { "title": "Read the latest measurement", "desc": "The result card shows Surprise (σ, standardized), CAR (abnormal return), Beta, and whether the reaction was a Jump. Green = positive, red = negative." },
+        { "title": "Build up at least 3 events", "desc": "Each measurement is appended to the “Measured events” table. Measure several events (same or different symbols) to form a cross-section." },
+        { "title": "Run cross-sectional exposure", "desc": "Pick an Inference mode (cluster by event date / portfolio / iid), then click Run exposure. Read γ₁ (exposure), its t-stat, and R²." },
+        { "title": "Optional: calibrate the jump test", "desc": "Tick “Compute jump null-FPR” before measuring to estimate the jump test’s false-positive rate under a no-jump null." }
+      ],
+      "glossary_title": "Metrics glossary",
+      "flow": ["Measure event", "Read CAR / Jump", "Collect ≥3", "Run exposure γ₁"],
+      "glossary": [
+        { "term": "Surprise (σ)", "desc": "Standardized surprise: how many standard deviations Actual beat/missed Consensus." },
+        { "term": "CAR", "desc": "Cumulative Abnormal Return over the event window, after removing the market move." },
+        { "term": "Jump", "desc": "Lee–Mykland test flag: was the move a genuine discontinuity, not normal noise?" },
+        { "term": "Exposure (γ₁)", "desc": "Slope of CAR on surprise across events — the systematic reaction per unit of surprise." }
+      ]
+    },
     "measure_title": "Measure an event",
     "symbol": "Symbol",
     "market": "Market index",

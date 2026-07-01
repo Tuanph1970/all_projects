@@ -2538,6 +2538,34 @@
     "subtitle": "Giá phản ứng với bất ngờ của các sự kiện — thị trường định giá bất ngờ, không phải sự kiện.",
     "tab_overview": "Tổng quan",
     "tab_analysis": "Phân tích",
+    "overview": {
+      "hero_title": "Giao dịch phần bất ngờ, không phải bản tin",
+      "hero_subtitle": "Màn hình này đo cách giá cổ phiếu phản ứng với phần bất ngờ của một sự kiện — phần mà thị trường chưa kỳ vọng — và mức độ danh mục của bạn nhạy cảm với nó một cách có hệ thống.",
+      "benefits_title": "Lợi ích cho bạn",
+      "benefits": [
+        "Đo phản ứng của cổ phiếu với phần BẤT NGỜ của sự kiện (KQKD, quyết định lãi suất, số liệu vĩ mô) — không phải bản tin. Thị trường định giá phần chưa được kỳ vọng.",
+        "Loại bỏ phần biến động chung của thị trường (β × thị trường) để thấy lợi suất bất thường thực sự của cổ phiếu (CAR), không chỉ là “hôm nay mọi thứ đều tăng”.",
+        "Phân biệt một cú nhảy giá thật với biến động thông thường bằng kiểm định nhảy Lee–Mykland, và hiệu chỉnh tỷ lệ báo động giả.",
+        "Định lượng độ nhạy của danh mục với bất ngờ (γ₁): các mã của bạn phản ứng có hệ thống ra sao trên mỗi đơn vị bất ngờ, với suy diễn bền vững theo cụm cho các sự kiện cùng ngày.",
+        "Không nhìn trước tương lai: chỉ dùng phần bất ngờ quan sát được và cửa sổ sau sự kiện — không có dữ liệu tương lai rò rỉ vào."
+      ],
+      "howto_title": "Cách dùng giao diện",
+      "steps": [
+        { "title": "Đo một sự kiện", "desc": "Ở thẻ Phân tích, nhập Mã CK, Chỉ số thị trường, Loại sự kiện, Ngày sự kiện, Giá trị thực tế và Đồng thuận, rồi bấm Đo. Bất ngờ = Thực tế − Đồng thuận." },
+        { "title": "Đọc kết quả đo mới nhất", "desc": "Thẻ kết quả hiển thị Bất ngờ (σ, đã chuẩn hoá), CAR (lợi suất bất thường), Beta, và liệu phản ứng có phải một cú Nhảy. Xanh = dương, đỏ = âm." },
+        { "title": "Tích luỹ tối thiểu 3 sự kiện", "desc": "Mỗi lần đo được thêm vào bảng “Sự kiện đã đo”. Hãy đo nhiều sự kiện (cùng hoặc khác mã) để tạo thành một lát cắt chéo." },
+        { "title": "Chạy độ nhạy chéo", "desc": "Chọn kiểu Suy diễn (gom cụm theo ngày sự kiện / danh mục / iid), rồi bấm Chạy độ nhạy. Đọc γ₁ (độ nhạy), giá trị t, và R²." },
+        { "title": "Tuỳ chọn: hiệu chỉnh kiểm định nhảy", "desc": "Tích “Tính null-FPR cho nhảy” trước khi đo để ước lượng tỷ lệ báo động giả của kiểm định nhảy dưới giả thuyết không có nhảy." }
+      ],
+      "glossary_title": "Chú giải chỉ số",
+      "flow": ["Đo sự kiện", "Đọc CAR / Nhảy", "Gom ≥3", "Chạy độ nhạy γ₁"],
+      "glossary": [
+        { "term": "Bất ngờ (σ)", "desc": "Bất ngờ chuẩn hoá: Thực tế vượt/hụt Đồng thuận bao nhiêu độ lệch chuẩn." },
+        { "term": "CAR", "desc": "Lợi suất bất thường luỹ kế trong cửa sổ sự kiện, sau khi loại bỏ biến động thị trường." },
+        { "term": "Nhảy (Jump)", "desc": "Cờ kiểm định Lee–Mykland: cú biến động có phải bước nhảy thật, không phải nhiễu thường?" },
+        { "term": "Độ nhạy (γ₁)", "desc": "Hệ số góc của CAR theo bất ngờ qua các sự kiện — phản ứng hệ thống trên mỗi đơn vị bất ngờ." }
+      ]
+    },
     "measure_title": "Đo một sự kiện",
     "symbol": "Mã CK",
     "market": "Chỉ số thị trường",

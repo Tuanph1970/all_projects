@@ -1,6 +1,6 @@
-// Smoke test: Event Reaction page renders its Overview tab (bilingual, default)
-// and, after switching to the Analysis tab, its input form, report section, and
-// cross-sectional exposure section — in EN + VI.
+// Smoke test: Event Reaction page renders its Overview tab (default) in the active
+// language only — driven by the app's EN/VI switcher, not shown both at once — and,
+// after switching to the Analysis tab, its input form, report and exposure sections.
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import i18n from '../../../i18n';
@@ -14,14 +14,14 @@ async function setLang(lang) {
 }
 
 describe('EventReaction page', () => {
-  test('lands on the bilingual Overview tab (EN + VI shown together)', async () => {
+  test('lands on the Overview tab in English, one language at a time', async () => {
     await setLang('en');
     render(<EventReactionPage />);
 
-    // Overview is the default tab: hero shows both languages, and the analysis
-    // form is not mounted yet.
+    // English overview is shown; the Vietnamese hero is NOT on the page.
     expect(screen.getByText('Trade the surprise, not the headline')).toBeInTheDocument();
-    expect(screen.getByText('Giao dịch phần bất ngờ, không phải bản tin')).toBeInTheDocument();
+    expect(screen.queryByText('Giao dịch phần bất ngờ, không phải bản tin')).not.toBeInTheDocument();
+    // Analysis form is not mounted on the Overview tab.
     expect(screen.queryByText('Cross-sectional exposure')).not.toBeInTheDocument();
   });
 
@@ -39,10 +39,15 @@ describe('EventReaction page', () => {
     expect(screen.getByText('Measure at least 3 events.')).toBeInTheDocument();
   });
 
-  test('renders Vietnamese content when language is vi', async () => {
+  test('Overview follows the switcher: shows Vietnamese when language is vi', async () => {
     await setLang('vi');
     render(<EventReactionPage />);
 
+    // Vietnamese overview hero shown; the English hero is NOT present.
+    expect(screen.getByText('Giao dịch phần bất ngờ, không phải bản tin')).toBeInTheDocument();
+    expect(screen.queryByText('Trade the surprise, not the headline')).not.toBeInTheDocument();
+
+    // Analysis tab content also localizes.
     fireEvent.click(screen.getByRole('button', { name: /Phân tích/i }));
     expect(screen.getByText('Đo một sự kiện')).toBeInTheDocument();
     expect(screen.getByText('Độ nhạy chéo')).toBeInTheDocument();
