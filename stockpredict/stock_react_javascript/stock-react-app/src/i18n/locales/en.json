@@ -2536,6 +2536,8 @@
   "event_reaction": {
     "title": "Event Reaction",
     "subtitle": "How prices react to the surprise of discrete events — markets price the surprise, not the event.",
+    "tab_overview": "Overview",
+    "tab_analysis": "Analysis",
     "measure_title": "Measure an event",
     "symbol": "Symbol",
     "market": "Market index",

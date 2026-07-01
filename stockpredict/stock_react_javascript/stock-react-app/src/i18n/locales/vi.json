@@ -2536,6 +2536,8 @@
   "event_reaction": {
     "title": "Phản ứng sự kiện",
     "subtitle": "Giá phản ứng với bất ngờ của các sự kiện — thị trường định giá bất ngờ, không phải sự kiện.",
+    "tab_overview": "Tổng quan",
+    "tab_analysis": "Phân tích",
     "measure_title": "Đo một sự kiện",
     "symbol": "Mã CK",
     "market": "Chỉ số thị trường",

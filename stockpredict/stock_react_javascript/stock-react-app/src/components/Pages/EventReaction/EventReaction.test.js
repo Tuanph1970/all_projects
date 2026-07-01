@@ -1,7 +1,8 @@
-// Smoke test: Event Reaction page renders in EN + VI with its input form,
-// report section, and cross-sectional exposure section.
+// Smoke test: Event Reaction page renders its Overview tab (bilingual, default)
+// and, after switching to the Analysis tab, its input form, report section, and
+// cross-sectional exposure section — in EN + VI.
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import i18n from '../../../i18n';
 import EventReactionPage from './index';
 
@@ -13,9 +14,22 @@ async function setLang(lang) {
 }
 
 describe('EventReaction page', () => {
-  test('renders the measure form, report and exposure sections (EN)', async () => {
+  test('lands on the bilingual Overview tab (EN + VI shown together)', async () => {
     await setLang('en');
     render(<EventReactionPage />);
+
+    // Overview is the default tab: hero shows both languages, and the analysis
+    // form is not mounted yet.
+    expect(screen.getByText('Trade the surprise, not the headline')).toBeInTheDocument();
+    expect(screen.getByText('Giao dịch phần bất ngờ, không phải bản tin')).toBeInTheDocument();
+    expect(screen.queryByText('Cross-sectional exposure')).not.toBeInTheDocument();
+  });
+
+  test('renders the measure form, report and exposure sections after switching to Analysis (EN)', async () => {
+    await setLang('en');
+    render(<EventReactionPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Analysis/i }));
 
     expect(screen.getByText('Measure an event')).toBeInTheDocument();
     expect(screen.getByText('Cross-sectional exposure')).toBeInTheDocument();
@@ -28,6 +42,8 @@ describe('EventReaction page', () => {
   test('renders Vietnamese content when language is vi', async () => {
     await setLang('vi');
     render(<EventReactionPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /Phân tích/i }));
     expect(screen.getByText('Đo một sự kiện')).toBeInTheDocument();
     expect(screen.getByText('Độ nhạy chéo')).toBeInTheDocument();
     await setLang('en');
