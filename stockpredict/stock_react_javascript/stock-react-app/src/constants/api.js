@@ -51,6 +51,7 @@ export const API_BASE_URLS = {
   KNOWLEDGE_QA_API: `${API_GATEWAY_URL}/stock_helper/api/v2/knowledge-qa`,
   HELPER_API: `${API_GATEWAY_URL}/stock_helper/api/v2/helper`,
   CHART_DECOMP_API: `${API_GATEWAY_URL}/stock_helper/api/v2/chart-decomp`,
+  EVENT_REACTION_API: `${API_GATEWAY_URL}/stock_helper/api/v2/event-reaction`,
 
   // Legacy API (fallback - Django monolith)
   LEGACY_API: `${API_GATEWAY_URL}/api/v1`
@@ -398,6 +399,14 @@ export const API_ENDPOINTS = {
   CHART_DECOMP_PAT_NULL_FPR: `${API_BASE_URLS.CHART_DECOMP_API}/patterns/null-fpr`,
   // FR-MS — multi-scale nested pattern detection (B7)
   CHART_DECOMP_PAT_MULTISCALE: `${API_BASE_URLS.CHART_DECOMP_API}/patterns/multiscale`,
+
+  // ==========================================
+  // EVENT-REACTION SERVICE ENDPOINTS (/api/v2/event-reaction)
+  // Price reaction to the surprise of discrete events
+  // ==========================================
+  EVENT_REACTION_MEASURE:       `${API_BASE_URLS.EVENT_REACTION_API}/measure`,
+  EVENT_REACTION_CROSS_SECTION: `${API_BASE_URLS.EVENT_REACTION_API}/cross-section`,
+  EVENT_REACTION_EVENTS:        `${API_BASE_URLS.EVENT_REACTION_API}/events`,
 };
 
 // HTTP Status Codes

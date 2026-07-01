@@ -57,6 +57,7 @@ import WatchlistHeatMap from '../Pages/WatchlistHeatMap';
 import DecisionHelperOverview from '../Pages/DecisionHelperOverview';
 import ChartDecompPage from '../Pages/ChartDecomp';
 import VolForecastPage from '../Pages/ChartDecomp/VolForecastPage';
+import EventReactionPage from '../Pages/EventReaction';
 import AlertCenter from '../common/AlertToast';
 import { useAlertStream } from '../../hooks/useAlertStream';
 
@@ -180,6 +181,7 @@ const MainLayout = () => {
             <Route path="/watchlist-heatmap" element={<WatchlistHeatMap />} />
             <Route path="/chart-decomp" element={<div className="chart-dense chart-tall"><ChartDecompPage /></div>} />
             <Route path="/vol-forecast" element={<div className="chart-dense chart-tall"><VolForecastPage /></div>} />
+            <Route path="/event-reaction" element={<EventReactionPage />} />
 
             {/* Tools */}
             <Route path="/screener" element={<StockScreener />} />

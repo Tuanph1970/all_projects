@@ -118,7 +118,8 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
         { key: 'fundamental',  labelKey: 'sidebar.fundamental',  route: 'fundamental' },
         { key: 'ai-insights',  labelKey: 'sidebar.ai_insights',  route: 'ai-insights' },
         { key: 'chart-decomp',  labelKey: 'sidebar.chart_decomp',  route: 'chart-decomp' },
-        { key: 'vol-forecast',   labelKey: 'sidebar.vol_forecast',   route: 'vol-forecast' }
+        { key: 'vol-forecast',   labelKey: 'sidebar.vol_forecast',   route: 'vol-forecast' },
+        { key: 'event-reaction', labelKey: 'sidebar.event_reaction', route: 'event-reaction' }
       ]
     },
     {
