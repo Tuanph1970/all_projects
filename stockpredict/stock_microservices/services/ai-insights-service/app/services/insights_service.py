@@ -221,7 +221,7 @@ class InsightsService:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
+                    f"{settings.LLM_BASE_URL.rstrip('/')}/chat/completions",
                     headers={
                         "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
                         "Content-Type": "application/json",

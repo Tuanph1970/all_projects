@@ -407,6 +407,38 @@ async def test_call_openai_returns_content_on_200():
 
 
 @pytest.mark.asyncio
+async def test_call_openai_uses_configured_base_url(monkeypatch):
+    # DeepSeek (OpenAI-compatible): base URL + model come from config.
+    monkeypatch.setattr(svc_mod.settings, "LLM_BASE_URL", "https://api.deepseek.com/v1")
+    monkeypatch.setattr(svc_mod.settings, "LLM_MODEL", "deepseek-chat")
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"choices": [{"message": {"content": "ok"}}]}
+    captured = {}
+
+    class _Capturing:
+        async def __aenter__(self):
+            client = MagicMock()
+
+            async def _post(url, **kw):
+                captured["url"] = url
+                captured["model"] = kw["json"]["model"]
+                return resp
+
+            client.post = _post
+            return client
+
+        async def __aexit__(self, *_):
+            return False
+
+    with patch("app.services.insights_service.httpx.AsyncClient", return_value=_Capturing()):
+        out = await _make_service()._call_openai("p", "sys")
+    assert out == "ok"
+    assert captured["url"] == "https://api.deepseek.com/v1/chat/completions"
+    assert captured["model"] == "deepseek-chat"
+
+
+@pytest.mark.asyncio
 async def test_call_openai_returns_none_on_non_200():
     resp = MagicMock()
     resp.status_code = 503

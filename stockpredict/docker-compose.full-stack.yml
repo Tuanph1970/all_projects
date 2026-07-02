@@ -620,9 +620,11 @@ services:
       - STOCK_DATA_SERVICE_URL=http://stock-data-service:8001
       - ANALYSIS_SERVICE_URL=http://analysis-service:8004
       - PREDICTION_SERVICE_URL=http://prediction-service:8002
+      - LLM_PROVIDER=${LLM_PROVIDER:-auto}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - LLM_MODEL=${LLM_MODEL:-gpt-4}
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://api.openai.com/v1}
     expose:
       - "8005"
     networks:
