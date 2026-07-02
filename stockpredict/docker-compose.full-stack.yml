@@ -429,6 +429,65 @@ services:
       - "traefik.http.routers.stock-portfolio.priority=10"
       - "traefik.http.services.stock-portfolio.loadbalancer.server.port=8003"
 
+  # News Service - company & macro news ingestion + good/bad company-news notifications
+  news-service:
+    build:
+      context: ./stock_microservices
+      dockerfile: services/news-service/Dockerfile
+    container_name: stock_news_service
+    environment:
+      - SERVICE_NAME=news-service
+      - SERVICE_VERSION=0.1.0
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DEBUG=${DEBUG:-0}
+      - API_PREFIX=stock_helper
+      # root: news-service auto-creates its DB on startup, which needs CREATE DATABASE
+      # (stockuser is DB-scoped only).
+      - DATABASE_URL=mysql+pymysql://root:${MYSQL_ROOT_PASSWORD:-Mysql_2025}@mysql:3306/stock_news
+      - STOCK_DATA_SERVICE_URL=http://stock-data-service:8001
+      - AI_INSIGHTS_SERVICE_URL=http://ai-insights-service:8005
+      - PORTFOLIO_SERVICE_URL=http://portfolio-service:8003
+      - DECISION_HELPER_SERVICE_URL=http://decision-helper-service:8010
+      - EVENT_REACTION_SERVICE_URL=http://event-reaction-service:8012
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-stockuser}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-stockpass}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/stock}
+      - ENABLE_COMPANY=1
+      - ENABLE_MACRO=0
+      - ENABLE_BRIDGE=0
+      - ENABLE_EMAIL=0
+      - COMPANY_POLL_INTERVAL_SECONDS=${NEWS_COMPANY_POLL_INTERVAL:-900}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
+      - JWT_ALGORITHM=HS256
+      - TRACING_ENABLED=true
+      - TRACING_JAEGER_HOST=jaeger
+      - TRACING_JAEGER_PORT=6831
+    expose:
+      - "8013"
+    networks:
+      - stock-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8013/health/live')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-news.rule=PathPrefix(`/stock_helper/api/v2/news`)"
+      - "traefik.http.routers.stock-news.entrypoints=web"
+      - "traefik.http.routers.stock-news.priority=10"
+      - "traefik.http.services.stock-news.loadbalancer.server.port=8013"
+
   # Prediction Service
   prediction-service:
     build:
@@ -561,9 +620,11 @@ services:
       - STOCK_DATA_SERVICE_URL=http://stock-data-service:8001
       - ANALYSIS_SERVICE_URL=http://analysis-service:8004
       - PREDICTION_SERVICE_URL=http://prediction-service:8002
+      - LLM_PROVIDER=${LLM_PROVIDER:-auto}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - LLM_MODEL=${LLM_MODEL:-gpt-4}
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://api.openai.com/v1}
     expose:
       - "8005"
     networks:

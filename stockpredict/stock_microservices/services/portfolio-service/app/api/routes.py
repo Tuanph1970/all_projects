@@ -17,6 +17,17 @@ from app.models.schemas import (
 router = APIRouter()
 
 
+@router.get("/watched-symbols")
+async def get_watched_symbols(db: AsyncSession = Depends(get_db)):
+    """Distinct owned+watched tickers across ALL users.
+
+    Service-internal read consumed by news-service (FR-NEWS-WATCH). Returns only ticker
+    strings — no user identity (EC-N10). Unauthenticated like the health probes.
+    """
+    service = PortfolioService(db)
+    return {"symbols": await service.get_all_watched_symbols()}
+
+
 # Portfolio Endpoints
 @router.post("/portfolios", response_model=PortfolioResponse, status_code=status.HTTP_201_CREATED)
 async def create_portfolio(

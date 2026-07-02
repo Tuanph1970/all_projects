@@ -516,6 +516,20 @@ GRAFANA_PORT=3100
 
 # Market data source
 VNSTOCK_DATA_SOURCE=VCI
+
+# AI / LLM — powers ai-insights sentiment + company-news classification.
+# Empty key => template mode (sentiment always neutral, so no good/bad news alerts).
+# DeepSeek is OpenAI-compatible: paste your DeepSeek key into OPENAI_API_KEY and, with
+# LLM_PROVIDER=auto, it routes to LLM_BASE_URL below automatically. To use OpenAI instead:
+# set LLM_MODEL=gpt-4o-mini and LLM_BASE_URL=https://api.openai.com/v1.
+LLM_PROVIDER=auto
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+LLM_MODEL=deepseek-chat
+LLM_BASE_URL=https://api.deepseek.com/v1
+
+# News ingestion — company-news poll cadence (seconds)
+NEWS_COMPANY_POLL_INTERVAL=900
 EOF
     print_color $GREEN "✓ Created stockpredict/.env (JWT secret generated, 32 bytes)"
 }

@@ -24,6 +24,10 @@ from app.services.email_consumer import (
     start_email_consumer,
     stop_email_consumer,
 )
+from app.services.news_event_handler import (
+    start_news_consumer,
+    stop_news_consumer,
+)
 from app.services.push_consumer import (
     start_push_consumer,
     stop_push_consumer,
@@ -82,6 +86,22 @@ async def lifespan(app: FastAPI):
         if result.rowcount:
             logger.info("Cleaned up %s duplicate default portfolio row(s)", result.rowcount)
 
+    # Idempotent: widen the notifications.type ENUM to include news.company on existing
+    # MySQL databases (create_all already includes it on a fresh DB). MySQL-only; the
+    # MODIFY sets the full member set so re-running is a no-op.
+    if engine.dialect.name == "mysql":
+        async with engine.begin() as conn:
+            try:
+                # SQLAlchemy Enum stores member NAMES, so the DB enum values are the
+                # uppercase names (verified against create_all DDL), not the dotted values.
+                await conn.execute(text(
+                    "ALTER TABLE notifications MODIFY COLUMN type "
+                    "ENUM('ALERT_TRIGGERED','NEWS_COMPANY','JOURNAL_REMINDER',"
+                    "'TRAINING_DONE','SYSTEM') NOT NULL"
+                ))
+            except Exception as e:  # noqa: BLE001
+                logger.warning("notifications.type enum migration skipped: %s", e)
+
     # Subscribe to stock.price.updated events for event-driven alert evaluation.
     # Returns None silently if RabbitMQ is unavailable — service still serves CRUD.
     await start_alert_consumer(service_name=settings.SERVICE_NAME)
@@ -97,6 +117,9 @@ async def lifespan(app: FastAPI):
     # Third subscriber: browser web-push delivery.
     await start_push_consumer(service_name=settings.SERVICE_NAME)
 
+    # news.company consumer: fan symbol-scoped company news out to owning/watching users.
+    await start_news_consumer(service_name=settings.SERVICE_NAME)
+
     yield
 
     # Cleanup
@@ -104,6 +127,7 @@ async def lifespan(app: FastAPI):
     await stop_notification_consumer()
     await stop_email_consumer()
     await stop_push_consumer()
+    await stop_news_consumer()
     await engine.dispose()
     logger.info(f"Shutting down {settings.SERVICE_NAME}")
 

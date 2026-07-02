@@ -39,6 +39,15 @@ def _session_returning_list(rows):
     return session
 
 
+@pytest.mark.asyncio
+async def test_get_all_watched_symbols_distinct_upper_sorted():
+    # DISTINCT query may still return mixed-case/dupes across portfolios; the repo
+    # normalizes to sorted uppercase (FR-NEWS-WATCH feed for news-service).
+    session = _session_returning_list(["FPT", "acb", "FPT", "vnm", None])
+    repo = PortfolioRepository(session)
+    assert await repo.get_all_watched_symbols() == ["ACB", "FPT", "VNM"]
+
+
 def _session_with_rowcount(rc):
     session = AsyncMock()
     result = MagicMock()

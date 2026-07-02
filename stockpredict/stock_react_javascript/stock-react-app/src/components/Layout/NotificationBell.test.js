@@ -75,6 +75,41 @@ describe('NotificationBell', () => {
     expect(screen.getByText('Notif 1')).toBeInTheDocument();
   });
 
+  test('renders a news.company notification with sentiment badge, symbol and link', async () => {
+    const newsItem = sampleItem(7, {
+      type: 'news.company',
+      title: 'Good news for FPT',
+      body: 'FPT launches a new AI product',
+      metadata: {
+        symbol: 'FPT', sentiment: 'good', category: 'new_product',
+        url: 'https://example.com/fpt-ai',
+      },
+    });
+    notificationService.list.mockResolvedValue(ok({ items: [newsItem], total: 1, unread: 1 }));
+    render(<NotificationBell />);
+    fireEvent.click(screen.getByLabelText('Thông báo'));
+
+    expect(await screen.findByText('Good news for FPT')).toBeInTheDocument();
+    expect(screen.getByTestId('news-sentiment').textContent).toBe('Good');
+    expect(screen.getByText('FPT')).toBeInTheDocument();
+    const link = screen.getByTestId('news-link');
+    expect(link.getAttribute('href')).toBe('https://example.com/fpt-ai');
+    expect(link.getAttribute('target')).toBe('_blank');
+  });
+
+  test('bad news.company renders a Bad badge', async () => {
+    const newsItem = sampleItem(8, {
+      type: 'news.company', title: 'Bad news for ACB', body: 'Regulatory fine',
+      metadata: { symbol: 'ACB', sentiment: 'bad', category: 'regulatory' },
+    });
+    notificationService.list.mockResolvedValue(ok({ items: [newsItem], total: 1, unread: 1 }));
+    render(<NotificationBell />);
+    fireEvent.click(screen.getByLabelText('Thông báo'));
+    expect((await screen.findByTestId('news-sentiment')).textContent).toBe('Bad');
+    // No url -> no read-more link.
+    expect(screen.queryByTestId('news-link')).toBeNull();
+  });
+
   test('renders empty state when there are no notifications', async () => {
     render(<NotificationBell />);
     fireEvent.click(screen.getByLabelText('Thông báo'));

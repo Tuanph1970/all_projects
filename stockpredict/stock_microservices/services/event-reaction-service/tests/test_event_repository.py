@@ -27,6 +27,14 @@ def test_fetch_filter_by_kind(sqlite_repo):
     assert list(df["event_id"]) == ["e2"]
 
 
+def test_ensure_database_is_noop_for_sqlite(sqlite_repo):
+    # No separate CREATE DATABASE step for sqlite; ensure_schema must stay a no-op there
+    # (the MySQL auto-create path is a deploy concern, not a unit-test concern).
+    sqlite_repo._ensure_database()  # must not raise
+    sqlite_repo.ensure_schema()     # idempotent re-run
+    assert sqlite_repo.fetch().empty
+
+
 def test_upsert_is_idempotent_on_event_id(sqlite_repo):
     sqlite_repo.upsert(_rows())
     updated = dict(_rows()[0])

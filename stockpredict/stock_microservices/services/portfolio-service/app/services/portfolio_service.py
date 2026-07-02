@@ -54,6 +54,10 @@ class PortfolioService:
         portfolios = await self.repo.get_portfolios_by_user(user_id)
         return [PortfolioResponse.model_validate(p) for p in portfolios]
 
+    async def get_all_watched_symbols(self) -> List[str]:
+        """Distinct owned+watched tickers across all users (news-service feed)."""
+        return await self.repo.get_all_watched_symbols()
+
     async def get_or_create_default_portfolio(self, user_id: int) -> PortfolioResponse:
         """Get default portfolio or create one if it doesn't exist"""
         portfolio = await self.repo.get_default_portfolio(user_id)

@@ -30,6 +30,16 @@ CREATE DATABASE IF NOT EXISTS analysis_db
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
 
+-- News Service Database (company + macro news corpus)
+CREATE DATABASE IF NOT EXISTS stock_news
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+-- Event-Reaction Service Database (discrete-event store)
+CREATE DATABASE IF NOT EXISTS stock_event_reaction
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
 -- Legacy Database (for Django monolith during transition)
 CREATE DATABASE IF NOT EXISTS defaultdb
   CHARACTER SET utf8mb4
@@ -48,6 +58,8 @@ GRANT ALL PRIVILEGES ON stockdata_db.* TO 'stockuser'@'%';
 GRANT ALL PRIVILEGES ON portfolio_db.* TO 'stockuser'@'%';
 GRANT ALL PRIVILEGES ON prediction_db.* TO 'stockuser'@'%';
 GRANT ALL PRIVILEGES ON analysis_db.* TO 'stockuser'@'%';
+GRANT ALL PRIVILEGES ON stock_news.* TO 'stockuser'@'%';
+GRANT ALL PRIVILEGES ON stock_event_reaction.* TO 'stockuser'@'%';
 GRANT ALL PRIVILEGES ON defaultdb.* TO 'stockuser'@'%';
 
 FLUSH PRIVILEGES;

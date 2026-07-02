@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import httpx
 import json
 import logging
+import re
 import numpy as np
 import pandas as pd
 import redis.asyncio as redis
@@ -36,6 +37,42 @@ from app.services.patterns.trap import run_trap_detectors
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+# Closed company-news category vocabulary. Kept in sync with news-service's classifier
+# (SRS Appendix A) so the LLM-assigned category and the local keyword fallback agree.
+NEWS_CATEGORIES = (
+    "new_product", "new_tech", "management", "regulatory", "earnings", "partnership", "other",
+)
+_NEWS_CATEGORY_RULES: List[tuple] = [
+    ("new_product", ("new product", "product line", "launch", "ra mắt", "sản phẩm")),
+    ("new_tech", ("technology", "tech ", " ai", "ai ", "platform", "công nghệ")),
+    ("management", ("ceo", "chairman", "appoint", "resign", "board", "management",
+                    "lãnh đạo", "bổ nhiệm", "từ chức")),
+    ("regulatory", ("regulat", "license", "licence", "fine", "fined", "lawsuit", "ssc",
+                    "quy định", "xử phạt", "giấy phép")),
+    ("earnings", ("earnings", "revenue", "profit", "quarter", "q1", "q2", "q3", "q4",
+                  "lợi nhuận", "doanh thu", "kết quả kinh doanh")),
+    ("partnership", ("partner", "partnership", "cooperat", "agreement", "hợp tác", "ký kết")),
+]
+
+
+def _keyword_news_category(text: str) -> str:
+    low = (text or "").lower()
+    for category, keywords in _NEWS_CATEGORY_RULES:
+        if any(k in low for k in keywords):
+            return category
+    return "other"
+
+
+def _parse_llm_category(content: str) -> Optional[str]:
+    """Extract a 'CATEGORY: <label>' line the LLM was asked to emit; validate it."""
+    if not content:
+        return None
+    m = re.search(r"category\s*[:\-]\s*([a-z_]+)", content, flags=re.IGNORECASE)
+    if not m:
+        return None
+    cand = m.group(1).strip().lower()
+    return cand if cand in NEWS_CATEGORIES else None
 
 
 class InsightsService:
@@ -184,7 +221,7 @@ class InsightsService:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
+                    f"{settings.LLM_BASE_URL.rstrip('/')}/chat/completions",
                     headers={
                         "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
                         "Content-Type": "application/json",
@@ -353,14 +390,27 @@ Maintain current position and monitor for clearer signals before taking action.
         prompt = f"Analyze how these news items affect {symbol} stock:\n\n"
         for item in news_items[:5]:
             prompt += f"- {item.get('title', '')}: {item.get('content', '')[:200]}\n"
+        prompt += (
+            "\nOn the last line, classify the primary news category as exactly one of: "
+            + ", ".join(NEWS_CATEGORIES)
+            + ".\nFormat that line as 'CATEGORY: <label>'."
+        )
 
         content = await self._call_llm(prompt)
         sentiment = self._analyze_sentiment(content)
+
+        # Prefer the LLM's category; fall back to a keyword scan of the news text so a
+        # template-only provider (or an unparseable reply) still yields a useful label.
+        item_text = " ".join(
+            f"{i.get('title', '')} {i.get('content', '')}" for i in news_items[:5]
+        )
+        category = _parse_llm_category(content) or _keyword_news_category(item_text)
 
         return NewsAnalysisResponse(
             symbol=symbol.upper(),
             overall_sentiment=sentiment,
             sentiment_score=0.5 if sentiment == "neutral" else (0.8 if sentiment == "bullish" else -0.8),
+            category=category,
             key_events=[item.get("title", "") for item in news_items[:3]],
             potential_impact="moderate",
             summary=content[:500],

@@ -53,6 +53,10 @@ class NewsAnalysisResponse(BaseModel):
     symbol: str
     overall_sentiment: str
     sentiment_score: float  # -1 to 1
+    # Primary news category from the closed vocab (new_product, new_tech, management,
+    # regulatory, earnings, partnership, other). LLM-assigned when available, else
+    # keyword-derived. Consumers (e.g. news-service) prefer this over local heuristics.
+    category: str = "other"
     key_events: List[str]
     potential_impact: str
     summary: str

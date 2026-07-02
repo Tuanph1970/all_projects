@@ -1283,3 +1283,13 @@ async def test_backtest_no_sensitivity_by_default(client: AsyncClient):
         })
     assert r.status_code == 200
     assert r.json()["sensitivity"] is None
+
+
+@pytest.mark.asyncio
+async def test_watched_tickers_distinct_upper_sorted(client, mock_db):
+    # Cross-user distinct active watchlist tickers, normalized to sorted uppercase
+    # (FR-NEWS-WATCH feed for news-service). No user identity in the response (EC-N10).
+    mock_db.execute.return_value = _scalars_all(["fpt", "ACB", "fpt", "hpg"])
+    r = await client.get(f"{PREFIX}/watched-tickers")
+    assert r.status_code == 200
+    assert r.json() == {"tickers": ["ACB", "FPT", "HPG"]}

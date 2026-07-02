@@ -849,6 +849,60 @@ services:
       - "traefik.http.routers.stock-event-reaction.priority=10"
       - "traefik.http.services.stock-event-reaction.loadbalancer.server.port=8012"
 
+  # News Service - company & macro news ingestion + good/bad company-news notifications
+  news-service:
+    build:
+      context: .
+      dockerfile: services/news-service/Dockerfile
+    container_name: stock_news_service
+    environment:
+      - SERVICE_NAME=news-service
+      - SERVICE_VERSION=0.1.0
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - DEBUG=${DEBUG:-0}
+      - API_PREFIX=stock_helper
+      - STOCK_DATA_SERVICE_URL=http://stock-data-service:8001
+      - AI_INSIGHTS_SERVICE_URL=http://ai-insights-service:8005
+      - PORTFOLIO_SERVICE_URL=http://portfolio-service:8003
+      - DECISION_HELPER_SERVICE_URL=http://decision-helper-service:8010
+      - EVENT_REACTION_SERVICE_URL=http://event-reaction-service:8012
+      - DATABASE_URL=mysql+pymysql://${MYSQL_USER:-root}:${MYSQL_PASSWORD:-Mysql_2025}@${DATABASE_HOST:-host.docker.internal}:${DATABASE_PORT:-3306}/${NEWS_DB:-stock_news}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=${RABBITMQ_USER:-stockuser}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-stockpass}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/stock}
+      - ENABLE_COMPANY=${NEWS_ENABLE_COMPANY:-1}
+      - ENABLE_MACRO=${NEWS_ENABLE_MACRO:-0}
+      - ENABLE_BRIDGE=${NEWS_ENABLE_BRIDGE:-0}
+      - ENABLE_EMAIL=${NEWS_ENABLE_EMAIL:-0}
+      - COMPANY_POLL_INTERVAL_SECONDS=${NEWS_COMPANY_POLL_INTERVAL:-900}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-secret-key-change-in-production}
+      - JWT_ALGORITHM=HS256
+      - TRACING_ENABLED=true
+      - TRACING_JAEGER_HOST=jaeger
+      - TRACING_JAEGER_PORT=6831
+    expose:
+      - "8013"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - stock-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8013/health/live')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-news.rule=PathPrefix(`/stock_helper/api/v2/news`)"
+      - "traefik.http.routers.stock-news.entrypoints=web"
+      - "traefik.http.routers.stock-news.priority=10"
+      - "traefik.http.services.stock-news.loadbalancer.server.port=8013"
+
   # Ollama - Local LLM inference server (CPU mode, works everywhere)
   # To use GPU: docker compose --profile gpu up (instead of default ollama)
   ollama:

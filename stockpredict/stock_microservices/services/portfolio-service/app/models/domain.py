@@ -97,6 +97,7 @@ class PriceAlert(Base):
 
 class NotificationType(enum.Enum):
     ALERT_TRIGGERED = "alert.triggered"
+    NEWS_COMPANY = "news.company"            # good/bad company news for owned/watched tickers
     JOURNAL_REMINDER = "journal.reminder"   # reserved for future
     TRAINING_DONE = "training.done"          # reserved for future
     SYSTEM = "system"

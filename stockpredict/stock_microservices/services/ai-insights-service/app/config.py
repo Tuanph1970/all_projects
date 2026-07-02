@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "auto"  # auto | anthropic | openai | template
     ANTHROPIC_MODEL: str = "claude-opus-4-7"
     LLM_MODEL: str = "gpt-4o-mini"  # used when provider falls back to OpenAI
+    # OpenAI-compatible base URL. Point at any drop-in API (e.g. DeepSeek:
+    # https://api.deepseek.com/v1 with LLM_MODEL=deepseek-chat).
+    LLM_BASE_URL: str = "https://api.openai.com/v1"
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 2000
 
