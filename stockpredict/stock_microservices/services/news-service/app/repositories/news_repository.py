@@ -7,15 +7,18 @@ Works with any SQLAlchemy engine (MySQL in prod, sqlite in tests).
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.models.domain import Base, NewsEvent
 from app.models.news_item import NewsItem
+
+logger = logging.getLogger(__name__)
 
 
 def _utcnow() -> datetime:
@@ -50,7 +53,34 @@ class NewsRepository:
         self._Session = sessionmaker(bind=engine, expire_on_commit=False)
 
     def ensure_schema(self) -> None:
+        """Auto-provision on deploy: create the database if missing, then the tables.
+
+        MySQL create_all() creates tables but not the database, and the mysql/init seed
+        only runs on a fresh volume — so a Docker deploy against an existing MySQL would
+        otherwise fail with 'Unknown database'. We create it here (no-op for sqlite)."""
+        self._ensure_database()
         Base.metadata.create_all(self._engine)
+
+    def _ensure_database(self) -> None:
+        url = self._engine.url
+        if url.get_backend_name().startswith("sqlite"):
+            return  # sqlite has no separate CREATE DATABASE step
+        dbname = url.database
+        if not dbname:
+            return
+        server_url = url.set(database="")  # connect to the server, no DB selected
+        # (URL.set(database=None) is a no-op in SQLAlchemy; "" actually clears it)
+        tmp = create_engine(server_url)
+        try:
+            with tmp.connect() as conn:
+                conn.execute(text(
+                    f"CREATE DATABASE IF NOT EXISTS `{dbname}` "
+                    "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+                ))
+                conn.commit()
+            logger.info("ensured database %s exists", dbname)
+        finally:
+            tmp.dispose()
 
     def exists(self, news_id: str) -> bool:
         with self._Session() as s:  # type: Session

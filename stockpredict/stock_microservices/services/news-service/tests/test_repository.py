@@ -109,6 +109,14 @@ def test_mark_notified_and_bridged(news_repo):
     assert row.bridged_at is not None
 
 
+def test_ensure_database_is_noop_for_sqlite(news_repo):
+    # No separate CREATE DATABASE step for sqlite; ensure_schema must stay a no-op there
+    # (the MySQL auto-create path is exercised in the live deploy check, not unit tests).
+    news_repo._ensure_database()   # must not raise
+    news_repo.ensure_schema()      # idempotent re-run
+    assert news_repo.query() == []
+
+
 def test_ts_utc_roundtrips_tz_aware(news_repo):
     item = _item()
     news_repo.upsert(item)
