@@ -89,6 +89,27 @@ class PortfolioRepository:
         await self.session.refresh(holding)
         return holding
 
+    async def get_user_ids_for_symbol(self, symbol: str) -> List[int]:
+        """Distinct user_ids who own or watch `symbol` (via their portfolios).
+
+        Used by the news.company consumer to fan a symbol-scoped news event out to the
+        affected users (FR-NEWS-NOTIFY). The user↔ticker mapping lives here (EC-N10)."""
+        result = await self.session.execute(
+            select(Portfolio.user_id)
+            .join(PortfolioHolding, PortfolioHolding.portfolio_id == Portfolio.id)
+            .where(PortfolioHolding.symbol == symbol.upper())
+            .distinct()
+        )
+        return [int(u) for u in result.scalars().all() if u is not None]
+
+    async def get_all_watched_symbols(self) -> List[str]:
+        """Distinct symbols across ALL portfolios (owned + watchlist) — service-internal
+        feed for news-service polling (FR-NEWS-WATCH). No user scoping (EC-N10)."""
+        result = await self.session.execute(
+            select(PortfolioHolding.symbol).distinct()
+        )
+        return sorted({s.upper() for s in result.scalars().all() if s})
+
     async def get_holding(self, portfolio_id: int, symbol: str) -> Optional[PortfolioHolding]:
         result = await self.session.execute(
             select(PortfolioHolding)

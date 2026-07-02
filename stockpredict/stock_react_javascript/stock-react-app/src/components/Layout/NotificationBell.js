@@ -1,7 +1,21 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Bell, BellOff, Check, CheckCheck, Trash2, X } from 'lucide-react';
+import {
+  Bell, BellOff, Check, CheckCheck, ExternalLink, Newspaper, Trash2, X,
+} from 'lucide-react';
 import notificationService from '../../services/notificationService';
 import pushService from '../../services/pushService';
+
+// Visual treatment for a news.company notification's sentiment badge.
+const NEWS_SENTIMENT = {
+  good: { label: 'Good', bg: '#dcfce7', fg: '#166534' },
+  bad: { label: 'Bad', bg: '#fee2e2', fg: '#991b1b' },
+  neutral: { label: 'Neutral', bg: '#f3f4f6', fg: '#4b5563' },
+};
+
+const pillStyle = (bg, fg) => ({
+  display: 'inline-block', padding: '1px 6px', borderRadius: 4,
+  fontSize: 11, fontWeight: 600, background: bg, color: fg,
+});
 
 /**
  * Bell-icon widget with an unread badge and a click-to-open dropdown.
@@ -256,9 +270,39 @@ const NotificationBell = () => {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: n.read ? 400 : 600, fontSize: 14 }}>{n.title}</div>
+                      <div style={{ fontWeight: n.read ? 400 : 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {n.type === 'news.company' && <Newspaper size={14} style={{ color: '#2563eb', flexShrink: 0 }} />}
+                        <span style={{ minWidth: 0 }}>{n.title}</span>
+                      </div>
+                      {n.type === 'news.company' && n.metadata && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 4 }} data-testid="news-meta">
+                          {n.metadata.symbol && (
+                            <span style={pillStyle('#eff6ff', '#1d4ed8')}>{n.metadata.symbol}</span>
+                          )}
+                          {(() => {
+                            const s = NEWS_SENTIMENT[n.metadata.sentiment];
+                            return s ? (
+                              <span style={pillStyle(s.bg, s.fg)} data-testid="news-sentiment">{s.label}</span>
+                            ) : null;
+                          })()}
+                          {n.metadata.category && n.metadata.category !== 'other' && (
+                            <span style={{ fontSize: 11, color: '#6b7280' }}>{n.metadata.category}</span>
+                          )}
+                        </div>
+                      )}
                       {n.body && (
                         <div style={{ fontSize: 13, color: '#4b5563', marginTop: 2 }}>{n.body}</div>
+                      )}
+                      {n.type === 'news.company' && n.metadata?.url && (
+                        <a
+                          href={n.metadata.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          data-testid="news-link"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, color: '#2563eb', marginTop: 4, textDecoration: 'none' }}
+                        >
+                          Read more <ExternalLink size={11} />
+                        </a>
                       )}
                       <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
                         {formatRelative(n.created_at)}

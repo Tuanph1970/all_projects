@@ -582,6 +582,26 @@ async def test_analyze_news_returns_sentiment_and_key_events():
 
 
 @pytest.mark.asyncio
+async def test_analyze_news_uses_llm_category_when_present():
+    s = _make_service()
+    llm_reply = "Positive outlook.\nCATEGORY: partnership"
+    with patch.object(s, "_call_llm", AsyncMock(return_value=llm_reply)):
+        out = await s.analyze_news("FPT", [{"title": "FPT news", "content": "text"}])
+    assert out.category == "partnership"
+
+
+@pytest.mark.asyncio
+async def test_analyze_news_falls_back_to_keyword_category():
+    s = _make_service()
+    # LLM reply carries no CATEGORY line -> derive from the news text (earnings keywords).
+    with patch.object(s, "_call_llm", AsyncMock(return_value="Strong quarter")):
+        out = await s.analyze_news(
+            "FPT", [{"title": "Q1 earnings beat", "content": "revenue and profit up"}]
+        )
+    assert out.category == "earnings"
+
+
+@pytest.mark.asyncio
 async def test_analyze_news_neutral_when_no_sentiment_signal():
     s = _make_service()
     with patch.object(s, "_call_llm", AsyncMock(return_value="Plain summary text without signal words")):

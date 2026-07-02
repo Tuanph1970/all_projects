@@ -720,6 +720,25 @@ async def list_watchlist(
     ]
 
 
+@router.get("/watched-tickers")
+async def watched_tickers(db: AsyncSession = Depends(get_db)):
+    """Distinct active watchlist tickers across ALL users.
+
+    Service-internal read consumed by news-service (FR-NEWS-WATCH). Returns only
+    ticker strings — no user identity (EC-N10). Unauthenticated like the health probes.
+    """
+    from sqlalchemy import select
+    from app.models.domain import HelperWatchlist
+
+    result = await db.execute(
+        select(HelperWatchlist.ticker)
+        .where(HelperWatchlist.active.is_(True))
+        .distinct()
+    )
+    tickers = sorted({t.upper() for t in result.scalars().all() if t})
+    return {"tickers": tickers}
+
+
 @router.post("/watchlist", response_model=WatchlistEntryResponse, status_code=201)
 async def add_watchlist(
     req: WatchlistAddRequest,
