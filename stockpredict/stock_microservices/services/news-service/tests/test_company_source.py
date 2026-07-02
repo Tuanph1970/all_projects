@@ -111,14 +111,17 @@ def test_empty_list_is_normal_no_news_returns_empty():
     assert _source(handler).fetch("FPT") == []   # no news != source failure
 
 
-def test_records_missing_title_or_date_are_skipped_not_fatal():
+def test_titleless_record_skipped_but_dateless_kept():
     def handler(req):
         return httpx.Response(200, json=[
-            _rec(),                       # good
-            _rec(title=None, id="a"),     # no title -> skip
-            _rec(publishDate=None, createdAt=None, id="b"),  # no date -> skip
+            _rec(),                                       # good
+            _rec(title=None, id="a"),                     # no title -> skip
+            _rec(publishDate=None, id="b"),               # no date -> kept (ingestion ts)
         ])
 
     items = _source(handler).fetch("FPT")
-    assert len(items) == 1
-    assert items[0].guid == "fpt-news-42"
+    assert len(items) == 2                                # titleless skipped; dateless kept
+    guids = {i.guid for i in items}
+    assert "a" not in guids and "b" in guids
+    dateless = next(i for i in items if i.guid == "b")
+    assert dateless.ts_utc.utcoffset() is not None        # stamped tz-aware UTC at ingestion

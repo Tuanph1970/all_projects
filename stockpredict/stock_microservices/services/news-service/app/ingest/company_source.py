@@ -91,11 +91,15 @@ class CompanyNewsSource:
     def _to_item(self, symbol: str, rec: dict) -> Optional[NewsItem]:
         if not isinstance(rec, dict):
             return None
-        ts = _parse_ts(rec.get("publishDate") or rec.get("createdAt") or rec.get("published_at"))
         title = (rec.get("title") or rec.get("news_title") or "").strip()
-        if ts is None or not title:
-            logger.debug("skipping company news record (missing title/date) for %s", symbol)
+        if not title:
+            logger.debug("skipping company news record (no title) for %s", symbol)
             return None
+        ts = _parse_ts(rec.get("publishDate") or rec.get("createdAt") or rec.get("published_at"))
+        if ts is None:
+            # Some vnstock records carry a null publishDate. Dedup keys on guid/url (not
+            # date), so stamp at ingestion time rather than dropping real company news.
+            ts = datetime.now(timezone.utc)
         body = rec.get("content") or rec.get("description") or rec.get("summary")
         return NewsItem(
             source="vnstock",
