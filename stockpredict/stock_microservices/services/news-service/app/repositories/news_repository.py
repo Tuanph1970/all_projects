@@ -141,13 +141,15 @@ class NewsRepository:
             setattr(obj, field, _utcnow())
             s.commit()
 
-    def list_new(self, *, limit: Optional[int] = None) -> list[NewsEvent]:
-        """Rows still needing classification (classified_at IS NULL)."""
-        stmt = (
-            select(NewsEvent)
-            .where(NewsEvent.classified_at.is_(None))
-            .order_by(NewsEvent.ingested_at)
-        )
+    def list_new(self, *, stream: Optional[str] = None, limit: Optional[int] = None) -> list[NewsEvent]:
+        """Rows still needing classification (classified_at IS NULL).
+
+        `stream` scopes the result (the company poller passes "company" so it never
+        picks up macro rows, which are tagged inline by the macro poller)."""
+        stmt = select(NewsEvent).where(NewsEvent.classified_at.is_(None))
+        if stream is not None:
+            stmt = stmt.where(NewsEvent.stream == stream)
+        stmt = stmt.order_by(NewsEvent.ingested_at)
         if limit is not None:
             stmt = stmt.limit(limit)
         with self._Session() as s:

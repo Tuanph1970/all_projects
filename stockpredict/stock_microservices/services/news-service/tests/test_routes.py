@@ -127,10 +127,32 @@ def test_poll_unknown_stream_400(api_client):
     assert client.post(f"{_BASE}/poll/bogus").status_code == 400
 
 
-def test_poll_macro_not_implemented_yet(api_client):
+def test_poll_macro_503_when_not_running(api_client):
     client, _ = api_client
-    # Macro poller lands in N12; until then the endpoint reports 501.
-    assert client.post(f"{_BASE}/poll/macro").status_code == 501
+    container.macro_poller = None
+    assert client.post(f"{_BASE}/poll/macro").status_code == 503
+
+
+def test_poll_macro_runs_container_poller(api_client):
+    client, _ = api_client
+
+    class FakeMacro:
+        def __init__(self):
+            self.ran = 0
+
+        async def tick(self):
+            self.ran += 1
+            return {"fetched": 2, "new": 2, "tagged": 2, "bridged": 0, "errors": 0}
+
+    fake = FakeMacro()
+    container.macro_poller = fake
+    try:
+        r = client.post(f"{_BASE}/poll/macro")
+        assert r.status_code == 200
+        assert r.json()["tagged"] == 2
+        assert fake.ran == 1
+    finally:
+        container.macro_poller = None
 
 
 def test_health_live_still_ok(api_client):

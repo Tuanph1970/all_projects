@@ -106,7 +106,10 @@ async def poll(stream: str):
                                 detail="company poller not running")
         return await poller.tick()
     if stream == "macro":
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                            detail="macro poller not implemented yet (task N12)")
+        poller = container.macro_poller
+        if poller is None:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                                detail="macro poller not running (ENABLE_MACRO off?)")
+        return await poller.tick()
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"unknown stream: {stream}")

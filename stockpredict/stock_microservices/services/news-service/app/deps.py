@@ -10,6 +10,8 @@ class _Container:
     repo: Optional[NewsRepository] = None
     company_poller = None
     scheduler = None
+    macro_poller = None
+    macro_scheduler = None
     bus = None
 
 

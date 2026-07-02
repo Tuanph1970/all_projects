@@ -68,7 +68,7 @@ class CompanyPoller:
 
         # ── Phase B: classify + notify (covers this tick's new rows and any
         #    still-unclassified rows carried over from earlier ticks) ──────
-        for row in self._repo.list_new():
+        for row in self._repo.list_new(stream="company"):
             try:
                 c = self._classifier.classify(row)  # row duck-types NewsItem for classify
             except ClassificationError as exc:

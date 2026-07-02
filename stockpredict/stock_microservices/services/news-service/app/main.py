@@ -56,6 +56,8 @@ async def lifespan(app: FastAPI):
         # or touch RabbitMQ/upstreams). N12 adds the macro poller behind ENABLE_MACRO.
         if settings.ENABLE_COMPANY and settings.ENVIRONMENT != "test":
             _start_company_poller(repo)
+        if settings.ENABLE_MACRO and settings.ENVIRONMENT != "test":
+            _start_macro_poller(repo)
 
         _READY = True
         logger.info("%s startup OK", settings.SERVICE_NAME)
@@ -65,6 +67,8 @@ async def lifespan(app: FastAPI):
     yield
     if container.scheduler is not None:
         await container.scheduler.stop()
+    if container.macro_scheduler is not None:
+        await container.macro_scheduler.stop()
     if container.bus is not None:
         try:
             await container.bus.disconnect()
@@ -104,6 +108,44 @@ def _start_company_poller(repo: NewsRepository) -> None:
     container.bus = bus
     container.company_poller = poller
     container.scheduler = sched
+
+
+def _load_macro_sources() -> list:
+    """Feed registry from FEED_REGISTRY_PATH (JSON list) or the built-in defaults."""
+    import json
+
+    from app.ingest.macro_feeds import DEFAULT_SOURCES
+
+    path = settings.FEED_REGISTRY_PATH
+    if path:
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                return json.load(fh)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("failed to load feed registry %s: %s; using defaults", path, exc)
+    return DEFAULT_SOURCES
+
+
+def _start_macro_poller(repo: NewsRepository) -> None:
+    """Wire Stream A (macro) feeds + scheduler behind ENABLE_MACRO. The event-reaction
+    bridge is attached only when ENABLE_BRIDGE is set (N13)."""
+    from app.ingest.event_bridge import EventReactionBridge
+    from app.ingest.macro_feeds import MacroFeedSource
+    from app.services.macro_poller import MacroPoller
+    from app.services.scheduler import PollerScheduler
+
+    macro = MacroFeedSource(_load_macro_sources(), timeout=settings.HTTP_TIMEOUT_SECONDS)
+    bridge = None
+    if settings.ENABLE_BRIDGE:
+        bridge = EventReactionBridge(
+            settings.EVENT_REACTION_SERVICE_URL,
+            api_prefix=settings.API_PREFIX, timeout=settings.HTTP_TIMEOUT_SECONDS,
+        )
+    poller = MacroPoller(macro_source=macro, repo=repo, bridge=bridge)
+    sched = PollerScheduler(poller, settings.MACRO_POLL_INTERVAL_SECONDS, name="macro")
+    sched.start()
+    container.macro_poller = poller
+    container.macro_scheduler = sched
 
 
 app = FastAPI(
