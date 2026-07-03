@@ -494,6 +494,50 @@ services:
       - "traefik.http.routers.stock-news.priority=10"
       - "traefik.http.services.stock-news.loadbalancer.server.port=8013"
 
+  # Event-Reaction Service - price reaction to events (measure / cross-section)
+  event-reaction-service:
+    build:
+      context: ./stock_microservices
+      dockerfile: services/event-reaction-service/Dockerfile
+    container_name: stock_event_reaction_service
+    environment:
+      - SERVICE_NAME=event-reaction-service
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3004,http://localhost:3000}
+      - SERVICE_VERSION=0.1.0
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DEBUG=${DEBUG:-0}
+      - API_PREFIX=stock_helper
+      - STOCK_DATA_SERVICE_URL=http://stock-data-service:8001
+      # root: event-reaction-service auto-creates its DB on startup, which needs
+      # CREATE DATABASE (stockuser is DB-scoped only).
+      - DATABASE_URL=mysql+pymysql://root:${MYSQL_ROOT_PASSWORD:-Mysql_2025}@mysql:3306/stock_event_reaction
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
+      - JWT_ALGORITHM=HS256
+      - TRACING_ENABLED=true
+      - TRACING_JAEGER_HOST=jaeger
+      - TRACING_JAEGER_PORT=6831
+    expose:
+      - "8012"
+    networks:
+      - stock-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8012/health/live')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=stock"
+      - "traefik.http.routers.stock-event-reaction.rule=PathPrefix(`/stock_helper/api/v2/event-reaction`)"
+      - "traefik.http.routers.stock-event-reaction.entrypoints=web"
+      - "traefik.http.routers.stock-event-reaction.priority=10"
+      - "traefik.http.services.stock-event-reaction.loadbalancer.server.port=8012"
+
   # Prediction Service
   prediction-service:
     build:

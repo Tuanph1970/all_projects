@@ -30,9 +30,21 @@ class EventReactionService:
         method: str = "consensus",
         jump_n_null: int = 0,
     ):
-        prices = self.price_source.history(symbol)
-        market = self.price_source.history(market_symbol)
         ts = pd.Timestamp(event["ts_utc"])
+
+        # Fetch a window sized around the event, not stock-data-service's default
+        # (~1y of recent bars) which won't cover older events. The market model needs
+        # L+g estimation bars strictly before t0 (plus the local-vol window); convert
+        # that trading-bar budget to calendar days (~5 trading days / 7 calendar) and
+        # pad generously for holidays / trading halts. End a bit past t0 to cover the
+        # event window (k2) and the trailing jump window.
+        bars_before = DEFAULTS.L + DEFAULTS.g + DEFAULTS.k1 + DEFAULTS.jump_local_window
+        lookback_days = int(bars_before * 7 / 5) + 90  # buffer for market gaps
+        start = ts - pd.Timedelta(days=lookback_days)
+        end = ts + pd.Timedelta(days=30)
+
+        prices = self.price_source.history(symbol, start=start, end=end)
+        market = self.price_source.history(market_symbol, start=start, end=end)
 
         prior = None
         if self.event_repo is not None:
