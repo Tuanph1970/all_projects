@@ -72,7 +72,9 @@ services:
         # API Gateway URL baked into the frontend at build time. Defaults to
         # localhost; deploy-interactive.sh sets it to the host's LAN IP so the
         # app also works from other machines on the network.
-        - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:18004}
+        # NOTE: `-` (not `:-`) so an explicit empty value is honored → relative
+        # API URLs (same-origin via nginx). Unset falls back to the localhost default.
+        - REACT_APP_API_URL=${REACT_APP_API_URL-http://localhost:18004}
     container_name: stock_frontend
     environment:
       - NODE_ENV=production
@@ -270,6 +272,7 @@ services:
     container_name: stock_auth_service
     environment:
       - SERVICE_NAME=auth-service
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3004,http://localhost:3000}
       - SERVICE_VERSION=1.0.0
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DEBUG=${DEBUG:-0}
@@ -327,6 +330,7 @@ services:
     container_name: stock_data_service
     environment:
       - SERVICE_NAME=stock-data-service
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3004,http://localhost:3000}
       - SERVICE_VERSION=1.0.0
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DEBUG=${DEBUG:-0}
@@ -380,6 +384,7 @@ services:
     container_name: stock_portfolio_service
     environment:
       - SERVICE_NAME=portfolio-service
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3004,http://localhost:3000}
       - SERVICE_VERSION=1.0.0
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DEBUG=${DEBUG:-0}
@@ -437,6 +442,7 @@ services:
     container_name: stock_news_service
     environment:
       - SERVICE_NAME=news-service
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3004,http://localhost:3000}
       - SERVICE_VERSION=0.1.0
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DEBUG=${DEBUG:-0}
@@ -496,6 +502,7 @@ services:
     container_name: stock_prediction_service
     environment:
       - SERVICE_NAME=prediction-service
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3004,http://localhost:3000}
       - SERVICE_VERSION=1.0.0
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DEBUG=${DEBUG:-0}
@@ -555,6 +562,7 @@ services:
     container_name: stock_analysis_service
     environment:
       - SERVICE_NAME=analysis-service
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3004,http://localhost:3000}
       - SERVICE_VERSION=1.0.0
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DEBUG=${DEBUG:-0}
@@ -610,6 +618,7 @@ services:
     container_name: stock_ai_insights_service
     environment:
       - SERVICE_NAME=ai-insights-service
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3004,http://localhost:3000}
       - SERVICE_VERSION=1.0.0
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DEBUG=${DEBUG:-0}
@@ -657,6 +666,7 @@ services:
     container_name: stock_journal_service
     environment:
       - SERVICE_NAME=journal-service
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3004,http://localhost:3000}
       - SERVICE_VERSION=1.0.0
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DEBUG=${DEBUG:-0}
@@ -718,6 +728,7 @@ services:
     container_name: stock_chatbot_service
     environment:
       - SERVICE_NAME=chatbot-service
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3004,http://localhost:3000}
       - SERVICE_VERSION=1.0.0
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DEBUG=${DEBUG:-0}
@@ -762,6 +773,7 @@ services:
     container_name: stock_knowledge_qa_service
     environment:
       - SERVICE_NAME=knowledge-qa-service
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3004,http://localhost:3000}
       - SERVICE_VERSION=1.0.0
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DEBUG=${DEBUG:-0}
@@ -807,6 +819,7 @@ services:
     container_name: stock_decision_helper_service
     environment:
       - SERVICE_NAME=decision-helper-service
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3004,http://localhost:3000}
       - SERVICE_VERSION=0.1.0
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DEBUG=${DEBUG:-0}
@@ -865,6 +878,7 @@ services:
     container_name: stock_chart_decomp_service
     environment:
       - SERVICE_NAME=chart-decomp-service
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3004,http://localhost:3000}
       - SERVICE_VERSION=0.1.0
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - DEBUG=${DEBUG:-0}

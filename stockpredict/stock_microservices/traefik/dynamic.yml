@@ -248,6 +248,11 @@ http:
           - "Authorization"
           - "X-Request-ID"
           - "X-Correlation-ID"
+        # NOTE: kept in sync by deploy-interactive.sh (sync_traefik_cors) between the
+        # BEGIN/END markers below from the resolved host IP + EXTRA_HOSTS. This is the
+        # browser-facing CORS gate at the gateway (:18004); it must list every address
+        # the app is opened at (LAN IP, nginx host, remote/static IP) or the browser
+        # blocks login/register/API calls. Edit EXTRA_HOSTS in the script, not here.
         accessControlAllowOriginList:
           - "http://localhost:3000"
           - "http://localhost:3004"
@@ -255,6 +260,16 @@ http:
           - "http://localhost:8080"
           - "http://stock.localhost"
           - "https://*.stock-helper.com"
+          # BEGIN managed-origins
+          - "http://localhost:3004"
+          - "http://127.0.0.1:3004"
+          - "http://localhost"
+          - "http://127.0.0.1"
+          - "http://10.1.10.42:3004"
+          - "http://10.1.10.42"
+          - "http://112.213.91.103:3004"
+          - "http://112.213.91.103"
+          # END managed-origins
         accessControlMaxAge: 86400
         addVaryHeader: true
 

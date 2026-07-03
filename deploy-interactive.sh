@@ -373,6 +373,33 @@ setup_nginx_config() {
     print_color $CYAN "  - Stock API:   http://localhost/stock/"
 }
 
+# If the host nginx is already serving our unified config, refresh it from the
+# repo copy and reload. This keeps the same-origin /stock_helper proxy in sync on
+# `--auto` (so remote/public-IP access keeps working) WITHOUT forcing a full nginx
+# setup on users who don't run one. No-ops unless nginx is active, our site is
+# enabled, and we're root.
+refresh_host_nginx() {
+    check_nginx || return 0
+    check_nginx_running || return 0
+    if [ ! -L /etc/nginx/sites-enabled/nginx-all-projects.conf ]; then
+        print_color $YELLOW "○ Host nginx running but the unified config isn't enabled — skipping (use the interactive nginx setup to enable it)"
+        return 0
+    fi
+    local src="$BASE_DIR/nginx-all-projects.conf"
+    [ -f "$src" ] || return 0
+    if [ "$(id -u)" -ne 0 ]; then
+        print_color $YELLOW "○ Not root — cannot refresh host nginx config (re-run with sudo to sync the /stock_helper proxy)"
+        return 0
+    fi
+    print_color $BLUE "🔧 Refreshing host nginx config (same-origin /stock_helper proxy)…"
+    cp "$src" /etc/nginx/sites-available/nginx-all-projects.conf
+    if nginx -t >/dev/null 2>&1; then
+        systemctl reload nginx && print_color $GREEN "✓ Host nginx reloaded"
+    else
+        print_color $RED "✗ nginx -t failed — not reloading. Check manually: sudo nginx -t"
+    fi
+}
+
 # Function to create environment file if not exists
 create_env_file() {
     if [ ! -f "$ENV_FILE" ]; then
@@ -433,14 +460,45 @@ detect_host_ip() {
     echo "$ip"
 }
 
-# Resolve the API gateway URL baked into the frontend. An explicit
-# REACT_APP_API_URL in the environment wins; otherwise auto-detect the host IP.
+# Static/extra addresses this deployment is reachable at beyond the auto-detected
+# LAN IP — e.g. a public/remote server address or a domain fronting nginx. These
+# are always added to the CORS allow-list. Space- or comma-separated; edit freely.
+EXTRA_HOSTS="112.213.91.103"
+
+# Resolve the API gateway URL baked into the frontend. Default is EMPTY, which
+# makes the app call the API with relative URLs (same-origin) — nginx (host + the
+# frontend container) proxies /stock_helper/ to the Traefik gateway, so the app
+# works identically from localhost, the LAN IP, and the public IP with no CORS.
+# Export REACT_APP_API_URL to force an absolute gateway URL instead (legacy mode).
 resolve_api_url() {
     if [ -n "${REACT_APP_API_URL:-}" ]; then
         echo "$REACT_APP_API_URL"
     else
-        echo "http://$(detect_host_ip):18004"
+        echo ""
     fi
+}
+
+# Resolve the backend CORS allow-list. The browser blocks login/register/API
+# calls whose page Origin is not in each service's CORS_ORIGINS. We therefore
+# allow every host this app is reached at — the auto-detected LAN IP and any
+# EXTRA_HOSTS (static/remote address) — on BOTH the frontend port (:3004, direct)
+# and port 80 (nginx reverse proxy), plus localhost for on-machine use. An
+# explicit CORS_ORIGINS in the environment wins.
+resolve_cors_origins() {
+    if [ -n "${CORS_ORIGINS:-}" ]; then
+        echo "$CORS_ORIGINS"
+        return
+    fi
+    local origins="http://localhost:3004,http://127.0.0.1:3004,http://localhost,http://127.0.0.1"
+    local host
+    # Auto-detected LAN IP plus any explicitly configured static/remote hosts.
+    for host in "$(detect_host_ip)" $(echo "$EXTRA_HOSTS" | tr ',' ' '); do
+        [ -z "$host" ] && continue
+        [ "$host" = "localhost" ] && continue
+        # :3004 = frontend served directly; bare host = served via nginx on :80
+        origins="$origins,http://$host:3004,http://$host"
+    done
+    echo "$origins"
 }
 
 # Ensure stockpredict/.env exists with non-placeholder secrets so the production
@@ -449,8 +507,64 @@ resolve_api_url() {
 # detected host IP (and flags a frontend rebuild when it changes). The RabbitMQ
 # password is kept fixed because it must match the committed rabbitmq/definitions.json.
 STOCK_ENV_FILE="$BASE_DIR/stockpredict/.env"
+
+# The browser-facing CORS gate is the Traefik `cors` middleware in this file — it
+# guards every /stock_helper/api/v2/* route at the gateway (:18004). Per-service
+# CORS_ORIGINS only covers direct (non-gateway) hits, so this list must ALSO carry
+# every reachable origin or login/register fails from nginx / a non-localhost host.
+TRAEFIK_DYNAMIC_FILE="$BASE_DIR/stockpredict/stock_microservices/traefik/dynamic.yml"
+
+# Rewrite the managed origin block in Traefik's accessControlAllowOriginList from
+# the resolved CORS origins ($1, comma-separated). Idempotent; inserts the markers
+# after the list header if an older file lacks them. Traefik reloads via file-watch.
+sync_traefik_cors() {
+    local cors="$1"
+    [ -f "$TRAEFIK_DYNAMIC_FILE" ] || { print_color $YELLOW "⚠ Traefik dynamic.yml not found — skipping gateway CORS sync"; return 0; }
+    CORS_LIST="$cors" python3 - "$TRAEFIK_DYNAMIC_FILE" <<'PYEOF'
+import os, re, sys
+
+path = sys.argv[1]
+origins = [o.strip() for o in os.environ.get("CORS_LIST", "").split(",") if o.strip()]
+with open(path) as f:
+    text = f.read()
+
+begin, end = "# BEGIN managed-origins", "# END managed-origins"
+
+# Match the accessControlAllowOriginList: line to learn the list-item indentation.
+m = re.search(r'^(?P<ind>[ \t]*)accessControlAllowOriginList:[ \t]*$', text, re.M)
+if not m:
+    print("  (no accessControlAllowOriginList block — skipped)")
+    sys.exit(0)
+item_ind = m.group('ind') + "  "  # list items sit one level deeper
+
+block_lines = [f"{item_ind}{begin}"]
+block_lines += [f'{item_ind}- "{o}"' for o in origins]
+block_lines.append(f"{item_ind}{end}")
+block = "\n".join(block_lines)
+
+if begin in text and end in text:
+    # Consume the leading whitespace before BEGIN so re-runs don't accrete indent.
+    new = re.sub(r'[ \t]*' + re.escape(begin) + r".*?" + re.escape(end), block, text, count=1, flags=re.S)
+else:
+    # Insert the managed block right after the list header line.
+    new = text[:m.end()] + "\n" + block + text[m.end():]
+
+if new != text:
+    with open(path, "w") as f:
+        f.write(new)
+    print("  updated managed-origins block")
+else:
+    print("  already in sync")
+PYEOF
+}
+
 ensure_stock_env() {
     local api_url; api_url="$(resolve_api_url)"
+    local cors; cors="$(resolve_cors_origins)"
+    # Keep the gateway (Traefik) CORS allow-list in sync too — this is the one the
+    # browser actually hits; the per-service CORS_ORIGINS below is defense-in-depth.
+    print_color $BLUE "🔧 Syncing gateway CORS allow-list (Traefik)…"
+    sync_traefik_cors "$cors"
 
     if [ -f "$STOCK_ENV_FILE" ]; then
         # Repair a missing/placeholder JWT key just in case.
@@ -484,14 +598,29 @@ ensure_stock_env() {
         # Keep the baked API URL in sync with the detected host IP. If it changes,
         # the frontend must be rebuilt (the URL is compiled into the static bundle).
         local current_url; current_url="$(grep -E '^REACT_APP_API_URL=' "$STOCK_ENV_FILE" | head -1 | cut -d= -f2-)"
-        if [ "$current_url" != "$api_url" ]; then
+        if ! grep -qE '^REACT_APP_API_URL=' "$STOCK_ENV_FILE" || [ "$current_url" != "$api_url" ]; then
             grep -v '^REACT_APP_API_URL=' "$STOCK_ENV_FILE" > "$STOCK_ENV_FILE.tmp" 2>/dev/null || true
             echo "REACT_APP_API_URL=$api_url" >> "$STOCK_ENV_FILE.tmp"
             mv "$STOCK_ENV_FILE.tmp" "$STOCK_ENV_FILE"
             FORCE_FRONTEND_REBUILD=true
-            print_color $YELLOW "↻ Set REACT_APP_API_URL=$api_url (host IP) — frontend will be rebuilt"
+            if [ -z "$api_url" ]; then
+                print_color $YELLOW "↻ Set REACT_APP_API_URL= (empty → relative/same-origin via nginx) — frontend will be rebuilt"
+            else
+                print_color $YELLOW "↻ Set REACT_APP_API_URL=$api_url — frontend will be rebuilt"
+            fi
         else
-            print_color $GREEN "✓ stockpredict/.env present — secrets kept, API URL = $api_url"
+            print_color $GREEN "✓ stockpredict/.env present — secrets kept, API URL = ${api_url:-<relative/same-origin>}"
+        fi
+        # Keep the backend CORS allow-list in sync with the reachable hosts. This is
+        # a backend-only env var (no rebuild needed) — compose recreates the affected
+        # services on the next `up -d` when the value changes. Fixes login/register
+        # failing when the app is opened via nginx / a non-localhost address.
+        local current_cors; current_cors="$(grep -E '^CORS_ORIGINS=' "$STOCK_ENV_FILE" | head -1 | cut -d= -f2-)"
+        if [ "$current_cors" != "$cors" ]; then
+            grep -v '^CORS_ORIGINS=' "$STOCK_ENV_FILE" > "$STOCK_ENV_FILE.tmp" 2>/dev/null || true
+            echo "CORS_ORIGINS=$cors" >> "$STOCK_ENV_FILE.tmp"
+            mv "$STOCK_ENV_FILE.tmp" "$STOCK_ENV_FILE"
+            print_color $YELLOW "↻ Set CORS_ORIGINS=$cors"
         fi
         return 0
     fi
@@ -507,9 +636,17 @@ ensure_stock_env() {
 ENVIRONMENT=production
 DEBUG=0
 
-# Frontend → API gateway URL, baked into the build. Auto-set to the host IP so
-# the app also works from other machines; override by exporting REACT_APP_API_URL.
+# Frontend → API gateway URL, baked into the build. EMPTY = relative/same-origin:
+# the app calls /stock_helper/... on whatever host served it and nginx proxies to
+# the gateway, so it works from localhost, the LAN IP, and the public IP with no
+# CORS. Export REACT_APP_API_URL to force an absolute gateway URL instead.
 REACT_APP_API_URL=$api_url
+
+# Backend CORS allow-list (comma-separated origins). MUST include every address
+# the app is opened at — LAN IP, remote/static IP, and nginx host — or the browser
+# blocks login/register/API calls. Auto-built from the host IP + EXTRA_HOSTS;
+# override by exporting CORS_ORIGINS.
+CORS_ORIGINS=$cors
 
 # Database — matches the mysql service defaults + stock_microservices/mysql/init
 MYSQL_ROOT_PASSWORD=Mysql_2025
@@ -1003,6 +1140,9 @@ main() {
         SELECTED_PROJECTS=(stock)
         deploy_project stock
         echo
+        # Keep the host nginx same-origin proxy in sync (no-op unless nginx runs it).
+        refresh_host_nginx
+        echo
         wait_for_stock_ready || true
         echo
         local host_ip; host_ip="$(detect_host_ip)"
@@ -1010,13 +1150,15 @@ main() {
         print_color $GREEN "Stock Predict full stack is up."
         echo
         print_color $WHITE  "  ┌─ Open the app ──────────────────────────────────────────┐"
-        print_color $YELLOW "  │ Web App:      http://$host_ip:3004/stock-app"
-        print_color $YELLOW "  │ API Gateway:  http://$host_ip:18004"
+        print_color $YELLOW "  │ Direct:       http://$host_ip:3004/stock-app"
+        print_color $YELLOW "  │ Via nginx:    http://$host_ip/stock-app/   (LAN)"
+        print_color $YELLOW "  │ Via nginx:    http://112.213.91.103/stock-app/   (remote)"
         print_color $YELLOW "  │ Grafana:      http://$host_ip:3100   (admin / admin)"
         print_color $WHITE  "  └─────────────────────────────────────────────────────────┘"
         echo
-        print_color $CYAN  "On this machine you can also use http://localhost:3004/stock-app"
-        print_color $CYAN  "From other devices on the network, use the http://$host_ip:... links above."
+        print_color $CYAN  "The app calls its API same-origin (relative /stock_helper/…), so it works"
+        print_color $CYAN  "from localhost, the LAN IP, and the public IP with no CORS. For the remote"
+        print_color $CYAN  "IP, the API is reached via nginx on port 80 (not :3004/:18004 directly)."
         echo
         print_color $CYAN "Status:  docker compose -f stockpredict/docker-compose.full-stack.yml -p stockpredict ps"
         return 0
