@@ -210,6 +210,45 @@ cd ~/all_projects/mathematic-mobile/backend
 cp .env.example .env
 ```
 
+### Step 3: AI / LLM (DeepSeek) API Key — Stock Project
+
+The Stock Predict AI-insights and company-news features need an LLM key. For the
+**full-stack deploy** (`deploy-interactive.sh`), the relevant file is
+`stockpredict/.env` — **not** `stockpredict/stock_microservices/.env`. This file is
+auto-generated on first run of `deploy-interactive.sh`, so the normal order is:
+
+```bash
+cd ~/all_projects
+./deploy-interactive.sh          # generates stockpredict/.env (with an empty OPENAI_API_KEY)
+nano stockpredict/.env           # paste your DeepSeek key, then re-deploy
+```
+
+In `stockpredict/.env` you will find this block (the key is intentionally **empty** —
+you must fill it in):
+
+```bash
+LLM_PROVIDER=auto
+OPENAI_API_KEY=            # <-- paste your DeepSeek key here (sent as the bearer token)
+ANTHROPIC_API_KEY=
+LLM_MODEL=deepseek-chat
+LLM_BASE_URL=https://api.deepseek.com/v1
+```
+
+Notes:
+- The model is **`deepseek-chat`** (DeepSeek is OpenAI-compatible — there is no
+  "DeepSeek 4.0"). Put the DeepSeek key into `OPENAI_API_KEY`, not a DeepSeek-named var.
+- **Empty `OPENAI_API_KEY` = template mode**: canned neutral sentiment, so company
+  good/bad-news notifications will not fire. Fill the key to enable real analysis.
+- To use OpenAI instead of DeepSeek: `LLM_MODEL=gpt-4o-mini` and
+  `LLM_BASE_URL=https://api.openai.com/v1`.
+- If you upgraded from an older clone and the block is missing, just re-run
+  `./deploy-interactive.sh` — it now backfills the AI/LLM block into an existing
+  `stockpredict/.env`. After editing the key, re-deploy so ai-insights picks it up:
+  ```bash
+  cd ~/all_projects/stockpredict
+  docker compose -f docker-compose.full-stack.yml up -d ai-insights-service news-service
+  ```
+
 ---
 
 ## Deploy All Projects

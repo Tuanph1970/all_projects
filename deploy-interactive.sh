@@ -462,6 +462,25 @@ ensure_stock_env() {
             mv "$STOCK_ENV_FILE.tmp" "$STOCK_ENV_FILE"
             print_color $YELLOW "↻ Injected a freshly generated JWT_SECRET_KEY into existing stockpredict/.env"
         fi
+        # Backfill the AI/LLM (DeepSeek) block for older .env files that predate the
+        # ai-insights LLM feature — otherwise OPENAI_API_KEY is simply absent and the
+        # user has nowhere to paste their DeepSeek key.
+        if ! grep -qE '^OPENAI_API_KEY=' "$STOCK_ENV_FILE"; then
+            {
+                echo ""
+                echo "# AI / LLM — powers ai-insights sentiment + company-news classification."
+                echo "# Empty OPENAI_API_KEY => template mode (sentiment always neutral, no good/bad news alerts)."
+                echo "# DeepSeek is OpenAI-compatible: paste your DeepSeek key into OPENAI_API_KEY and, with"
+                echo "# LLM_PROVIDER=auto, it routes to LLM_BASE_URL below. For OpenAI: LLM_MODEL=gpt-4o-mini"
+                echo "# and LLM_BASE_URL=https://api.openai.com/v1."
+                echo "LLM_PROVIDER=auto"
+                echo "OPENAI_API_KEY="
+                echo "ANTHROPIC_API_KEY="
+                echo "LLM_MODEL=deepseek-chat"
+                echo "LLM_BASE_URL=https://api.deepseek.com/v1"
+            } >> "$STOCK_ENV_FILE"
+            print_color $YELLOW "↻ Backfilled the AI/LLM (DeepSeek) block into stockpredict/.env — paste your key into OPENAI_API_KEY"
+        fi
         # Keep the baked API URL in sync with the detected host IP. If it changes,
         # the frontend must be rebuilt (the URL is compiled into the static bundle).
         local current_url; current_url="$(grep -E '^REACT_APP_API_URL=' "$STOCK_ENV_FILE" | head -1 | cut -d= -f2-)"
