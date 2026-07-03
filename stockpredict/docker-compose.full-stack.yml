@@ -461,10 +461,15 @@ services:
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-stockpass}
       - RABBITMQ_VHOST=${RABBITMQ_VHOST:-/stock}
       - ENABLE_COMPANY=1
-      - ENABLE_MACRO=0
-      - ENABLE_BRIDGE=0
+      - ENABLE_MACRO=${NEWS_ENABLE_MACRO:-1}
+      - ENABLE_BRIDGE=${NEWS_ENABLE_BRIDGE:-1}
       - ENABLE_EMAIL=0
       - COMPANY_POLL_INTERVAL_SECONDS=${NEWS_COMPANY_POLL_INTERVAL:-900}
+      - MACRO_POLL_INTERVAL_SECONDS=${NEWS_MACRO_POLL_INTERVAL:-1800}
+      # Optional JSON economic-calendar registry (actual+consensus) for bridged,
+      # measurable events. Empty -> built-in Fed/Treasury RSS (news corpus only,
+      # not bridged, since press releases carry no numeric actual/consensus).
+      - FEED_REGISTRY_PATH=${NEWS_FEED_REGISTRY_PATH:-}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
       - JWT_ALGORITHM=HS256
       - TRACING_ENABLED=true
