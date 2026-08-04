@@ -1,0 +1,276 @@
+# Migrating to a new PC — app + Cloudflare Tunnel
+
+Moves the Stock Predict stack and the `homelab` Cloudflare Tunnel to a different
+machine, same Cloudflare account, same domain.
+
+**Assumes a fresh deploy** — no database or volume migration. The new box starts
+with an empty MySQL, no users, no history. If you ever need the data instead, see
+[Appendix: carrying the data over](#appendix-carrying-the-data-over).
+
+| | |
+|---|---|
+| Tunnel name | `homelab` |
+| Tunnel ID | `0b83d79d-287c-4e02-9cac-15b5f129f7da` |
+| Public hostname | `https://stock.tuan1970.com` |
+| Local origin | `http://localhost:3004` (`stock_frontend`, published `3004:80`) |
+
+---
+
+## 0. Before you start
+
+**Do not run the tunnel on both machines at once.** Cloudflare load-balances
+between every connected instance of a tunnel ID, so half your requests would land
+on whichever box you're not using and fail. Step 4 disables the old one first.
+
+The **DNS record needs no change.** The `stock.tuan1970.com` CNAME points at the
+tunnel *ID*, not at a machine. Move the credentials and the hostname follows.
+
+---
+
+## 1. Prerequisites on the new PC
+
+```bash
+# Docker + compose plugin
+docker --version && docker compose version
+
+# cloudflared, from Cloudflare's official apt repo
+sudo mkdir -p --mode=0755 /usr/share/keyrings
+curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
+  | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" \
+  | sudo tee /etc/apt/sources.list.d/cloudflared.list
+sudo apt-get update && sudo apt-get install -y cloudflared
+```
+
+Make sure nothing else on the new box already uses ports **3004**, 18004, 3309,
+6382, 5674, 15674, 3100, 9094, 16686, 8444, 8084.
+
+```bash
+ss -tlnp | grep -E ':(3004|18004|3309|6382|3100)\b' || echo "ports free"
+```
+
+---
+
+## 2. Deploy the app fresh
+
+```bash
+git clone <your-repo-url> all_projects
+cd all_projects
+
+# IMPORTANT: make sure this is NOT set in your shell (see the warning below)
+unset REACT_APP_API_URL
+
+./deploy-interactive.sh --auto
+```
+
+This generates `stockpredict/.env` (gitignored, so it does *not* come with the
+clone) with a freshly generated `JWT_SECRET_KEY` and the standard MySQL/RabbitMQ
+credentials, then builds and starts the full stack.
+
+> ### ⚠️ `REACT_APP_API_URL` must stay empty
+>
+> This is the one setting that will silently break the public site.
+>
+> The React SPA is built with `REACT_APP_API_URL=` **empty**, so the browser calls
+> the API with *relative* paths (`/stock_helper/api/v2/...`) — same origin as the
+> page. Nginx inside `stock_frontend` proxies those to the Traefik gateway on the
+> Docker network. That's why one tunnel hostname serves both the UI and the API,
+> with no CORS and no second hostname.
+>
+> If `REACT_APP_API_URL` is exported in your shell, the deploy bakes an **absolute**
+> URL (e.g. `http://192.168.1.50:18004`) into the bundle. The site will then load
+> fine over HTTPS but every API call fails — the browser, out on the internet, tries
+> to reach a LAN address. Login just hangs.
+>
+> The value is baked in **at image build time**, so fixing it means a rebuild, not a
+> restart.
+
+### The one secret worth carrying over
+
+Everything in `.env` is regenerated except your LLM key. Copy just that line from
+the old box:
+
+```bash
+# on the OLD pc
+grep -E '^(OPENAI_API_KEY|LLM_PROVIDER|LLM_MODEL|LLM_BASE_URL)=' stockpredict/.env
+```
+
+Paste those into `stockpredict/.env` on the new PC, then restart the services that
+use it:
+
+```bash
+docker compose -f stockpredict/docker-compose.full-stack.yml \
+  up -d --force-recreate ai-insights-service news-service
+```
+
+Leaving the key empty is not fatal — the LLM features fall back to template mode
+(sentiment is always neutral, so company good/bad-news alerts stop firing).
+
+### Verify locally before touching the tunnel
+
+```bash
+curl -s -o /dev/null -w "app: %{http_code}\n" http://localhost:3004/stock-app/
+curl -s -o /dev/null -w "api: %{http_code}\n" http://localhost:3004/stock_helper/api/v2/auth/login
+```
+
+Expect **200** and **405**. The 405 is correct — it means the route reached the
+auth service, which only accepts POST there. A **404** means the API proxy chain is
+broken; fix that before moving the tunnel.
+
+---
+
+## 3. Copy the tunnel files
+
+Three files from `/etc/cloudflared/` on the old box:
+
+| File | Needed to run? | Notes |
+|---|---|---|
+| `0b83d79d-287c-4e02-9cac-15b5f129f7da.json` | **Yes** | The actual secret. Tunnel credentials. |
+| `config.yml` | **Yes** | Ingress rules. |
+| `cert.pem` | No | Zone origin cert — only for management commands (`tunnel create/delete`, `route dns`). Regenerable via `cloudflared tunnel login`. |
+
+```bash
+# on the OLD pc — copy out (they're root-owned, mode 0600)
+sudo tar -czf ~/cloudflared-homelab.tgz -C /etc/cloudflared .
+sudo chown $USER: ~/cloudflared-homelab.tgz
+
+# transfer, then on the NEW pc:
+sudo mkdir -p /etc/cloudflared
+sudo tar -xzf cloudflared-homelab.tgz -C /etc/cloudflared
+sudo chown root:root /etc/cloudflared/*
+sudo chmod 600 /etc/cloudflared/cert.pem /etc/cloudflared/*.json
+sudo chmod 644 /etc/cloudflared/config.yml
+```
+
+Delete the tarball from both machines afterward — it contains the tunnel secret.
+
+If the app runs on a **different port** on the new PC, edit the `service:` line in
+`/etc/cloudflared/config.yml` to match. Then:
+
+```bash
+cloudflared --config /etc/cloudflared/config.yml tunnel ingress validate
+```
+
+---
+
+## 4. Cut over
+
+```bash
+# ---- on the OLD pc: stop serving, first ----
+sudo systemctl disable --now cloudflared
+
+# ---- on the NEW pc ----
+sudo cloudflared --config /etc/cloudflared/config.yml service install
+sudo systemctl enable --now cloudflared
+sudo systemctl status cloudflared --no-pager
+```
+
+Watch for `Registered tunnel connection` lines — normally four:
+
+```bash
+journalctl -u cloudflared -f
+```
+
+---
+
+## 5. Verify
+
+```bash
+dig +short stock.tuan1970.com                     # Cloudflare edge IPs
+curl -sI https://stock.tuan1970.com/ | head -1    # 302
+curl -s -o /dev/null -w "app: %{http_code}\n" https://stock.tuan1970.com/stock-app/
+curl -s -o /dev/null -w "api: %{http_code}\n" https://stock.tuan1970.com/stock_helper/api/v2/auth/login
+cloudflared tunnel info homelab                   # which machine is connected
+```
+
+Expect `302`, `200`, `405`. Then open `https://stock.tuan1970.com` in a **private
+window** (avoids a cached bundle from the old deploy) and log in.
+
+Note: `/` returns a *relative* `302 → /stock-app/` (the React Router basename).
+That's expected. The `absolute_redirect off` in the frontend nginx config is what
+keeps `localhost:3004` out of the public `Location` header — don't remove it.
+
+Any unknown path returns **200**, not 404 — that's the SPA's `try_files …
+/index.html` fallback. The tunnel's `http_status:404` catch-all applies to
+unrouted *hostnames*, not paths.
+
+---
+
+## 6. Rollback
+
+If the new box misbehaves, the old one is intact — you only disabled its service:
+
+```bash
+# on the NEW pc
+sudo systemctl disable --now cloudflared
+# on the OLD pc
+sudo systemctl enable --now cloudflared
+```
+
+Back within seconds. No DNS change either direction.
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Site loads, login hangs forever | `REACT_APP_API_URL` baked absolute | `unset REACT_APP_API_URL`, redeploy — image **rebuild** required |
+| `502 Bad Gateway` from Cloudflare | app not up, or wrong port in `config.yml` | `curl localhost:3004/stock-app/`; check `service:` line |
+| `530` / `1033` error page | no tunnel connected | `systemctl status cloudflared`; check it's enabled on exactly one box |
+| Requests randomly fail | tunnel running on **both** machines | disable on the old one |
+| API returns 404 not 405 | nginx→Traefik proxy chain broken | `docker logs stock_frontend`, `docker logs stock_traefik` |
+| Blank page after redeploy | stale cached `index.html` | hard-reload / private window |
+| Services can't reach MySQL | `.env` passwords vs. existing volume | fresh deploy: `docker volume rm stock-mysql-data` and redeploy |
+
+Useful commands:
+
+```bash
+sudo systemctl status cloudflared
+journalctl -u cloudflared -f
+cloudflared --config /etc/cloudflared/config.yml tunnel ingress validate
+cloudflared --config /etc/cloudflared/config.yml tunnel ingress rule https://stock.tuan1970.com/
+docker compose -f stockpredict/docker-compose.full-stack.yml ps
+```
+
+Since `~/.cloudflared` was cleaned out on the original box, management commands
+need the cert path explicitly:
+
+```bash
+sudo cloudflared --origincert /etc/cloudflared/cert.pem tunnel list
+```
+
+---
+
+## Appendix: carrying the data over
+
+Skip this for a fresh deploy. If you later decide the data matters:
+
+```bash
+# OLD pc — stop writers first for a consistent copy
+docker compose -f stockpredict/docker-compose.full-stack.yml down
+
+for v in stock-mysql-data stock-journal-uploads stock-prediction-models stock-grafana-data; do
+  docker run --rm -v $v:/d -v "$PWD":/backup alpine tar -czf /backup/$v.tgz -C /d .
+done
+
+# NEW pc — restore BEFORE the first deploy, so MySQL doesn't initialise empty
+for v in stock-mysql-data stock-journal-uploads stock-prediction-models stock-grafana-data; do
+  docker volume create $v
+  docker run --rm -v $v:/d -v "$PWD":/backup alpine tar -xzf /backup/$v.tgz -C /d
+done
+```
+
+Approximate sizes: `stock-mysql-data` ~271 MB, `stock-grafana-data` ~1 MB, the
+others negligible. `stock-prometheus-data` (~606 MB) is just metrics history —
+skip it. `stock-redis-data` and `stock-rabbitmq-data` are cache and queue state;
+skip those too.
+
+> **Gotcha if you restore MySQL:** the `MYSQL_*` env vars only take effect on a
+> *first* init of an empty data directory. A restored volume keeps its original
+> passwords, so `stockpredict/.env` on the new PC must carry the **same**
+> `MYSQL_ROOT_PASSWORD` / `MYSQL_USER` / `MYSQL_PASSWORD` as the old box, or every
+> service fails to connect. Copy those lines across too.
+>
+> Carry `JWT_SECRET_KEY` over as well, or all existing user sessions are invalidated
+> and everyone has to log in again.
