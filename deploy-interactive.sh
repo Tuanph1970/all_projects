@@ -4,7 +4,7 @@
 # Interactive Multi-Project Deployment Script
 # ============================================================================
 # This script provides an interactive dialog-based deployment for:
-#   - Ceramic Mobile App Backend (Port 8002)
+#   - Mercai Backend (Port 8002)
 #   - Stock Predict Backend (Port 18004 — remapped from 8004 to avoid math-solver conflict)
 #   - Ollama LLM Setup (GPU/CPU)
 #
@@ -28,7 +28,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$SCRIPT_DIR"
 
 # Project directories (relative to BASE_DIR)
-CERAMIC_DIR="$BASE_DIR/ceramic_mobile_app/back_end"
+MERCAI_DIR="$BASE_DIR/mercai/back_end"
 STOCK_DIR="$BASE_DIR/stockpredict/stock_microservices"
 # Environment files
 ENV_FILE="$BASE_DIR/.deploy-env"
@@ -369,7 +369,7 @@ setup_nginx_config() {
     echo
     print_color $GREEN "✓ Nginx setup complete!"
     print_color $CYAN "Unified API Gateway available at: http://localhost/"
-    print_color $CYAN "  - Ceramic API: http://localhost/ceramic/"
+    print_color $CYAN "  - Mercai API: http://localhost/mercai/"
     print_color $CYAN "  - Stock API:   http://localhost/stock/"
 }
 
@@ -414,13 +414,13 @@ create_env_file() {
 # Database Root Password
 MYSQL_ROOT_PASSWORD=Mysql_2025
 
-# Ceramic Project Configuration
-CERAMIC_API_PORT=8002
-CERAMIC_DB_PORT=3308
-CERAMIC_DB_NAME=ceramic_db
-CERAMIC_DB_USER=ceramic_user
-CERAMIC_DB_PASSWORD=Mysql_2025
-CERAMIC_REDIS_PORT=6379
+# Mercai Project Configuration
+MERCAI_API_PORT=8002
+MERCAI_DB_PORT=3308
+MERCAI_DB_NAME=mercai_db
+MERCAI_DB_USER=mercai_user
+MERCAI_DB_PASSWORD=Mysql_2025
+MERCAI_REDIS_PORT=6379
 
 # Stock Predict Project Configuration
 STOCK_API_PORT=8080
@@ -734,8 +734,8 @@ load_env() {
 show_project_info() {
     local project=$1
     case $project in
-        ceramic)
-            print_box "Ceramic Mobile App Backend" \
+        mercai)
+            print_box "Mercai Backend" \
                      "API Port: 8002 | DB Port: 3308 | Redis: 6379"
             ;;
         stock)
@@ -767,7 +767,7 @@ check_project_dir() {
     local dir=""
 
     case $project in
-        ceramic) dir="$CERAMIC_DIR" ;;
+        mercai) dir="$MERCAI_DIR" ;;
         stock) dir="$STOCK_DIR" ;;
     esac
 
@@ -806,9 +806,9 @@ deploy_project() {
     fi
 
     case $project in
-        ceramic)
-            project_dir="$CERAMIC_DIR"
-            project_name="ceramic"
+        mercai)
+            project_dir="$MERCAI_DIR"
+            project_name="mercai"
             ;;
         stock)
             project_dir="$STOCK_DIR"
@@ -837,15 +837,15 @@ deploy_project() {
 
     # Deploy based on project type
     case $project in
-        ceramic)
-            # Ceramic uses its own deploy script or docker-compose
+        mercai)
+            # Mercai uses its own deploy script or docker-compose
             if [ -f "docker-compose.yml" ]; then
                 # Build with --no-cache if requested
                 if [ -n "$NO_CACHE_FLAG" ] && [ -n "$BUILD_FLAG" ]; then
-                    print_color $YELLOW "🔨 Building Ceramic with --no-cache..."
+                    print_color $YELLOW "🔨 Building Mercai with --no-cache..."
                     $COMPOSE_CMD -f docker-compose.yml -p "$project_name" build --no-cache
                 fi
-                print_color $YELLOW "🚀 Starting Ceramic services..."
+                print_color $YELLOW "🚀 Starting Mercai services..."
                 $COMPOSE_CMD -f docker-compose.yml -p "$project_name" up -d $build_args
             else
                 print_color $RED "docker-compose.yml not found in $project_dir"
@@ -911,8 +911,8 @@ show_deployment_summary() {
     print_color $MAGENTA "Selected Projects:"
     for project in "${SELECTED_PROJECTS[@]}"; do
         case $project in
-            ceramic)
-                print_color $GREEN "  ✓ Ceramic Mobile App Backend"
+            mercai)
+                print_color $GREEN "  ✓ Mercai Backend"
                 ;;
             stock)
                 print_color $GREEN "  ✓ Stock Predict Backend"
@@ -1170,7 +1170,7 @@ main() {
     # Show current status
     print_color $CYAN "Current project status:"
     echo
-    printf "  %-30s %s\n" "Ceramic Mobile App:" "$(get_project_status ceramic)"
+    printf "  %-30s %s\n" "Mercai:" "$(get_project_status mercai)"
     printf "  %-30s %s\n" "Stock Predict:" "$(get_project_status stockpredict)"
     echo
     
@@ -1197,13 +1197,13 @@ main() {
     print_header "Project Selection"
     
     # Ask about each project
-    # Ceramic
-    show_project_info "ceramic"
-    if ask_yes_no "Do you want to deploy Ceramic Mobile App Backend?" "y"; then
-        SELECTED_PROJECTS+=("ceramic")
-        print_color $GREEN "✓ Ceramic Mobile App Backend selected"
+    # Mercai
+    show_project_info "mercai"
+    if ask_yes_no "Do you want to deploy Mercai Backend?" "y"; then
+        SELECTED_PROJECTS+=("mercai")
+        print_color $GREEN "✓ Mercai Backend selected"
     else
-        print_color $YELLOW "○ Skipping Ceramic Mobile App Backend"
+        print_color $YELLOW "○ Skipping Mercai Backend"
     fi
     
     echo
@@ -1280,9 +1280,9 @@ main() {
         echo
         print_color $CYAN "Access your services at:"
 
-        if [[ " ${SELECTED_PROJECTS[@]} " =~ " ceramic " ]]; then
+        if [[ " ${SELECTED_PROJECTS[@]} " =~ " mercai " ]]; then
             echo
-            print_color $WHITE "  ┌─ Ceramic Mobile App ─────────────────────────────────┐"
+            print_color $WHITE "  ┌─ Mercai ─────────────────────────────────┐"
             print_color $YELLOW "  │ API Gateway:        http://localhost:8002"
             print_color $YELLOW "  │ Traefik Dashboard:  http://localhost:8080"
             print_color $YELLOW "  │ Auth API:           http://localhost:8002/api/v1/auth"
@@ -1319,7 +1319,7 @@ main() {
             echo
             print_color $WHITE "  ┌─ Nginx Unified API Gateway ───────────────────────────┐"
             print_color $YELLOW "  │ Unified Gateway:    http://localhost/"
-            print_color $YELLOW "  │ Ceramic API:        http://localhost/ceramic/"
+            print_color $YELLOW "  │ Mercai API:        http://localhost/mercai/"
             print_color $YELLOW "  │ Stock API:          http://localhost/stock/"
             print_color $YELLOW "  │ Stock Frontend:     http://localhost/stock-app/"
             print_color $YELLOW "  │ Health Check:       http://localhost/health"
@@ -1328,7 +1328,7 @@ main() {
 
         echo
         print_color $CYAN "Port Allocation Summary:"
-        print_color $WHITE "  Ceramic: 8002 | Stock: 18004"
+        print_color $WHITE "  Mercai: 8002 | Stock: 18004"
         echo
         print_color $CYAN "To check the status of your services, run:"
         print_color $WHITE "  $SCRIPT_DIR/deploy-projects.sh status"

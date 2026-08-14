@@ -112,11 +112,11 @@ echo -e "${BLUE}Creating databases and users...${NC}"
 echo ""
 
 # =============================================================================
-# 1. CERAMIC MOBILE APP
+# 1. MERCAI MOBILE APP
 # =============================================================================
-echo -e "${YELLOW}[1/4] Setting up Ceramic Mobile App database...${NC}"
-create_database "ceramic_marketplace"
-create_user "ceramic_user" "$DEFAULT_USER_PASSWORD" "ceramic_marketplace"
+echo -e "${YELLOW}[1/4] Setting up Mercai database...${NC}"
+create_database "mercai"
+create_user "mercai_user" "$DEFAULT_USER_PASSWORD" "mercai"
 echo ""
 
 # =============================================================================
@@ -183,13 +183,13 @@ echo -e "${GREEN}  Setup Complete!${NC}"
 echo -e "${BLUE}=============================================${NC}"
 echo ""
 echo -e "${YELLOW}Created Databases:${NC}"
-echo "  - ceramic_marketplace (Ceramic Mobile App)"
+echo "  - mercai (Mercai)"
 echo "  - stockpredict (Stock Predict WebAPI)"
 echo "  - defaultdb, stock_* (Stock Microservices)"
 echo "  - MathematicsSolverDb (Mathematic Mobile)"
 echo ""
 echo -e "${YELLOW}Created Users:${NC}"
-echo "  - ceramic_user (password: $DEFAULT_USER_PASSWORD)"
+echo "  - mercai_user (password: $DEFAULT_USER_PASSWORD)"
 echo "  - stockapi (password: $DEFAULT_USER_PASSWORD)"
 echo "  - stockuser (password: $DEFAULT_USER_PASSWORD)"
 echo "  - mathematic_user (password: $DEFAULT_USER_PASSWORD)"

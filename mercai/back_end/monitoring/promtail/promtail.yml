@@ -1,0 +1,130 @@
+# Promtail Configuration for Mercai
+# =============================================================================
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # ===========================================
+  # Docker Container Logs
+  # ===========================================
+  - job_name: containers
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: containerlogs
+          __path__: /var/lib/docker/containers/*/*log
+
+    pipeline_stages:
+      # Parse Docker JSON logs
+      - json:
+          expressions:
+            output: log
+            stream: stream
+            timestamp: time
+            container_id: attrs.container_id
+
+      # Extract container name from path
+      - regex:
+          source: filename
+          expression: '/var/lib/docker/containers/(?P<container_id>[^/]+)/.*'
+
+      # Set labels
+      - labels:
+          stream:
+          container_id:
+
+      # Parse the actual log line
+      - output:
+          source: output
+
+  # ===========================================
+  # Microservices Logs (by container name)
+  # ===========================================
+  - job_name: mercai_services
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: name
+            values: ["mercai_.*"]
+
+    relabel_configs:
+      # Keep only mercai containers
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/mercai_(.*)'
+        target_label: 'container'
+
+      # Extract service name
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/mercai_(.*)_service'
+        target_label: 'service'
+
+      # Set job label
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/mercai_(.*)'
+        target_label: 'job'
+        replacement: 'mercai-$1'
+
+    pipeline_stages:
+      # Parse JSON logs if available
+      - json:
+          expressions:
+            level: level
+            message: message
+            timestamp: timestamp
+            request_id: request_id
+            user_id: user_id
+            path: path
+            method: method
+            status: status
+            duration: duration
+
+      # Set labels from JSON fields
+      - labels:
+          level:
+          method:
+          status:
+
+      # Timestamp parsing
+      - timestamp:
+          source: timestamp
+          format: RFC3339
+
+      # Output the message
+      - output:
+          source: message
+
+  # ===========================================
+  # System Logs
+  # ===========================================
+  - job_name: system
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: varlogs
+          __path__: /var/log/*log
+
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\S+ \S+) (?P<hostname>\S+) (?P<program>\S+): (?P<message>.*)$'
+
+      - labels:
+          hostname:
+          program:
+
+      - timestamp:
+          source: timestamp
+          format: 'Jan _2 15:04:05'
+
+      - output:
+          source: message

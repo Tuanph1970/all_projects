@@ -11,16 +11,16 @@
 MYSQL_ROOT_PASSWORD=Mysql_2025
 
 # =============================================================================
-# CERAMIC PROJECT CONFIGURATION
+# MERCAI PROJECT CONFIGURATION
 # =============================================================================
-CERAMIC_API_PORT=8002
-CERAMIC_DB_PORT=3308
-CERAMIC_DB_NAME=ceramic_marketplace
-CERAMIC_DB_USER=ceramic_user
-CERAMIC_DB_PASSWORD=Mysql_2025
-CERAMIC_REDIS_PORT=6379
-CERAMIC_NGINX_HTTP_PORT=80
-CERAMIC_NGINX_HTTPS_PORT=443
+MERCAI_API_PORT=8002
+MERCAI_DB_PORT=3308
+MERCAI_DB_NAME=mercai
+MERCAI_DB_USER=mercai_user
+MERCAI_DB_PASSWORD=Mysql_2025
+MERCAI_REDIS_PORT=6379
+MERCAI_NGINX_HTTP_PORT=80
+MERCAI_NGINX_HTTPS_PORT=443
 
 # =============================================================================
 # STOCK PREDICT PROJECT CONFIGURATION
@@ -58,7 +58,7 @@ TZ=Asia/Ho_Chi_Minh
 # PORT ALLOCATION SUMMARY
 # =============================================================================
 #
-# CERAMIC PROJECT:
+# MERCAI PROJECT:
 #   - API:          8002
 #   - MySQL:        3308
 #   - Redis:        6379

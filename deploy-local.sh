@@ -6,7 +6,7 @@
 #
 # Usage:
 #   ./deploy-local.sh              # Deploy all projects
-#   ./deploy-local.sh ceramic      # Deploy only Ceramic app
+#   ./deploy-local.sh mercai      # Deploy only Mercai app
 #   ./deploy-local.sh stock        # Deploy only Stock projects
 #   ./deploy-local.sh math         # Deploy only Mathematic project
 #   ./deploy-local.sh --setup-db   # Setup MySQL databases first
@@ -31,7 +31,7 @@ NC='\033[0m' # No Color
 
 # Project directories
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CERAMIC_DIR="$BASE_DIR/ceramic_mobile_app/back_end"
+MERCAI_DIR="$BASE_DIR/mercai/back_end"
 STOCK_MICRO_DIR="$BASE_DIR/stockpredict/stock_microservices"
 MATH_DIR="$BASE_DIR/mathematic-mobile/backend"
 
@@ -89,12 +89,12 @@ check_prerequisites() {
 setup_env_files() {
     print_section "Setting up environment files..."
 
-    # Ceramic
-    if [ -f "$CERAMIC_DIR/.env.local" ] && [ ! -f "$CERAMIC_DIR/.env" ]; then
-        cp "$CERAMIC_DIR/.env.local" "$CERAMIC_DIR/.env"
-        echo -e "${GREEN}✓ Created $CERAMIC_DIR/.env${NC}"
-    elif [ -f "$CERAMIC_DIR/.env" ]; then
-        echo -e "${YELLOW}⚡ $CERAMIC_DIR/.env already exists${NC}"
+    # Mercai
+    if [ -f "$MERCAI_DIR/.env.local" ] && [ ! -f "$MERCAI_DIR/.env" ]; then
+        cp "$MERCAI_DIR/.env.local" "$MERCAI_DIR/.env"
+        echo -e "${GREEN}✓ Created $MERCAI_DIR/.env${NC}"
+    elif [ -f "$MERCAI_DIR/.env" ]; then
+        echo -e "${YELLOW}⚡ $MERCAI_DIR/.env already exists${NC}"
     fi
 
     # Stock Microservices
@@ -114,10 +114,10 @@ setup_env_files() {
     fi
 }
 
-# Deploy Ceramic Mobile App
-deploy_ceramic() {
-    print_section "Deploying Ceramic Mobile App..."
-    cd "$CERAMIC_DIR"
+# Deploy Mercai
+deploy_mercai() {
+    print_section "Deploying Mercai..."
+    cd "$MERCAI_DIR"
 
     if [ -f "docker-compose.local.yml" ]; then
         $DOCKER_COMPOSE -f docker-compose.local.yml up -d --build
@@ -125,7 +125,7 @@ deploy_ceramic() {
         $DOCKER_COMPOSE up -d --build
     fi
 
-    echo -e "${GREEN}✓ Ceramic Mobile App deployed on port 8002${NC}"
+    echo -e "${GREEN}✓ Mercai deployed on port 8002${NC}"
 }
 
 # Deploy Stock Microservices
@@ -173,8 +173,8 @@ stop_all() {
         DOCKER_COMPOSE="docker-compose"
     fi
 
-    print_section "Stopping Ceramic Mobile App..."
-    cd "$CERAMIC_DIR" && $DOCKER_COMPOSE down 2>/dev/null || true
+    print_section "Stopping Mercai..."
+    cd "$MERCAI_DIR" && $DOCKER_COMPOSE down 2>/dev/null || true
 
     print_section "Stopping Stock Microservices..."
     cd "$STOCK_MICRO_DIR" && $DOCKER_COMPOSE down 2>/dev/null || true
@@ -197,8 +197,8 @@ show_status() {
     fi
 
     echo ""
-    echo -e "${YELLOW}Ceramic Mobile App:${NC}"
-    cd "$CERAMIC_DIR" && $DOCKER_COMPOSE ps 2>/dev/null || echo "  Not running"
+    echo -e "${YELLOW}Mercai:${NC}"
+    cd "$MERCAI_DIR" && $DOCKER_COMPOSE ps 2>/dev/null || echo "  Not running"
 
     echo ""
     echo -e "${YELLOW}Stock Microservices:${NC}"
@@ -214,7 +214,7 @@ print_usage() {
     echo "Usage: $0 [OPTIONS] [PROJECT]"
     echo ""
     echo "Projects:"
-    echo "  ceramic     Deploy only Ceramic Mobile App"
+    echo "  mercai     Deploy only Mercai"
     echo "  stock       Deploy only Stock Microservices"
     echo "  math        Deploy only Mathematic Mobile"
     echo "  all         Deploy all projects (default)"
@@ -233,7 +233,7 @@ print_summary() {
     echo ""
     echo -e "${YELLOW}Services Deployed:${NC}"
     echo ""
-    echo -e "${CYAN}Ceramic Mobile App:${NC}"
+    echo -e "${CYAN}Mercai:${NC}"
     echo "  - API: http://localhost:8002"
     echo ""
     echo -e "${CYAN}Stock Microservices:${NC}"
@@ -279,8 +279,8 @@ main() {
                 print_usage
                 exit 0
                 ;;
-            ceramic)
-                PROJECT="ceramic"
+            mercai)
+                PROJECT="mercai"
                 ;;
             stock)
                 PROJECT="stock"
@@ -313,8 +313,8 @@ main() {
 
     # Deploy projects
     case $PROJECT in
-        ceramic)
-            deploy_ceramic
+        mercai)
+            deploy_mercai
             ;;
         stock)
             deploy_stock_microservices
@@ -323,7 +323,7 @@ main() {
             deploy_math
             ;;
         all)
-            deploy_ceramic
+            deploy_mercai
             deploy_stock_microservices
             deploy_math
             ;;

@@ -6,7 +6,7 @@
 # This override file provides local development settings:
 #   - Exposes additional ports for debugging
 #   - Development environment variables
-#   - Port allocation: Ceramic=8002, Math=8003, Stock=8004
+#   - Port allocation: Mercai=8002, Math=8003, Stock=8004
 # =============================================================================
 
 services:
@@ -23,4 +23,4 @@ services:
   # =============================================================================
   redis:
     ports:
-      - "6382:6379"  # Use 6382 to avoid conflict with Ceramic (6379) and Math (6380)
+      - "6382:6379"  # Use 6382 to avoid conflict with Mercai (6379) and Math (6380)

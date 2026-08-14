@@ -1,0 +1,236 @@
+# =============================================================================
+# Mercai - Monitoring Stack
+# =============================================================================
+# This file extends docker-compose.microservices.yml with monitoring services
+#
+# Usage:
+#   docker-compose -f docker-compose.microservices.yml -f docker-compose.monitoring.yml up -d
+#
+# Access:
+#   - Prometheus: http://localhost:9090
+#   - Grafana: http://localhost:3000 (admin/admin)
+#   - Alertmanager: http://localhost:9093
+# =============================================================================
+
+services:
+  # ===========================================
+  # PROMETHEUS - Metrics Collection
+  # ===========================================
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: mercai_prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - mercai_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.localhost`)"
+      - "traefik.http.routers.prometheus.entrypoints=web"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  # ===========================================
+  # GRAFANA - Visualization
+  # ===========================================
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: mercai_grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - mercai_network
+    depends_on:
+      - prometheus
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.localhost`)"
+      - "traefik.http.routers.grafana.entrypoints=web"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  # ===========================================
+  # ALERTMANAGER - Alert Management
+  # ===========================================
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: mercai_alertmanager
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - "9093:9093"
+    networks:
+      - mercai_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.alertmanager.rule=Host(`alertmanager.localhost`)"
+      - "traefik.http.routers.alertmanager.entrypoints=web"
+      - "traefik.http.services.alertmanager.loadbalancer.server.port=9093"
+
+  # ===========================================
+  # NODE EXPORTER - Host Metrics
+  # ===========================================
+  node-exporter:
+    image: prom/node-exporter:v1.6.1
+    container_name: mercai_node_exporter
+    restart: unless-stopped
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - mercai_network
+
+  # ===========================================
+  # cADVISOR - Container Metrics
+  # ===========================================
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: mercai_cadvisor
+    restart: unless-stopped
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - mercai_network
+    ports:
+      - "8081:8080"
+
+  # ===========================================
+  # REDIS EXPORTER - Redis Metrics
+  # ===========================================
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.54.0
+    container_name: mercai_redis_exporter
+    restart: unless-stopped
+    environment:
+      - REDIS_ADDR=redis:6379
+    networks:
+      - mercai_network
+    depends_on:
+      - redis
+
+  # ===========================================
+  # MYSQL EXPORTER - MySQL Metrics
+  # ===========================================
+  mysql-exporter:
+    image: prom/mysqld-exporter:v0.15.0
+    container_name: mercai_mysql_exporter
+    restart: unless-stopped
+    environment:
+      - DATA_SOURCE_NAME=${DB_USER:-mercai_user}:${DB_PASSWORD:-Mysql_2025}@(db:3306)/${DB_NAME:-mercai}
+    command:
+      - '--collect.info_schema.tables'
+      - '--collect.info_schema.innodb_metrics'
+      - '--collect.global_status'
+      - '--collect.global_variables'
+    networks:
+      - mercai_network
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ===========================================
+  # BLACKBOX EXPORTER - Endpoint Probing
+  # ===========================================
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.24.0
+    container_name: mercai_blackbox_exporter
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/blackbox/blackbox.yml'
+    volumes:
+      - ./monitoring/blackbox/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    networks:
+      - mercai_network
+
+  # ===========================================
+  # LOKI - Log Aggregation (Optional)
+  # ===========================================
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: mercai_loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - mercai_network
+
+  # ===========================================
+  # PROMTAIL - Log Collection (Optional)
+  # ===========================================
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: mercai_promtail
+    restart: unless-stopped
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./monitoring/promtail/promtail.yml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - mercai_network
+    depends_on:
+      - loki
+
+# ===========================================
+# VOLUMES
+# ===========================================
+volumes:
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  alertmanager_data:
+    driver: local
+  loki_data:
+    driver: local
+
+# ===========================================
+# NETWORKS - Use existing network from microservices
+# ===========================================
+networks:
+  mercai_network:
+    external: true
+    name: back_end_mercai_network

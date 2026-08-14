@@ -1,5 +1,5 @@
 #!/bin/bash
-# Install Unified Nginx Configuration for Ceramic Mobile App
+# Install Unified Nginx Configuration for Mercai
 # This script will install nginx-all-projects.conf and reload nginx
 
 set -e
@@ -43,12 +43,12 @@ systemctl reload nginx
 echo ""
 echo "=== Installation Complete! ==="
 echo ""
-echo "Your frontend can now access Ceramic API at:"
-echo "  - http://localhost/ceramic/api/v1/auth/login"
-echo "  - http://localhost/ceramic/api/v1/products"
-echo "  - http://localhost/ceramic/api/v1/orders"
-echo "  - http://localhost/ceramic/api/v1/chat"
+echo "Your frontend can now access Mercai API at:"
+echo "  - http://localhost/mercai/api/v1/auth/login"
+echo "  - http://localhost/mercai/api/v1/products"
+echo "  - http://localhost/mercai/api/v1/orders"
+echo "  - http://localhost/mercai/api/v1/chat"
 echo ""
 echo "Test with:"
-echo "  curl http://localhost/ceramic/health"
-echo "  curl http://localhost/ceramic/api/v1/products"
+echo "  curl http://localhost/mercai/health"
+echo "  curl http://localhost/mercai/api/v1/products"

@@ -3,7 +3,7 @@
 # Stock Microservices - Deployment Script
 # =============================================================================
 # Deploys Stock Helper microservices with Traefik routing
-# Designed to coexist with Ceramic (port 8002) and Math (port 8003) projects
+# Designed to coexist with Mercai (port 8002) and Math (port 8003) projects
 #
 # Usage: ./scripts/deploy.sh [options]
 #
@@ -306,7 +306,7 @@ check_port $GRAFANA_PORT "Grafana" || true
 
 # Show existing projects' ports
 echo -e "\n${BLUE}Existing project ports:${NC}"
-echo -e "  ${CYAN}Ceramic:${NC} 8002 (Traefik), 8080 (Dashboard), 3308 (MySQL)"
+echo -e "  ${CYAN}Mercai:${NC} 8002 (Traefik), 8080 (Dashboard), 3308 (MySQL)"
 echo -e "  ${CYAN}Math:${NC} 8003 (Traefik), 8083 (Dashboard), 3310 (MySQL)"
 echo -e "  ${CYAN}Stock:${NC} $TRAEFIK_PORT (Traefik), $TRAEFIK_DASHBOARD_PORT (Dashboard)"
 
@@ -444,5 +444,5 @@ echo -e "  ${GREEN}Logs:${NC}      $SCRIPT_DIR/deploy.sh --logs [service]"
 echo -e "  ${GREEN}Stop:${NC}      $SCRIPT_DIR/deploy.sh --stop"
 echo ""
 echo -e "${CYAN}Port Allocation Summary:${NC}"
-echo -e "  ${GREEN}Ceramic:${NC} 8002 | ${GREEN}Math:${NC} 8003 | ${GREEN}Stock:${NC} $TRAEFIK_PORT"
+echo -e "  ${GREEN}Mercai:${NC} 8002 | ${GREEN}Math:${NC} 8003 | ${GREEN}Stock:${NC} $TRAEFIK_PORT"
 echo ""

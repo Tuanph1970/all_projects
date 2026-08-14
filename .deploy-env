@@ -5,13 +5,13 @@
 # Database Root Password
 MYSQL_ROOT_PASSWORD=Mysql_2025
 
-# Ceramic Project Configuration
-CERAMIC_API_PORT=8002
-CERAMIC_DB_PORT=3308
-CERAMIC_DB_NAME=ceramic_db
-CERAMIC_DB_USER=ceramic_user
-CERAMIC_DB_PASSWORD=Mysql_2025
-CERAMIC_REDIS_PORT=6379
+# Mercai Project Configuration
+MERCAI_API_PORT=8002
+MERCAI_DB_PORT=3308
+MERCAI_DB_NAME=mercai_db
+MERCAI_DB_USER=mercai_user
+MERCAI_DB_PASSWORD=Mysql_2025
+MERCAI_REDIS_PORT=6379
 
 # Stock Predict Project Configuration
 STOCK_API_PORT=8080

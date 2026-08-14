@@ -4,13 +4,13 @@
 # Multi-Project Deployment Script
 # ============================================================================
 # This script manages the deployment of multiple backend projects:
-#   - Ceramic Mobile App Backend
+#   - Mercai Backend
 #   - Stock Predict Backend
 #   - Mathematic Mobile Backend
 #
 # Usage: ./deploy-projects.sh [command] [project1] [project2] ... [options]
 #   Commands: start, stop, restart, status, logs
-#   Projects: ceramic, stock, math, all
+#   Projects: mercai, stock, math, all
 #   Options: --local, --production, --build, --no-cache
 # ============================================================================
 
@@ -29,7 +29,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$SCRIPT_DIR"
 
 # Project directories (relative to BASE_DIR)
-CERAMIC_DIR="$BASE_DIR/ceramic_mobile_app/back_end"
+MERCAI_DIR="$BASE_DIR/mercai/back_end"
 STOCK_DIR="$BASE_DIR/stockpredict/stock_microservices"
 MATH_DIR="$BASE_DIR/mathematic-mobile/backend"
 
@@ -132,13 +132,13 @@ create_env_file() {
 # Database Root Password
 MYSQL_ROOT_PASSWORD=Mysql_2025
 
-# Ceramic Project Configuration
-CERAMIC_API_PORT=8002
-CERAMIC_DB_PORT=3308
-CERAMIC_DB_NAME=ceramic_db
-CERAMIC_DB_USER=ceramic_user
-CERAMIC_DB_PASSWORD=Mysql_2025
-CERAMIC_REDIS_PORT=6379
+# Mercai Project Configuration
+MERCAI_API_PORT=8002
+MERCAI_DB_PORT=3308
+MERCAI_DB_NAME=mercai_db
+MERCAI_DB_USER=mercai_user
+MERCAI_DB_PASSWORD=Mysql_2025
+MERCAI_REDIS_PORT=6379
 
 # Stock Predict Project Configuration
 STOCK_API_PORT=8080
@@ -192,9 +192,9 @@ start_project() {
     local build_args=""
 
     case $project in
-        ceramic)
-            project_dir="$CERAMIC_DIR"
-            project_name="ceramic"
+        mercai)
+            project_dir="$MERCAI_DIR"
+            project_name="mercai"
             ;;
         stock)
             project_dir="$STOCK_DIR"
@@ -235,7 +235,7 @@ start_project() {
             fi
             ;;
         *)
-            # Ceramic and Math use standard compose
+            # Mercai and Math use standard compose
             if [ -f "docker-compose.yml" ]; then
                 $COMPOSE_CMD -f docker-compose.yml -p "$project_name" up -d $build_args
             fi
@@ -252,9 +252,9 @@ stop_project() {
     local project_name=""
 
     case $project in
-        ceramic)
-            project_dir="$CERAMIC_DIR"
-            project_name="ceramic"
+        mercai)
+            project_dir="$MERCAI_DIR"
+            project_name="mercai"
             ;;
         stock)
             project_dir="$STOCK_DIR"
@@ -304,8 +304,8 @@ show_project_status() {
     local project_name=""
     
     case $project in
-        ceramic)
-            project_name="ceramic"
+        mercai)
+            project_name="mercai"
             ;;
         stock)
             project_name="stockpredict"
@@ -329,8 +329,8 @@ show_project_logs() {
     local project_name=""
     
     case $project in
-        ceramic)
-            project_name="ceramic"
+        mercai)
+            project_name="mercai"
             ;;
         stock)
             project_name="stockpredict"
@@ -373,9 +373,9 @@ parse_args() {
                 CACHE_FLAG="--no-cache"
                 ;;
             all)
-                PROJECTS=("ceramic" "stock" "math")
+                PROJECTS=("mercai" "stock" "math")
                 ;;
-            ceramic|stock|math)
+            mercai|stock|math)
                 PROJECTS+=("$1")
                 ;;
             *)
@@ -389,7 +389,7 @@ parse_args() {
     
     # Default to all projects if none specified
     if [ ${#PROJECTS[@]} -eq 0 ]; then
-        PROJECTS=("ceramic" "stock" "math")
+        PROJECTS=("mercai" "stock" "math")
     fi
 }
 
@@ -408,7 +408,7 @@ Commands:
   logs      Show logs for the specified projects
 
 Projects:
-  ceramic   Ceramic Mobile App Backend
+  mercai   Mercai Backend
   stock     Stock Predict Backend
   math      Mathematic Mobile Backend
   all       All projects
@@ -421,11 +421,11 @@ Options:
 
 Examples:
   $0 start all              # Start all projects
-  $0 start ceramic stock    # Start ceramic and stock projects
+  $0 start mercai stock    # Start mercai and stock projects
   $0 stop math             # Stop math project
   $0 restart all --build   # Rebuild and restart all projects
   $0 status                # Show status of all projects
-  $0 logs ceramic          # Show logs for ceramic project
+  $0 logs mercai          # Show logs for mercai project
 EOF
 }
 

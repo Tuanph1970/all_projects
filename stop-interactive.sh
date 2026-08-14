@@ -4,7 +4,7 @@
 # Interactive Multi-Project Stop Script
 # ============================================================================
 # This script provides an interactive dialog-based interface to stop:
-#   - Ceramic Mobile App Backend
+#   - Mercai Backend
 #   - Stock Predict Backend
 #   - Mathematic Mobile Backend
 #
@@ -27,7 +27,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$SCRIPT_DIR"
 
 # Project directories
-CERAMIC_DIR="$BASE_DIR/ceramic_mobile_app/back_end"
+MERCAI_DIR="$BASE_DIR/mercai/back_end"
 STOCK_DIR="$BASE_DIR/stockpredict/stock_microservices"
 MATH_DIR="$BASE_DIR/mathematic-mobile/backend"
 
@@ -110,10 +110,10 @@ stop_project() {
     local project_name=""
     
     case $project in
-        ceramic)
-            project_dir="$CERAMIC_DIR"
+        mercai)
+            project_dir="$MERCAI_DIR"
             compose_file="docker-compose.yml"
-            project_name="ceramic"
+            project_name="mercai"
             ;;
         stock)
             project_dir="$STOCK_DIR"
@@ -148,8 +148,8 @@ show_stop_summary() {
     print_color $MAGENTA "Projects to be stopped:"
     for project in "${SELECTED_PROJECTS[@]}"; do
         case $project in
-            ceramic)
-                print_color $RED "  ✓ Ceramic Mobile App Backend"
+            mercai)
+                print_color $RED "  ✓ Mercai Backend"
                 ;;
             stock)
                 print_color $RED "  ✓ Stock Predict Backend"
@@ -188,13 +188,13 @@ main() {
     print_color $CYAN "Currently running services:"
     echo
     
-    # Ceramic
-    if is_project_running "ceramic"; then
+    # Mercai
+    if is_project_running "mercai"; then
         has_running=true
-        print_color $GREEN "  • Ceramic Mobile App Backend (Port 8002)"
-        print_color $YELLOW "    Containers: $(get_project_containers ceramic | tr '\n' ', ' | sed 's/,$//')"
+        print_color $GREEN "  • Mercai Backend (Port 8002)"
+        print_color $YELLOW "    Containers: $(get_project_containers mercai | tr '\n' ', ' | sed 's/,$//')"
     else
-        print_color $RED "  ○ Ceramic Mobile App Backend - Not Running"
+        print_color $RED "  ○ Mercai Backend - Not Running"
     fi
     
     # Stock
@@ -225,15 +225,15 @@ main() {
     print_header "Select Services to Stop"
     
     # Ask about each running project
-    # Ceramic
-    if is_project_running "ceramic"; then
-        print_box "Ceramic Mobile App Backend" \
+    # Mercai
+    if is_project_running "mercai"; then
+        print_box "Mercai Backend" \
                  "Running on port 8002"
-        if ask_yes_no "Do you want to stop Ceramic Mobile App Backend?" "y"; then
-            SELECTED_PROJECTS+=("ceramic")
-            print_color $RED "✓ Ceramic Mobile App Backend will be stopped"
+        if ask_yes_no "Do you want to stop Mercai Backend?" "y"; then
+            SELECTED_PROJECTS+=("mercai")
+            print_color $RED "✓ Mercai Backend will be stopped"
         else
-            print_color $YELLOW "○ Keeping Ceramic Mobile App Backend running"
+            print_color $YELLOW "○ Keeping Mercai Backend running"
         fi
         echo
     fi

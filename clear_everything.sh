@@ -30,9 +30,9 @@ fi
 
 # Ports used by the deployment projects
 DEPLOYMENT_PORTS=(
-    # Ceramic Mobile App
+    # Mercai
     8002    # API Gateway
-    8080    # Traefik Dashboard (Ceramic)
+    8080    # Traefik Dashboard (Mercai)
     3308    # MySQL
     6379    # Redis
 
@@ -122,7 +122,7 @@ remove_all_containers() {
 remove_compose_stacks() {
     print_header "Removing Docker Compose Stacks"
 
-    local projects=("ceramic" "stockpredict" "mathematic" "stock_microservices")
+    local projects=("mercai" "stockpredict" "mathematic" "stock_microservices")
 
     # Also explicitly stop Ollama container if running
     if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q "stock_ollama"; then
@@ -394,7 +394,7 @@ main() {
 
     print_color $MAGENTA "This script will:"
     print_color $WHITE "  1. Stop and remove all Docker containers"
-    print_color $WHITE "  2. Remove Docker Compose stacks (ceramic, stock, ollama)"
+    print_color $WHITE "  2. Remove Docker Compose stacks (mercai, stock, ollama)"
     print_color $WHITE "  3. Remove Docker networks"
     print_color $WHITE "  4. Optionally remove Docker volumes (DATA LOSS!)"
     print_color $WHITE "  5. Remove dangling Docker images"

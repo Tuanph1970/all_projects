@@ -73,8 +73,8 @@ main() {
     
     # Test API endpoints
     print_color $YELLOW "API Services:"
-    test_endpoint "Ceramic API" "http://localhost:8002/health" || true
-    test_endpoint "Ceramic Docs" "http://localhost:8002/docs" || true
+    test_endpoint "Mercai API" "http://localhost:8002/health" || true
+    test_endpoint "Mercai Docs" "http://localhost:8002/docs" || true
     test_endpoint "Stock API" "http://localhost:8080/stock/api/" || true
     test_endpoint "Math API" "http://localhost:8003/health" || true
     
@@ -82,7 +82,7 @@ main() {
     
     # Test database ports
     print_color $YELLOW "Database Services:"
-    check_port "Ceramic MySQL" 3308 || true
+    check_port "Mercai MySQL" 3308 || true
     check_port "Stock MySQL" 3309 || true
     check_port "Math MySQL" 3310 || true
     
@@ -90,14 +90,14 @@ main() {
     
     # Test Redis ports
     print_color $YELLOW "Cache Services:"
-    check_port "Ceramic Redis" 6379 || true
+    check_port "Mercai Redis" 6379 || true
     check_port "Math Redis" 6380 || true
     
     echo
     
     # Docker container status
     print_header "Docker Container Status"
-    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(ceramic|stock|math)" || print_color $YELLOW "No project containers running"
+    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(mercai|stock|math)" || print_color $YELLOW "No project containers running"
     
     echo
     
@@ -113,7 +113,7 @@ main() {
     print_color $WHITE "   ./deploy-projects.sh start all"
     echo
     print_color $YELLOW "3. Deploy specific projects:"
-    print_color $WHITE "   ./deploy-projects.sh start ceramic stock"
+    print_color $WHITE "   ./deploy-projects.sh start mercai stock"
     echo
     
     print_color $CYAN "Environment configuration file:"

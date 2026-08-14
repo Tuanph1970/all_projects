@@ -1,6 +1,6 @@
 # Complete Deployment Guide - All Projects
 
-Deploy all projects (Ceramic, Stock, Mathematic) on a fresh Ubuntu machine using Docker only.
+Deploy all projects (Mercai, Stock, Mathematic) on a fresh Ubuntu machine using Docker only.
 
 ---
 
@@ -116,7 +116,7 @@ This repository contains three backend API projects:
 
 | Project | Description | API Port | Database Port | Technologies |
 |---------|-------------|----------|---------------|--------------|
-| **Ceramic Mobile App** | Marketplace API | 8002 | 3308 (MySQL) | Python/FastAPI, MySQL, Redis |
+| **Mercai** | Marketplace API | 8002 | 3308 (MySQL) | Python/FastAPI, MySQL, Redis |
 | **Stock Predict** | Stock analysis API | 8080 | 3309 (MySQL) | Python/Django, MySQL |
 | **Mathematic Mobile** | Math solver API | 8003 | 3310 (MySQL) | C#/.NET, MySQL, Redis |
 
@@ -128,7 +128,7 @@ This repository contains three backend API projects:
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐         │
-│  │  Ceramic API    │  │   Stock API     │  │   Math API      │         │
+│  │  Mercai API    │  │   Stock API     │  │   Math API      │         │
 │  │     :8002       │  │     :8080       │  │     :8003       │         │
 │  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘         │
 │           │                    │                    │                   │
@@ -165,12 +165,12 @@ Default `.deploy-env` contents:
 # MySQL Configuration
 MYSQL_ROOT_PASSWORD=Mysql_2025
 
-# Ceramic Project
-CERAMIC_API_PORT=8002
-CERAMIC_DB_PORT=3308
-CERAMIC_DB_NAME=ceramic_db
-CERAMIC_DB_USER=ceramic_user
-CERAMIC_DB_PASSWORD=Mysql_2025
+# Mercai Project
+MERCAI_API_PORT=8002
+MERCAI_DB_PORT=3308
+MERCAI_DB_NAME=mercai_db
+MERCAI_DB_USER=mercai_user
+MERCAI_DB_PASSWORD=Mysql_2025
 
 # Stock Project
 STOCK_API_PORT=8080
@@ -189,10 +189,10 @@ MATH_DB_PASSWORD=Mysql_2025
 
 ### Step 2: Setup Project-Specific Environment Files
 
-#### Ceramic Project
+#### Mercai Project
 
 ```bash
-cd ~/all_projects/ceramic_mobile_app/back_end
+cd ~/all_projects/mercai/back_end
 cp .env.example .env
 ```
 
@@ -283,16 +283,16 @@ cd ~/all_projects
 ./deploy-projects.sh start all --build
 
 # Deploy specific projects
-./deploy-projects.sh start ceramic stock
+./deploy-projects.sh start mercai stock
 ./deploy-projects.sh start math
 ```
 
 ### Method 3: Manual Deployment (Per Project)
 
-#### Deploy Ceramic Project
+#### Deploy Mercai Project
 
 ```bash
-cd ~/all_projects/ceramic_mobile_app/back_end
+cd ~/all_projects/mercai/back_end
 docker compose --env-file .env up -d --build
 ```
 
@@ -325,7 +325,7 @@ Expected output shows all containers with "Up" status.
 ### Test API Endpoints
 
 ```bash
-# Ceramic API
+# Mercai API
 curl http://localhost:8002/health
 curl http://localhost:8002/docs    # Swagger UI
 
@@ -341,8 +341,8 @@ curl http://localhost:8003/health
 ### Check Database Connections
 
 ```bash
-# Ceramic MySQL
-docker exec -it ceramic_mysql mysql -u root -pMysql_2025 -e "SHOW DATABASES;"
+# Mercai MySQL
+docker exec -it mercai_mysql mysql -u root -pMysql_2025 -e "SHOW DATABASES;"
 
 # Stock MySQL
 docker exec -it stock_mysql mysql -u root -pMysql_2025 -e "SHOW DATABASES;"
@@ -354,8 +354,8 @@ docker exec -it math_mysql mysql -u root -pMysql_2025 -e "SHOW DATABASES;"
 ### Check Redis
 
 ```bash
-# Ceramic Redis
-docker exec -it ceramic_redis redis-cli ping
+# Mercai Redis
+docker exec -it mercai_redis redis-cli ping
 # Expected: PONG
 
 # Mathematic Redis
@@ -371,7 +371,7 @@ docker exec -it math_redis redis-cli ping
 
 | Service | Port | URL | Description |
 |---------|------|-----|-------------|
-| Ceramic API | 8002 | http://localhost:8002 | Marketplace API |
+| Mercai API | 8002 | http://localhost:8002 | Marketplace API |
 | Stock API | 8080 | http://localhost:8080 | Stock prediction API |
 | Math API | 8003 | http://localhost:8003 | Math solver API |
 
@@ -379,7 +379,7 @@ docker exec -it math_redis redis-cli ping
 
 | Service | URL |
 |---------|-----|
-| Ceramic Swagger | http://localhost:8002/docs |
+| Mercai Swagger | http://localhost:8002/docs |
 | Stock API | http://localhost:8080/stock/api/ |
 | Math Swagger | http://localhost:8003/swagger |
 
@@ -387,7 +387,7 @@ docker exec -it math_redis redis-cli ping
 
 | Service | Port | Credentials |
 |---------|------|-------------|
-| Ceramic MySQL | 3308 | ceramic_user / Mysql_2025 |
+| Mercai MySQL | 3308 | mercai_user / Mysql_2025 |
 | Stock MySQL | 3309 | stock_user / Mysql_2025 |
 | Math MySQL | 3310 | mathematic_user / Mysql_2025 |
 
@@ -395,7 +395,7 @@ docker exec -it math_redis redis-cli ping
 
 | Service | Port |
 |---------|------|
-| Ceramic Redis | 6379 |
+| Mercai Redis | 6379 |
 | Math Redis | 6380 |
 
 ### Additional Services (Mathematic)
@@ -424,12 +424,12 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
 ```bash
 # All logs for a project
-./deploy-projects.sh logs ceramic
+./deploy-projects.sh logs mercai
 ./deploy-projects.sh logs stock
 ./deploy-projects.sh logs math
 
 # Specific container logs
-docker logs ceramic_api --tail 100 -f
+docker logs mercai_api --tail 100 -f
 docker logs stock_api --tail 100 -f
 docker logs math_api --tail 100 -f
 ```
@@ -444,14 +444,14 @@ docker logs math_api --tail 100 -f
 ./deploy-projects.sh stop all
 
 # Stop specific project
-./deploy-projects.sh stop ceramic
+./deploy-projects.sh stop mercai
 ```
 
 ### Restart Services
 
 ```bash
 ./deploy-projects.sh restart all
-./deploy-projects.sh restart ceramic
+./deploy-projects.sh restart mercai
 ```
 
 ### Rebuild and Restart
@@ -483,8 +483,8 @@ sudo lsof -i :8002
 docker logs CONTAINER_NAME
 
 # Examples
-docker logs ceramic_api
-docker logs ceramic_mysql
+docker logs mercai_api
+docker logs mercai_mysql
 
 # Common causes:
 # - Database not ready yet (wait and retry)
@@ -499,22 +499,22 @@ docker logs ceramic_mysql
 docker ps | grep mysql
 
 # Check MySQL logs
-docker logs ceramic_mysql
+docker logs mercai_mysql
 docker logs stock_mysql
 docker logs math_mysql
 
 # Test connection from container
-docker exec -it ceramic_api python -c "from shared.database import engine; print('Connected!')"
+docker exec -it mercai_api python -c "from shared.database import engine; print('Connected!')"
 ```
 
 ### Issue 4: Redis Connection Failed
 
 ```bash
 # Test Redis
-docker exec -it ceramic_redis redis-cli ping
+docker exec -it mercai_redis redis-cli ping
 
 # Check Redis logs
-docker logs ceramic_redis
+docker logs mercai_redis
 ```
 
 ### Issue 5: Docker Network Issues
@@ -578,7 +578,7 @@ docker system prune -a --volumes
 
 ```bash
 # Backup all databases
-docker exec ceramic_mysql mysqldump -u root -pMysql_2025 ceramic_db > ceramic_backup_$(date +%Y%m%d).sql
+docker exec mercai_mysql mysqldump -u root -pMysql_2025 mercai_db > mercai_backup_$(date +%Y%m%d).sql
 docker exec stock_mysql mysqldump -u root -pMysql_2025 stockpredict_db > stock_backup_$(date +%Y%m%d).sql
 docker exec math_mysql mysqldump -u root -pMysql_2025 mathematic_db > math_backup_$(date +%Y%m%d).sql
 ```
@@ -587,7 +587,7 @@ docker exec math_mysql mysqldump -u root -pMysql_2025 mathematic_db > math_backu
 
 ```bash
 # Restore database
-cat ceramic_backup_20250101.sql | docker exec -i ceramic_mysql mysql -u root -pMysql_2025 ceramic_db
+cat mercai_backup_20250101.sql | docker exec -i mercai_mysql mysql -u root -pMysql_2025 mercai_db
 ```
 
 ### Update Code and Redeploy
@@ -639,7 +639,7 @@ Edit `.deploy-env` and all project `.env` files:
 ```bash
 # Use strong passwords
 MYSQL_ROOT_PASSWORD=YourStrongPassword123!
-CERAMIC_DB_PASSWORD=AnotherStrongPassword!
+MERCAI_DB_PASSWORD=AnotherStrongPassword!
 # etc.
 ```
 
@@ -650,7 +650,7 @@ CERAMIC_DB_PASSWORD=AnotherStrongPassword!
 sudo ufw allow 22/tcp      # SSH
 sudo ufw allow 80/tcp      # HTTP
 sudo ufw allow 443/tcp     # HTTPS
-sudo ufw allow 8002/tcp    # Ceramic API
+sudo ufw allow 8002/tcp    # Mercai API
 sudo ufw allow 8080/tcp    # Stock API
 sudo ufw allow 8003/tcp    # Math API
 sudo ufw enable
@@ -672,7 +672,7 @@ sudo nginx -t && sudo systemctl reload nginx
 ```
 
 This exposes all services under a single domain:
-- `/ceramic/*` → Ceramic API
+- `/mercai/*` → Mercai API
 - `/stock/*` → Stock API
 - `/math/*` → Math API
 
@@ -705,7 +705,7 @@ sudo certbot --nginx -d your-domain.com
 ./deploy-projects.sh status
 
 # View logs
-./deploy-projects.sh logs [ceramic|stock|math]
+./deploy-projects.sh logs [mercai|stock|math]
 
 # Restart with rebuild
 ./deploy-projects.sh restart all --build
@@ -716,7 +716,7 @@ sudo certbot --nginx -d your-domain.com
 | Service | Username | Password |
 |---------|----------|----------|
 | All MySQL (root) | root | Mysql_2025 |
-| Ceramic DB | ceramic_user | Mysql_2025 |
+| Mercai DB | mercai_user | Mysql_2025 |
 | Stock DB | stock_user | Mysql_2025 |
 | Mathematic DB | mathematic_user | Mysql_2025 |
 | RabbitMQ | admin | admin123 |
@@ -725,7 +725,7 @@ sudo certbot --nginx -d your-domain.com
 
 | Service | Health URL |
 |---------|------------|
-| Ceramic | http://localhost:8002/health |
+| Mercai | http://localhost:8002/health |
 | Stock | http://localhost:8080/health |
 | Mathematic | http://localhost:8003/health |
 

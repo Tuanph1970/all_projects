@@ -1,0 +1,348 @@
+# Microservices Architecture for Mercai
+# Single Server Deployment with Traefik API Gateway
+
+services:
+  # ===========================================
+  # INFRASTRUCTURE SERVICES
+  # ===========================================
+
+  # Traefik API Gateway
+  traefik:
+    image: traefik:v2.11
+    container_name: mercai_traefik
+    restart: unless-stopped
+    command:
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=backend_mercai_network"
+      - "--providers.docker.constraints=Label(`traefik.project`,`mercai`)"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--log.level=INFO"
+      - "--accesslog=true"
+    ports:
+      - "8002:80"    # Mercai API - matches nginx mercai_api upstream
+      - "8443:443"   # HTTPS (nginx handles external :443)
+      - "8080:8080"  # Traefik Dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./traefik/acme:/etc/traefik/acme
+    networks:
+      - mercai_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mercai-dashboard.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.mercai-dashboard.service=api@internal"
+
+  # Redis Cache Service
+  redis:
+    image: redis:7-alpine
+    container_name: mercai_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - mercai_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mercai_network
+
+  # MySQL Database Service
+  db:
+    image: mysql:8.0
+    container_name: mercai_mysql
+    restart: unless-stopped
+    ports:
+      - "${MERCAI_DB_PORT:-3308}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-Mysql_2025}
+      MYSQL_DATABASE: ${DB_NAME:-mercai}
+      MYSQL_USER: ${DB_USER:-mercai_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-Mysql_2025}
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max_connections=500
+    volumes:
+      - mercai_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-Mysql_2025}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    networks:
+      - mercai_network
+
+  # ===========================================
+  # MICROSERVICES
+  # ===========================================
+
+  # Auth Service - Authentication & User Management
+  auth-service:
+    build:
+      context: .
+      dockerfile: services/auth/Dockerfile
+    container_name: mercai_auth_service
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Linux support for host MySQL
+    environment:
+      - SERVICE_NAME=auth-service
+      - SERVICE_PORT=8001
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME:-mercai}
+      - DB_USER=${DB_USER:-mercai_user}
+      - DB_PASSWORD=${DB_PASSWORD:-Mysql_2025}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      # SMTP Email Configuration
+      - SMTP_SERVER=${SMTP_SERVER:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-noreply@mercai.com}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-Mercai}
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - ./services/auth/app:/app/app
+      - ./shared:/app/shared
+    networks:
+      - mercai_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=mercai"
+      - "traefik.http.routers.mercai-auth.rule=PathPrefix(`/api/v1/auth`) || PathPrefix(`/api/v1/users`)"
+      - "traefik.http.routers.mercai-auth.entrypoints=web"
+      - "traefik.http.services.mercai-auth.loadbalancer.server.port=8001"
+      - "traefik.http.routers.mercai-auth.middlewares=ratelimit@file"
+
+  # Product Service - Catalog & Search
+  product-service:
+    build:
+      context: .
+      dockerfile: services/product/Dockerfile
+    container_name: mercai_product_service
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - SERVICE_NAME=product-service
+      - SERVICE_PORT=8002
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME:-mercai}
+      - DB_USER=${DB_USER:-mercai_user}
+      - DB_PASSWORD=${DB_PASSWORD:-Mysql_2025}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - AUTH_SERVICE_URL=http://auth-service:8001
+    depends_on:
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - ./uploads:/app/uploads
+      - ./services/product/app:/app/app
+      - ./shared:/app/shared
+    networks:
+      - mercai_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=mercai"
+      - "traefik.http.routers.mercai-product.rule=PathPrefix(`/api/v1/products`) || PathPrefix(`/api/v1/reviews`)"
+      - "traefik.http.routers.mercai-product.entrypoints=web"
+      - "traefik.http.services.mercai-product.loadbalancer.server.port=8002"
+      - "traefik.http.routers.mercai-product.middlewares=ratelimit@file"
+
+  # Order Service - Cart & Orders
+  order-service:
+    build:
+      context: .
+      dockerfile: services/order/Dockerfile
+    container_name: mercai_order_service
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - SERVICE_NAME=order-service
+      - SERVICE_PORT=8003
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME:-mercai}
+      - DB_USER=${DB_USER:-mercai_user}
+      - DB_PASSWORD=${DB_PASSWORD:-Mysql_2025}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - PRODUCT_SERVICE_URL=http://product-service:8002
+    depends_on:
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - ./services/order/app:/app/app
+      - ./shared:/app/shared
+    networks:
+      - mercai_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=mercai"
+      - "traefik.http.routers.mercai-order.rule=PathPrefix(`/api/v1/orders`) || PathPrefix(`/api/v1/cart`)"
+      - "traefik.http.routers.mercai-order.entrypoints=web"
+      - "traefik.http.services.mercai-order.loadbalancer.server.port=8003"
+      - "traefik.http.routers.mercai-order.middlewares=ratelimit@file"
+
+  # Chat Service - Real-time Messaging
+  chat-service:
+    build:
+      context: .
+      dockerfile: services/chat/Dockerfile
+    container_name: mercai_chat_service
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - SERVICE_NAME=chat-service
+      - SERVICE_PORT=8004
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME:-mercai}
+      - DB_USER=${DB_USER:-mercai_user}
+      - DB_PASSWORD=${DB_PASSWORD:-Mysql_2025}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - AUTH_SERVICE_URL=http://auth-service:8001
+    depends_on:
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - ./services/chat/app:/app/app
+      - ./shared:/app/shared
+    networks:
+      - mercai_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=mercai"
+      - "traefik.http.routers.mercai-chat.rule=PathPrefix(`/api/v1/chat`)"
+      - "traefik.http.routers.mercai-chat.entrypoints=web"
+      - "traefik.http.services.mercai-chat.loadbalancer.server.port=8004"
+
+  # Seller Service - Dashboard & Analytics
+  seller-service:
+    build:
+      context: .
+      dockerfile: services/seller/Dockerfile
+    container_name: mercai_seller_service
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - SERVICE_NAME=seller-service
+      - SERVICE_PORT=8005
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME:-mercai}
+      - DB_USER=${DB_USER:-mercai_user}
+      - DB_PASSWORD=${DB_PASSWORD:-Mysql_2025}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - PRODUCT_SERVICE_URL=http://product-service:8002
+      - ORDER_SERVICE_URL=http://order-service:8003
+    depends_on:
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - ./uploads:/app/uploads
+      - ./services/seller/app:/app/app
+      - ./shared:/app/shared
+    networks:
+      - mercai_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=mercai"
+      - "traefik.http.routers.mercai-seller.rule=PathPrefix(`/api/v1/seller`)"
+      - "traefik.http.routers.mercai-seller.entrypoints=web"
+      - "traefik.http.services.mercai-seller.loadbalancer.server.port=8005"
+      - "traefik.http.routers.mercai-seller.middlewares=ratelimit@file"
+      # Static files routing for uploaded images
+      - "traefik.http.routers.mercai-static.rule=PathPrefix(`/static/uploads`)"
+      - "traefik.http.routers.mercai-static.entrypoints=web"
+      - "traefik.http.routers.mercai-static.service=mercai-seller"
+
+# ===========================================
+# VOLUMES
+# ===========================================
+volumes:
+  mercai_mysql_data:
+    driver: local
+  mercai_redis_data:
+    driver: local
+
+# ===========================================
+# NETWORKS
+# ===========================================
+networks:
+  mercai_network:
+    driver: bridge
