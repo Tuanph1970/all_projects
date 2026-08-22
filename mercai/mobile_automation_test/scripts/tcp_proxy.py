@@ -3,14 +3,18 @@
 Simple TCP proxy to forward local port to remote server.
 Used for E2E testing to allow Android emulator to access remote API.
 """
+import os
 import socket
 import threading
 import sys
 import signal
 
-REMOTE_HOST = '112.213.91.103'
-REMOTE_PORT = 8002
-LOCAL_PORT = 8002
+# Defaults to the gateway on this machine. Override with the environment when
+# testing against another host; the public API is behind a Cloudflare Tunnel at
+# api.mercai.tuan1970.com:443, which needs TLS and so will not proxy raw here.
+REMOTE_HOST = os.environ.get('MERCAI_REMOTE_HOST', '127.0.0.1')
+REMOTE_PORT = int(os.environ.get('MERCAI_REMOTE_PORT', '8002'))
+LOCAL_PORT = int(os.environ.get('MERCAI_LOCAL_PORT', '8002'))
 
 running = True
 

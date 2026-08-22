@@ -416,7 +416,7 @@ Examples:
     args = parser.parse_args()
 
     # Determine base URL
-    base_url = args.base_url or "http://112.213.91.103:8002/api/v1"
+    base_url = args.base_url or "http://localhost:8002/api/v1"
 
     # Create tester and run
     tester = SellerAPITester(base_url, verbose=args.verbose)

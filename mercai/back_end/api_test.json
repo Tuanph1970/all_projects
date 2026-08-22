@@ -1436,10 +1436,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "ws://112.213.91.103:8002/api/v1/chat/ws/{user_id}?token={{auth_token}}",
-              "protocol": "ws",
-              "host": ["112.213.91.103"],
-              "port": "8002",
+              "raw": "wss://api.mercai.tuan1970.com/api/v1/chat/ws/{user_id}?token={{auth_token}}",
+              "protocol": "wss",
+              "host": ["api.mercai.tuan1970.com"],
               "path": ["api", "v1", "chat", "ws", "{user_id}"],
               "query": [
                 {

@@ -121,8 +121,10 @@ curl http://localhost:8002/api/v1
 
 ### Prerequisites
 
-- SSH access to production server
-- Server IP: `112.213.91.103`
+- SSH access to the machine running the stack
+- Public hostname: `https://api.mercai.tuan1970.com`, served by a Cloudflare
+  Tunnel pointed at the local Traefik gateway. See
+  [../DEPLOYMENT_CLOUDFLARE.md](../DEPLOYMENT_CLOUDFLARE.md).
 - Docker and Docker Compose installed on server
 
 ### Deployment Steps
@@ -131,7 +133,7 @@ curl http://localhost:8002/api/v1
 
 ```bash
 # 1. SSH into production server
-ssh user@112.213.91.103
+ssh user@<server>
 
 # 2. Navigate to backend directory
 cd /path/to/mercai/back_end
@@ -152,10 +154,10 @@ curl http://localhost:8002/health
 
 ```bash
 # 1. From local machine, copy files
-scp -r ./* user@112.213.91.103:/path/to/mercai/back_end/
+scp -r ./* user@<server>:/path/to/mercai/back_end/
 
 # 2. SSH into server
-ssh user@112.213.91.103
+ssh user@<server>
 
 # 3. Navigate and restart
 cd /path/to/mercai/back_end
@@ -169,8 +171,10 @@ docker compose up -d --build
 # Test from production server
 curl http://localhost:8002/api/v1/health
 
-# Test from external network
-curl http://112.213.91.103:8002/api/v1/health
+# Test from external network (through the Cloudflare Tunnel).
+# Note there is no port here: the tunnel terminates TLS at the edge and
+# forwards to the gateway's :8002 on the origin machine.
+curl https://api.mercai.tuan1970.com/health
 
 # Check logs
 docker compose logs -f api

@@ -179,7 +179,7 @@ npm run build:ios
 Create a `.env` file in the root directory:
 
 ```
-API_BASE_URL=http://112.213.91.103:8002
+API_BASE_URL=https://api.mercai.tuan1970.com
 ENVIRONMENT=production
 ```
 

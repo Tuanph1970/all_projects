@@ -17,8 +17,10 @@ const ENVIRONMENT = 'local'; // Change to 'production' for deployment
 
 ### Environment Options
 
-- **`'local'`** - For local development (localhost:8000)
-- **`'production'`** - For production server (112.213.91.103:8000)
+- **`'local'`** - For local development (Android emulator -> host machine)
+- **`'testing'`** - For E2E tests; tries several candidate URLs and uses the
+  first that answers
+- **`'production'`** - For the public API at `https://api.mercai.tuan1970.com`
 
 ## Configuration Details
 
@@ -27,22 +29,37 @@ const ENVIRONMENT = 'local'; // Change to 'production' for deployment
 ```javascript
 const ENV_CONFIG = {
   local: {
-    BASE_URL: 'http://localhost:8000',
-    WS_URL: 'ws://localhost:8000',
+    // 10.0.2.2 is the Android emulator's alias for the host machine
+    BASE_URL: 'http://10.0.2.2',
+    WS_URL: 'ws://10.0.2.2',
+  },
+  testing: {
+    BASE_URLS: [
+      'http://10.0.2.2:8002',     // direct Traefik port
+      'http://10.0.2.2/mercai',   // host nginx, /mercai prefix
+      'http://10.0.2.2:80',
+    ],
+    BASE_URL: 'http://10.0.2.2:8002',
+    WS_URL: 'ws://10.0.2.2:8002',
   },
   production: {
-    BASE_URL: 'http://112.213.91.103:8000',
-    WS_URL: 'ws://112.213.91.103:8000',
+    BASE_URL: 'https://api.mercai.tuan1970.com',
+    WS_URL: 'wss://api.mercai.tuan1970.com',
   },
 };
 ```
+
+There is no port and no path prefix on the production URL. A Cloudflare Tunnel
+terminates TLS at the edge and forwards to the Traefik gateway, which serves
+`/api/v1/*` and `/static/uploads` at the root of that hostname.
 
 ### Two-Stage Deployment Process
 
 #### Stage 1: Local Testing
 1. Open `/front_end/src/constants/config.js`
 2. Set `ENVIRONMENT = 'local'`
-3. Start your backend server locally on port 8000
+3. Start the backend: `cd back_end && docker compose -p mercai up -d`
+   (the Traefik gateway publishes port 8002)
 4. Run the mobile app: `npm start` or `expo start`
 5. Test all features locally
 
@@ -50,7 +67,7 @@ const ENV_CONFIG = {
 1. Open `/front_end/src/constants/config.js`
 2. Change `ENVIRONMENT = 'production'`
 3. Build and deploy the app
-4. All API calls will now point to `http://112.213.91.103:8000`
+4. All API calls will now point to `https://api.mercai.tuan1970.com`
 
 ## What Was Updated
 
@@ -86,7 +103,7 @@ All service files now use centralized configuration:
 ### Base Configuration
 ```javascript
 API_CONFIG = {
-  BASE_URL: currentEnv.BASE_URL,  // 'http://localhost:8000' or 'http://112.213.91.103:8000'
+  BASE_URL: currentEnv.BASE_URL,  // e.g. 'http://10.0.2.2' or 'https://api.mercai.tuan1970.com'
   WS_URL: currentEnv.WS_URL,      // WebSocket URL for chat
   TIMEOUT: 10000,                  // 10 seconds
 }
@@ -145,7 +162,7 @@ API_CONFIG = {
 
 ### Production Testing (Stage 2)
 - [ ] Set `ENVIRONMENT = 'production'` in config.js
-- [ ] Verify backend is accessible at 112.213.91.103:8000
+- [ ] Verify backend is accessible at https://api.mercai.tuan1970.com
 - [ ] Test all features listed above
 - [ ] Verify WebSocket connection for chat
 - [ ] Test on actual device (not just simulator)
@@ -184,8 +201,8 @@ const ENV_CONFIG = {
     WS_URL: 'ws://staging.example.com:8000',
   },
   production: {
-    BASE_URL: 'http://112.213.91.103:8000',
-    WS_URL: 'ws://112.213.91.103:8000',
+    BASE_URL: 'https://api.mercai.tuan1970.com',
+    WS_URL: 'wss://api.mercai.tuan1970.com',
   },
 };
 

@@ -136,7 +136,7 @@ npm install
    export const API_CONFIG = {
      BASE_URL: isDevelopment
        ? 'http://192.168.1.7:8000'    // Development URL
-       : 'http://112.213.91.103:8002', // Production URL
+       : 'https://api.mercai.tuan1970.com', // Production URL
    };
    ```
 

@@ -1,0 +1,41 @@
+# ============================================================================
+# Cloudflare Tunnel config for the Mercai backend — TEMPLATE, NOT INSTALLED
+# ============================================================================
+# Install to /etc/cloudflared/config.yml on the machine running the mercai
+# stack. See ../../DEPLOYMENT_CLOUDFLARE.md for the full runbook.
+#
+# Fill in TUNNEL_ID after `cloudflared tunnel create mercai` — the create
+# command prints the ID and writes the credentials JSON next to it.
+#
+# Do NOT reuse the `homelab` tunnel ID here. Cloudflare load-balances across
+# every connected instance of a tunnel ID, so a second machine answering for
+# `homelab` would take half of stock.tuan1970.com's traffic and 404 it.
+
+tunnel: TUNNEL_ID
+credentials-file: /etc/cloudflared/TUNNEL_ID.json
+origincert: /etc/cloudflared/cert.pem
+
+# Log to journald via stdout; `journalctl -u cloudflared` is the read path.
+loglevel: info
+
+ingress:
+  # Mercai backend API, consumed by the Expo mobile app.
+  #
+  # Origin is the Traefik gateway directly (published 8002:80), not host
+  # nginx: Traefik serves /api/v1/* and /static/uploads at the ROOT of this
+  # hostname, so the app needs no path prefix. The chat WebSocket at
+  # /api/v1/chat/ws upgrades over this same rule — cloudflared proxies
+  # WebSockets for http services without extra configuration.
+  - hostname: api.mercai.tuan1970.com
+    service: http://localhost:8002
+    originRequest:
+      # The AI listing optimizer holds the connection while the model
+      # generates. Worst case is 2 x OLLAMA_TIMEOUT_SECONDS (25s) plus
+      # overhead, comfortably inside Cloudflare's 100s edge limit, but the
+      # origin connection must not be recycled underneath it.
+      connectTimeout: 30s
+      keepAliveTimeout: 90s
+      noHappyEyeballs: true
+
+  # Catch-all: anything else routed at this tunnel gets a 404.
+  - service: http_status:404
