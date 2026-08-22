@@ -16,7 +16,7 @@ services:
       - "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
-      - "--providers.docker.network=backend_mercai_network"
+      - "--providers.docker.network=mercai_network"
       - "--providers.docker.constraints=Label(`traefik.project`,`mercai`)"
       - "--providers.file.directory=/etc/traefik/dynamic"
       - "--providers.file.watch=true"
@@ -402,4 +402,10 @@ volumes:
 # ===========================================
 networks:
   mercai_network:
+    # Pinned so the name does not depend on the compose project name
+    # (-p mercai would otherwise yield mercai_mercai_network, and running from
+    # this directory without -p would yield back_end_mercai_network). Traefik's
+    # --providers.docker.network flag and docker-compose.monitoring.yml both
+    # reference this literal name.
+    name: mercai_network
     driver: bridge

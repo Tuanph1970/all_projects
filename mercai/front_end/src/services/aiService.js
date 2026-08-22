@@ -21,7 +21,9 @@ class AiService {
     if (draft) payload.draft = draft;
     if (fields) payload.fields = fields;
 
-    return await apiClient.post(API_CONFIG.ENDPOINTS.AI_LISTING_SUGGEST, payload);
+    return await apiClient.post(API_CONFIG.ENDPOINTS.AI_LISTING_SUGGEST, payload, {
+      timeout: API_CONFIG.AI_TIMEOUT,
+    });
   }
 
   /**

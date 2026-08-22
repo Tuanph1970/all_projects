@@ -54,6 +54,10 @@ export const API_CONFIG = {
   WS_URL: currentEnv.WS_URL,
 
   TIMEOUT: 10000, // 10 seconds
+  // Model generation is far slower than a CRUD call. The backend gives up
+  // after OLLAMA_TIMEOUT_SECONDS and retries once, so the client has to wait
+  // longer than that or it aborts a request the server would have answered.
+  AI_TIMEOUT: 60000, // 60 seconds
   
   ENDPOINTS: {
     // Auth endpoints

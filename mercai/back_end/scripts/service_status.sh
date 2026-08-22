@@ -174,7 +174,7 @@ print_network_info() {
     echo "────────────────────────────────────────────────────────────────────────────────"
 
     # Get network info
-    local network_name="back_end_mercai_network"
+    local network_name="mercai_network"
     if docker network inspect "$network_name" &>/dev/null; then
         local subnet=$(docker network inspect "$network_name" --format='{{range .IPAM.Config}}{{.Subnet}}{{end}}' 2>/dev/null)
         echo -e "Network: ${CYAN}$network_name${NC}"
