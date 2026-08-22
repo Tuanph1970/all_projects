@@ -13,6 +13,18 @@ http:
           ipStrategy:
             depth: 1
 
+    # Rate limit for LLM-backed endpoints.
+    # The general `ratelimit` above allows 1000/min, which is meaningless for
+    # generation calls that take seconds of GPU time each.
+    ai-ratelimit:
+      rateLimit:
+        average: 30
+        burst: 10
+        period: 1m
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+
     # CORS Headers
     cors:
       headers:

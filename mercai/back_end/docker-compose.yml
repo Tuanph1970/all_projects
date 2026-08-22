@@ -331,6 +331,63 @@ services:
       - "traefik.http.routers.mercai-static.entrypoints=web"
       - "traefik.http.routers.mercai-static.service=mercai-seller"
 
+  # AI Service - LLM-backed seller assistance
+  ai-service:
+    build:
+      context: .
+      dockerfile: services/ai/Dockerfile
+    container_name: mercai_ai_service
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # reaches Ollama on the host
+    environment:
+      - SERVICE_NAME=ai-service
+      - SERVICE_PORT=8006
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME:-mercai}
+      - DB_USER=${DB_USER:-mercai_user}
+      - DB_PASSWORD=${DB_PASSWORD:-Mysql_2025}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - PRODUCT_SERVICE_URL=http://product-service:8002
+      # Ollama / model configuration
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:14b-instruct-q4_K_M}
+      - OLLAMA_TIMEOUT_SECONDS=${OLLAMA_TIMEOUT_SECONDS:-45}
+      - AI_MAX_CONCURRENT_GENERATIONS=${AI_MAX_CONCURRENT_GENERATIONS:-4}
+      # Feature flags - default OFF
+      - AI_LISTING_OPTIMIZER_ENABLED=${AI_LISTING_OPTIMIZER_ENABLED:-false}
+      - AI_CHAT_COPILOT_ENABLED=${AI_CHAT_COPILOT_ENABLED:-false}
+      - AI_REVIEW_INTELLIGENCE_ENABLED=${AI_REVIEW_INTELLIGENCE_ENABLED:-false}
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - ./uploads:/app/uploads
+      - ./services/ai/app:/app/app
+      - ./shared:/app/shared
+    networks:
+      - mercai_network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.project=mercai"
+      - "traefik.http.routers.mercai-ai.rule=PathPrefix(`/api/v1/ai`)"
+      - "traefik.http.routers.mercai-ai.entrypoints=web"
+      - "traefik.http.services.mercai-ai.loadbalancer.server.port=8006"
+      - "traefik.http.routers.mercai-ai.middlewares=ai-ratelimit@file"
+
 # ===========================================
 # VOLUMES
 # ===========================================

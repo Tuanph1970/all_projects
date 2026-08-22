@@ -11,6 +11,7 @@ from .address import ShippingAddress
 from .seller_profile import SellerProfile, StoreTheme
 from .seller_category import SellerCategory
 from .analytics import SearchLog
+from .ai import AiSuggestion
 
 __all__ = [
     # User
@@ -42,5 +43,7 @@ __all__ = [
     "StoreTheme",
     "SellerCategory",
     # Telemetry
-    "SearchLog"
+    "SearchLog",
+    # AI
+    "AiSuggestion"
 ]

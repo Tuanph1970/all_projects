@@ -75,6 +75,28 @@ class Settings(BaseSettings):
     ORDER_SERVICE_URL: str = "http://order-service:8003"
     CHAT_SERVICE_URL: str = "http://chat-service:8004"
     SELLER_SERVICE_URL: str = "http://seller-service:8005"
+    AI_SERVICE_URL: str = "http://ai-service:8006"
+
+    # --- AI / LLM ---------------------------------------------------------
+    # Ollama runs on the Docker host; services already use host.docker.internal
+    # for host-side dependencies (see docker-compose extra_hosts).
+    OLLAMA_BASE_URL: str = "http://host.docker.internal:11434"
+    OLLAMA_MODEL: str = "qwen2.5:14b-instruct-q4_K_M"
+    OLLAMA_TIMEOUT_SECONDS: int = 45
+    # A single Ollama instance serialises work; shed load rather than queue.
+    AI_MAX_CONCURRENT_GENERATIONS: int = 4
+
+    # Feature flags (default off -- see docs/ai-features/02-listing-optimizer.md)
+    AI_LISTING_OPTIMIZER_ENABLED: bool = False
+    AI_CHAT_COPILOT_ENABLED: bool = False
+    AI_REVIEW_INTELLIGENCE_ENABLED: bool = False
+
+    # Per-seller quotas, enforced in Redis
+    AI_QUOTA_PER_HOUR: int = 20
+    AI_QUOTA_PER_DAY: int = 100
+
+    # Cache TTL for generated suggestions
+    CACHE_TTL_AI_SUGGESTION: int = 86400  # 24 hours
 
     @property
     def DATABASE_URL(self) -> str:
