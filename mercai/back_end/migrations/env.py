@@ -8,8 +8,8 @@ import sys
 # Add the app directory to the path
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from app.core.database import Base
-from app.models import *  # Import all models
+from shared.database import Base
+import shared.models  # noqa: F401 - registers every model on Base.metadata
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

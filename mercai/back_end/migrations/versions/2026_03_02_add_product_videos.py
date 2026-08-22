@@ -1,7 +1,7 @@
 """Add product_videos table
 
 Revision ID: 2026_03_02_add_product_videos
-Revises: 2026_01_24_seller_category_to_products
+Revises: 2026_01_24_seller_category_products
 Create Date: 2026-03-02
 
 This migration adds:
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '2026_03_02_add_product_videos'
-down_revision = '2026_01_24_seller_category_to_products'
+down_revision = '2026_01_24_seller_category_products'
 branch_labels = None
 depends_on = None
 
