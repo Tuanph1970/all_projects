@@ -447,7 +447,7 @@ the review taxonomy (see `04-review-intelligence.md`) gets expensive later.
 |---|---|---|
 | 1 | Vision model for images | **Phase 1 = Pillow heuristics only.** Deterministic checks that cannot hallucinate; a VLM is deferred. |
 | 2 | Feature-flag mechanism | **Env var + Redis allowlist.** No schema. An *empty* allowlist means everyone, so flipping the global flag on visibly works. |
-| 3 | Model | **`qwen2.5:14b`**, configurable via `OLLAMA_MODEL`. |
+| 3 | Model | **`qwen2.5:14b`**, configurable via `OLLAMA_MODEL`. **Superseded 2026-08-22:** the running default is now `qwen2.5:3b-instruct-q4_K_M`, because the deploy target is RAM-constrained and the 14B (9.0GB) needs a GPU to be usable — 110s per suggestion CPU-only, past Cloudflare's 100s edge limit. The 3B is 1.9GB and 32s CPU-only, but is measurably weaker: on the same test listing it repeated the 14B's `vuốt tay` → "hand-built" error and promoted it into the product title. Revert when the hardware allows. |
 | 4 | Ollama placement | **Docker host via `host.docker.internal`**, matching the `extra_hosts` pattern the other services already use for host MySQL. |
 | 5 | Output language | **English only in phase 1.** Vietnamese generation needs quality verification before it is promised; the UI strings are still bilingual. |
 | 6 | Shared-database access | **Yes — `ai-service` reads MySQL directly**, consistent with all five existing services. |

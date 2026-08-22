@@ -356,7 +356,7 @@ services:
       - PRODUCT_SERVICE_URL=http://product-service:8002
       # Ollama / model configuration
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:14b-instruct-q4_K_M}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:3b-instruct-q4_K_M}
       - OLLAMA_TIMEOUT_SECONDS=${OLLAMA_TIMEOUT_SECONDS:-45}
       - AI_MAX_CONCURRENT_GENERATIONS=${AI_MAX_CONCURRENT_GENERATIONS:-4}
       # Feature flags - default OFF

@@ -81,7 +81,12 @@ class Settings(BaseSettings):
     # Ollama runs on the Docker host; services already use host.docker.internal
     # for host-side dependencies (see docker-compose extra_hosts).
     OLLAMA_BASE_URL: str = "http://host.docker.internal:11434"
-    OLLAMA_MODEL: str = "qwen2.5:14b-instruct-q4_K_M"
+    # 3B while the deploy target is RAM-constrained: the 14B is 9.0GB and will
+    # not fit alongside the stack on an 8GB host. Measured 2026-08-22 -- 14B is
+    # 110s CPU-only vs 32s for this model, and the 14B needs a GPU to be usable
+    # at all. Revert to qwen2.5:14b-instruct-q4_K_M once the hardware allows;
+    # the 3B is measurably weaker on Vietnamese ceramics terms.
+    OLLAMA_MODEL: str = "qwen2.5:3b-instruct-q4_K_M"
     OLLAMA_TIMEOUT_SECONDS: int = 45
     # A single Ollama instance serialises work; shed load rather than queue.
     AI_MAX_CONCURRENT_GENERATIONS: int = 4
