@@ -96,6 +96,11 @@ export const API_CONFIG = {
     SELLER_PROFILE: '/api/v1/seller/profile',
     SELLER_CATEGORIES: '/api/v1/seller/categories',
 
+    // AI endpoints (routes to ai-service via Traefik)
+    AI: '/api/v1/ai',
+    AI_LISTING_SUGGEST: '/api/v1/ai/listing/suggest',
+    AI_LISTING_SUGGESTIONS: '/api/v1/ai/listing/suggestions', // ${...}/${id}/resolve
+
     // Order fulfillment endpoints (seller order management)
     SELLER_FULFILLMENT: '/api/v1/seller/fulfillment/orders',  // For GET orders
     ORDER_FULFILLMENT: '/api/v1/order-fulfillment/orders',    // For status updates
