@@ -1,7 +1,7 @@
 # Design — Listing Optimizer
 
-**Status:** ✅ **backend implemented 2026-08-18** (foundation + listing optimizer, 21 tests passing). Frontend not yet built.
-**Not yet built:** frontend touchpoints (§6), and the phase-2 vision model.
+**Status:** ✅ **backend implemented 2026-08-18** (foundation + listing optimizer, 33 tests passing). ✅ **frontend implemented 2026-08-19** (§6), covering both the create and edit paths.
+**Not yet built:** the phase-2 vision model.
 **Date:** 2026-08-18
 **Prerequisite reading:** [`00-codebase-assessment.md`](./00-codebase-assessment.md) §5, [`01-instrumentation.md`](./01-instrumentation.md)
 **Ranked:** #1 of six candidates (assessment §7)
@@ -297,15 +297,16 @@ Separating *suggest* from *apply* is the core safety property: the AI service ha
 
 | File | Change |
 |---|---|
-| `src/services/aiService.js` | **New.** `suggestListing`, `resolveSuggestion`, `getAiHealth`, wrapping the existing `apiClient` (inherits auth, refresh, base-URL detection). |
+| `src/services/aiService.js` | **New.** `suggestListing`, `resolveSuggestion`, `getAvailability` / `isListingOptimizerAvailable`, wrapping the existing `apiClient` (inherits auth, refresh, base-URL detection). |
 | `src/constants/config.js` | Add `AI: '/api/v1/ai'` to `ENDPOINTS`. |
-| `src/screens/seller/ProductFormScreen.jsx` | Add an "Improve this listing" button. On success open the review modal; accepted fields are merged into the existing `formData` state — the seller still presses Save, so nothing bypasses the existing submit path. |
-| `src/screens/seller/AddProductScreen.jsx` | Same affordance, enabled once name + description are non-empty. |
+| `src/screens/seller/AddProductScreen.jsx` | Add an "Improve this listing" button, enabled once name + description are non-empty. On success open the review modal; accepted fields are merged into the existing `formData` state — the seller still presses Save, so nothing bypasses the existing submit path. **This one screen is the whole surface:** it is dual-purpose (`isEditMode = !!productId`), so the same affordance serves creating and editing. The request differs by mode — `{ product_id }` for a saved listing, `{ draft }` for one still being typed. Also gains `material`, `color`, `technique` and `dimensions` inputs: buyers filter on them and the optimizer proposes them, so the form has to be able to hold them. |
 | `src/components/seller/ListingSuggestionModal.jsx` | **New.** Per-field diff cards (current vs proposed, rationale, Accept / Edit / Skip), an "Accept all" action, and the image report. Uses `react-native-paper`, consistent with existing seller components. |
 | `src/components/seller/ImageQualityReport.jsx` | **New.** Renders `image_report.findings` with severity colours. |
 | `src/i18n/translations/{en,vi}.js` | New strings — the app is fully bilingual and AI copy must not be the exception. |
 
 **No new Redux slice.** Seller screens already hold their data in local `useState` (assessment §4); a suggestion is short-lived, screen-local state and adding a slice would break the established pattern for no benefit.
+
+**Correction — `ProductFormScreen.jsx`.** An earlier draft of this table listed that file as the edit screen and gave it its own row. It was not the edit screen. It was registered in `MainNavigator` as `ProductForm` but **nothing in the repo ever navigated to it**, and it had drifted from the live screen (called `sellerService` directly, used `name` where the live form uses `title`, kept its own `errors` state) with no test covering it. Editing has always gone through `AddProduct` with a `productId` param (`ProductManagementScreen.jsx`). Wiring the optimizer into it would have added an LLM call to a screen no seller can open, so the file and its navigator entry were deleted instead. Kept here because a dead screen that looks live is exactly what misled this document.
 
 ---
 

@@ -26,7 +26,6 @@ import { OrderDetailsScreen } from '../screens/seller/OrderDetailsScreen.jsx';
 import OrderAnalyticsScreen from '../screens/seller/OrderAnalyticsScreen.jsx';
 import { AnalyticsScreen } from '../screens/seller/AnalyticsScreen.jsx';
 import { AddProductScreen } from '../screens/seller/AddProductScreen.jsx';
-import { ProductFormScreen } from '../screens/seller/ProductFormScreen.jsx';
 import { SellerProfileScreen } from '../screens/seller/SellerProfileScreen.jsx';
 import { StoreSettingsScreen } from '../screens/seller/StoreSettingsScreen.jsx';
 import { ThemeManagementScreen } from '../screens/seller/ThemeManagementScreen.jsx';
@@ -213,12 +212,8 @@ export const MainNavigator  = () => {
         <Stack.Screen name="StoreSettings" component={StoreSettingsScreen} />
         <Stack.Screen name="ThemeManagement" component={ThemeManagementScreen} />
         <Stack.Screen name="OrderAnalytics" component={OrderAnalyticsScreen} />
+        {/* AddProduct handles both create and edit; edit passes { productId }. */}
         <Stack.Screen name="AddProduct" component={AddProductScreen} />
-        <Stack.Screen
-          name="ProductForm"
-          component={ProductFormScreen}
-          options={{ headerShown: true }}
-        />
         <Stack.Screen name="CategoryManagement" component={CategoryManagementScreen} />
         <Stack.Screen name="AddCategory" component={CategoryFormScreen} />
         <Stack.Screen name="EditCategory" component={CategoryFormScreen} />
