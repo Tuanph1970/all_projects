@@ -27,6 +27,7 @@ http:
           - Content-Type
           - Authorization
           - X-Requested-With
+          - X-Anon-Id
         accessControlAllowOriginList:
           - "*"
         accessControlAllowCredentials: true

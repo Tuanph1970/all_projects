@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, Form
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, asc, func, and_, or_
 from typing import List, Optional
@@ -12,7 +12,7 @@ from shared.cache import cache, CacheKeys, CacheInvalidation
 from shared.config import settings
 from shared.security import get_current_user, get_optional_current_user
 from shared.models.user import User, UserRole
-from shared.models.product import Product, Category, ProductImage, ProductVideo
+from shared.models.product import Product, Category, ProductImage, ProductVideo, PriceHistory
 from shared.models.seller_category import SellerCategory
 from shared.models.review import Review
 
@@ -76,6 +76,7 @@ def product_to_dict(product, include_seller=False, db=None):
     }
 from app.services.image_service import image_service
 from app.services.product_analytics import product_analytics
+from app.services.search_logging import SOURCE_ADVANCED, SOURCE_BASIC, record_search
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +124,16 @@ def create_product(
     db.commit()
     db.refresh(db_product)
 
+    # Origin row: without it the history starts mid-story, and reconstructing
+    # "price at time T" before the first change returns nothing.
+    db.add(PriceHistory(
+        product_id=db_product.id,
+        old_price=db_product.price,
+        new_price=db_product.price,
+        change_reason="initial",
+        changed_by=current_user.id,
+    ))
+
     for img_data in product.images:
         img_data_dict = img_data.dict()
         img_data_dict["product_id"] = db_product.id
@@ -138,6 +149,7 @@ def create_product(
 
 @router.get("/", response_model=List[ProductResponse])
 def read_products(
+    background_tasks: BackgroundTasks,
     skip: int = 0,
     limit: int = 20,
     category_id: Optional[int] = None,
@@ -146,6 +158,8 @@ def read_products(
     max_price: Optional[float] = None,
     sort_by: str = Query("created_at", regex="^(created_at|price|name)$"),
     sort_order: str = Query("desc", regex="^(asc|desc)$"),
+    anon_id: Optional[str] = Header(None, alias="X-Anon-Id"),
+    current_user: Optional[User] = Depends(get_optional_current_user),
     db: Session = Depends(get_db)
 ):
     query = db.query(Product).filter(Product.is_active == True)
@@ -170,6 +184,24 @@ def read_products(
         query = query.order_by(desc(getattr(Product, sort_by)))
     else:
         query = query.order_by(asc(getattr(Product, sort_by)))
+
+    # Only searches are logged, so only searches pay for the extra COUNT.
+    # A plain product listing costs exactly what it did before.
+    if search:
+        total = query.count()
+        background_tasks.add_task(
+            record_search,
+            query_text=search,
+            filters={
+                "category_id": category_id,
+                "min_price": min_price,
+                "max_price": max_price,
+            },
+            result_count=total,
+            source=SOURCE_BASIC,
+            user_id=current_user.id if current_user else None,
+            anon_id=anon_id,
+        )
 
     products = query.offset(skip).limit(limit).all()
     return [product_to_dict(p) for p in products]
@@ -326,8 +358,22 @@ def update_product(
     if product.seller_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to update this product")
 
+    # Captured before the setattr loop; afterwards the old value is gone.
+    old_price = product.price
+
     for field, value in product_update.dict(exclude_unset=True).items():
         setattr(product, field, value)
+
+    # Same transaction as the change: if this insert fails, the price change
+    # rolls back with it rather than leaving the ledger behind reality.
+    if product.price is not None and product.price != old_price:
+        db.add(PriceHistory(
+            product_id=product.id,
+            old_price=old_price,
+            new_price=product.price,
+            change_reason="seller_update",
+            changed_by=current_user.id,
+        ))
 
     db.commit()
     db.refresh(product)
@@ -526,6 +572,7 @@ def get_catalog_stats(db: Session = Depends(get_db)):
 
 @router.get("/search/advanced")
 def advanced_search(
+    background_tasks: BackgroundTasks,
     q: Optional[str] = None,
     category_id: Optional[int] = None,
     min_price: Optional[float] = None,
@@ -541,6 +588,8 @@ def advanced_search(
     sort_order: str = Query("desc", regex="^(asc|desc)$"),
     skip: int = 0,
     limit: int = 20,
+    anon_id: Optional[str] = Header(None, alias="X-Anon-Id"),
+    current_user: Optional[User] = Depends(get_optional_current_user),
     db: Session = Depends(get_db)
 ):
     """Advanced search with multiple filters"""
@@ -611,6 +660,30 @@ def advanced_search(
 
     total = query.count()
     products = query.offset(skip).limit(limit).all()
+
+    # Filter-only searches carry intent too, so this logs whenever either a
+    # query or a filter was supplied (record_search decides).
+    background_tasks.add_task(
+        record_search,
+        query_text=q,
+        filters={
+            "category_id": category_id,
+            "min_price": min_price,
+            "max_price": max_price,
+            "material": material,
+            "color": color,
+            "technique": technique,
+            "tags": tags,
+            "seller_id": seller_id,
+            "is_featured": is_featured,
+            "in_stock": in_stock,
+            "sort_by": sort_by,
+        },
+        result_count=total,
+        source=SOURCE_ADVANCED,
+        user_id=current_user.id if current_user else None,
+        anon_id=anon_id,
+    )
 
     return {
         "products": [product_to_dict(p) for p in products],

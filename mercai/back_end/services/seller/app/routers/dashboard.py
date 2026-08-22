@@ -14,7 +14,7 @@ import json
 from shared.database import get_db
 from shared.security import get_current_user
 from shared.models.user import User, UserRole
-from shared.models.product import Product, Category, ProductVideo
+from shared.models.product import Product, Category, ProductVideo, PriceHistory
 from shared.models.order import Order, OrderItem
 from shared.models.review import Review
 
@@ -628,15 +628,33 @@ def bulk_update_product_prices(
     if len(products) != len(product_ids):
         raise HTTPException(status_code=404, detail="Some products not found or not owned")
 
+    # Reuse the products already loaded for the ownership check above.
+    # The previous Query.update() never loaded them, so the old price was not
+    # in memory and could not be recorded -- hence the ORM assignment here.
+    products_by_id = {product.id: product for product in products}
+
     updated_count = 0
     for update in updates:
-        result = db.query(Product).filter(
-            Product.id == update["product_id"],
-            Product.seller_id == current_user.id
-        ).update({"price": update["price"]})
+        product = products_by_id.get(update["product_id"])
+        if product is None:
+            continue
 
-        if result:
-            updated_count += 1
+        old_price = product.price
+        new_price = Decimal(str(update["price"]))
+        if new_price == old_price:
+            continue
+
+        product.price = new_price
+        # Same transaction as the change: a failed ledger write must roll the
+        # price change back rather than let the two diverge.
+        db.add(PriceHistory(
+            product_id=product.id,
+            old_price=old_price,
+            new_price=new_price,
+            change_reason="bulk_update",
+            changed_by=current_user.id,
+        ))
+        updated_count += 1
 
     db.commit()
 

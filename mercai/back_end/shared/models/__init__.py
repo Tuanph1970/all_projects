@@ -2,7 +2,7 @@
 Shared models for Mercai Microservices
 """
 from .user import User, UserRole
-from .product import Product, ProductImage, Category
+from .product import Product, ProductImage, Category, ProductVideo, PriceHistory
 from .cart import Cart, CartItem
 from .order import Order, OrderItem, OrderStatus, PaymentStatus
 from .chat import ChatRoom, Message
@@ -10,6 +10,7 @@ from .review import Review
 from .address import ShippingAddress
 from .seller_profile import SellerProfile, StoreTheme
 from .seller_category import SellerCategory
+from .analytics import SearchLog
 
 __all__ = [
     # User
@@ -19,6 +20,8 @@ __all__ = [
     "Product",
     "ProductImage",
     "Category",
+    "ProductVideo",
+    "PriceHistory",
     # Cart
     "Cart",
     "CartItem",
@@ -37,5 +40,7 @@ __all__ = [
     # Seller
     "SellerProfile",
     "StoreTheme",
-    "SellerCategory"
+    "SellerCategory",
+    # Telemetry
+    "SearchLog"
 ]

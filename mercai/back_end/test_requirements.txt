@@ -1,2 +1,15 @@
+# Dependencies for the legacy requests-driven smoke scripts (back_end/test_*.py)
 requests>=2.31.0
 colorama>=0.4.6
+
+# Dependencies for the pytest suite under back_end/tests/
+# Run with:  cd back_end && pytest
+pytest>=8.0.0
+
+# passlib resolves its bcrypt backend lazily, so importing shared.security
+# works without this -- but any test that hashes a password would fail.
+# NOTE: bcrypt is absent from shared/requirements.txt and every service
+# requirements.txt too, which looks like a latent runtime gap rather than a
+# test-only one. See docs/ai-features/00-codebase-assessment.md.
+bcrypt>=4.0.0
+

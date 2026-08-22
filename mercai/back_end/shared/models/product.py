@@ -64,6 +64,7 @@ class Product(Base):
     seller_category = relationship("SellerCategory", back_populates="products")
     images = relationship("ProductImage", back_populates="product", cascade="all, delete-orphan")
     videos = relationship("ProductVideo", back_populates="product", cascade="all, delete-orphan")
+    price_history = relationship("PriceHistory", back_populates="product", cascade="all, delete-orphan")
     cart_items = relationship("CartItem", back_populates="product")
     order_items = relationship("OrderItem", back_populates="product")
     reviews = relationship("Review", back_populates="product")
@@ -82,6 +83,48 @@ class ProductImage(Base):
 
     # Relationships
     product = relationship("Product", back_populates="images")
+
+
+class PriceHistory(Base):
+    """
+    One row per price change, written in the same transaction as the change.
+
+    Reliability class: LEDGER (see docs/ai-features/01-instrumentation.md).
+    If this write fails, the price change must fail with it -- a price history
+    that silently diverges from `products.price` is worse than none, because
+    it yields confidently wrong elasticity analysis.
+
+    The table predates this model: it was created by migration
+    2026_01_14_add_product_enhancements but nothing ever wrote to it.
+    """
+    __tablename__ = "price_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
+
+    # The column exists in the table with an FK to product_variants, but the
+    # live schema has no ProductVariant model, so no ForeignKey is declared
+    # here -- create_all() would fail resolving a table that is not in this
+    # metadata. Always NULL until variants are modelled.
+    variant_id = Column(Integer, nullable=True, index=True)
+
+    old_price = Column(Numeric(10, 2), nullable=False)
+    new_price = Column(Numeric(10, 2), nullable=False)
+
+    # 'initial' | 'seller_update' | 'bulk_update'
+    change_reason = Column(String(255), nullable=True)
+    changed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    # Relationships
+    product = relationship("Product", back_populates="price_history")
+
+    def __repr__(self):
+        return (
+            f"<PriceHistory(product_id={self.product_id}, "
+            f"{self.old_price} -> {self.new_price}, reason={self.change_reason!r})>"
+        )
 
 
 class ProductVideo(Base):
