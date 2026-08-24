@@ -125,7 +125,10 @@ A `530`/`1033` means the tunnel is not connected. A TLS error means section 0.
   publicly reachable on this hostname. The Traefik dashboard is on `:8080`,
   a separate published port with no ingress rule, so it stays private — keep
   it that way.
-- **Ollama.** Bound to `0.0.0.0:11434` for the containers to reach it (see
-  `back_end/scripts/fix-ollama-host-binding.sh`) and has no authentication of
+- **Ollama.** Must be bound to `0.0.0.0:11434` for the containers to reach it
+  (see `back_end/scripts/fix-ollama-host-binding.sh`). On the snap install this
+  is `snap set ollama host=...`, **not** a systemd `Environment=` drop-in — the
+  snap's launcher overwrites `OLLAMA_HOST` from `snapctl get host` before
+  starting, so a drop-in silently does nothing. Ollama has no authentication of
   its own. It has no ingress rule so the tunnel never exposes it, but do
   firewall the port if this host sits on an untrusted network.
