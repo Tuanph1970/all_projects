@@ -113,3 +113,52 @@ class ComparableObservation(Base):
             f"<ComparableObservation(id={self.id}, status={self.status!r}, "
             f"price={self.price})>"
         )
+
+
+class CategoryBenchmark(Base):
+    """
+    A market-wide price benchmark for one external category.
+
+    Deliberately NOT a set of comparables. It is an aggregate over a whole
+    category on another marketplace, computed without matching anything to
+    anything: no per-listing pairing means no per-listing pairing errors, and
+    one bad row cannot move a median over a hundred items. That robustness is
+    the entire reason this exists alongside the pasted-URL path.
+
+    It is also never blended into the position statistics -- see
+    services/benchmarks.py for why that would quietly mislead a seller.
+    """
+    __tablename__ = "category_benchmarks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source = Column(String(30), nullable=False)              # 'tiki'
+    external_category_id = Column(String(40), nullable=False)
+    external_category_label = Column(String(255), nullable=True)
+    # Which Mercai category this benchmarks, by NAME rather than id: category
+    # ids differ between environments, names do not.
+    mercai_category_name = Column(String(100), nullable=False, index=True)
+
+    sample_size = Column(Integer, nullable=False, default=0)
+    pages_sampled = Column(Integer, nullable=False, default=0)
+    catalogue_total = Column(Integer, nullable=True)          # what the source claims
+
+    p25 = Column(Numeric(12, 2), nullable=True)
+    median = Column(Numeric(12, 2), nullable=True)
+    p75 = Column(Numeric(12, 2), nullable=True)
+    price_min = Column(Numeric(12, 2), nullable=True)
+    price_max = Column(Numeric(12, 2), nullable=True)
+    currency = Column(String(3), nullable=False, default="VND")
+
+    status = Column(String(30), nullable=False, default="ok")
+    computed_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("source", "external_category_id", name="uq_cb_source_category"),
+        Index("ix_cb_mercai_category", "mercai_category_name", "computed_at"),
+    )
+
+    def __repr__(self):
+        return (
+            f"<CategoryBenchmark({self.source}:{self.external_category_id} "
+            f"n={self.sample_size} median={self.median})>"
+        )

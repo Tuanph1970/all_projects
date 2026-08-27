@@ -655,10 +655,49 @@ Mitigations, in order of honesty:
 | ~~**1**~~ | ~~Internal market position: stats, ladder, labels, screen~~ | ✅ **done** |
 | ~~**1.5**~~ | ~~Validation gate~~ — `--gate`, 24 products against ground truth | ✅ **PASSED** |
 | ~~**2**~~ | ~~`fetcher.py`, extraction ladder, adapters, `POST /comparables`, on-demand fetch~~ | ✅ **done** |
-| **2.5** | **Tiki category aggregates** — the one external source confirmed working, and it needs no matching | 1–2 d |
+| ~~**2.5**~~ | ~~Tiki category aggregates~~ | ✅ **done** |
 | **3** | Observation history, trend, staleness, read-time alerts | 1–2 d |
 | **3.5** | **Model-token matching** (§7.1) — exact, no threshold, no labels needed. Only worth building once a non-artisan category has volume | 1 d |
 | **4** | Deferred: `intel-worker`; Shopee via Affiliate API *if approved*; fuzzy scoring **only** if a category defeats both matchers, and then with real IDF | — |
+
+### Phase 2.5 — ✅ done 2026-08-27
+
+Category-wide benchmarks from Tiki, and **deliberately not treated as
+comparables**. A comparable is one competitor listing matched to one of the
+seller's products, and getting that match wrong shows them the price of a
+different item. A benchmark has no match to get wrong: it aggregates a whole
+category, and one bad row cannot move a median over 120 items.
+
+**The measured numbers are the argument for keeping it separate:**
+
+| | p25 | median | p75 |
+|---|---|---|---|
+| Seller's own market (`Bát đĩa`, n=6) | 178,750₫ | 245,000₫ | 277,500₫ |
+| Tiki tableware benchmark (n=120 of 767) | 69,922₫ | 218,000₫ | **845,625₫** |
+
+The benchmark's p75 is **three times** the seller's. Folding it into the
+quartiles would silently triple the top of the range with nothing on screen to
+explain why — so it is its own labelled block, and the caveat ("dominated by
+tableware sets; not directly comparable to a single piece") ships attached to
+the numbers rather than living only here.
+
+Three things the implementation refuses to do, each with a test:
+
+- **publish quartiles over a thin sample.** Fewer than 20 items is recorded as
+  `insufficient_sample` and never reaches the client — the same reasoning as
+  `MIN_COMPARABLE_N`, one market over.
+- **trust a single page.** A 20-item sample gave a median of 690,000₫ where 120
+  items give 218,000₫. Small-sample noise large enough to actively mislead, so
+  it samples three pages.
+- **guess a category id.** The ids attached to a Vietnamese bowl were 1883,
+  1954, 3178, 61515, 64119 and 64158. Three returned nothing, two returned
+  thermal flasks, and only 3178 returned tableware. An id that appears on the
+  product is usually an ancestor, not the leaf — `_benchmarks.yml` says so at
+  the top.
+
+Refresh happens in a `BackgroundTasks` job when a seller opens a stale screen
+(three paced requests is too long to make them wait), with
+`scripts/refresh_benchmarks.py` for bootstrapping. Still no scheduler (§9).
 
 ### Phase 2 — ✅ done 2026-08-27
 

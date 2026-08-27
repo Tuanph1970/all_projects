@@ -22,6 +22,27 @@ class PricePoint(BaseModel):
     reason: Optional[str] = None
 
 
+class CategoryBenchmarkOut(BaseModel):
+    """
+    A whole-category aggregate from another marketplace.
+
+    Reference material, not part of the seller's position: it is a different
+    market with a different mix of products, and `caveat` says how.
+    """
+    source: str
+    label: Optional[str] = None
+    sample_size: int = 0
+    catalogue_total: Optional[int] = None
+    p25: Optional[float] = None
+    median: Optional[float] = None
+    p75: Optional[float] = None
+    min: Optional[float] = None
+    max: Optional[float] = None
+    computed_at: Optional[str] = None
+    stale: bool = False
+    caveat: Optional[str] = None
+
+
 class PricePositionResponse(BaseModel):
     product_id: int
     product_name: str
@@ -50,3 +71,5 @@ class PricePositionResponse(BaseModel):
     comparables: List[ComparableListing] = Field(default_factory=list)
     # Exact, from the price_history ledger -- safe to draw as a real line.
     trend: List[PricePoint] = Field(default_factory=list)
+    # Wider market reference. Never folded into the statistics above.
+    benchmark: Optional[CategoryBenchmarkOut] = None

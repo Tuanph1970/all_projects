@@ -185,6 +185,27 @@ def _sample(products: Sequence[Product], external=()) -> List[Dict]:
     return chosen
 
 
+def _benchmark(db: Session, category_name):
+    """
+    The external category benchmark, as its own block.
+
+    Deliberately NOT merged into `_summarise`. It is a different market -- Tiki's
+    tableware category is dominated by multi-piece sets while a Mercai listing is
+    usually one hand-made bowl -- so folding it in would move a median the seller
+    might act on, with nothing on screen to explain why. See
+    services/benchmarks.py.
+    """
+    try:
+        from app.services.benchmarks import as_payload, for_category
+    except Exception:  # pragma: no cover - defensive
+        return None
+    try:
+        return as_payload(for_category(db, category_name))
+    except Exception:
+        logger.warning("Could not read category benchmark", exc_info=True)
+        return None
+
+
 def _external_prices(db: Session, product_id: int):
     """
     Trusted external observations, one per comparable.
@@ -240,6 +261,11 @@ def compute_position(db: Session, product: Product) -> Dict:
     would teach those sellers the feature is broken.
     """
     own_price = float(product.price)
+    category_name = None
+    if product.category_id is not None:
+        row = db.query(Category).filter(Category.id == product.category_id).first()
+        category_name = row.name if row else None
+
     base = {
         "product_id": product.id,
         "product_name": product.name,
@@ -247,6 +273,8 @@ def compute_position(db: Session, product: Product) -> Dict:
         "currency": "VND",
         "min_comparable_n": MIN_COMPARABLE_N,
         "trend": price_trend(db, product.id),
+        # Reference only. Shown alongside the seller's position, never inside it.
+        "benchmark": _benchmark(db, category_name),
     }
 
     external = _external_prices(db, product.id)

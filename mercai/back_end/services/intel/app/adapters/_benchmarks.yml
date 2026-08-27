@@ -1,0 +1,32 @@
+# Mercai category -> external category benchmark.
+#
+# Keyed by Mercai category NAME rather than id: ids differ between environments,
+# names do not.
+#
+# HOW TO ADD ONE — do not guess an id. Search the source's API for a product you
+# know belongs in the category, read the ids it reports, then probe each one and
+# keep the one whose results are coherent. On 2026-08-27 the ids attached to a
+# Vietnamese bowl were 1883, 1954, 3178, 61515, 64119, 64158; of those, 61515 /
+# 64119 / 64158 returned nothing at all, and 1883 / 1954 returned thermal flasks.
+# Only 3178 returned bowls, plates and tableware sets. An id that "looks right"
+# because it appeared on the product is usually an ancestor, not the leaf.
+#
+# Read services/benchmarks.py before trusting one of these for anything.
+
+benchmarks:
+  - mercai_category: "Bát đĩa"
+    source: tiki
+    external_category_id: "3178"
+    label: "Bát, đĩa & bộ đồ ăn trên Tiki"
+    # Verified 2026-08-27: 767 items in the catalogue, medians stable at
+    # 200,000-275,000d across three sampled pages. Skews high because the
+    # category is dominated by multi-piece SETS while a Mercai listing is
+    # usually one bowl -- which is exactly why this is shown as a separate
+    # reference and never folded into the seller's position.
+    notes: "Dominated by tableware sets; not directly comparable to a single piece."
+
+  - mercai_category: "Ấm chén"
+    source: tiki
+    external_category_id: "3178"
+    label: "Bát, đĩa & bộ đồ ăn trên Tiki"
+    notes: "Shares the tableware category; Tiki has no separate teaware leaf."

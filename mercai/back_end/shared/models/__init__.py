@@ -12,7 +12,7 @@ from .seller_profile import SellerProfile, StoreTheme
 from .seller_category import SellerCategory
 from .analytics import SearchLog
 from .ai import AiSuggestion
-from .intel import TrackedComparable, ComparableObservation
+from .intel import TrackedComparable, ComparableObservation, CategoryBenchmark
 
 __all__ = [
     # User
@@ -50,4 +50,5 @@ __all__ = [
     # Price intelligence
     "TrackedComparable",
     "ComparableObservation",
+    "CategoryBenchmark",
 ]

@@ -305,6 +305,45 @@ export const PricePositionScreen = ({ route, navigation }) => {
         </Card>
       )}
 
+      {data?.benchmark && (
+        <Card style={styles.card}>
+          <Card.Content>
+            <Text style={styles.sectionTitle}>The wider market</Text>
+            <Text style={styles.sectionCaption}>
+              {data.benchmark.label} — {data.benchmark.sample_size} of{' '}
+              {data.benchmark.catalogue_total} listings sampled
+              {data.benchmark.stale ? ', last checked a while ago' : ''}.
+            </Text>
+
+            <View style={styles.statRow}>
+              {[
+                ['p25', data.benchmark.p25],
+                ['Median', data.benchmark.median],
+                ['p75', data.benchmark.p75],
+              ].map(([label, value]) => (
+                <View key={label} style={styles.stat}>
+                  <Text style={styles.statLabel}>{label}</Text>
+                  <Text style={styles.statValue}>{formatVnd(value)}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* The caveat travels with the numbers. A median means nothing
+                without knowing what it is a median of. */}
+            {data.benchmark.caveat && (
+              <Text style={styles.benchmarkCaveat} testID="benchmark-caveat">
+                {data.benchmark.caveat}
+              </Text>
+            )}
+            <Text style={styles.benchmarkNote}>
+              Shown for context only. It’s a different marketplace with a
+              different mix of products, so it isn’t counted in your position
+              above.
+            </Text>
+          </Card.Content>
+        </Card>
+      )}
+
       <Card style={styles.card}>
         <Card.Content>
           <Text style={styles.sectionTitle}>Listings you’re tracking</Text>
@@ -457,6 +496,13 @@ const styles = StyleSheet.create({
   trendDate: { fontSize: 12, color: colors.textSecondary, width: 90 },
   trendReason: { flex: 1, fontSize: 12, color: colors.textMuted },
   trendPrice: { fontSize: 13, fontWeight: '600', color: colors.text },
+
+  benchmarkCaveat: {
+    fontSize: 12, color: colors.warning, marginTop: spacing.base, lineHeight: 17,
+  },
+  benchmarkNote: {
+    fontSize: 11, color: colors.textMuted, marginTop: spacing.sm, lineHeight: 16,
+  },
 
   trackedRow: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs,
