@@ -1,5 +1,10 @@
 # Design — Listing Optimizer
 
+> ⚠️ **SUPERSEDED 2026-08-27 — this design depends on a local chat model, and Ollama is being removed.**
+> The deploy target cannot run a model (see [`05-price-intelligence.md`](./05-price-intelligence.md) §1–§2).
+> **The implemented code is being deleted in Phase 0** (`05` §2.1); only the Pillow-based `image_report.py` and the flag/quota half of `guardrails.py` are kept. The `ai_suggestions` table stays.
+> Reopening it needs a hosted API or a deterministic substitute — both discussed in `05` §2.3.
+
 **Status:** ✅ **backend implemented 2026-08-18** (foundation + listing optimizer, 33 tests passing). ✅ **frontend implemented 2026-08-19** (§6), covering both the create and edit paths.
 **Not yet built:** the phase-2 vision model.
 **Date:** 2026-08-18

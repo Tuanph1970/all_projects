@@ -1,11 +1,17 @@
 """
 AI feature models.
 
-`ai_suggestions` is shared by every AI feature (listing optimizer, chat
-copilot, review intelligence). It exists to answer the only rollout question
-that matters: are sellers actually accepting these suggestions?
+`ai_suggestions` is shared by every seller-facing suggestion feature. It exists
+to answer the only rollout question that matters: are sellers actually accepting
+these suggestions?
 
-See docs/ai-features/02-listing-optimizer.md section 2.
+The table keeps its name after the LLM features were removed. It holds the
+listing optimizer's real rollout history, and it is feature-keyed and generic,
+so price intelligence writes to it rather than to a new table. `model` and
+`prompt_version` are NOT NULL; price intelligence writes "rules" and a ruleset
+version, which is honest and keeps acceptance measurable on one query.
+
+See docs/ai-features/05-price-intelligence.md section 7.3.
 """
 from sqlalchemy import (
     BigInteger, Boolean, Column, DateTime, Index, Integer, JSON, String
@@ -15,10 +21,15 @@ from sqlalchemy.sql import func
 from shared.database import Base
 
 
-# Feature identifiers
-FEATURE_LISTING_OPTIMIZER = "listing_optimizer"
-FEATURE_CHAT_COPILOT = "chat_copilot"
-FEATURE_REVIEW_INTELLIGENCE = "review_intelligence"
+# Feature identifiers.
+#
+# The three LLM features were removed on 2026-08-27 (the deploy target cannot
+# run a model), but their constants stay: historical rows reference them, and
+# deleting the names would make that history unreadable.
+FEATURE_LISTING_OPTIMIZER = "listing_optimizer"   # retired 2026-08-27
+FEATURE_CHAT_COPILOT = "chat_copilot"             # never shipped
+FEATURE_REVIEW_INTELLIGENCE = "review_intelligence"  # never shipped
+FEATURE_PRICE_INTEL = "price_intel"
 
 # Suggestion lifecycle
 STATUS_PROPOSED = "proposed"

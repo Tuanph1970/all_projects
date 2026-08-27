@@ -75,32 +75,26 @@ class Settings(BaseSettings):
     ORDER_SERVICE_URL: str = "http://order-service:8003"
     CHAT_SERVICE_URL: str = "http://chat-service:8004"
     SELLER_SERVICE_URL: str = "http://seller-service:8005"
-    AI_SERVICE_URL: str = "http://ai-service:8006"
+    INTEL_SERVICE_URL: str = "http://intel-service:8006"
 
-    # --- AI / LLM ---------------------------------------------------------
-    # Ollama runs on the Docker host; services already use host.docker.internal
-    # for host-side dependencies (see docker-compose extra_hosts).
-    OLLAMA_BASE_URL: str = "http://host.docker.internal:11434"
-    # 3B while the deploy target is RAM-constrained: the 14B is 9.0GB and will
-    # not fit alongside the stack on an 8GB host. Measured 2026-08-22 -- 14B is
-    # 110s CPU-only vs 32s for this model, and the 14B needs a GPU to be usable
-    # at all. Revert to qwen2.5:14b-instruct-q4_K_M once the hardware allows;
-    # the 3B is measurably weaker on Vietnamese ceramics terms.
-    OLLAMA_MODEL: str = "qwen2.5:3b-instruct-q4_K_M"
-    OLLAMA_TIMEOUT_SECONDS: int = 45
-    # A single Ollama instance serialises work; shed load rather than queue.
-    AI_MAX_CONCURRENT_GENERATIONS: int = 4
+    # --- Intel (price & market intelligence) ------------------------------
+    # No model settings live here any more. The Ollama client and the three LLM
+    # features it served were removed on 2026-08-27 -- the deploy target cannot
+    # run a model. See docs/ai-features/05-price-intelligence.md section 2.1.
 
-    # Feature flags (default off -- see docs/ai-features/02-listing-optimizer.md)
-    AI_LISTING_OPTIMIZER_ENABLED: bool = False
-    AI_CHAT_COPILOT_ENABLED: bool = False
-    AI_REVIEW_INTELLIGENCE_ENABLED: bool = False
+    # Feature flag (default off -- staged per seller via the Redis allowlist)
+    INTEL_PRICE_ENABLED: bool = False
 
-    # Per-seller quotas, enforced in Redis
+    # Per-seller quotas, enforced in Redis. Kept generic: they bound expensive
+    # operations, and outbound fetches are the expensive operation now.
     AI_QUOTA_PER_HOUR: int = 20
     AI_QUOTA_PER_DAY: int = 100
 
-    # Cache TTL for generated suggestions
+    # Cache TTL for computed suggestions.
+    # These three keep their AI_ / _AI_ names because they are tied to the
+    # `ai_suggestions` table, which keeps its name -- it still holds the
+    # listing optimizer's real rollout history and is feature-keyed, so price
+    # intelligence writes to it rather than to a new table.
     CACHE_TTL_AI_SUGGESTION: int = 86400  # 24 hours
 
     @property

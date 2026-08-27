@@ -56,10 +56,9 @@ export const API_CONFIG = {
   WS_URL: currentEnv.WS_URL,
 
   TIMEOUT: 10000, // 10 seconds
-  // Model generation is far slower than a CRUD call. The backend gives up
-  // after OLLAMA_TIMEOUT_SECONDS and retries once, so the client has to wait
-  // longer than that or it aborts a request the server would have answered.
-  AI_TIMEOUT: 60000, // 60 seconds
+  // An intel call may make an outbound fetch to a third-party site, so it can
+  // legitimately take longer than a CRUD call against our own database.
+  INTEL_TIMEOUT: 30000, // 30 seconds
   
   ENDPOINTS: {
     // Auth endpoints
@@ -102,10 +101,10 @@ export const API_CONFIG = {
     SELLER_PROFILE: '/api/v1/seller/profile',
     SELLER_CATEGORIES: '/api/v1/seller/categories',
 
-    // AI endpoints (routes to ai-service via Traefik)
-    AI: '/api/v1/ai',
-    AI_LISTING_SUGGEST: '/api/v1/ai/listing/suggest',
-    AI_LISTING_SUGGESTIONS: '/api/v1/ai/listing/suggestions', // ${...}/${id}/resolve
+    // Intel endpoints (routes to intel-service via Traefik).
+    // Price intelligence lands here in phase 1; see
+    // docs/ai-features/05-price-intelligence.md section 10.
+    INTEL: '/api/v1/intel',
 
     // Order fulfillment endpoints (seller order management)
     SELLER_FULFILLMENT: '/api/v1/seller/fulfillment/orders',  // For GET orders

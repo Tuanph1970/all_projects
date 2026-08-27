@@ -331,17 +331,18 @@ services:
       - "traefik.http.routers.mercai-static.entrypoints=web"
       - "traefik.http.routers.mercai-static.service=mercai-seller"
 
-  # AI Service - LLM-backed seller assistance
-  ai-service:
+  # Intel Service - seller price & market intelligence
+  # Formerly ai-service. No model runtime: the Ollama client was removed
+  # 2026-08-27, so this service no longer needs a route to the Docker host.
+  # See docs/ai-features/05-price-intelligence.md section 2.
+  intel-service:
     build:
       context: .
-      dockerfile: services/ai/Dockerfile
-    container_name: mercai_ai_service
+      dockerfile: services/intel/Dockerfile
+    container_name: mercai_intel_service
     restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"  # reaches Ollama on the host
     environment:
-      - SERVICE_NAME=ai-service
+      - SERVICE_NAME=intel-service
       - SERVICE_PORT=8006
       - DB_HOST=${DB_HOST:-db}
       - DB_PORT=${DB_PORT:-3306}
@@ -354,15 +355,8 @@ services:
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - AUTH_SERVICE_URL=http://auth-service:8001
       - PRODUCT_SERVICE_URL=http://product-service:8002
-      # Ollama / model configuration
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:3b-instruct-q4_K_M}
-      - OLLAMA_TIMEOUT_SECONDS=${OLLAMA_TIMEOUT_SECONDS:-45}
-      - AI_MAX_CONCURRENT_GENERATIONS=${AI_MAX_CONCURRENT_GENERATIONS:-4}
-      # Feature flags - default OFF
-      - AI_LISTING_OPTIMIZER_ENABLED=${AI_LISTING_OPTIMIZER_ENABLED:-false}
-      - AI_CHAT_COPILOT_ENABLED=${AI_CHAT_COPILOT_ENABLED:-false}
-      - AI_REVIEW_INTELLIGENCE_ENABLED=${AI_REVIEW_INTELLIGENCE_ENABLED:-false}
+      # Feature flags - default OFF, staged per seller via the Redis allowlist
+      - INTEL_PRICE_ENABLED=${INTEL_PRICE_ENABLED:-false}
     depends_on:
       redis:
         condition: service_healthy
@@ -376,21 +370,17 @@ services:
       start_period: 60s
     volumes:
       - ./uploads:/app/uploads
-      - ./services/ai/app:/app/app
+      - ./services/intel/app:/app/app
       - ./shared:/app/shared
     networks:
       - mercai_network
     labels:
       - "traefik.enable=true"
       - "traefik.project=mercai"
-      - "traefik.http.routers.mercai-ai.rule=PathPrefix(`/api/v1/ai`)"
-      - "traefik.http.routers.mercai-ai.entrypoints=web"
-      - "traefik.http.services.mercai-ai.loadbalancer.server.port=8006"
-      - "traefik.http.routers.mercai-ai.middlewares=ai-ratelimit@file"
-
-# ===========================================
-# VOLUMES
-# ===========================================
+      - "traefik.http.routers.mercai-intel.rule=PathPrefix(`/api/v1/intel`)"
+      - "traefik.http.routers.mercai-intel.entrypoints=web"
+      - "traefik.http.services.mercai-intel.loadbalancer.server.port=8006"
+      - "traefik.http.routers.mercai-intel.middlewares=intel-ratelimit@file"
 volumes:
   mercai_mysql_data:
     driver: local

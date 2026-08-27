@@ -1,5 +1,10 @@
 # Design — Review Intelligence
 
+> ⚠️ **SUPERSEDED 2026-08-27 — this design depends on a local chat model, and Ollama is being removed.**
+> The deploy target cannot run a model (see [`05-price-intelligence.md`](./05-price-intelligence.md) §1–§2).
+> It was never built. Aspect tagging by keyword lexicon is the deterministic substitute worth considering, since it needs no generation.
+> Reopening it needs a hosted API or a deterministic substitute — both discussed in `05` §2.3.
+
 **Status:** design only, no feature code written
 **Date:** 2026-08-18
 **Prerequisite reading:** [`00-codebase-assessment.md`](./00-codebase-assessment.md) §5, and **[`02-listing-optimizer.md`](./02-listing-optimizer.md) §3** for the shared `ai-service` foundation. This document covers only what is specific to review intelligence.

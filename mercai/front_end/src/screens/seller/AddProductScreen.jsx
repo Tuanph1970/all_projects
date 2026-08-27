@@ -28,8 +28,6 @@ import { CategorySelectorField } from '../../components/seller/CategorySelector.
 import VideoPicker from '../../components/seller/VideoPicker.jsx';
 import VideoPreview from '../../components/seller/VideoPreview.jsx';
 import VideoUploadProgress from '../../components/seller/VideoUploadProgress.jsx';
-import ListingSuggestionModal from '../../components/seller/ListingSuggestionModal.jsx';
-import aiService from '../../services/aiService.js';
 import { useTranslation } from '@i18n';
 
 export const AddProductScreen = () => {
@@ -59,10 +57,6 @@ export const AddProductScreen = () => {
   });
 
   // Listing optimizer state
-  const [aiAvailable, setAiAvailable] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiResult, setAiResult] = useState(null);
-  const [aiModalVisible, setAiModalVisible] = useState(false);
 
   // Selected category (object with id, name, etc.)
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -89,89 +83,6 @@ export const AddProductScreen = () => {
       loadProductData();
     }
   }, [productId]);
-
-  // Hide the AI affordance entirely when the model is unreachable -- better
-  // than offering a button that fails when tapped.
-  useEffect(() => {
-    let cancelled = false;
-    aiService.isListingOptimizerAvailable().then((ok) => {
-      if (!cancelled) setAiAvailable(ok);
-    });
-    return () => { cancelled = true; };
-  }, []);
-
-  const canRequestSuggestions =
-    formData.title.trim().length > 2 && formData.description.trim().length > 10;
-
-  const handleRequestSuggestions = async () => {
-    try {
-      setAiLoading(true);
-      // A saved product is referenced by id; an unsaved one is sent as a draft
-      // so the optimizer works at the moment the listing is first written.
-      const request = isEditMode
-        ? { productId }
-        : {
-            draft: {
-              name: formData.title.trim(),
-              description: formData.description.trim(),
-              tags: formData.tags?.trim() || null,
-              material: formData.material?.trim() || null,
-              color: formData.color?.trim() || null,
-              technique: formData.technique?.trim() || null,
-              dimensions: formData.dimensions?.trim() || null,
-            },
-          };
-
-      const response = await aiService.suggestListing(request);
-      setAiResult(response?.data || response);
-      setAiModalVisible(true);
-    } catch (error) {
-      const status = error?.response?.status;
-      const message =
-        status === 503
-          ? 'The assistant is unavailable right now. Your listing is unaffected.'
-          : status === 429
-          ? 'You have reached the suggestion limit. Try again shortly.'
-          : 'Could not get suggestions. Please try again.';
-      Alert.alert('Suggestions unavailable', message);
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
-  // Suggestions only ever update form state. The seller still presses Save,
-  // so nothing bypasses validation or the normal product endpoints.
-  const handleApplySuggestions = (patch, acceptedFields) => {
-    setFormData((prev) => ({
-      ...prev,
-      ...(patch.name !== undefined ? { title: patch.name } : {}),
-      ...(patch.description !== undefined ? { description: patch.description } : {}),
-      ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
-      ...(patch.material !== undefined ? { material: patch.material } : {}),
-      ...(patch.color !== undefined ? { color: patch.color } : {}),
-      ...(patch.technique !== undefined ? { technique: patch.technique } : {}),
-      ...(patch.dimensions !== undefined ? { dimensions: patch.dimensions } : {}),
-    }));
-
-    if (aiResult?.suggestion_id) {
-      const total = acceptedFields.length;
-      aiService.resolveSuggestion(
-        aiResult.suggestion_id,
-        total > 0 ? 'partially_accepted' : 'rejected',
-        acceptedFields,
-      );
-    }
-    setAiModalVisible(false);
-    setAiResult(null);
-  };
-
-  const handleDismissSuggestions = () => {
-    if (aiResult?.suggestion_id) {
-      aiService.resolveSuggestion(aiResult.suggestion_id, 'rejected', []);
-    }
-    setAiModalVisible(false);
-    setAiResult(null);
-  };
 
   // Load product data for editing
   const loadProductData = async () => {
@@ -865,27 +776,6 @@ export const AddProductScreen = () => {
             testID="add-product-dimensions-input"
           />
 
-          {/* Listing optimizer. Rendered only when the model is reachable, and
-              disabled until there is enough written for a useful suggestion. */}
-          {aiAvailable && (
-            <View style={styles.aiSection} testID="add-product-ai-section">
-              <Button
-                mode="contained-tonal"
-                icon="auto-awesome"
-                onPress={handleRequestSuggestions}
-                loading={aiLoading}
-                disabled={aiLoading || !canRequestSuggestions}
-                testID="add-product-ai-suggest-button"
-              >
-                {aiLoading ? 'Thinking…' : 'Improve this listing'}
-              </Button>
-              <Text style={styles.aiHint}>
-                {canRequestSuggestions
-                  ? 'Suggestions are yours to accept, edit or ignore.'
-                  : 'Add a title and a short description first.'}
-              </Text>
-            </View>
-          )}
         </Card>
 
         {/* Submit Button */}
@@ -904,25 +794,11 @@ export const AddProductScreen = () => {
         </View>
       </ScrollView>
       )}
-
-      <ListingSuggestionModal
-        visible={aiModalVisible}
-        result={aiResult}
-        onDismiss={handleDismissSuggestions}
-        onApply={handleApplySuggestions}
-      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  aiSection: { marginTop: spacing.md },
-  aiHint: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-    textAlign: 'center',
-  },
   container: {
     flex: 1,
     backgroundColor: colors.surface,

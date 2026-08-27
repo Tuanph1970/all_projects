@@ -1,4 +1,4 @@
-# AI Service Dockerfile
+# Intel Service Dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -11,10 +11,10 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY shared/ /app/shared/
-COPY services/ai/requirements.txt /app/requirements.txt
+COPY services/intel/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY services/ai/app/ /app/app/
+COPY services/intel/app/ /app/app/
 
 ENV PYTHONPATH=/app
 EXPOSE 8006

@@ -29,10 +29,10 @@ ingress:
   - hostname: api.mercai.tuan1970.com
     service: http://localhost:8002
     originRequest:
-      # The AI listing optimizer holds the connection while the model
-      # generates. Worst case is 2 x OLLAMA_TIMEOUT_SECONDS (25s) plus
-      # overhead, comfortably inside Cloudflare's 100s edge limit, but the
-      # origin connection must not be recycled underneath it.
+      # An intel call may hold the connection while it fetches a third-party
+      # page (5s connect + 10s read, one hop at a time), so the origin
+      # connection must not be recycled underneath it. Still far inside
+      # Cloudflare's hard 100s edge limit.
       connectTimeout: 30s
       keepAliveTimeout: 90s
       noHappyEyeballs: true

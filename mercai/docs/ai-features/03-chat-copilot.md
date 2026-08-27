@@ -1,5 +1,10 @@
 # Design — Chat Copilot (suggest-draft)
 
+> ⚠️ **SUPERSEDED 2026-08-27 — this design depends on a local chat model, and Ollama is being removed.**
+> The deploy target cannot run a model (see [`05-price-intelligence.md`](./05-price-intelligence.md) §1–§2).
+> It was never built. The shared `ai-service` foundation it names as a prerequisite no longer contains a model client.
+> Reopening it needs a hosted API or a deterministic substitute — both discussed in `05` §2.3.
+
 **Status:** design only, no feature code written
 **Date:** 2026-08-18
 **Prerequisite reading:** [`00-codebase-assessment.md`](./00-codebase-assessment.md) §5, and **[`02-listing-optimizer.md`](./02-listing-optimizer.md) §3** for the shared `ai-service` foundation (service boundary, auth, Ollama client, `ai_suggestions` table, flags, rate limits). This document only covers what is specific to the copilot.
