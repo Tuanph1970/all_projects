@@ -149,6 +149,15 @@ async def test_login_invalid_email_raises(test_db):
 
 
 @pytest.mark.asyncio
+async def test_login_by_username_succeeds(test_db):
+    await _seed_user(test_db)
+    svc = AuthService(UserRepository(test_db))
+    from app.models.schemas import UserLogin
+    tokens = await svc.login(UserLogin(email="alice", password="Password123!"))
+    assert tokens.access_token
+
+
+@pytest.mark.asyncio
 async def test_login_wrong_password_raises(test_db):
     await _seed_user(test_db)
     svc = AuthService(UserRepository(test_db))

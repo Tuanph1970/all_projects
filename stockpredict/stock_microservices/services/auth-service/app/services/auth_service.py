@@ -125,8 +125,10 @@ class AuthService:
         ip_address: Optional[str] = None,
     ) -> TokenResponse:
         """Authenticate user and return tokens"""
-        # Get user by email
+        # The identifier can be either the account email or the username
         user = await self.repository.get_user_by_email(login_data.email)
+        if not user:
+            user = await self.repository.get_user_by_username(login_data.email)
         if not user:
             raise ValueError("Invalid email or password")
 

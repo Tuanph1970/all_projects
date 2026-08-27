@@ -1709,6 +1709,7 @@
     "subtitle_forgot": "Reset your password",
     "subtitle_change": "Change your password",
     "label_username": "Username",
+    "label_login_identifier": "Username or email",
     "label_email": "Email",
     "label_password": "Password",
     "label_confirm_password": "Confirm password",

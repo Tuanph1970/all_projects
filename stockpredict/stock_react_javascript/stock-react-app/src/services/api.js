@@ -33,7 +33,8 @@ export const authAPI = {
       });
 
       if (!response.ok) {
-        throw new Error('Invalid credentials');
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || errorData?.message || 'Invalid credentials');
       }
 
       const data = await response.json();
@@ -57,7 +58,7 @@ export const authAPI = {
         }
       };
     } catch (error) {
-      throw new Error('Invalid credentials');
+      throw new Error(error.message || 'Invalid credentials');
     }
   },
 
