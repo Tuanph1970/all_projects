@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
-import { Text, Card, ActivityIndicator, Button, Chip, Divider } from 'react-native-paper';
+import { View, ScrollView, StyleSheet, RefreshControl, Alert } from 'react-native';
+import {
+  Text, Card, ActivityIndicator, Button, Chip, Divider, TextInput, IconButton,
+} from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import intelService from '../../services/intelService.js';
@@ -86,6 +88,11 @@ export const PricePositionScreen = ({ route, navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
+  const [tracked, setTracked] = useState([]);
+  const [supportedHosts, setSupportedHosts] = useState([]);
+  const [newUrl, setNewUrl] = useState('');
+  const [adding, setAdding] = useState(false);
+
   const load = useCallback(async () => {
     try {
       setError(null);
@@ -103,9 +110,72 @@ export const PricePositionScreen = ({ route, navigation }) => {
     }
   }, [productId]);
 
+  const loadComparables = useCallback(async () => {
+    try {
+      const response = await intelService.listComparables(productId);
+      const body = response?.data || response;
+      setTracked(body?.comparables || []);
+      setSupportedHosts(body?.supported_hosts || []);
+    } catch (err) {
+      // Non-fatal: the market view is still worth showing without this.
+      setTracked([]);
+    }
+  }, [productId]);
+
+  const handleAdd = async () => {
+    const url = newUrl.trim();
+    if (!url) return;
+    try {
+      setAdding(true);
+      const response = await intelService.addComparable({ productId, url });
+      const added = response?.data || response;
+      setNewUrl('');
+      await Promise.all([loadComparables(), load()]);
+      // Adding fetches once, so the seller learns immediately whether we can
+      // read the page. Saying nothing here would leave a silent dead row.
+      if (added?.latest && added.latest.status !== 'ok') {
+        Alert.alert('Added, but we couldn’t read a price', added.latest.message);
+      }
+    } catch (err) {
+      Alert.alert(
+        'Could not add that link',
+        err?.response?.data?.detail || 'Please check the URL and try again.',
+      );
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleRefreshOne = async (comparableId) => {
+    try {
+      await intelService.refreshComparable(comparableId);
+      await Promise.all([loadComparables(), load()]);
+    } catch (err) {
+      Alert.alert(
+        'Not right now',
+        err?.response?.data?.detail || 'Could not re-check that listing.',
+      );
+    }
+  };
+
+  const handleRemove = (comparableId) => {
+    Alert.alert('Stop tracking this listing?', 'Its price history is kept.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Stop tracking',
+        style: 'destructive',
+        onPress: async () => {
+          await intelService.removeComparable(comparableId);
+          await Promise.all([loadComparables(), load()]);
+        },
+      },
+    ]);
+  };
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadComparables();
+  }, [load, loadComparables]);
 
   if (loading) {
     return (
@@ -235,6 +305,64 @@ export const PricePositionScreen = ({ route, navigation }) => {
         </Card>
       )}
 
+      <Card style={styles.card}>
+        <Card.Content>
+          <Text style={styles.sectionTitle}>Listings you’re tracking</Text>
+          <Text style={styles.sectionCaption}>
+            Paste a competitor’s product page. We check it when you ask, and only
+            count it towards the range above when we’re confident we read it right.
+          </Text>
+
+          {tracked.map((item) => (
+            <View key={item.id} style={styles.trackedRow}>
+              <View style={styles.trackedMain}>
+                <Text style={styles.trackedHost}>{item.source_host}</Text>
+                <Text style={styles.trackedStatus} numberOfLines={2}>
+                  {item.latest
+                    ? item.latest.status === 'ok'
+                      ? `${formatVnd(item.latest.price)}${item.latest.stale ? ' · last checked a while ago' : ''}`
+                      : item.latest.message
+                    : 'Not checked yet'}
+                </Text>
+                {item.latest?.status === 'ok' && !item.latest.trusted && (
+                  <Text style={styles.trackedCaveat}>
+                    Shown for reference — not confident enough to count.
+                  </Text>
+                )}
+              </View>
+              <IconButton icon="refresh" size={18} onPress={() => handleRefreshOne(item.id)} />
+              <IconButton icon="close" size={18} onPress={() => handleRemove(item.id)} />
+            </View>
+          ))}
+
+          <TextInput
+            mode="outlined"
+            label="Competitor product URL"
+            value={newUrl}
+            onChangeText={setNewUrl}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            style={styles.urlInput}
+            testID="comparable-url-input"
+          />
+          <Button
+            mode="contained-tonal"
+            onPress={handleAdd}
+            loading={adding}
+            disabled={adding || !newUrl.trim()}
+            testID="comparable-add-button"
+          >
+            Track this listing
+          </Button>
+          {supportedHosts.length > 0 && (
+            <Text style={styles.hostsHint}>
+              Sites we can read so far: {supportedHosts.join(', ')}
+            </Text>
+          )}
+        </Card.Content>
+      </Card>
+
       {data?.trend?.length > 1 && (
         <Card style={styles.card}>
           <Card.Content>
@@ -329,6 +457,19 @@ const styles = StyleSheet.create({
   trendDate: { fontSize: 12, color: colors.textSecondary, width: 90 },
   trendReason: { flex: 1, fontSize: 12, color: colors.textMuted },
   trendPrice: { fontSize: 13, fontWeight: '600', color: colors.text },
+
+  trackedRow: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border,
+  },
+  trackedMain: { flex: 1, paddingRight: spacing.sm },
+  trackedHost: { fontSize: 12, color: colors.textSecondary },
+  trackedStatus: { fontSize: 13, color: colors.text, marginTop: 2 },
+  trackedCaveat: { fontSize: 11, color: colors.warning, marginTop: 2 },
+  urlInput: { marginTop: spacing.base, marginBottom: spacing.sm },
+  hostsHint: {
+    fontSize: 11, color: colors.textMuted, marginTop: spacing.sm, lineHeight: 16,
+  },
 
   editButton: { margin: spacing.base },
 });

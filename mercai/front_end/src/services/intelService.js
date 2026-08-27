@@ -24,6 +24,48 @@ class IntelService {
     );
   }
 
+  /**
+   * Competitor listings this seller is tracking for a product.
+   *
+   * `supported_hosts` comes back with the list so the form can say which sites
+   * work before the seller pastes something we will refuse.
+   */
+  async listComparables(productId) {
+    return await apiClient.get(`${API_CONFIG.ENDPOINTS.INTEL}/comparables`, {
+      params: { product_id: productId },
+    });
+  }
+
+  /**
+   * Track a competitor URL.
+   *
+   * Fetches once, synchronously, and returns what it found. A URL we cannot
+   * read fails here with a reason rather than becoming a row that silently
+   * never yields a price.
+   */
+  async addComparable({ productId, url, label = null }) {
+    return await apiClient.post(
+      `${API_CONFIG.ENDPOINTS.INTEL}/comparables`,
+      { product_id: productId, url, label },
+      { timeout: API_CONFIG.INTEL_TIMEOUT },
+    );
+  }
+
+  async removeComparable(comparableId) {
+    return await apiClient.delete(
+      `${API_CONFIG.ENDPOINTS.INTEL}/comparables/${comparableId}`,
+    );
+  }
+
+  /** Re-read one comparable now. Rate limited per host, shared across sellers. */
+  async refreshComparable(comparableId) {
+    return await apiClient.post(
+      `${API_CONFIG.ENDPOINTS.INTEL}/comparables/${comparableId}/refresh`,
+      {},
+      { timeout: API_CONFIG.INTEL_TIMEOUT },
+    );
+  }
+
   /** Measured photo problems. Every finding is a measurement, not an opinion. */
   async getImageReport(productId) {
     return await apiClient.get(
