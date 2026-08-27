@@ -654,11 +654,48 @@ Mitigations, in order of honesty:
 | ~~**0.75**~~ | ~~Seed a real catalogue~~ — `scripts/seed_catalogue.py` | ✅ **done** |
 | ~~**1**~~ | ~~Internal market position: stats, ladder, labels, screen~~ | ✅ **done** |
 | ~~**1.5**~~ | ~~Validation gate~~ — `--gate`, 24 products against ground truth | ✅ **PASSED** |
-| **2** | `fetcher.py`, extraction ladder, adapters, `POST /comparables`, on-demand fetch | 3–4 d |
+| ~~**2**~~ | ~~`fetcher.py`, extraction ladder, adapters, `POST /comparables`, on-demand fetch~~ | ✅ **done** |
 | **2.5** | **Tiki category aggregates** — the one external source confirmed working, and it needs no matching | 1–2 d |
 | **3** | Observation history, trend, staleness, read-time alerts | 1–2 d |
 | **3.5** | **Model-token matching** (§7.1) — exact, no threshold, no labels needed. Only worth building once a non-artisan category has volume | 1 d |
 | **4** | Deferred: `intel-worker`; Shopee via Affiliate API *if approved*; fuzzy scoring **only** if a category defeats both matchers, and then with real IDF | — |
+
+### Phase 2 — ✅ done 2026-08-27
+
+| Piece | Where |
+|---|---|
+| SSRF-safe fetcher, robots, per-host budget | `services/intel/app/services/fetcher.py` |
+| Extraction ladder (5 rungs + reconciliation) | `services/intel/app/services/extract/` |
+| Vietnamese price parsing | `services/intel/app/services/money.py` |
+| Adapter registry + allowlist | `services/intel/app/services/adapters.py`, `app/adapters/*.yml` |
+| Observe / record | `services/intel/app/services/comparables.py` |
+| `POST/GET/DELETE /comparables`, `POST /{id}/refresh` | `routers/comparables.py` |
+| Tables + migration | `shared/models/intel.py`, `2026_08_27_intel_comparables` |
+| Seller UI | `PricePositionScreen.jsx` |
+
+**Verified live**, not only in tests: `shopee.vn`, `169.254.169.254` and
+`db:3306` each refused with the honest message; a real Tiki listing read at
+**270,000₫, confidence 99** — matching Tiki's own API exactly; an immediate
+re-fetch refused by the host budget; the same URL with different `utm`
+parameters deduplicated to one row; and the external price appears in the
+position payload marked `external`, moving `n` from 5 to 6. 127 tests pass, 29
+of them on the SSRF and redirect guards alone.
+
+**A bug the tests caught, worth recording:** `parse_vnd("-5000")` returned
+`5000`, because the minus was stripped along with the currency mark. A discount
+amount (`Giảm -50.000₫`) read as a competitor's price is exactly the
+wrong-element failure this module exists to prevent. Now refused — but scoped
+to a minus before the *first* digit, so `₫250.000 - ₫500.000` still reads as a
+variant range.
+
+**A mid-flight misdiagnosis, also worth recording**, because the wrong
+conclusion was tempting: the first live add returned `js_required`, and the
+obvious explanation was that our honest bot User-Agent gets served a different
+page than a browser. Testing both agents against a known-live URL showed they
+behave identically — **the URL I had used was simply dead**. Worth knowing
+before someone "fixes" the fetcher by pretending to be Chrome. It does leave a
+small rough edge: a soft-404 product page reports `js_required` rather than
+`no_price_found`, which is a misleading message for that case.
 
 **Phase 0.75 — ✅ done 2026-08-27.** `back_end/scripts/seed_catalogue.py`,
 idempotent, run with
