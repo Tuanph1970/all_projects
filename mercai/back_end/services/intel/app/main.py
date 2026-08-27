@@ -17,7 +17,7 @@ from shared.database import engine, Base
 from shared.config import settings
 from shared.cache import cache
 
-from app.routers import images, position
+from app.routers import comparables, images, position
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -59,6 +59,7 @@ app.add_middleware(
 
 app.include_router(position.router, prefix="/api/v1/intel", tags=["intel-position"])
 app.include_router(images.router, prefix="/api/v1/intel", tags=["intel-images"])
+app.include_router(comparables.router, prefix="/api/v1/intel", tags=["intel-comparables"])
 
 
 # Two paths, one handler, on purpose:
@@ -117,6 +118,7 @@ def root():
         "endpoints": {
             "price_position": "/api/v1/intel/products/{id}/price-position",
             "image_report": "/api/v1/intel/products/{id}/image-report",
+            "comparables": "/api/v1/intel/comparables",
             "health": "/health",
         },
     }

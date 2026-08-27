@@ -1,0 +1,15 @@
+host: fptshop.com.vn
+currency: VND
+
+# Also JSON-LD only. 11 of 12 product pages read at confidence 99 on
+# 2026-08-27, each cross-confirmed by the visible-text rung.
+#
+# Worth knowing: fptshop's LISTING pages render client-side and carry no prices
+# in their raw HTML, while its PRODUCT pages carry clean JSON-LD. That split is
+# the structural argument for seller-pasted product URLs over crawling —
+# crawling needs the page type that does not work.
+tiers: [jsonld, meta, state, text]
+notes: >
+  11/12 product pages at confidence 99 on 2026-08-27 (the twelfth was a
+  category page, correctly read at low confidence). Listing pages are
+  client-side rendered; do not try to crawl them.

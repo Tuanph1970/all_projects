@@ -1,11 +1,16 @@
 """
 Where a seller's price sits against comparable listings.
 
-Phase 1 is internal only: Mercai's own catalogue is already a multi-seller
-market, so the whole feature works as a database query with no network, no
-scraping and no new tables. External comparables (seller-pasted URLs) arrive in
-phase 2 and slot in as an extra source of prices -- everything below is written
-so that adding them means extending `_gather`, not rewriting the statistics.
+Two sources of prices, combined by rung 1 of the fallback ladder:
+
+  * Mercai's own catalogue, which is already a multi-seller market and needs no
+    fetching at all;
+  * external listings a seller pasted, once phase 2 has read them.
+
+External prices only join the statistics when they are trusted -- high
+confidence, recent, and successfully read. A tier-5 guess or a three-week-old
+reading is still shown to the seller, with a caveat, but it must not move a
+median they might act on.
 
 See docs/ai-features/05-price-intelligence.md section 8.
 """
@@ -122,8 +127,10 @@ def _gather(
     return query.all()
 
 
-def _summarise(products: Sequence[Product], own_price: Decimal) -> Dict:
-    prices = sorted(float(p.price) for p in products)
+def _summarise(products: Sequence[Product], own_price: Decimal, external=()) -> Dict:
+    prices = sorted(
+        [float(p.price) for p in products] + [float(o.price) for o in external]
+    )
     p25 = quantile(prices, 0.25)
     median = quantile(prices, 0.50)
     p75 = quantile(prices, 0.75)
@@ -149,7 +156,7 @@ def _summarise(products: Sequence[Product], own_price: Decimal) -> Dict:
     }
 
 
-def _sample(products: Sequence[Product]) -> List[Dict]:
+def _sample(products: Sequence[Product], external=()) -> List[Dict]:
     """
     A few of the listings behind the number, cheapest first.
 
@@ -158,7 +165,15 @@ def _sample(products: Sequence[Product]) -> List[Dict]:
     shop would turn a market summary into a ranked list of who to undercut,
     which is a different product and a worse one.
     """
-    ordered = sorted(products, key=lambda p: float(p.price))
+    rows = [
+        {"product_id": p.id, "name": p.name, "price": float(p.price), "source": "mercai"}
+        for p in products
+    ] + [
+        {"product_id": None, "name": (o.title_seen or "External listing"),
+         "price": float(o.price), "source": "external"}
+        for o in external
+    ]
+    ordered = sorted(rows, key=lambda r: r["price"])
     if len(ordered) <= SAMPLE_SIZE:
         chosen = ordered
     else:
@@ -167,10 +182,26 @@ def _sample(products: Sequence[Product]) -> List[Dict]:
         step = (len(ordered) - 1) / (SAMPLE_SIZE - 1)
         chosen = [ordered[round(i * step)] for i in range(SAMPLE_SIZE)]
 
-    return [
-        {"product_id": p.id, "name": p.name, "price": float(p.price)}
-        for p in chosen
-    ]
+    return chosen
+
+
+def _external_prices(db: Session, product_id: int):
+    """
+    Trusted external observations, one per comparable.
+
+    Imported lazily: position.py is the one module in this service that must
+    keep working with no network stack at all, and `comparables` pulls in the
+    fetcher.
+    """
+    try:
+        from app.services.comparables import trusted_prices
+    except Exception:  # pragma: no cover - defensive
+        return []
+    try:
+        return trusted_prices(db, product_id)
+    except Exception:
+        logger.warning("Could not read external comparables", exc_info=True)
+        return []
 
 
 def price_trend(db: Session, product_id: int, limit: int = 50) -> List[Dict]:
@@ -218,17 +249,28 @@ def compute_position(db: Session, product: Product) -> Dict:
         "trend": price_trend(db, product.id),
     }
 
-    # Rung 1 -- the seller's own category.
-    if product.category_id is not None:
-        peers = _gather(db, [product.category_id], product.seller_id, product.id)
-        if len(peers) >= MIN_COMPARABLE_N:
-            category = db.query(Category).filter(Category.id == product.category_id).first()
+    external = _external_prices(db, product.id)
+
+    # Rung 1 -- the seller's own category, plus any external listings they
+    # pasted. Both are comparables; where the price came from changes how much
+    # we trust it, not whether it counts.
+    if product.category_id is not None or external:
+        peers = (
+            _gather(db, [product.category_id], product.seller_id, product.id)
+            if product.category_id is not None else []
+        )
+        if len(peers) + len(external) >= MIN_COMPARABLE_N:
+            category = (
+                db.query(Category).filter(Category.id == product.category_id).first()
+                if product.category_id else None
+            )
             return {
                 **base,
                 "basis": BASIS_OWN_CATEGORY,
                 "basis_label": category.name if category else None,
-                **_summarise(peers, product.price),
-                "comparables": _sample(peers),
+                "external_count": len(external),
+                **_summarise(peers, product.price, external),
+                "comparables": _sample(peers, external),
             }
 
     # Rung 2 -- one category up, labelled as the broader benchmark it is.
@@ -250,8 +292,9 @@ def compute_position(db: Session, product: Product) -> Dict:
                 **base,
                 "basis": BASIS_PARENT_CATEGORY,
                 "basis_label": (parent or root).name if (parent or root) else None,
-                **_summarise(peers, product.price),
-                "comparables": _sample(peers),
+                "external_count": len(external),
+                **_summarise(peers, product.price, external),
+                "comparables": _sample(peers, external),
             }
 
     # Rung 3 -- no market view. Normal for a genuine one-off, not an error.
@@ -259,6 +302,7 @@ def compute_position(db: Session, product: Product) -> Dict:
         **base,
         "basis": BASIS_NONE,
         "basis_label": None,
+        "external_count": len(external),
         "position": None,
         "comparable_count": len(
             _gather(db, [product.category_id] if product.category_id else [],

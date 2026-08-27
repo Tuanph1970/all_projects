@@ -94,6 +94,24 @@ class Settings(BaseSettings):
     # payload is cached briefly rather than not at all.
     CACHE_TTL_INTEL_POSITION: int = 300  # 5 minutes
 
+    # Extra fetchable hosts beyond the adapter files, comma separated. The
+    # adapter directory is the normal way to add one; this exists so a host can
+    # be trialled without shipping a file.
+    INTEL_ALLOWED_HOSTS: str = ""
+
+    # Per-host politeness budget, shared across every seller. One request per
+    # interval, and a daily ceiling, so no amount of refresh-tapping can make
+    # us hammer a third-party site.
+    INTEL_HOST_INTERVAL_SECONDS: int = 5
+    INTEL_HOST_DAILY_CAP: int = 500
+
+    # An observation older than this is shown greyed out rather than as
+    # current, and cannot fire an alert.
+    INTEL_OBSERVATION_STALE_HOURS: int = 168  # 7 days
+    # Below this confidence a reading is displayed with a caveat and never
+    # used for an alert -- it keeps tier 5 and unconfigured tier 3 out.
+    INTEL_MIN_TRUSTED_CONFIDENCE: int = 90
+
     # Cache TTL for computed suggestions.
     # These three keep their AI_ / _AI_ names because they are tied to the
     # `ai_suggestions` table, which keeps its name -- it still holds the

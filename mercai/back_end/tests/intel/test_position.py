@@ -235,6 +235,12 @@ def test_inactive_and_zero_priced_listings_are_excluded(pos, db, world):
     assert result["max"] == 140_000
 
 
+# Widened in phase 2 to carry `source`, and asserted as an allowlist rather
+# than an equality so that adding a field is a deliberate act: any NEW key has
+# to be added here, which is the moment to ask whether it identifies a seller.
+COMPARABLE_FIELDS = {"product_id", "name", "price", "source"}
+
+
 def test_comparables_never_name_the_seller(pos, db, world):
     """A market summary, not a ranked list of who to undercut."""
     for price in (100_000, 110_000, 120_000, 130_000, 140_000):
@@ -243,7 +249,8 @@ def test_comparables_never_name_the_seller(pos, db, world):
     db.commit()
 
     for row in pos.compute_position(db, mine)["comparables"]:
-        assert set(row) == {"product_id", "name", "price"}
+        assert set(row) == COMPARABLE_FIELDS
+        assert not any(k in row for k in ("seller", "seller_id", "shop", "shop_name"))
 
 
 def test_the_sample_spans_the_range_rather_than_the_cheap_end(pos, db, world):

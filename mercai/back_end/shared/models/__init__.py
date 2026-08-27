@@ -12,6 +12,7 @@ from .seller_profile import SellerProfile, StoreTheme
 from .seller_category import SellerCategory
 from .analytics import SearchLog
 from .ai import AiSuggestion
+from .intel import TrackedComparable, ComparableObservation
 
 __all__ = [
     # User
@@ -45,5 +46,8 @@ __all__ = [
     # Telemetry
     "SearchLog",
     # AI
-    "AiSuggestion"
+    "AiSuggestion",
+    # Price intelligence
+    "TrackedComparable",
+    "ComparableObservation",
 ]

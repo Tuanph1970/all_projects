@@ -1,0 +1,18 @@
+host: tiki.vn
+currency: VND
+
+# Deliberately no selectors.
+#
+# Measured 2026-08-27 across 24 product pages sampled over five keyword groups
+# (ceramics, teaware, amplifiers, speakers, headphones): schema.org/Product
+# JSON-LD fired on every one, and every extracted price matched Tiki's own API
+# exactly. A CSS selector here would add nothing and would rot silently.
+#
+# Tiki also exposes an undocumented JSON API used by the source probe in
+# scripts/spike_price_sources.py. It is not used for extraction: it is
+# unversioned and can change without notice, whereas the JSON-LD is a published
+# contract the site maintains for Google Shopping.
+tiers: [jsonld, meta, state, text]
+notes: >
+  Verified 24/24 against ground truth via the API on 2026-08-27.
+  robots.txt permits product pages and declares no crawl-delay.

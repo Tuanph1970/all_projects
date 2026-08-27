@@ -8,10 +8,12 @@ class ComparableListing(BaseModel):
     One listing behind the aggregate.
 
     No seller field, on purpose -- see services/position.py::_sample.
+    `product_id` is null for an external listing, which has no row here.
     """
-    product_id: int
+    product_id: Optional[int] = None
     name: str
     price: float
+    source: str = "mercai"   # mercai | external
 
 
 class PricePoint(BaseModel):
@@ -35,6 +37,8 @@ class PricePositionResponse(BaseModel):
     position: Optional[str] = None
 
     comparable_count: int = 0
+    # How many of the above came from seller-pasted URLs.
+    external_count: int = 0
     min_comparable_n: int
 
     p25: Optional[float] = None

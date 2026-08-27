@@ -130,4 +130,5 @@ def test_the_response_never_carries_seller_identity(load_service, session_factor
     blob = str(body)
     assert "rival" not in blob
     for row in body["comparables"]:
-        assert set(row) == {"product_id", "name", "price"}
+        assert set(row) == {"product_id", "name", "price", "source"}
+        assert not any(k in row for k in ("seller", "seller_id", "shop", "shop_name"))
