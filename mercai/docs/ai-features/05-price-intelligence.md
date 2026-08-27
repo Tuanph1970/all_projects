@@ -426,6 +426,31 @@ Artisan and one-off pieces frequently have no true comparable. A screen that is 
 
 Step 4 is a real state with real content, not an error. It will be the common case for genuine one-offs and the copy should treat it as normal.
 
+### 8.3a A known weakness of rung 3, stated rather than hidden
+
+The parent-category fallback broadens by *catalogue structure*, which is not
+the same as broadening by *comparability*. Observed on the seeded data:
+
+> `Ampli đèn Nobsound MS-10D MKIII` at 3,589,000₫ falls back to `Âm thanh`,
+> whose median is 890,000₫ — because that parent mixes amplifiers
+> (290k–3.6m) with speakers (260k–9m).
+
+The label is honest (the client says "the broader category, because your own
+has too few to compare"), but a seller reading past the label gets a benchmark
+that is not really about their product. This is the *cost* of never showing an
+empty screen, and it is the right trade at this stage — but it should not be
+described as equivalent to rung 1.
+
+Two refinements worth considering once there is real traffic, neither of them
+phase 1:
+
+- **suppress rung 3 when the fallback set is too dispersed** — if `p75/p25`
+  exceeds some ratio, the benchmark carries no information and the honest
+  answer is the no-market-view state;
+- **narrow by price band rather than by category** — comparable listings within
+  ±50% of the seller's own price, which for the case above would compare the
+  amplifier against other expensive audio rather than against everything.
+
 ### 8.4 Labels and alerts
 
 Position from quartiles, never the mean — one 8,000,000₫ display piece should not drag the whole category's average. *Below market* < p25, *in range* p25–p75, *above market* > p75.
@@ -627,7 +652,7 @@ Mitigations, in order of honesty:
 | ~~**0**~~ | ~~Strip Ollama, rename the service, keep `image_report`, banner docs 02–04~~ | ✅ **done** |
 | **0.5** | **Start the Shopee Affiliate API application** (§11) — approval is the long pole and it costs nothing to begin | 1 h |
 | ~~**0.75**~~ | ~~Seed a real catalogue~~ — `scripts/seed_catalogue.py` | ✅ **done** |
-| **1** | Internal market position: stats, ladder, labels, screen. **No network, no schema change.** | 2–3 d |
+| ~~**1**~~ | ~~Internal market position: stats, ladder, labels, screen~~ | ✅ **done** |
 | **1.5** | **Validation gate** — `spike_price_sources.py --urls`, 20 real Vietnamese URLs, **from a non-filtered network** | 0.5 d |
 | **2** | `fetcher.py`, extraction ladder, adapters, `POST /comparables`, on-demand fetch | 3–4 d |
 | **2.5** | **Tiki category aggregates** — the one external source confirmed working, and it needs no matching | 1–2 d |
@@ -695,6 +720,31 @@ median 185,000₫"* — need no per-listing matching at all. One bad row cannot 
 a median over 340 items, which is why the aggregate is more robust than the 1:1
 comparison it replaces. It also fills the never-empty ladder (§8.3) for exactly
 the artisan sellers who have no true comparable.
+
+### Phase 1 — ✅ done 2026-08-27
+
+Shipped as designed, with no migration and no new table.
+
+| Piece | Where |
+|---|---|
+| Stats engine, fallback ladder, quartiles | `services/intel/app/services/position.py` |
+| `GET /api/v1/intel/products/{id}/price-position` | `services/intel/app/routers/position.py` |
+| `GET /api/v1/intel/products/{id}/image-report` | `services/intel/app/routers/images.py` — gives `image_report.py` a caller again |
+| Seller screen | `front_end/src/screens/seller/PricePositionScreen.jsx` |
+| Client | `front_end/src/services/intelService.js` |
+
+**Verified against the seeded catalogue through the gateway**, not just in
+tests — every rung and label has a real case:
+
+| Listing | Own price | Result |
+|---|---|---|
+| `BAT-001` bowl | 85,000₫ | `below_market`, `own_category` (n=5) |
+| `BAT-008` artist bowl | 450,000₫ | `above_market`, `own_category` (n=6) |
+| `AMP-001` amplifier | 3,589,000₫ | `above_market`, **`parent_category`** — its owner holds 3 of 7 Ampli, leaving only 4 rivals |
+| `AMC-001` teaware | 320,000₫ | `above_market`, **`parent_category`** — 3 in category |
+| another seller's product | — | `403 Not authorized` |
+
+61 tests pass (24 pre-existing, 13 guardrails, 18 position, 6 router).
 
 **Phase 1 ships seller value with zero scraping risk**, on data the platform already owns — and it needs **no migration and no new table**, because it reads only `products` and the `price_history` ledger, both of which already exist. If external coverage turns out worse than hoped, the feature still stands on its own.
 

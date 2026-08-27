@@ -21,12 +21,14 @@ import {
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { colors, spacing, typography } from '../../constants/theme.js';
 import sellerService from '../../services/sellerService.js';
+import intelService from '../../services/intelService.js';
 import { useTranslation } from '@i18n';
 
 export const ProductManagementScreen = () => {
   const navigation = useNavigation();
   const t = useTranslation();
   const [products, setProducts] = useState([]);
+  const [priceIntelAvailable, setPriceIntelAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,6 +52,18 @@ export const ProductManagementScreen = () => {
   useEffect(() => {
     loadProducts(true);
   }, [searchQuery, statusFilter, stockFilter]);
+
+  // Hide the price-insights control entirely when the feature is off for this
+  // seller -- better than a button that 404s when tapped. Never throws.
+  useEffect(() => {
+    let cancelled = false;
+    intelService.isPriceIntelAvailable().then((ok) => {
+      if (!cancelled) setPriceIntelAvailable(ok);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Reload products when screen comes into focus (e.g., after adding/editing a product)
   useFocusEffect(
@@ -290,6 +304,17 @@ export const ProductManagementScreen = () => {
           <Text style={styles.productSku}>{item.sku ? t('productManagement.sku', { sku: item.sku }) : t('productManagement.skuNA')}</Text>
           <Text style={styles.productPrice}>${item.price?.toFixed(2) || '0.00'}</Text>
         </View>
+        {/* Rendered only when the feature is on for this seller, so a
+            disabled feature hides its control rather than 404-ing on tap. */}
+        {priceIntelAvailable && (
+          <IconButton
+            icon="chart-line"
+            onPress={() => {
+              navigation.navigate('PricePosition', { productId: item.id });
+            }}
+            testID={`product-price-insights-${item.id}`}
+          />
+        )}
         <IconButton
           icon="pencil"
           onPress={() => {

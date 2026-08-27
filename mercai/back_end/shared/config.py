@@ -90,6 +90,10 @@ class Settings(BaseSettings):
     AI_QUOTA_PER_HOUR: int = 20
     AI_QUOTA_PER_DAY: int = 100
 
+    # Market stats move whenever any seller edits a price, so the position
+    # payload is cached briefly rather than not at all.
+    CACHE_TTL_INTEL_POSITION: int = 300  # 5 minutes
+
     # Cache TTL for computed suggestions.
     # These three keep their AI_ / _AI_ names because they are tied to the
     # `ai_suggestions` table, which keeps its name -- it still holds the
