@@ -393,6 +393,21 @@ Price alerts are proposals a seller acts on or ignores, which is the exact shape
 
 Mercai's own catalogue is already a multi-seller market. For a product in category *C*: all active products from **other** sellers in *C*, → p25 / median / p75 / n. Zero fetching, zero legal exposure, zero parsing risk — and it is the foundation, not the fallback.
 
+### 8.1a Compute the quartiles in Python, not in SQL
+
+**MySQL 8.0.46 has no `PERCENTILE_CONT`** — verified against the running
+container on 2026-08-27, it is a syntax error. Neither does SQLite, which is
+what the test suite runs on (`tests/conftest.py`), so a SQL-side implementation
+would need two dialect-specific paths *and* could not be unit-tested where
+everything else is.
+
+Sort the category's prices and interpolate in Python. The row counts are a
+single category's products — tens, not millions — so there is nothing to
+optimise here, and it keeps one implementation working identically against
+MySQL in production and SQLite in tests. Revisit only if a category ever grows
+past the point where fetching its prices is the slow part, which is a long way
+off and will be visible when it happens.
+
 ### 8.2 Never show a statistic computed from fewer than five listings
 
 `MIN_COMPARABLE_N = 5`, and it is not a tuning knob:
@@ -611,7 +626,7 @@ Mitigations, in order of honesty:
 |---|---|---|
 | ~~**0**~~ | ~~Strip Ollama, rename the service, keep `image_report`, banner docs 02–04~~ | ✅ **done** |
 | **0.5** | **Start the Shopee Affiliate API application** (§11) — approval is the long pole and it costs nothing to begin | 1 h |
-| **0.75** | **Seed a real catalogue** — see below. Phase 1 has nothing to compute over without it | 0.5 d |
+| ~~**0.75**~~ | ~~Seed a real catalogue~~ — `scripts/seed_catalogue.py` | ✅ **done** |
 | **1** | Internal market position: stats, ladder, labels, screen. **No network, no schema change.** | 2–3 d |
 | **1.5** | **Validation gate** — `spike_price_sources.py --urls`, 20 real Vietnamese URLs, **from a non-filtered network** | 0.5 d |
 | **2** | `fetcher.py`, extraction ladder, adapters, `POST /comparables`, on-demand fetch | 3–4 d |
@@ -620,8 +635,39 @@ Mitigations, in order of honesty:
 | **3.5** | **Model-token matching** (§7.1) — exact, no threshold, no labels needed. Only worth building once a non-artisan category has volume | 1 d |
 | **4** | Deferred: `intel-worker`; Shopee via Affiliate API *if approved*; fuzzy scoring **only** if a category defeats both matchers, and then with real IDF | — |
 
-**Phase 0.75 is a prerequisite that was not in the original scope.** Checked
-against the running stack on 2026-08-27:
+**Phase 0.75 — ✅ done 2026-08-27.** `back_end/scripts/seed_catalogue.py`,
+idempotent, run with
+`docker exec mercai_intel_service python /app/scripts/seed_catalogue.py`.
+
+It builds 24 active products across 5 sellers and two contrasting category
+trees, shaped so that every rule in §8 has a case to exercise:
+
+| Category | Products | Sellers | Exercises |
+|---|---|---|---|
+| `Gốm sứ / Bát đĩa` | 8 | 3 | quartiles with a real spread; no model numbers anywhere |
+| `Gốm sứ / Ấm chén` | 3 | 3 | **below `MIN_COMPARABLE_N`** → the parent-category fallback (§8.3 rung 3) |
+| `Âm thanh / Ampli` | 7 | 3 | model tokens shared across sellers (§7.1) |
+| `Âm thanh / Loa` | 6 | 2 | same, plus a wide price range |
+
+Two products are deliberate outliers so the labels have cases: a signed artist
+bowl at 450,000₫ (**above market**) and a guitar practice amp at 290,000₫
+(**below market**). The artist piece is the more useful of the two — it is a
+legitimate price, and it is exactly the listing the screen must not scold the
+seller about.
+
+`price_history` gets an origin row per product plus five real changes, so the
+trend line is not empty on day one. Verified end to end: the seeded sellers
+authenticate through the gateway (`POST /api/v1/auth/login`, username not
+email), products return through `/api/v1/products/`, and the quartile
+computation puts both outliers in the right bucket:
+
+```
+Bát đĩa   n=8  p25=138,750   median=175,000    p75=235,000
+Ampli     n=7  p25=1,174,500 median=1,859,000  p75=3,070,000
+```
+
+The original justification follows, because it is the reason this phase exists
+at all. Checked against the running stack on 2026-08-27, before seeding:
 
 ```
 sellers with active products   0

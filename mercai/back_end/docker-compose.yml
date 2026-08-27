@@ -372,6 +372,10 @@ services:
       - ./uploads:/app/uploads
       - ./services/intel/app:/app/app
       - ./shared:/app/shared
+      # Operator scripts (catalogue seed, source spike) run inside the container
+      # so they inherit the working DB_HOST/DB_PORT rather than needing the
+      # published MySQL port and a host-side environment.
+      - ./scripts:/app/scripts
     networks:
       - mercai_network
     labels:
