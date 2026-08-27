@@ -653,7 +653,7 @@ Mitigations, in order of honesty:
 | **0.5** | **Start the Shopee Affiliate API application** (§11) — approval is the long pole and it costs nothing to begin | 1 h |
 | ~~**0.75**~~ | ~~Seed a real catalogue~~ — `scripts/seed_catalogue.py` | ✅ **done** |
 | ~~**1**~~ | ~~Internal market position: stats, ladder, labels, screen~~ | ✅ **done** |
-| **1.5** | **Validation gate** — `spike_price_sources.py --urls`, 20 real Vietnamese URLs, **from a non-filtered network** | 0.5 d |
+| ~~**1.5**~~ | ~~Validation gate~~ — `--gate`, 24 products against ground truth | ✅ **PASSED** |
 | **2** | `fetcher.py`, extraction ladder, adapters, `POST /comparables`, on-demand fetch | 3–4 d |
 | **2.5** | **Tiki category aggregates** — the one external source confirmed working, and it needs no matching | 1–2 d |
 | **3** | Observation history, trend, staleness, read-time alerts | 1–2 d |
@@ -748,9 +748,48 @@ tests — every rung and label has a real case:
 
 **Phase 1 ships seller value with zero scraping risk**, on data the platform already owns — and it needs **no migration and no new table**, because it reads only `products` and the `price_history` ledger, both of which already exist. If external coverage turns out worse than hoped, the feature still stands on its own.
 
-### The validation gate, and why it is cheap now
+### The validation gate — ✅ PASSED 2026-08-27
 
-The old plan's open risk was LLM accuracy on real Vietnamese pages, and the proposed test was 5–10 URLs. Keep the test, raise the sample, and change what it measures:
+Run with `python3 back_end/scripts/spike_price_sources.py --gate --gate-n 24`.
+
+**The gate got stronger than designed.** The original plan was to read 20 pages
+and check them by eye, because the script had no ground truth. Tiki's API
+supplies exactly that: it returns the authoritative price for a product *and*
+the path to that product's HTML page. So the check became automatic — read the
+page with the ladder, compare against the API — and can be re-run at any sample
+size instead of depending on someone's patience.
+
+| | Result | Threshold |
+|---|---|---|
+| Read at confidence ≥90 | **24 / 24 (100%)** | ≥70% |
+| **Wrong at confidence ≥90** | **0** | **0 — a blocker, not a target** |
+| Sample spread | 6 ceramics, 5 teaware, 5 amps, 5 speakers, 3 headphones | — |
+
+A second host, `fptshop.com.vn`, was checked without ground truth: **11 of 12
+product pages at confidence 99**, every one cross-confirmed by the text tier.
+
+### What the gate does NOT prove
+
+Worth writing down, because a 100% row invites over-reading:
+
+- **Every high-confidence read came from tier 1.** JSON-LD fired on all 36
+  pages across both hosts. Tiers 2–5 have never run on a real page — only on
+  the synthetic fixtures in `--self-test`. That is good news for phase 2 (the
+  most precise rung covers everything tested) but it means the fallback rungs
+  carry unmeasured risk for whenever they do fire, and the first host that
+  needs them is the one to watch.
+- **Two hosts is not the web.** Both emit textbook `schema.org/Product`.
+- **Shopee and Lazada are still untested** — DNS-blackholed from this machine
+  (§11). Nothing here speaks to them.
+
+The gate's real finding is narrower and more useful than "the ladder works":
+**where Vietnamese retailers emit JSON-LD, prices can be read exactly, and they
+emit it far more often than expected.** That is the case for building phase 2
+on the cheap fetcher rather than on a headless browser.
+
+### Why this test beats the LLM equivalent
+
+The old plan's open risk was LLM accuracy on real Vietnamese pages, and the proposed test was 5–10 URLs, checked by eye. What replaced it:
 
 > Fetch 20 real product URLs across the intended hosts. For each, record which tier fired, the extracted price, and the true price read by eye.
 

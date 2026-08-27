@@ -565,6 +565,157 @@ def probe_generic(host, template, keyword):
 
 
 # --------------------------------------------------------------------------
+# Q2b — the validation gate, against ground truth
+# --------------------------------------------------------------------------
+#
+# The plain --urls mode reports what the ladder read but cannot say whether it
+# read CORRECTLY -- it has no ground truth, so it can only ask a human to check
+# by eye. Tiki closes that gap: its JSON API returns the authoritative price for
+# a product AND the path to that product's HTML page. Reading the page with the
+# ladder and comparing against the API is a real check, run at whatever sample
+# size we like.
+#
+# That only covers hosts with an API. For everywhere else the strongest
+# available signal is still cross-tier agreement (section 4.6), which is
+# weaker: two tiers can agree on the same wrong number if they both read the
+# same misplaced element.
+
+GATE_MIN_HIGH_CONFIDENCE_PCT = 70
+GATE_CONFIDENCE = 90
+POLITE_DELAY_SECONDS = 2.5
+
+
+def tiki_truth_set(keywords, want):
+    """
+    Product pages with a known-correct price, from Tiki's own API.
+
+    Sampled ROUND-ROBIN across the keywords, not keyword-by-keyword. Filling
+    the quota from the first keyword before moving on is the obvious
+    implementation and it is wrong: it silently produces a sample from one
+    category, and a gate that only ever tested tableware would pass while
+    saying nothing about the rest of the catalogue.
+    """
+    pools = []
+    for keyword in keywords:
+        url = (f"https://tiki.vn/api/v2/products?q={quote(keyword)}"
+               f"&limit=20&sort=top_seller")
+        status, body, _, _, err = fetch(url, {"Accept": "application/json"})
+        if err or status != 200:
+            pools.append((keyword, []))
+            continue
+        try:
+            data = json.loads(body).get("data") or []
+        except Exception:
+            data = []
+        pools.append((keyword, [r for r in data
+                                if r.get("url_path") and r.get("price")]))
+
+    seen, out = set(), []
+    depth = 0
+    while len(out) < want and any(depth < len(rows) for _, rows in pools):
+        for keyword, rows in pools:
+            if len(out) >= want or depth >= len(rows):
+                continue
+            row = rows[depth]
+            if row["id"] in seen:
+                continue
+            seen.add(row["id"])
+            out.append({
+                "url": f"https://tiki.vn/{row['url_path']}",
+                "truth": int(row["price"]),
+                "name": row.get("name", "")[:60],
+                "keyword": keyword,
+            })
+        depth += 1
+    return out
+
+
+def run_gate(keywords, want, delay=POLITE_DELAY_SECONDS):
+    import time
+
+    print(f"\n\033[1mPhase 1.5 — validation gate\033[0m")
+    print(f"    Ground truth from Tiki's API; the ladder reads the HTML page.")
+    print(f"    Gate: >={GATE_MIN_HIGH_CONFIDENCE_PCT}% at confidence >={GATE_CONFIDENCE}, "
+          f"and ZERO wrong at that confidence.\n")
+
+    targets = tiki_truth_set(keywords, want)
+    if not targets:
+        print("  could not build a truth set — is tiki.vn reachable from here?")
+        return {"targets": 0}
+    print(f"  {len(targets)} products with known prices. "
+          f"Fetching each page, {delay}s apart.\n")
+
+    rows = []
+    for i, target in enumerate(targets):
+        if i:
+            time.sleep(delay)
+        status, body, _, ms, err = fetch(target["url"])
+        row = {**target, "http": status, "ms": ms}
+        if err or status != 200:
+            row["outcome"] = "http_error"
+            rows.append(row)
+            print(f"  \033[31m✗\033[0m HTTP {status or '-'}  {target['name'][:48]}")
+            continue
+
+        lad = run_ladder(body)
+        if lad is None:
+            row["outcome"] = ("js_required" if detect_js_required(body, lad)
+                              else "no_price_found")
+            rows.append(row)
+            print(f"  \033[33m~\033[0m {row['outcome']:<14} {target['name'][:48]}")
+            continue
+
+        row.update(lad)
+        correct = lad["price_vnd"] == target["truth"]
+        row["outcome"] = "correct" if correct else "wrong"
+        rows.append(row)
+
+        mark = "\033[32m✓\033[0m" if correct else "\033[31m✗ WRONG\033[0m"
+        print(f"  {mark} {lad['price_vnd']:>10,}₫ (truth {target['truth']:>10,}₫) "
+              f"conf={lad['confidence']:<3} {lad['tier']:<7} {target['name'][:40]}")
+        if not correct:
+            print(f"        \033[31mevidence: {lad['evidence'][:88]}\033[0m")
+
+    # ---- verdict ----
+    n = len(rows)
+    high = [r for r in rows if r.get("confidence", 0) >= GATE_CONFIDENCE]
+    wrong_high = [r for r in high if r["outcome"] == "wrong"]
+    correct_high = [r for r in high if r["outcome"] == "correct"]
+    pct = len(high) / n * 100 if n else 0
+
+    print(f"\n  {'─' * 66}")
+    print(f"  read at confidence >={GATE_CONFIDENCE}:  {len(high)}/{n}  ({pct:.0f}%)"
+          f"   {'\033[32mPASS\033[0m' if pct >= GATE_MIN_HIGH_CONFIDENCE_PCT else '\033[31mFAIL\033[0m'}"
+          f"  (need >={GATE_MIN_HIGH_CONFIDENCE_PCT}%)")
+    print(f"  WRONG at confidence >={GATE_CONFIDENCE}: {len(wrong_high)}"
+          f"          {'\033[32mPASS\033[0m' if not wrong_high else '\033[31mFAIL\033[0m'}"
+          f"  (need 0 — this one is a blocker, not a target)")
+    print(f"  correct at high confidence:  {len(correct_high)}")
+
+    by_keyword = {}
+    for r in rows:
+        by_keyword.setdefault(r["keyword"], []).append(r)
+    print(f"\n  sample spread (a one-category sample is not a gate):")
+    for keyword, group in sorted(by_keyword.items()):
+        ok = sum(1 for r in group if r["outcome"] == "correct")
+        print(f"    {keyword:<22} {len(group):>3}   correct: {ok}/{len(group)}")
+
+    by_tier = {}
+    for r in rows:
+        by_tier.setdefault(r.get("tier", r["outcome"]), []).append(r)
+    print(f"\n  which rung did the work:")
+    for tier, group in sorted(by_tier.items(), key=lambda kv: -len(kv[1])):
+        ok = sum(1 for r in group if r["outcome"] == "correct")
+        print(f"    {tier:<16} {len(group):>3}   correct: {ok}/{len(group)}")
+
+    passed = pct >= GATE_MIN_HIGH_CONFIDENCE_PCT and not wrong_high
+    print(f"\n  \033[1mGATE {'PASSED' if passed else 'NOT PASSED'}\033[0m — "
+          f"{'phase 2 may proceed' if passed else 'do not build the fetcher yet'}\n")
+    return {"rows": rows, "high": len(high), "wrong_high": len(wrong_high),
+            "total": n, "passed": passed}
+
+
+# --------------------------------------------------------------------------
 # report
 # --------------------------------------------------------------------------
 
@@ -598,10 +749,24 @@ def main():
                     help="also probe ordinary VN retailers, not just the marketplaces")
     ap.add_argument("--self-test", action="store_true",
                     help="run the parser/ladder/model-token assertions and exit")
+    ap.add_argument("--gate", action="store_true",
+                    help="phase 1.5: check the ladder against Tiki's authoritative prices")
+    ap.add_argument("--gate-n", type=int, default=20,
+                    help="how many products to check in --gate mode")
     args = ap.parse_args()
 
     if args.self_test:
         return self_test()
+
+    if args.gate:
+        keywords = ["bát gốm sứ", "ấm chén trà", "amply bluetooth", "loa bluetooth",
+                    "tai nghe bluetooth", "đĩa gốm sứ"]
+        result = run_gate(keywords, args.gate_n)
+        if args.json:
+            with open(args.json, "w") as fh:
+                json.dump(result, fh, indent=2, ensure_ascii=False, default=str)
+            print(f"  wrote {args.json}\n")
+        return 0 if result.get("passed") else 1
 
     results = {"keyword": args.keyword, "probes": [], "ladder": []}
 
@@ -672,7 +837,12 @@ def main():
                           f"via {lad['tier']:<8} [{'+'.join(lad['tiers_matched'])}] {ms:>5}ms")
                     print(f"      \033[2m{lad['evidence'][:100]}\033[0m")
                     if lad["flag"]:
-                        print(f"      \033[33m⚠ {lad['flag']}\033[0m")
+                        # Agreement is confirmation, not a warning -- rendering
+                        # both the same way trains the reader to skip the line
+                        # that actually matters.
+                        confirming = lad["flag"].startswith("agrees")
+                        icon, colour = ("✓", "\033[32m") if confirming else ("⚠", "\033[33m")
+                        print(f"      {colour}{icon} {lad['flag']}\033[0m")
             results["ladder"].append(row)
 
         n = len(urls)
