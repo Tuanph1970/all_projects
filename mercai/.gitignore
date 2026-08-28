@@ -208,3 +208,8 @@ __marimo__/
 
 # Maestro test screenshots
 mobile_automation_test/*.png
+
+# Appium E2E local artifacts
+mobile_automation_test/appium/.env
+mobile_automation_test/screenshots/appium/
+mobile_automation_test/appium/reports/
