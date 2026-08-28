@@ -656,9 +656,46 @@ Mitigations, in order of honesty:
 | ~~**1.5**~~ | ~~Validation gate~~ — `--gate`, 24 products against ground truth | ✅ **PASSED** |
 | ~~**2**~~ | ~~`fetcher.py`, extraction ladder, adapters, `POST /comparables`, on-demand fetch~~ | ✅ **done** |
 | ~~**2.5**~~ | ~~Tiki category aggregates~~ | ✅ **done** |
-| **3** | Observation history, trend, staleness, read-time alerts | 1–2 d |
+| ~~**3**~~ | ~~Observation history, trend, staleness, read-time alerts~~ | ✅ **done** |
 | **3.5** | **Model-token matching** (§7.1) — exact, no threshold, no labels needed. Only worth building once a non-artisan category has volume | 1 d |
 | **4** | Deferred: `intel-worker`; Shopee via Affiliate API *if approved*; fuzzy scoring **only** if a category defeats both matchers, and then with real IDF | — |
+
+### Phase 3 — ✅ done 2026-08-28
+
+`services/intel/app/services/alerts.py`, `comparables.observation_series`, and
+two new cards on the screen.
+
+**The alert conditions are all strict, and each removes one way a false alert
+happens.** That asymmetry is the design: a missed alert costs an opportunity, a
+false one costs margin, because a seller may cut a real price on the strength of
+it. Confidence ≥90 keeps out tier-5 guesses; age ≤48h keeps out last week; ≥5%
+keeps out rounding and bundle-size noise; and **two consecutive readings** keeps
+out the flash sale, the voucher price and the misparse that slipped past the
+magnitude check. The last is the only condition that cannot be evaluated from a
+single row, and the easiest to drop by accident. 14 tests, one per way it goes
+wrong.
+
+**Competitor history is points, never a line.** The seller's own trend comes
+from the ledger and is complete; these come from irregular seller-triggered
+fetches with nothing known about the gaps. The screen lists each reading with
+its date, marks stale ones, and says *"Gaps between checks aren't filled in — we
+only know what we saw."* Drawing a curve through four scattered points would
+imply a record that does not exist.
+
+**The copy is explicit that nothing watches.** With no scheduler (§9) alerts are
+computed at read time, and "alert" is a word that implies a watchdog — so the
+card says *"We don't monitor these in the background."*
+
+**Verified end to end on the live deployment**, not only in fixtures: raising
+`SEED-BAT-002` to 400,000₫ made the tracked 270,000₫ Tiki listing a genuine
+undercut, and the alert fired reading *32.5% below, 2 readings agreeing*.
+Restoring the price cleared it, and the ledger recorded both changes (2 → 4
+trend points). 150 backend tests, 12 screen tests, 10 device layout tests.
+
+**What is still unvalidated:** the thresholds. 5% and two readings are
+reasonable defaults, but only one comparable exists and its price has never
+actually moved, so nothing yet says whether they are tuned right. That needs
+real sellers tracking real listings.
 
 ### Phase 2.5 — ✅ done 2026-08-27
 

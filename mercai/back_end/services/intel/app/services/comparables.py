@@ -185,3 +185,68 @@ def trusted_prices(db: Session, product_id: int):
         seen.add(comparable.id)
         out.append(observation)
     return out
+
+
+def observation_series(db: Session, product_id: int, limit_per_comparable: int = 30):
+    """
+    Each tracked comparable's readings over time, for the trend panel.
+
+    Returned as discrete POINTS, deliberately. The seller's own line comes from
+    a ledger and is continuous -- every change is recorded. These come from
+    irregular, seller-triggered fetches, so there is no record of what happened
+    between two of them. Drawing a smooth curve through four scattered readings
+    would imply a continuity we do not have, and that is the kind of chart a
+    real pricing decision gets made on. `stale` is carried per point so the
+    client can grey out anything old rather than presenting it as current.
+    """
+    from datetime import timedelta
+
+    cutoff = datetime.now(timezone.utc) - timedelta(
+        hours=settings.INTEL_OBSERVATION_STALE_HOURS
+    )
+
+    comparables = (
+        db.query(TrackedComparable)
+        .filter(TrackedComparable.product_id == product_id)
+        .order_by(TrackedComparable.created_at.asc())
+        .all()
+    )
+
+    series = []
+    for comparable in comparables:
+        rows = (
+            db.query(ComparableObservation)
+            .filter(
+                ComparableObservation.comparable_id == comparable.id,
+                ComparableObservation.price.isnot(None),
+            )
+            .order_by(ComparableObservation.observed_at.asc())
+            .limit(limit_per_comparable)
+            .all()
+        )
+        if not rows:
+            continue
+
+        points = []
+        for row in rows:
+            observed = row.observed_at
+            if observed is not None and observed.tzinfo is None:
+                observed = observed.replace(tzinfo=timezone.utc)
+            points.append({
+                "at": observed.isoformat() if observed else None,
+                "price": float(row.price),
+                "confidence": row.confidence,
+                # Below the trusted bar this reading is shown with a caveat and
+                # never counted, so the client must be able to tell them apart.
+                "trusted": (row.confidence or 0) >= settings.INTEL_MIN_TRUSTED_CONFIDENCE,
+                "stale": bool(observed and observed < cutoff),
+            })
+
+        series.append({
+            "comparable_id": comparable.id,
+            "source_host": comparable.source_host,
+            "label": comparable.label,
+            "is_active": comparable.is_active,
+            "points": points,
+        })
+    return series

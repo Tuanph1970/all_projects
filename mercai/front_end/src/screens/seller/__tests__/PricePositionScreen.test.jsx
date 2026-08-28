@@ -35,6 +35,8 @@ const WITH_MARKET = {
     { at: '2026-08-01T00:00:00', price: 165000, reason: 'initial' },
     { at: '2026-08-20T00:00:00', price: 185000, reason: 'seller_update' },
   ],
+  alerts: [],
+  competitor_series: [],
   benchmark: {
     source: 'tiki',
     label: 'Bát, đĩa & bộ đồ ăn trên Tiki',
@@ -153,6 +155,51 @@ describe('PricePositionScreen', () => {
     intelService.getPricePosition.mockResolvedValue({ ...WITH_MARKET, benchmark: null });
     const { queryByText } = await render();
     await waitFor(() => expect(queryByText('The wider market')).toBeNull());
+  });
+
+  it('surfaces an undercut alert and is honest that nothing watches in the background', async () => {
+    intelService.getPricePosition.mockResolvedValue({
+      ...WITH_MARKET,
+      alerts: [{
+        type: 'undercut', comparable_id: 1, source_host: 'tiki.vn', label: null,
+        their_price: 120000, your_price: 185000, gap_percent: 35.1,
+        observed_at: '2026-08-28T09:00:00', readings_agreeing: 2,
+        evaluated: 'when you opened this screen',
+      }],
+    });
+    const { getByTestId, getByText } = await render();
+    await waitFor(() => expect(getByTestId('price-position-alerts')).toBeTruthy());
+    expect(getByText(/35.1% below yours/)).toBeTruthy();
+    // The word "alert" implies a watchdog. There isn't one, and the copy says so.
+    expect(getByText(/don’t monitor these in the background/)).toBeTruthy();
+  });
+
+  it('shows no alert block when there is nothing to report', async () => {
+    intelService.getPricePosition.mockResolvedValue({ ...WITH_MARKET, alerts: [] });
+    const { queryByTestId } = await render();
+    await waitFor(() => expect(queryByTestId('price-position-screen')).toBeTruthy());
+    expect(queryByTestId('price-position-alerts')).toBeNull();
+  });
+
+  it('lists competitor readings individually rather than as a line', async () => {
+    // Irregular seller-triggered checks: nothing is known about the gaps, so
+    // each reading stands alone and old ones are marked.
+    intelService.getPricePosition.mockResolvedValue({
+      ...WITH_MARKET,
+      competitor_series: [{
+        comparable_id: 1, source_host: 'tiki.vn', label: null, is_active: true,
+        points: [
+          { at: '2026-07-01T00:00:00', price: 210000, confidence: 99, trusted: true, stale: true },
+          { at: '2026-08-27T00:00:00', price: 270000, confidence: 99, trusted: true, stale: false },
+        ],
+      }],
+    });
+    const { getByText } = await render();
+    await waitFor(() =>
+      expect(getByText('What tracked listings have done')).toBeTruthy());
+    expect(getByText(/Gaps between checks aren’t filled in/)).toBeTruthy();
+    expect(getByText('210.000₫')).toBeTruthy();
+    expect(getByText('older reading')).toBeTruthy();
   });
 
   it('marks a low-confidence reading as not counted', async () => {

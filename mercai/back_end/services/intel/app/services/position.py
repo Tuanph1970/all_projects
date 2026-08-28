@@ -185,6 +185,31 @@ def _sample(products: Sequence[Product], external=()) -> List[Dict]:
     return chosen
 
 
+def _alerts(db: Session, product):
+    """Lazy import for the same reason as _external_prices: no network stack."""
+    try:
+        from app.services.alerts import evaluate
+    except Exception:  # pragma: no cover - defensive
+        return []
+    try:
+        return evaluate(db, product.id, product.price)
+    except Exception:
+        logger.warning("Could not evaluate alerts", exc_info=True)
+        return []
+
+
+def _competitor_series(db: Session, product_id: int):
+    try:
+        from app.services.comparables import observation_series
+    except Exception:  # pragma: no cover - defensive
+        return []
+    try:
+        return observation_series(db, product_id)
+    except Exception:
+        logger.warning("Could not read observation history", exc_info=True)
+        return []
+
+
 def _benchmark(db: Session, category_name):
     """
     The external category benchmark, as its own block.
@@ -275,6 +300,10 @@ def compute_position(db: Session, product: Product) -> Dict:
         "trend": price_trend(db, product.id),
         # Reference only. Shown alongside the seller's position, never inside it.
         "benchmark": _benchmark(db, category_name),
+        # Discrete observed points, not a continuous line -- see
+        # comparables.observation_series for why that distinction is kept.
+        "competitor_series": _competitor_series(db, product.id),
+        "alerts": _alerts(db, product),
     }
 
     external = _external_prices(db, product.id)

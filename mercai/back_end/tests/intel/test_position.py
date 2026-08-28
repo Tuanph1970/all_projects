@@ -297,3 +297,78 @@ def test_trend_is_scoped_to_the_product(pos, db, world):
     db.commit()
 
     assert len(pos.price_trend(db, mine.id)) == 1
+
+
+# --------------------------------------------------------------------------
+# Observation history (phase 3)
+# --------------------------------------------------------------------------
+
+def test_competitor_history_is_points_not_a_line(load_service, db, world):
+    """
+    The seller's own trend is a ledger and is continuous. These are irregular,
+    seller-triggered fetches with nothing known about the gaps, so each reading
+    is carried separately with its own confidence and staleness -- the client
+    cannot honestly interpolate between them.
+    """
+    from datetime import datetime, timedelta, timezone
+    from pathlib import Path
+
+    load_service(Path(__file__).resolve().parents[2] / "services" / "intel")
+    from app.services.comparables import observation_series
+    from shared.models.intel import ComparableObservation, TrackedComparable
+
+    mine = _product(db, world["mine"], world["bowls"], 200_000)
+    tracked = TrackedComparable(
+        seller_id=world["mine"].id, product_id=mine.id,
+        url="https://tiki.vn/x", url_hash="a" * 64,
+        source_host="tiki.vn", is_active=True,
+    )
+    db.add(tracked)
+    db.flush()
+
+    now = datetime.now(timezone.utc)
+    for hours, price, confidence in (
+        (24 * 30, 210_000, 99),   # old enough to be stale
+        (10, 190_000, 99),
+        (2, 185_000, 55),         # a low-confidence reading
+    ):
+        db.add(ComparableObservation(
+            comparable_id=tracked.id, observed_at=now - timedelta(hours=hours),
+            status="ok", price=Decimal(price), confidence=confidence,
+        ))
+    db.commit()
+
+    series = observation_series(db, mine.id)
+    assert len(series) == 1
+    points = series[0]["points"]
+    assert [p["price"] for p in points] == [210_000, 190_000, 185_000]
+    assert points[0]["stale"] is True, "a month-old reading must be marked stale"
+    assert points[1]["stale"] is False
+    assert points[2]["trusted"] is False, "a 55-confidence reading is not trusted"
+    assert points[1]["trusted"] is True
+
+
+def test_history_excludes_failed_reads(load_service, db, world):
+    """A failure is recorded as a row but has no price to plot."""
+    from datetime import datetime, timezone
+    from pathlib import Path
+
+    load_service(Path(__file__).resolve().parents[2] / "services" / "intel")
+    from app.services.comparables import observation_series
+    from shared.models.intel import ComparableObservation, TrackedComparable
+
+    mine = _product(db, world["mine"], world["bowls"], 200_000)
+    tracked = TrackedComparable(
+        seller_id=world["mine"].id, product_id=mine.id,
+        url="https://tiki.vn/y", url_hash="b" * 64,
+        source_host="tiki.vn", is_active=True,
+    )
+    db.add(tracked)
+    db.flush()
+    db.add(ComparableObservation(
+        comparable_id=tracked.id, observed_at=datetime.now(timezone.utc),
+        status="js_required", price=None, confidence=None,
+    ))
+    db.commit()
+
+    assert observation_series(db, mine.id) == []

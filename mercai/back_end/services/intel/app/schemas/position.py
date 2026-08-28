@@ -43,6 +43,42 @@ class CategoryBenchmarkOut(BaseModel):
     caveat: Optional[str] = None
 
 
+class ObservationPoint(BaseModel):
+    at: Optional[str] = None
+    price: float
+    confidence: Optional[int] = None
+    trusted: bool = False
+    stale: bool = False
+
+
+class CompetitorSeries(BaseModel):
+    """
+    One tracked listing's readings over time.
+
+    Points, not a line. These come from irregular seller-triggered fetches, so
+    nothing is known about the gaps between them.
+    """
+    comparable_id: int
+    source_host: str
+    label: Optional[str] = None
+    is_active: bool = True
+    points: List[ObservationPoint] = Field(default_factory=list)
+
+
+class UndercutAlert(BaseModel):
+    type: str
+    comparable_id: int
+    source_host: str
+    label: Optional[str] = None
+    their_price: float
+    your_price: float
+    gap_percent: float
+    observed_at: Optional[str] = None
+    readings_agreeing: int
+    # Plain about the fact that nothing watches continuously.
+    evaluated: str
+
+
 class PricePositionResponse(BaseModel):
     product_id: int
     product_name: str
@@ -73,3 +109,5 @@ class PricePositionResponse(BaseModel):
     trend: List[PricePoint] = Field(default_factory=list)
     # Wider market reference. Never folded into the statistics above.
     benchmark: Optional[CategoryBenchmarkOut] = None
+    competitor_series: List[CompetitorSeries] = Field(default_factory=list)
+    alerts: List[UndercutAlert] = Field(default_factory=list)

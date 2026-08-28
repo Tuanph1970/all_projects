@@ -305,6 +305,35 @@ export const PricePositionScreen = ({ route, navigation }) => {
         </Card>
       )}
 
+      {data?.alerts?.length > 0 && (
+        <Card style={[styles.card, styles.alertCard]} testID="price-position-alerts">
+          <Card.Content>
+            <Text style={styles.alertTitle}>
+              {data.alerts.length === 1
+                ? 'A tracked listing is under your price'
+                : `${data.alerts.length} tracked listings are under your price`}
+            </Text>
+            {data.alerts.map((alert) => (
+              <View key={alert.comparable_id} style={styles.alertRow}>
+                <Text style={styles.alertHost}>
+                  {alert.label || alert.source_host}
+                </Text>
+                <Text style={styles.alertDetail}>
+                  {formatVnd(alert.their_price)} — {alert.gap_percent}% below yours,
+                  seen in {alert.readings_agreeing} checks in a row.
+                </Text>
+              </View>
+            ))}
+            {/* Said plainly. Nothing watches continuously, and a seller would
+                reasonably assume otherwise from the word "alert". */}
+            <Text style={styles.alertFootnote}>
+              Checked {data.alerts[0].evaluated}. We don’t monitor these in the
+              background — open this screen or tap refresh to check again.
+            </Text>
+          </Card.Content>
+        </Card>
+      )}
+
       {data?.benchmark && (
         <Card style={styles.card}>
           <Card.Content>
@@ -403,12 +432,57 @@ export const PricePositionScreen = ({ route, navigation }) => {
         </Card.Content>
       </Card>
 
+      {data?.competitor_series?.some((s) => s.points.length > 1) && (
+        <Card style={styles.card}>
+          <Card.Content>
+            <Text style={styles.sectionTitle}>What tracked listings have done</Text>
+            {/* Each reading is listed on its own. These come from irregular
+                checks you triggered, so nothing is known about the gaps
+                between them — drawing a line through them would imply a
+                record we don't have. */}
+            <Text style={styles.sectionCaption}>
+              Each time we checked, and what we read. Gaps between checks aren’t
+              filled in — we only know what we saw.
+            </Text>
+            {data.competitor_series
+              .filter((series) => series.points.length > 0)
+              .map((series) => (
+                <View key={series.comparable_id} style={styles.seriesBlock}>
+                  <Text style={styles.seriesHost}>
+                    {series.label || series.source_host}
+                  </Text>
+                  {series.points.map((point, index) => (
+                    <View key={`${point.at}-${index}`} style={styles.trendRow}>
+                      <Text
+                        style={[styles.trendDate, point.stale && styles.stale]}
+                      >
+                        {point.at
+                          ? new Date(point.at).toLocaleDateString('vi-VN')
+                          : '—'}
+                      </Text>
+                      <Text style={styles.trendReason}>
+                        {point.stale ? 'older reading' : ''}
+                        {!point.trusted ? ' unsure' : ''}
+                      </Text>
+                      <Text
+                        style={[styles.trendPrice, point.stale && styles.stale]}
+                      >
+                        {formatVnd(point.price)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ))}
+          </Card.Content>
+        </Card>
+      )}
+
       {data?.trend?.length > 1 && (
         <Card style={styles.card}>
           <Card.Content>
             <Text style={styles.sectionTitle}>Your price history</Text>
             <Text style={styles.sectionCaption}>
-              Every change, exactly as recorded.
+              Every change you made, exactly as recorded — this one is complete.
             </Text>
             {data.trend.map((point, index) => (
               <View key={`${point.at}-${index}`} style={styles.trendRow}>
@@ -509,6 +583,22 @@ const styles = StyleSheet.create({
   benchmarkNote: {
     fontSize: 11, color: colors.textMuted, marginTop: spacing.sm, lineHeight: 16,
   },
+
+  alertCard: { borderLeftWidth: 3, borderLeftColor: colors.warning },
+  alertTitle: { fontSize: 15, fontWeight: '600', color: colors.text },
+  alertRow: { marginTop: spacing.sm },
+  alertHost: { fontSize: 13, fontWeight: '600', color: colors.text },
+  alertDetail: { fontSize: 13, color: colors.textSecondary, marginTop: 2, lineHeight: 18 },
+  alertFootnote: {
+    fontSize: 11, color: colors.textMuted, marginTop: spacing.base, lineHeight: 16,
+  },
+
+  seriesBlock: { marginTop: spacing.sm },
+  seriesHost: {
+    fontSize: 12, fontWeight: '600', color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  stale: { color: colors.textMuted },
 
   trackedRow: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.xs,
