@@ -1,33 +1,49 @@
-# Publishing the Mercai backend on `api.mercai.tuan1970.com`
+# Publishing the Mercai backend on `mercai-api.tuan1970.com`
 
-Puts the mercai API behind Cloudflare via a tunnel, replacing the retired
-`112.213.91.103` address. Nothing here is applied automatically — every step
-below is one you run.
+**✅ LIVE since 2026-08-28.** Kept as a runbook for rebuilding it elsewhere.
 
 | | |
 |---|---|
-| Public hostname | `https://api.mercai.tuan1970.com` |
+| Public hostname | `https://mercai-api.tuan1970.com` |
 | Local origin | `http://localhost:8002` (`mercai_traefik`, published `8002:80`) |
-| Tunnel | **new**, named `mercai` — *not* the existing `homelab` |
-| Config template | `back_end/cloudflared/config.yml` |
+| Tunnel | `mercai`, id `2dbc8dbc-7484-49f9-8111-26c8ac76b64b` |
+| Config | `back_end/cloudflared/config.yml` (filled in, not a template any more) |
 
 ---
 
-## 0. Read this first — the TLS caveat
+## 0. The TLS caveat — resolved by flattening the hostname
 
-Cloudflare's free Universal SSL certificate covers `tuan1970.com` and
-`*.tuan1970.com`, and **`*` matches one label only**. `api.mercai.tuan1970.com`
-is two labels deep, so it is *not* covered. Until that is resolved the mobile
-app will fail TLS validation against this hostname.
+Cloudflare's free Universal SSL covers `tuan1970.com` and `*.tuan1970.com`, and
+**`*` matches one label only**. `api.mercai.tuan1970.com` is two labels deep and
+would *not* have been covered, so the app would have failed TLS on every
+request.
 
-Three ways out, cheapest first:
+**Decision 2026-08-28: use `mercai-api.tuan1970.com`.** One label, free, works
+today. Verified: the served certificate is `CN=tuan1970.com` from Google Trust
+Services and `curl` reports `SSL certificate verify ok`.
 
-1. **Use a single-level hostname instead** — `mercai-api.tuan1970.com`. Free,
-   works immediately. Change one line in `front_end/src/constants/config.js`
-   and the `hostname:` in the tunnel config.
-2. **Advanced Certificate Manager** — ~$10/month on the zone, covers deeper
-   subdomains.
-3. **Cloudflare for SaaS / custom origin cert** — more setup than this is worth.
+The alternative was Advanced Certificate Manager at ~$10/month to keep the
+deeper name. Not worth it for a naming preference.
+
+---
+
+## 0b. What the account actually looked like
+
+Worth recording, because two things were not what the earlier notes assumed:
+
+- `~/.cloudflared/0b83d79d-….json` is **stale** — that tunnel no longer exists
+  on the account. It cannot be used and should not be referenced.
+- The account had exactly one live tunnel, `homelab`
+  (`90a553cf-…`), which serves `stock.tuan1970.com` from a different machine.
+  **Never point a second machine at that ID:** Cloudflare load-balances across
+  every connected instance of a tunnel ID, so half of stock's traffic would
+  arrive here and 404. The same rule applies to `mercai` — to move it, either
+  create a second tunnel and re-point DNS, or copy the credentials and stop it
+  here first.
+- `cloudflared` looks for `/etc/cloudflared/cert.pem` by default and this
+  machine's lives in `~/.cloudflared/`, which fails with *"cannot read … to
+  load origin certificate"*. The config sets `origincert` explicitly; a systemd
+  unit needs the same.
 
 Everything else below is unaffected by which hostname you pick.
 
@@ -132,3 +148,33 @@ A `530`/`1033` means the tunnel is not connected. A TLS error means section 0.
   starting, so a drop-in silently does nothing. Ollama has no authentication of
   its own. It has no ingress rule so the tunnel never exposes it, but do
   firewall the port if this host sits on an untrusted network.
+
+---
+
+## Verified 2026-08-28
+
+Run from this machine over public HTTPS, after `cloudflared tunnel run mercai`:
+
+| Check | Result |
+|---|---|
+| `GET /api/v1/intel/health` | `200`, `SSL certificate verify ok` |
+| `GET /api/v1/products/` | `200` |
+| `POST /api/v1/auth/login` | token returned for a seeded seller |
+| `GET /api/v1/intel/products/{id}/price-position` | full payload incl. external comparable and Tiki benchmark |
+| **WebSocket** `wss://…/api/v1/chat/ws/{user_id}?token=…` | **upgraded and stayed open** — the piece most likely to break through a tunnel |
+| Traefik dashboard `/dashboard/`, `/api/rawdata` | **404 publicly**, `200` on `localhost:8080` — the tunnel exposes only `:8002` |
+| Warm latency | ~0.11–0.12s |
+
+Two gotchas met on the way, both worth remembering:
+
+- The chat WebSocket path is `/api/v1/chat/ws/{user_id}`, not `/api/v1/chat/ws`.
+  The bare path 404s, which looks like a tunnel failure and is not.
+- `UID` is a **readonly bash variable**. `UID=$(mysql … )` silently leaves it as
+  the shell's own uid (1000), and the WebSocket then 403s on a user mismatch.
+  Use any other name.
+
+### Still to do
+
+The tunnel is running in the foreground under the current shell. For it to
+survive a logout or reboot it needs a systemd unit — remember `--origincert`,
+or move `cert.pem` and the credentials JSON into `/etc/cloudflared/`.

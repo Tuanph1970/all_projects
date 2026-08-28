@@ -41,8 +41,8 @@ const ENV_CONFIG = {
     // Cloudflare Tunnel -> Traefik gateway (:8002). Traefik serves /api/v1/*
     // at the root of this hostname, so there is no path prefix: the old
     // '/mercai-app' prefix was never served by any nginx config and 404'd.
-    BASE_URL: 'https://api.mercai.tuan1970.com',
-    WS_URL: 'wss://api.mercai.tuan1970.com',
+    BASE_URL: 'https://mercai-api.tuan1970.com',
+    WS_URL: 'wss://mercai-api.tuan1970.com',
   },
 };
 

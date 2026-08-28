@@ -1,19 +1,24 @@
 # ============================================================================
-# Cloudflare Tunnel config for the Mercai backend — TEMPLATE, NOT INSTALLED
+# Cloudflare Tunnel config for the Mercai backend
 # ============================================================================
-# Install to /etc/cloudflared/config.yml on the machine running the mercai
-# stack. See ../../DEPLOYMENT_CLOUDFLARE.md for the full runbook.
+# Tunnel `mercai` created 2026-08-28. Copy this to the machine running the
+# stack; see ../../DEPLOYMENT_CLOUDFLARE.md for the runbook.
 #
-# Fill in TUNNEL_ID after `cloudflared tunnel create mercai` — the create
-# command prints the ID and writes the credentials JSON next to it.
+# Paths below point at ~/.cloudflared because that is where `cloudflared`
+# placed the origin certificate and therefore the credentials. It DEFAULTS to
+# /etc/cloudflared/cert.pem and fails with "cannot read ... to load origin
+# certificate" if you let it — so a systemd unit needs these explicit, or the
+# files moved to /etc/cloudflared and the paths changed to match.
 #
-# Do NOT reuse the `homelab` tunnel ID here. Cloudflare load-balances across
+# Do NOT put the `homelab` tunnel ID here. Cloudflare load-balances across
 # every connected instance of a tunnel ID, so a second machine answering for
-# `homelab` would take half of stock.tuan1970.com's traffic and 404 it.
+# `homelab` would take half of stock.tuan1970.com's traffic and 404 it. That is
+# also why running THIS tunnel on two machines at once is a mistake: create a
+# second tunnel and re-point DNS, or move the credentials and stop it here.
 
-tunnel: TUNNEL_ID
-credentials-file: /etc/cloudflared/TUNNEL_ID.json
-origincert: /etc/cloudflared/cert.pem
+tunnel: 2dbc8dbc-7484-49f9-8111-26c8ac76b64b
+credentials-file: /home/tuanph/.cloudflared/2dbc8dbc-7484-49f9-8111-26c8ac76b64b.json
+origincert: /home/tuanph/.cloudflared/cert.pem
 
 # Log to journald via stdout; `journalctl -u cloudflared` is the read path.
 loglevel: info
@@ -26,7 +31,11 @@ ingress:
   # hostname, so the app needs no path prefix. The chat WebSocket at
   # /api/v1/chat/ws upgrades over this same rule — cloudflared proxies
   # WebSockets for http services without extra configuration.
-  - hostname: api.mercai.tuan1970.com
+  # One label deep on purpose: Cloudflare's free Universal SSL covers
+  # *.tuan1970.com for ONE label only, so `api.mercai.tuan1970.com` would fail
+  # TLS on every request from the app unless Advanced Certificate Manager
+  # (~$10/mo) were enabled. Chosen 2026-08-28.
+  - hostname: mercai-api.tuan1970.com
     service: http://localhost:8002
     originRequest:
       # An intel call may hold the connection while it fetches a third-party
