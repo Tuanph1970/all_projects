@@ -13,18 +13,32 @@ http:
           ipStrategy:
             depth: 1
 
-    # Rate limit for intel endpoints.
-    # The general `ratelimit` above allows 1000/min, which is meaningless for
-    # calls that make an outbound fetch to a third-party site. This bound is
-    # per client IP; the per-host politeness budget is enforced in the service.
+    # Coarse abuse guard for the intel endpoints. NOT the cost control.
+    #
+    # It was sized at 30/min when these endpoints meant a GPU generation call.
+    # That is no longer what they are: reads (price position, comparable list)
+    # are ordinary database queries, and the only expensive path -- an outbound
+    # fetch on add/refresh -- is already bounded twice inside the service, by a
+    # per-seller quota (AI_QUOTA_PER_HOUR/DAY) and a per-host politeness budget
+    # (INTEL_HOST_INTERVAL_SECONDS). Leaving 30/min here just meant a handful of
+    # sellers opening a screen at once got 429s for no reason; a plain API test
+    # run tripped it after eleven requests.
+    #
+    # Keyed on Cf-Connecting-IP rather than an X-Forwarded-For depth. Every
+    # request arrives through cloudflared from localhost, so an IP strategy is
+    # arithmetic on a header we do not control the shape of, and getting it
+    # wrong silently turns a per-client limit into a global one -- which would
+    # cap ALL sellers together and be invisible until it bit. Cloudflare always
+    # sets this header to the true client address. Requests that arrive without
+    # it (local development straight to :8002, bypassing the tunnel) share one
+    # bucket, which is the right trade for a development path.
     intel-ratelimit:
       rateLimit:
-        average: 30
-        burst: 10
+        average: 120
+        burst: 40
         period: 1m
         sourceCriterion:
-          ipStrategy:
-            depth: 1
+          requestHeaderName: Cf-Connecting-IP
 
     # CORS Headers
     cors:

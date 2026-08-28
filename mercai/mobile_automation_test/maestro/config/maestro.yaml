@@ -3,11 +3,17 @@ name: "Mercai Tests"
 
 # App configuration
 appId: com.mercai.app
-workspace: /home/tuanph/all_projects/mercai/mobile_automation_test/maestro
+# Absolute path, so it breaks silently if the repo moves. The previous value
+# was missing the TuanPH/ segment and pointed at a directory that does not
+# exist on this machine.
+workspace: /home/tuanph/TuanPH/all_projects/mercai/mobile_automation_test/maestro
 
 # Environment variables for testing
 env:
-  API_BASE_URL: "http://localhost:8002"
+  # A device or emulator cannot reach the host's localhost. Point this at the
+  # published tunnel for on-device runs; override to localhost only when the
+  # app itself runs on this machine (web/simulator sharing the host network).
+  API_BASE_URL: "https://mercai-api.tuan1970.com"
   AUTH_SERVICE_URL: "http://localhost:8002/api/auth"
   PRODUCT_SERVICE_URL: "http://localhost:8002/api/products"
   ORDER_SERVICE_URL: "http://localhost:8002/api/orders"

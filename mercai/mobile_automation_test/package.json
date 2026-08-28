@@ -23,7 +23,9 @@
     "maestro:setup": "./scripts/setup-maestro.sh",
     "start-server": "cd ../backend && npm start",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "test:api:intel": "jest --config jest.config.api.js --testPathPattern=intel.api.test.js",
+    "test:api:prod": "API_BASE_URL=https://mercai-api.tuan1970.com jest --config jest.config.api.js"
   },
   "keywords": [
     "maestro",

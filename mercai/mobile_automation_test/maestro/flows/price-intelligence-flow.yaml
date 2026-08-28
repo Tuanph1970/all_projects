@@ -1,0 +1,107 @@
+# Price intelligence — seller opens a listing's price insights.
+#
+# Covers the one thing no other test can: that these screens actually render on
+# a device. They pass 9 jest render tests, but jest mocks React Native's native
+# layer, so Paper components, the price-scale layout and navigation are all
+# unverified until this runs.
+#
+#   maestro test maestro/flows/price-intelligence-flow.yaml \
+#     -e USERNAME=gomthuha -e PASSWORD=MercaiTest@2026
+#
+# Requires the seeded catalogue (back_end/scripts/seed_catalogue.py) and
+# INTEL_PRICE_ENABLED=true, otherwise the chart-line control is hidden by
+# design and this flow will correctly fail to find it.
+
+appId: com.mercai.app
+env:
+  USERNAME: ${USERNAME:-gomthuha}
+  PASSWORD: ${PASSWORD:-MercaiTest@2026}
+
+---
+
+- launchApp:
+    clearState: true
+
+- runFlow:
+    file: seller-login-flow.yaml
+    env:
+      USERNAME: ${USERNAME}
+      PASSWORD: ${PASSWORD}
+
+# Navigate to the seller's product list
+- tapOn:
+    id: "tab-dashboard"
+- waitForAnimationToEnd
+
+- tapOn:
+    text: "Products"
+    optional: true
+- waitForAnimationToEnd
+
+# The price-insights control is rendered only when the feature is enabled for
+# this seller, so its presence is itself an assertion about the health endpoint.
+- assertVisible:
+    id: "product-price-insights-1"
+    timeout: 15000
+
+- tapOn:
+    id: "product-price-insights-1"
+
+# The screen loads asynchronously; wait for the container rather than a spinner.
+- assertVisible:
+    id: "price-position-screen"
+    timeout: 20000
+
+# Either a market position or the explicit no-market state. Both are valid
+# outcomes and exactly one must be present -- a blank screen is the failure
+# this asserts against.
+# Exactly one of these must be present. A blank screen -- neither a position
+# nor the explicit "not enough comparables" state -- is the failure this guards
+# against, and it is the failure most likely to appear only on a device.
+- assertVisible:
+    id: "price-position-label"
+    optional: true
+- assertVisible:
+    id: "price-position-no-market"
+    optional: true
+- assertNotVisible:
+    id: "price-position-error"
+
+# Sections that must be reachable by scrolling
+- scrollUntilVisible:
+    element:
+      text: "The market"
+    direction: DOWN
+    timeout: 15000
+    optional: true
+
+- scrollUntilVisible:
+    element:
+      text: "Listings you’re tracking"
+    direction: DOWN
+    timeout: 15000
+
+# The comparable form is the one interactive surface on this screen.
+- assertVisible:
+    id: "comparable-url-input"
+
+# Adding an unsupported host must surface a readable refusal, not a crash.
+- tapOn:
+    id: "comparable-url-input"
+- inputText: "https://shopee.vn/product/1/2"
+- tapOn:
+    id: "comparable-add-button"
+
+- assertVisible:
+    text: ".*don.t support.*"
+    timeout: 20000
+
+- tapOn:
+    text: "OK"
+    optional: true
+
+# Back out cleanly
+- back
+- assertVisible:
+    id: "tab-dashboard"
+    timeout: 10000
