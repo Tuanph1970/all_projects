@@ -173,8 +173,29 @@ Two gotchas met on the way, both worth remembering:
   the shell's own uid (1000), and the WebSocket then 403s on a user mismatch.
   Use any other name.
 
-### Still to do
+### Running as a service — ✅ done 2026-08-28
 
-The tunnel is running in the foreground under the current shell. For it to
-survive a logout or reboot it needs a systemd unit — remember `--origincert`,
-or move `cert.pem` and the credentials JSON into `/etc/cloudflared/`.
+    sudo back_end/scripts/install-tunnel-service.sh
+
+Idempotent. Installs the credentials and config into `/etc/cloudflared/`, stops
+only the foreground instance of *this* tunnel, enables the packaged
+`cloudflared.service`, and verifies public HTTPS before reporting success.
+
+No new unit is written: the packaged one already runs
+`--config /etc/cloudflared/config.yml tunnel run` as root, so only its config
+changes. Because the files now live in `/etc/cloudflared/`, `origincert` is
+where cloudflared looks by default and no flag is needed — but a CLI command
+run from a user shell still needs `--origincert ~/.cloudflared/cert.pem`.
+
+**It replaced stock's leftover config**, which was safe and was checked rather
+than assumed: that file named tunnel `0b83d79d-…` (which no longer exists on
+the account), `cloudflared.service` was disabled, and stock now runs from a
+different machine. The previous file is kept at
+`/etc/cloudflared/config.yml.bak.<timestamp>`. If this machine ever needs to
+serve stock as well, add a second `ingress` rule to the one config rather than
+swapping files — one tunnel can front many hostnames.
+
+Verified after the switch: service `enabled` and `active`, exactly one
+cloudflared process (systemd's), four edge connections, and login,
+price-position, the chat WebSocket and the dashboard-404 check all still
+passing over public HTTPS.

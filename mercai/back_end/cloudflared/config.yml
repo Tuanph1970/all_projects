@@ -4,11 +4,12 @@
 # Tunnel `mercai` created 2026-08-28. Copy this to the machine running the
 # stack; see ../../DEPLOYMENT_CLOUDFLARE.md for the runbook.
 #
-# Paths below point at ~/.cloudflared because that is where `cloudflared`
-# placed the origin certificate and therefore the credentials. It DEFAULTS to
-# /etc/cloudflared/cert.pem and fails with "cannot read ... to load origin
-# certificate" if you let it — so a systemd unit needs these explicit, or the
-# files moved to /etc/cloudflared and the paths changed to match.
+# Paths are /etc/cloudflared because that is where the packaged
+# cloudflared.service expects them and where scripts/install-tunnel-service.sh
+# puts them. `cloudflared` created the originals under ~/.cloudflared (it
+# follows the origin certificate), and running it by hand from there needs
+# `--origincert ~/.cloudflared/cert.pem` or it fails with "cannot read ... to
+# load origin certificate".
 #
 # Do NOT put the `homelab` tunnel ID here. Cloudflare load-balances across
 # every connected instance of a tunnel ID, so a second machine answering for
@@ -17,8 +18,8 @@
 # second tunnel and re-point DNS, or move the credentials and stop it here.
 
 tunnel: 2dbc8dbc-7484-49f9-8111-26c8ac76b64b
-credentials-file: /home/tuanph/.cloudflared/2dbc8dbc-7484-49f9-8111-26c8ac76b64b.json
-origincert: /home/tuanph/.cloudflared/cert.pem
+credentials-file: /etc/cloudflared/2dbc8dbc-7484-49f9-8111-26c8ac76b64b.json
+origincert: /etc/cloudflared/cert.pem
 
 # Log to journald via stdout; `journalctl -u cloudflared` is the read path.
 loglevel: info
