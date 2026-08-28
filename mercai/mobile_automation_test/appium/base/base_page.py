@@ -222,6 +222,47 @@ class BasePage:
             self.swipe_up()
         return self.is_visible(*locator, timeout=1)
 
+    def scroll_until_present(self, by: str, value: str, max_swipes: int = 8) -> bool:
+        """
+        Swipe up until a specific element enters the tree.
+
+        Distinct from scroll_to_text, and the difference matters: stopping when
+        a section HEADING becomes visible leaves the controls under it still
+        below the fold, and Android omits off-screen views from the
+        accessibility tree entirely -- so they read as "element not found"
+        rather than "not scrolled to yet".
+        """
+        for _ in range(max_swipes):
+            if self.is_present(by, value, timeout=1):
+                return True
+            self.swipe_up()
+        return self.is_present(by, value, timeout=2)
+
+    def scroll_until_fully_visible(self, by: str, value: str,
+                                   max_swipes: int = 8) -> bool:
+        """
+        Scroll until the element is entirely on screen, not merely present.
+
+        This distinction is the difference between a real failure and a false
+        one. Android reports an element's bounds CLIPPED to the viewport, so a
+        control scrolled half into view measures as a fraction of its true
+        height -- a 48dp button caught with only its top edge showing reports
+        about 10dp and fails a tap-target assertion it should pass.
+        """
+        from base.layout import box_of
+
+        if not self.scroll_until_present(by, value, max_swipes=max_swipes):
+            return False
+
+        screen = self.driver.get_window_size()
+        for _ in range(4):
+            box = box_of(self.find(by, value, timeout=2))
+            if box.top >= 0 and box.bottom <= screen["height"]:
+                return True
+            self.swipe_up(duration=300)
+        box = box_of(self.find(by, value, timeout=2))
+        return box.top >= 0 and box.bottom <= screen["height"]
+
     def swipe_up(self, duration: int = 400):
         """Swipe content upward (reveals what is below the fold)."""
         size = self.driver.get_window_size()

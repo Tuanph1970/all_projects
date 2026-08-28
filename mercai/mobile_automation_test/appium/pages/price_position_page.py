@@ -51,8 +51,23 @@ class PricePositionPage(BasePage):
     def prices_on_screen(self):
         return self.find_all(*self.ANY_PRICE)
 
+    def reveal_add_comparable_form(self):
+        """Bring the URL field and its button into the tree, not just the heading."""
+        assert self.scroll_until_fully_visible(*self.URL_INPUT), \
+            "Never brought the add-comparable form fully on screen"
+        return self
+
+    def reveal_edit_button(self):
+        """
+        Fully, not merely present: it is the last element on a long screen, so
+        it is the one most likely to be measured while still half off-screen.
+        """
+        assert self.scroll_until_fully_visible(*self.EDIT_BUTTON), \
+            "Never brought the edit-listing button fully on screen"
+        return self
+
     def add_comparable(self, url: str):
-        self.scroll_to_text("Listings you")
+        self.reveal_add_comparable_form()
         self.type_text(*self.URL_INPUT, url)
         self.hide_keyboard()
         self.tap(*self.ADD_BUTTON)

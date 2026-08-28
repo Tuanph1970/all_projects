@@ -390,6 +390,7 @@ export const PricePositionScreen = ({ route, navigation }) => {
             onPress={handleAdd}
             loading={adding}
             disabled={adding || !newUrl.trim()}
+            contentStyle={{ height: 48 }}
             testID="comparable-add-button"
           >
             Track this listing
@@ -426,6 +427,11 @@ export const PricePositionScreen = ({ route, navigation }) => {
         mode="outlined"
         onPress={() => navigation.navigate('AddProduct', { productId })}
         style={styles.editButton}
+        // react-native-paper's default Button is 40dp tall, below Android's
+        // 48dp minimum tap target. AddProductScreen, CheckoutScreen and
+        // CartScreen all set this explicitly; this one did not, and the
+        // layout suite caught it at exactly 40.0dp.
+        contentStyle={{ height: 48 }}
         testID="price-position-edit-button"
       >
         Edit this listing

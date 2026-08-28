@@ -52,10 +52,18 @@ class TestPricePositionLayout:
         self.products = ProductManagementPage(driver)
         self.screen = PricePositionPage(driver)
 
-        if self.login.is_showing(timeout=8):
+        # Restart the app to a known root. NO_RESET keeps the session (so we
+        # do not re-login for every test, and do not reinstall a 218MB APK),
+        # but it also leaves the previous test wherever it finished -- usually
+        # deep in the navigation stack. Without this, every test after the
+        # first fails looking for a screen it has already navigated past.
+        driver.terminate_app(config.app.app_package)
+        driver.activate_app(config.app.app_package)
+
+        if self.login.is_showing(timeout=15):
             self.login.login()
 
-        self.products.open_price_insights(SEEDED_PRODUCT_ID)
+        self.products.open().open_price_insights(SEEDED_PRODUCT_ID)
         self.screen.wait_until_loaded()
 
     # ── The screen is in a valid state at all ───────────────────────────────
@@ -109,13 +117,13 @@ class TestPricePositionLayout:
     # ── Interactive controls ────────────────────────────────────────────────
 
     def test_the_add_comparable_control_is_hittable(self):
-        self.screen.scroll_to_text("Listings you")
+        self.screen.reveal_add_comparable_form()
         button = self.screen.find(*PricePositionPage.ADD_BUTTON)
         layout.assert_within_screen(self.driver, button, "add comparable button")
         layout.assert_tap_target(self.driver, button, "add comparable button")
 
     def test_the_url_field_and_its_button_do_not_overlap(self):
-        self.screen.scroll_to_text("Listings you")
+        self.screen.reveal_add_comparable_form()
         field = self.screen.find(*PricePositionPage.URL_INPUT)
         button = self.screen.find(*PricePositionPage.ADD_BUTTON)
         layout.assert_no_overlap(field, button, "url field", "add button")
@@ -127,7 +135,7 @@ class TestPricePositionLayout:
         Getting that wrong puts it under the system navigation bar, where it
         renders perfectly and cannot be tapped.
         """
-        self.screen.scroll_to_text("Edit this listing")
+        self.screen.reveal_edit_button()
         button = self.screen.find(*PricePositionPage.EDIT_BUTTON)
         layout.assert_within_screen(self.driver, button, "edit listing button")
         layout.assert_tap_target(self.driver, button, "edit listing button")

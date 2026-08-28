@@ -39,7 +39,12 @@ class EmulatorConfig:
     udid: str = os.getenv("UDID", "emulator-5554")
 
     auto_launch: bool = True
-    no_reset: bool = False
+    # Env-driven, because the right value differs by situation and the cost is
+    # large: with no_reset=False Appium reinstalls the app for every test, and
+    # this APK is 218MB. Leave it true once the app is installed; set it false
+    # when a test genuinely needs virgin state.
+    no_reset: bool = os.getenv("NO_RESET", "true").lower() == "true"
+    full_reset: bool = os.getenv("FULL_RESET", "false").lower() == "true"
 
 
 @dataclass
