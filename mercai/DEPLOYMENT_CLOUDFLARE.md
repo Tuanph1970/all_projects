@@ -199,3 +199,54 @@ Verified after the switch: service `enabled` and `active`, exactly one
 cloudflared process (systemd's), four edge connections, and login,
 price-position, the chat WebSocket and the dashboard-404 check all still
 passing over public HTTPS.
+
+---
+
+## Moving the tunnel to another machine
+
+    back_end/scripts/migrate-tunnel.sh plan     # what to copy, in order
+    sudo back_end/scripts/migrate-tunnel.sh stop
+
+**Keep the same tunnel id.** The CNAME for `mercai-api.tuan1970.com` points at
+`<tunnel-id>.cfargotunnel.com`, and that target does not care which machine
+answers. Moving the credentials therefore needs **no DNS change at all**.
+Creating a second tunnel would mean re-pointing DNS and waiting on propagation,
+for no benefit.
+
+**Never run one tunnel id on two machines at once.** Cloudflare load-balances
+across every connected instance, so while both are up roughly half of all
+requests land on whichever machine is not serving the stack. The result is
+intermittent and geographically random — the hardest shape of failure to
+diagnose. Stop it here before starting it there.
+
+### The dependency that is easy to miss
+
+The tunnel forwards to `http://localhost:8002`, which is Traefik **on the same
+machine**. Moving the tunnel alone does not move the backend: the new machine
+must be running the mercai stack first, or the hostname answers 502. Bring the
+stack up there and prove `curl localhost:8002/api/v1/intel/health` before
+touching the tunnel.
+
+The database moves separately too — a fresh stack has an empty catalogue, so
+either `mysqldump` this one across or run `scripts/seed_catalogue.py` on the new
+machine for test data.
+
+### Which files are secret
+
+| File | Needed to run? | Notes |
+|---|---|---|
+| `<tunnel-id>.json` | **yes** | The credential. Treat like a password |
+| `cert.pem` | no | Account-level; only needed to *manage* tunnels (create/route/delete) from that machine |
+| `config.yml` | yes | Not secret — it lives in `back_end/cloudflared/config.yml` |
+
+`/etc/cloudflared` is root-only, so `migrate-tunnel.sh stop` stages readable
+copies in `/tmp` for `scp`. **`shred -u` them afterwards** — the script says so,
+because a tunnel credential left in `/tmp` is a live key to your origin.
+
+### During the gap
+
+DNS keeps resolving while no tunnel is connected, so Cloudflare answers **1033
+(tunnel not found)** rather than a connection error. To anyone using the app
+that reads as "the backend is broken", not "it is being moved". Keep the window
+short, and prefer bringing the new machine fully up first so the switch is
+seconds rather than minutes.
