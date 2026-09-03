@@ -12,7 +12,10 @@ from .seller_profile import SellerProfile, StoreTheme
 from .seller_category import SellerCategory
 from .analytics import SearchLog
 from .ai import AiSuggestion
-from .intel import TrackedComparable, ComparableObservation, CategoryBenchmark
+from .intel import (
+    TrackedComparable, ComparableObservation, CategoryBenchmark,
+    RejectedHostRequest,
+)
 
 __all__ = [
     # User
@@ -51,4 +54,5 @@ __all__ = [
     "TrackedComparable",
     "ComparableObservation",
     "CategoryBenchmark",
+    "RejectedHostRequest",
 ]

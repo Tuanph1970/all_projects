@@ -1,11 +1,13 @@
 """
 Price-intelligence models.
 
-Two tables. `tracked_comparables` is what a seller asked us to watch;
+`tracked_comparables` is what a seller asked us to watch;
 `comparable_observations` is the append-only record of what we saw each time we
-looked.
+looked; `category_benchmarks` is a market-wide aggregate that matches nothing to
+anything; `rejected_host_requests` is the demand for sources we do not support
+yet, which is what tells us which adapter to write next.
 
-See docs/ai-features/05-price-intelligence.md section 7.
+See docs/ai-features/05-price-intelligence.md sections 7 and 12.
 """
 from sqlalchemy import (
     BigInteger, Boolean, Column, DateTime, ForeignKey, Index, Integer,
@@ -161,4 +163,53 @@ class CategoryBenchmark(Base):
         return (
             f"<CategoryBenchmark({self.source}:{self.external_category_id} "
             f"n={self.sample_size} median={self.median})>"
+        )
+
+
+class RejectedHostRequest(Base):
+    """
+    A host a seller asked for and we could not serve: the adapter worklist.
+
+    `POST /comparables` refuses an unsupported host at add-time and deliberately
+    leaves no `tracked_comparables` row behind -- a row we can never fetch is
+    worse than no row. But that also threw away the single most valuable signal
+    the feature produces: WHICH SITES SELLERS ACTUALLY WANT. Adding a source is
+    a YAML file (services/intel/app/adapters/), so the only hard part of writing
+    the next adapter is choosing which one, and this table answers that from
+    evidence rather than from a guess.
+
+    One row per (host, seller), not per attempt. Ranking a host by raw attempts
+    would put one seller pasting forty links from a site above twelve sellers
+    pasting one each, which is backwards: breadth of demand is what justifies an
+    adapter. Keeping the pair as the grain gives both numbers from one table --
+    COUNT(*) is distinct sellers, SUM(attempts) is total pressure -- and bounds
+    its size to hosts x sellers.
+
+    Reliability class: TELEMETRY (see 01-instrumentation.md). A failed write
+    must never turn a seller's clear "we don't support this site" message into a
+    500.
+    """
+    __tablename__ = "rejected_host_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    host = Column(String(255), nullable=False, index=True)
+    seller_id = Column(Integer, nullable=False, index=True)
+
+    attempts = Column(Integer, nullable=False, default=1)
+    # The last URL tried, kept because writing an adapter needs a real product
+    # page to test the ladder against, and this is one the seller vouched for.
+    sample_url = Column(String(1000), nullable=True)
+
+    first_seen_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_seen_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("host", "seller_id", name="uq_rhr_host_seller"),
+        Index("ix_rhr_host_last_seen", "host", "last_seen_at"),
+    )
+
+    def __repr__(self):
+        return (
+            f"<RejectedHostRequest(host={self.host!r}, seller_id={self.seller_id}, "
+            f"attempts={self.attempts})>"
         )

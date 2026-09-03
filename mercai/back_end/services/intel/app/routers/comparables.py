@@ -22,7 +22,7 @@ from shared.security import get_current_user
 from app.schemas.comparable import (
     AddComparableRequest, ComparableListResponse, ComparableOut, ObservationOut,
 )
-from app.services import adapters, comparables as service, fetcher
+from app.services import adapters, comparables as service, demand, fetcher
 from app.services.guardrails import check_quota, consume_quota, feature_enabled
 
 logger = logging.getLogger(__name__)
@@ -117,6 +117,13 @@ def add_comparable(
     try:
         host, _ = fetcher.check_url(payload.url)
     except fetcher.FetchRefused as refused:
+        # A host we don't support is the one refusal that is also a request.
+        # No comparable row is created -- one we can never fetch is worse than
+        # none -- but the demand is counted, because "which adapter next?" is
+        # otherwise answered by guessing. Only HOST_NOT_ALLOWED: a private
+        # address is a mistake or an attack, never a source worth adding.
+        if refused.status == fetcher.HOST_NOT_ALLOWED:
+            demand.record_rejection(db, seller_id=current_user.id, url=payload.url)
         raise HTTPException(status_code=422, detail=refused.detail or
                             fetcher.MESSAGES.get(refused.status, "That URL can't be used"))
 
