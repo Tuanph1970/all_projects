@@ -20,7 +20,7 @@ const ENVIRONMENT = 'local'; // Change to 'production' for deployment
 - **`'local'`** - For local development (Android emulator -> host machine)
 - **`'testing'`** - For E2E tests; tries several candidate URLs and uses the
   first that answers
-- **`'production'`** - For the public API at `https://api.mercai.tuan1970.com`
+- **`'production'`** - For the public API at `https://mercai.tuan1970.com`
 
 ## Configuration Details
 
@@ -43,8 +43,8 @@ const ENV_CONFIG = {
     WS_URL: 'ws://10.0.2.2:8002',
   },
   production: {
-    BASE_URL: 'https://api.mercai.tuan1970.com',
-    WS_URL: 'wss://api.mercai.tuan1970.com',
+    BASE_URL: 'https://mercai.tuan1970.com',
+    WS_URL: 'wss://mercai.tuan1970.com',
   },
 };
 ```
@@ -67,7 +67,7 @@ terminates TLS at the edge and forwards to the Traefik gateway, which serves
 1. Open `/front_end/src/constants/config.js`
 2. Change `ENVIRONMENT = 'production'`
 3. Build and deploy the app
-4. All API calls will now point to `https://api.mercai.tuan1970.com`
+4. All API calls will now point to `https://mercai.tuan1970.com`
 
 ## What Was Updated
 
@@ -103,7 +103,7 @@ All service files now use centralized configuration:
 ### Base Configuration
 ```javascript
 API_CONFIG = {
-  BASE_URL: currentEnv.BASE_URL,  // e.g. 'http://10.0.2.2' or 'https://api.mercai.tuan1970.com'
+  BASE_URL: currentEnv.BASE_URL,  // e.g. 'http://10.0.2.2' or 'https://mercai.tuan1970.com'
   WS_URL: currentEnv.WS_URL,      // WebSocket URL for chat
   TIMEOUT: 10000,                  // 10 seconds
 }
@@ -162,7 +162,7 @@ API_CONFIG = {
 
 ### Production Testing (Stage 2)
 - [ ] Set `ENVIRONMENT = 'production'` in config.js
-- [ ] Verify backend is accessible at https://api.mercai.tuan1970.com
+- [ ] Verify backend is accessible at https://mercai.tuan1970.com
 - [ ] Test all features listed above
 - [ ] Verify WebSocket connection for chat
 - [ ] Test on actual device (not just simulator)
@@ -201,8 +201,8 @@ const ENV_CONFIG = {
     WS_URL: 'ws://staging.example.com:8000',
   },
   production: {
-    BASE_URL: 'https://api.mercai.tuan1970.com',
-    WS_URL: 'wss://api.mercai.tuan1970.com',
+    BASE_URL: 'https://mercai.tuan1970.com',
+    WS_URL: 'wss://mercai.tuan1970.com',
   },
 };
 

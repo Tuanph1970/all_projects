@@ -88,7 +88,7 @@ Java 17 is required and is at `/usr/lib/jvm/java-17-openjdk-amd64`, though
 ## Status: 10/10 passing
 
 Run 2026-08-28 on `Pixel_3a_API_36_extension_level_17_x86_64` against the live
-backend at `https://mercai-api.tuan1970.com`. It found one real bug — see
+backend at `https://mercai.tuan1970.com`. It found one real bug — see
 below.
 
 ## Fixtures these tests assume

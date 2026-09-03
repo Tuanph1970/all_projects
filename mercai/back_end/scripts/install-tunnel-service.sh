@@ -22,9 +22,14 @@
 
 set -euo pipefail
 
-TUNNEL_ID="2dbc8dbc-7484-49f9-8111-26c8ac76b64b"
-TUNNEL_NAME="mercai"
-HOSTNAME_FQDN="mercai-api.tuan1970.com"
+# The id created on the original machine, 2026-08-28. The backend now runs on
+# a different computer (2026-09-03); if that machine created its own tunnel
+# rather than reusing this credential, override without editing this file:
+#     sudo TUNNEL_ID=<its-id> back_end/scripts/install-tunnel-service.sh
+# `cloudflared tunnel list` on the serving machine prints the real id.
+TUNNEL_ID="${TUNNEL_ID:-2dbc8dbc-7484-49f9-8111-26c8ac76b64b}"
+TUNNEL_NAME="${TUNNEL_NAME:-mercai}"
+HOSTNAME_FQDN="${HOSTNAME_FQDN:-mercai.tuan1970.com}"
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 USER_HOME="${SUDO_USER:+/home/$SUDO_USER}"
 USER_HOME="${USER_HOME:-$HOME}"

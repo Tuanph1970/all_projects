@@ -8,7 +8,7 @@
 # nothing and is miserable to diagnose. Stop it HERE before starting it THERE.
 #
 # Keeping the same tunnel id means DNS needs no change at all: the CNAME for
-# mercai-api.tuan1970.com already points at <tunnel-id>.cfargotunnel.com, and
+# mercai.tuan1970.com already points at <tunnel-id>.cfargotunnel.com, and
 # that target is unchanged by which machine answers for it.
 #
 #   ./scripts/migrate-tunnel.sh plan          show what to copy and where
@@ -18,9 +18,11 @@
 
 set -euo pipefail
 
-TUNNEL_ID="2dbc8dbc-7484-49f9-8111-26c8ac76b64b"
-TUNNEL_NAME="mercai"
-HOSTNAME_FQDN="mercai-api.tuan1970.com"
+# See install-tunnel-service.sh: this id is the one created on the original
+# machine. Override with TUNNEL_ID=<id> if the serving machine made its own.
+TUNNEL_ID="${TUNNEL_ID:-2dbc8dbc-7484-49f9-8111-26c8ac76b64b}"
+TUNNEL_NAME="${TUNNEL_NAME:-mercai}"
+HOSTNAME_FQDN="${HOSTNAME_FQDN:-mercai.tuan1970.com}"
 ACTION="${1:-plan}"
 
 case "$ACTION" in

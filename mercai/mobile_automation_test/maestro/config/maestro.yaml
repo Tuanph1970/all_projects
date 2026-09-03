@@ -13,7 +13,7 @@ env:
   # A device or emulator cannot reach the host's localhost. Point this at the
   # published tunnel for on-device runs; override to localhost only when the
   # app itself runs on this machine (web/simulator sharing the host network).
-  API_BASE_URL: "https://mercai-api.tuan1970.com"
+  API_BASE_URL: "https://mercai.tuan1970.com"
   AUTH_SERVICE_URL: "http://localhost:8002/api/auth"
   PRODUCT_SERVICE_URL: "http://localhost:8002/api/products"
   ORDER_SERVICE_URL: "http://localhost:8002/api/orders"

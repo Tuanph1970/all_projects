@@ -4,6 +4,13 @@
 # Tunnel `mercai` created 2026-08-28. Copy this to the machine running the
 # stack; see ../../DEPLOYMENT_CLOUDFLARE.md for the runbook.
 #
+# STATUS 2026-09-03: the backend was reinstalled on ANOTHER COMPUTER, which now
+# serves mercai.tuan1970.com. The `tunnel:` id below is the one created here on
+# 2026-08-28; whether that machine reuses this id or created its own has not
+# been confirmed from this repo. Before trusting it, check on the serving
+# machine with `cloudflared tunnel list`. If it made a new tunnel, replace the
+# two ids below — the hostname and ingress rules are correct either way.
+#
 # Paths are /etc/cloudflared because that is where the packaged
 # cloudflared.service expects them and where scripts/install-tunnel-service.sh
 # puts them. `cloudflared` created the originals under ~/.cloudflared (it
@@ -33,10 +40,15 @@ ingress:
   # /api/v1/chat/ws upgrades over this same rule — cloudflared proxies
   # WebSockets for http services without extra configuration.
   # One label deep on purpose: Cloudflare's free Universal SSL covers
-  # *.tuan1970.com for ONE label only, so `api.mercai.tuan1970.com` would fail
-  # TLS on every request from the app unless Advanced Certificate Manager
-  # (~$10/mo) were enabled. Chosen 2026-08-28.
-  - hostname: mercai-api.tuan1970.com
+  # *.tuan1970.com for ONE label only, so a two-label name like
+  # `api.mercai.tuan1970.com` would fail TLS on every request from the app
+  # unless Advanced Certificate Manager (~$10/mo) were enabled.
+  #
+  # Renamed 2026-09-03: was `mercai-api.tuan1970.com` while the stack ran on
+  # the original machine. The deployment now lives on another computer and
+  # serves `mercai.tuan1970.com`; both names are one label deep, so the TLS
+  # reasoning above is unchanged.
+  - hostname: mercai.tuan1970.com
     service: http://localhost:8002
     originRequest:
       # An intel call may hold the connection while it fetches a third-party

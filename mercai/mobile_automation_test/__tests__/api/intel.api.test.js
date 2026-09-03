@@ -2,7 +2,12 @@
  * API E2E Tests for the Intel Service (price intelligence)
  * Runs against the live mercai-intel-service.
  *
- *   API_BASE_URL=https://mercai-api.tuan1970.com npm run test:api
+ *   API_BASE_URL=https://mercai.tuan1970.com npm run test:api
+ *
+ * NOTE (2026-09-03): intel-service is NOT deployed on the machine now serving
+ * that hostname -- /api/v1/intel/health 404s there, while it answers 200 on a
+ * local stack. Until intel is brought up on that machine these tests only
+ * mean anything against localhost:8002.
  *
  * Depends on the seeded catalogue from
  * back_end/scripts/seed_catalogue.py -- the seller logins and the SEED-* SKUs

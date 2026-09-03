@@ -70,7 +70,7 @@ class BackendConfig:
     backend is reachable from anywhere and a device on mobile data cannot see
     the host loopback at all.
     """
-    base_url: str = os.getenv("BACKEND_URL", "https://mercai-api.tuan1970.com")
+    base_url: str = os.getenv("BACKEND_URL", "https://mercai.tuan1970.com")
     seller_username: str = os.getenv("SELLER_USERNAME", "gomthuha")
     seller_password: str = os.getenv("SELLER_PASSWORD", "MercaiTest@2026")
 

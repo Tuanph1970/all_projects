@@ -1,13 +1,35 @@
-# Publishing the Mercai backend on `mercai-api.tuan1970.com`
+# Publishing the Mercai backend on `mercai.tuan1970.com`
 
-**✅ LIVE since 2026-08-28.** Kept as a runbook for rebuilding it elsewhere.
+**✅ LIVE on `https://mercai.tuan1970.com`.** Verified over public HTTPS
+2026-09-03: register, login, `/auth/me`, refresh, products and the chat
+WebSocket all pass.
+
+> **⚠️ The deployment moved (2026-09-03).** The backend was reinstalled on a
+> **different computer**, and the hostname changed with it:
+> `mercai-api.tuan1970.com` → **`mercai.tuan1970.com`**. The old name is dead —
+> it answers Cloudflare **1033**, which reads to a user as "the backend is
+> broken" rather than "it moved". Everything below is written from the point of
+> view of *whichever machine runs the stack*; this one no longer does.
 
 | | |
 |---|---|
-| Public hostname | `https://mercai-api.tuan1970.com` |
-| Local origin | `http://localhost:8002` (`mercai_traefik`, published `8002:80`) |
-| Tunnel | `mercai`, id `2dbc8dbc-7484-49f9-8111-26c8ac76b64b` |
-| Config | `back_end/cloudflared/config.yml` (filled in, not a template any more) |
+| Public hostname | `https://mercai.tuan1970.com` |
+| Origin | `http://localhost:8002` (`mercai_traefik`, published `8002:80`) **on the serving machine** |
+| Runs on | Another computer, since 2026-09-03. This machine's `cloudflared` is `inactive` |
+| Tunnel | `mercai`, id `2dbc8dbc-…` **as created here on 2026-08-28** — not confirmed to be the id in use on the new machine. Run `cloudflared tunnel list` there to check |
+| Config | `back_end/cloudflared/config.yml` |
+| Dead name | `mercai-api.tuan1970.com` — 1033, do not use |
+
+### Known gap on the new machine
+
+`intel-service` is **not deployed there**: `/api/v1/intel/health` returns 404
+publicly while the same path answers 200 on a local stack. The price
+intelligence routes are therefore unavailable in production until intel is
+brought up on that machine. Auth, products, cart, users and chat are all fine.
+
+The database there is also **fresh** — a newly registered user came back as
+`id: 2` and `GET /api/v1/products/` returns `[]`. Either `mysqldump` the
+catalogue across or run `back_end/scripts/seed_catalogue.py` on that machine.
 
 ---
 
@@ -18,9 +40,11 @@ Cloudflare's free Universal SSL covers `tuan1970.com` and `*.tuan1970.com`, and
 would *not* have been covered, so the app would have failed TLS on every
 request.
 
-**Decision 2026-08-28: use `mercai-api.tuan1970.com`.** One label, free, works
-today. Verified: the served certificate is `CN=tuan1970.com` from Google Trust
-Services and `curl` reports `SSL certificate verify ok`.
+**Decision: keep the name one label deep.** That was `mercai-api.tuan1970.com`
+on 2026-08-28 and is `mercai.tuan1970.com` since 2026-09-03 — the rename
+changes nothing here, because both are single-label. Free, and works today.
+Verified on the current host: the served certificate is `CN=tuan1970.com` from
+Google Trust Services and `curl` reports `SSL certificate verify ok`.
 
 The alternative was Advanced Certificate Manager at ~$10/month to keep the
 deeper name. Not worth it for a naming preference.
@@ -96,7 +120,7 @@ malformed rule — do not skip it.
 ## 4. Route DNS
 
 ```bash
-cloudflared tunnel route dns mercai api.mercai.tuan1970.com
+cloudflared tunnel route dns mercai mercai.tuan1970.com
 ```
 
 This creates a proxied CNAME pointing at the tunnel *ID*, not at a machine. If
@@ -114,14 +138,25 @@ systemctl status cloudflared --no-pager
 ## 6. Verify
 
 ```bash
-# Health through the tunnel — expect JSON, not a Cloudflare error page
-curl -s https://api.mercai.tuan1970.com/api/v1/ai/health | python3 -m json.tool
+B=https://mercai.tuan1970.com
 
-# Auth route reachable — expect 401 (no token), which proves routing works
-curl -s -o /dev/null -w '%{http_code}\n' https://api.mercai.tuan1970.com/api/v1/auth/me
+# Auth route reachable — expect 401 (no token), which proves routing works.
+# A JSON 401 is the pass; an HTML Cloudflare error page is not.
+curl -s -w '\n%{http_code}\n' $B/api/v1/auth/me
 
-# Uploaded images resolve on the same hostname
-curl -s -o /dev/null -w '%{http_code}\n' https://api.mercai.tuan1970.com/static/uploads/
+# Public read path — expect 200
+curl -s -o /dev/null -w '%{http_code}\n' $B/api/v1/products/
+
+# Full auth round trip — expect 200 and a token
+curl -s -X POST $B/api/v1/auth/login -H 'Content-Type: application/json' \
+  -d '{"username":"<user>","password":"<pass>"}'
+
+# Chat WebSocket — expect "101 Switching Protocols". Needs --http1.1:
+# over HTTP/2 curl cannot send an Upgrade header and you get a misleading 404.
+curl -s -i --http1.1 -N \
+  -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+  -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+  "$B/api/v1/chat/ws/<user_id>?token=<access_token>" | head -3
 ```
 
 A `530`/`1033` means the tunnel is not connected. A TLS error means section 0.
@@ -151,9 +186,38 @@ A `530`/`1033` means the tunnel is not connected. A TLS error means section 0.
 
 ---
 
-## Verified 2026-08-28
+## Verified 2026-09-03 — on `mercai.tuan1970.com`, after the move
 
-Run from this machine over public HTTPS, after `cloudflared tunnel run mercai`:
+Run over public HTTPS against the new machine:
+
+| Check | Result |
+|---|---|
+| `POST /api/v1/auth/register` | `200`, user created |
+| `POST /api/v1/auth/login` | `200`, access + refresh, `expires_in: 1800` |
+| `GET /api/v1/auth/me` + bearer token | `200`, `last_login` updated |
+| `POST /api/v1/auth/refresh` | `200`, new token pair |
+| Login with wrong password | `401 Incorrect username or password` |
+| Register duplicate email | `400 Email already registered` |
+| Register weak password | `422` with field detail |
+| `GET /api/v1/products/`, `/products/categories` | `200` (catalogue is **empty**) |
+| `GET /api/v1/cart/`, `/users/me/profile` unauth | `401` — routes live |
+| **WebSocket** `wss://…/api/v1/chat/ws/{id}?token=…` | **`101 Switching Protocols`** |
+| TLS | `CN=tuan1970.com`, Google Trust Services, verify ok |
+| Warm latency (login) | ~0.65s total, TLS 0.06s |
+| `GET /api/v1/intel/health` | **`404` — intel-service not deployed there** |
+
+A third gotcha, met while verifying the WebSocket: `curl` negotiates **HTTP/2**
+against Cloudflare, and cannot send an `Upgrade` header over it — the handshake
+comes back **404** and looks exactly like a missing route. Pass `--http1.1` and
+the same request returns `101`.
+
+---
+
+## Verified 2026-08-28 (historical — the original machine)
+
+Run from the original machine over public HTTPS, after
+`cloudflared tunnel run mercai`, when the hostname was still
+`mercai-api.tuan1970.com`:
 
 | Check | Result |
 |---|---|
@@ -173,9 +237,18 @@ Two gotchas met on the way, both worth remembering:
   the shell's own uid (1000), and the WebSocket then 403s on a user mismatch.
   Use any other name.
 
-### Running as a service — ✅ done 2026-08-28
+### Running as a service — done 2026-08-28 on the original machine
+
+**This machine's `cloudflared` is now `inactive` and stays that way.** The notes
+below describe installing the service on whichever machine serves the stack —
+which since 2026-09-03 is the other computer, not this one.
 
     sudo back_end/scripts/install-tunnel-service.sh
+
+The script takes `TUNNEL_ID`, `TUNNEL_NAME` and `HOSTNAME_FQDN` from the
+environment now, so a machine with its own tunnel does not need the file edited:
+
+    sudo TUNNEL_ID=<its-id> back_end/scripts/install-tunnel-service.sh
 
 Idempotent. Installs the credentials and config into `/etc/cloudflared/`, stops
 only the foreground instance of *this* tunnel, enables the packaged
@@ -207,11 +280,16 @@ passing over public HTTPS.
     back_end/scripts/migrate-tunnel.sh plan     # what to copy, in order
     sudo back_end/scripts/migrate-tunnel.sh stop
 
-**Keep the same tunnel id.** The CNAME for `mercai-api.tuan1970.com` points at
-`<tunnel-id>.cfargotunnel.com`, and that target does not care which machine
-answers. Moving the credentials therefore needs **no DNS change at all**.
-Creating a second tunnel would mean re-pointing DNS and waiting on propagation,
-for no benefit.
+**Keep the same tunnel id where you can.** The CNAME for `mercai.tuan1970.com`
+points at `<tunnel-id>.cfargotunnel.com`, and that target does not care which
+machine answers. Moving the credentials therefore needs **no DNS change at
+all**. Creating a second tunnel means re-pointing DNS and waiting on
+propagation.
+
+Note that the 2026-09-03 move did change the hostname, so DNS was touched
+regardless. Whether that move reused tunnel `2dbc8dbc-…` or created a new one is
+not recorded here — confirm with `cloudflared tunnel list` on the serving
+machine before relying on the id in `cloudflared/config.yml`.
 
 **Never run one tunnel id on two machines at once.** Cloudflare load-balances
 across every connected instance, so while both are up roughly half of all

@@ -1436,9 +1436,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "wss://api.mercai.tuan1970.com/api/v1/chat/ws/{user_id}?token={{auth_token}}",
+              "raw": "wss://mercai.tuan1970.com/api/v1/chat/ws/{user_id}?token={{auth_token}}",
               "protocol": "wss",
-              "host": ["api.mercai.tuan1970.com"],
+              "host": ["mercai.tuan1970.com"],
               "path": ["api", "v1", "chat", "ws", "{user_id}"],
               "query": [
                 {

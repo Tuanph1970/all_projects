@@ -122,7 +122,7 @@ curl http://localhost:8002/api/v1
 ### Prerequisites
 
 - SSH access to the machine running the stack
-- Public hostname: `https://api.mercai.tuan1970.com`, served by a Cloudflare
+- Public hostname: `https://mercai.tuan1970.com`, served by a Cloudflare
   Tunnel pointed at the local Traefik gateway. See
   [../DEPLOYMENT_CLOUDFLARE.md](../DEPLOYMENT_CLOUDFLARE.md).
 - Docker and Docker Compose installed on server
@@ -174,7 +174,7 @@ curl http://localhost:8002/api/v1/health
 # Test from external network (through the Cloudflare Tunnel).
 # Note there is no port here: the tunnel terminates TLS at the edge and
 # forwards to the gateway's :8002 on the origin machine.
-curl https://api.mercai.tuan1970.com/health
+curl https://mercai.tuan1970.com/health
 
 # Check logs
 docker compose logs -f api
