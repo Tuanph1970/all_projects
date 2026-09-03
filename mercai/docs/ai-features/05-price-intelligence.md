@@ -551,13 +551,25 @@ ranked the three ways to buy it:
 
 | Route | Cost | Lead time | Note |
 |---|---|---|---|
-| **Shopee Affiliate API** | free | ~1–2 weeks approval | Open enrolment, *designed for price-comparison sites* — the intended door |
+| **Shopee Affiliate API** | free | ~3–5 business days (reported) | Open enrolment, price-bearing — but see the 2026-09-03 note below before building on it |
 | VN residential proxies | ~$50–200/mo | immediate | Ongoing cost, and still adversarial |
 | Shopee Open Platform | free | ~4 weeks | Needs a registered business entity; may not approve this use case |
 
 The Affiliate API is the one worth starting, because approval time is the long
 pole and it costs nothing to begin. **Start that application before writing any
 Shopee code** — if it lands, the scraper is never needed.
+
+**Researched 2026-09-03 — the affiliate route exists, and its licence is the problem, not its approval time.**
+
+What was confirmed from Shopee's own pages: `open-api.affiliate.shopee.vn/explorer/v2` is live, is a GraphQL API, and exposes `productOfferV2` (which carries `priceMin`/`priceMax`) plus **`listItemFeeds` / `getItemFeedData`** — bulk catalogue feeds, which is more than per-link generation and more than this document previously assumed. The VN terms admit **doanh nghiệp**, so a company can enrol, not only influencers.
+
+**But the claim in the row above — that it is "designed for price-comparison sites" — was not supportable and has been removed.** The affiliate licence grants a *"non-exclusive, non-transferrable and revocable right to display the Affiliate Links … for the sole purposes of Affiliate's participation in the Program"*, and the VN T&C (Ch.I Điều 3.4) reads: *"Shopee nghiêm cấm việc Đối Tác TTLK thu thập bất kỳ thông tin nào trên Sàn TMĐT."*
+
+**Showing Shopee prices to our own sellers as a product feature is not obviously "participation in the Program".** It is closer to redistribution. The argument is much stronger if every screen showing a Shopee price also carries our affiliate links and sends clicks back to Shopee — which is a product decision, not a technical one, and it should be made deliberately rather than discovered after the integration is built. No Shopee document found resolves it either way; this needs a human reading of the terms, not an engineering judgement.
+
+Also re-confirmed: **Shopee Open Platform is seller-scoped**, exactly as this document assumed. `v2.product.get_item_base_info` requires `shop_id` + a per-shop OAuth `access_token`, so it reads prices only for shops that authorised our app. There is no catalogue-wide read. It is not a route to competitor data and should be struck from the options.
+
+Unverified and worth knowing before committing: whether VN Open API credentials are self-serve after approval or need a separate support request; the `productOfferV2` schema itself (every field name above is from third-party integrators, not Shopee's own docs); and whether `listItemFeeds` covers the whole VN catalogue or only commissionable offers — that last one is the difference between a real source and a partial one.
 
 **3. The most important line in that checkpoint is a hypothesis that was never
 tested.** Both refusals came from one network, and the note reads: *"Likely
@@ -645,6 +657,46 @@ python3 back_end/scripts/spike_price_sources.py --keyword "amply bluetooth" --al
 If Lazada does answer, its own product pages are worth testing with `--urls`
 before writing any DOM adapter — the fptshop result above suggests VN product
 pages are far more likely to carry JSON-LD than their listing pages are.
+
+### Re-probed 2026-09-03: Tiki's JSON API is now behind a WAF — the HTML is not
+
+Run from the same machine as before, so this is a change in Tiki, not in our network.
+
+| Path | 2026-08-27 | 2026-09-03 |
+|---|---|---|
+| `tiki.vn/api/v2/products?...` | 200, clean JSON, 20 priced items, 541 ms | **200, `text/html`, 18 KB** — *"BytePlus Security Check in Progress"*, `server: Byte-nginx` |
+| `tiki.vn/` and product pages | JSON-LD, confidence 99 | ✅ **unchanged** — 200, 6 JSON-LD blocks, no challenge |
+| Ladder on a live product page | 24/24 at confidence 99 | ✅ **1/1 at confidence 99**, `offers.price=3499000`, cross-confirmed by the state and text rungs |
+
+Tiki put **BytePlus WAF** (ByteDance's product) in front of `/api/v2/`. The interstitial returns **HTTP 200**, so any check that trusts the status code and not the content type sees success and parses a challenge page.
+
+**What breaks, and what does not:**
+
+- ❌ `services/benchmarks.py::_sample_tiki` — the phase-2.5 category benchmarks fetch that endpoint. The live row for category 3178 (`n=120`, median 218,000₫, computed 2026-08-27) is the last good sample; the next refresh will fail.
+- ❌ `scripts/spike_price_sources.py` — both `probe_tiki` and `tiki_truth_set`, so the phase-1.5 ground-truth gate has lost its source of truth.
+- ✅ **The seller-pasted comparable flow is untouched.** It never used the API — `adapters/tiki.vn.yml` says so explicitly, and the reason given there is exactly the one that just paid off: *"it is unversioned and can change without notice, whereas the JSON-LD is a published contract the site maintains for Google Shopping."*
+
+**The failure is honest, which was the point.** `_sample_tiki` runs `json.loads` on the challenge HTML, raises, and returns `no_price_found`; `refresh()` then writes `status='no_price_found'` with `p25 = median = p75 = NULL` rather than publishing a number. A parser that had been more forgiving here would have produced a benchmark over nothing.
+
+**Two lessons worth keeping, and they generalise past Tiki:**
+
+1. **HTTP 200 is not success.** Any fetch of a JSON endpoint must assert the content type, not just the status. Worth a check in `fetcher.py` rather than at each call site.
+2. **The undocumented API was the fragile half all along, and the "boring" standards-markup path was the durable one.** That is the same trade §1 made against the LLM, arriving from a different direction: the published contract outlived the convenient one.
+
+**This does not change the recommendation.** It strengthens it — the source that survived is the one the seller-pasted design depends on, and the one that fell over is the one only the crawler-shaped features used.
+
+### Re-probed 2026-09-03: Shopee and Lazada, still no evidence
+
+`shopee.vn` and `www.lazada.vn` **still resolve to `0.0.0.0`** from this machine. Nothing has been learned about either marketplace since 2026-04-28. The spike says so in its own output rather than reporting a block:
+
+```
+[ LOCAL] shopee.vn   shopee.vn resolves to 0.0.0.0 — YOUR network is blackholing it,
+                     so the marketplace never saw this request. Inconclusive.
+```
+
+`sendo.vn` also timed out (25 s, connect), which is a different failure and may or may not be the same cause.
+
+**This test needs a network without DNS filtering and cannot be run from the dev machine.** Until someone runs it from a phone hotspot, "Shopee blocks us" remains a 2026-04-28 finding from one network, and Lazada remains entirely untested.
 
 ### What this means for the sequence
 
