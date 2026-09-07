@@ -286,15 +286,16 @@ export const ProductManagementScreen = () => {
   };
 
   const renderProduct = ({ item }) => (
-    <Card style={styles.productCard}>
+    <Card style={styles.productCard} testID={`seller-product-${item.id}`}>
       <View style={styles.productHeader}>
         <Checkbox
           status={selectedProducts.has(item.id) ? 'checked' : 'unchecked'}
           onPress={() => toggleProductSelection(item.id)}
+          testID={`seller-product-checkbox-${item.id}`}
         />
         <View style={styles.productInfo}>
           <View style={styles.productTitleRow}>
-            <Text style={styles.productName}>{item.name}</Text>
+            <Text style={styles.productName} testID={`seller-product-name-${item.id}`}>{item.name}</Text>
             {item.is_featured && (
               <Chip style={styles.featuredChip} mode="flat">
                 {t('productManagement.featured')}
@@ -320,6 +321,7 @@ export const ProductManagementScreen = () => {
           onPress={() => {
             navigation.navigate('AddProduct', { productId: item.id });
           }}
+          testID={`seller-product-edit-${item.id}`}
         />
       </View>
       
@@ -340,6 +342,7 @@ export const ProductManagementScreen = () => {
           <Chip
             style={[styles.statusChip, { backgroundColor: getStatusColor(item) }]}
             textStyle={styles.statusText}
+            testID={`seller-product-status-${item.id}`}
           >
             {getStatusText(item)}
           </Chip>
@@ -347,7 +350,7 @@ export const ProductManagementScreen = () => {
 
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>{t('productManagement.stockLabel')}</Text>
-          <Text style={styles.detailValue}>{t('productManagement.units', { count: item.quantity_available || 0 })}</Text>
+          <Text style={styles.detailValue} testID={`seller-product-stock-${item.id}`}>{t('productManagement.units', { count: item.quantity_available || 0 })}</Text>
         </View>
 
         <View style={styles.detailRow}>
@@ -435,10 +438,10 @@ export const ProductManagementScreen = () => {
         {bulkMenuVisible && (
           <Surface style={styles.bulkActionsMenu}>
             <Text style={styles.bulkActionsTitle}>Bulk Actions</Text>
-            <Button mode="text" onPress={() => handleBulkAction('activate')} icon="check">
+            <Button mode="text" onPress={() => handleBulkAction('activate')} icon="check" testID="bulk-action-activate">
               Activate
             </Button>
-            <Button mode="text" onPress={() => handleBulkAction('deactivate')} icon="close">
+            <Button mode="text" onPress={() => handleBulkAction('deactivate')} icon="close" testID="bulk-action-deactivate">
               Deactivate
             </Button>
             <Button mode="text" onPress={() => handleBulkAction('feature')} icon="star">
@@ -452,7 +455,7 @@ export const ProductManagementScreen = () => {
               Update Price
             </Button>
             <Divider style={{ marginVertical: 8 }} />
-            <Button mode="text" onPress={() => handleBulkAction('delete')} icon="delete" textColor="#E53935">
+            <Button mode="text" onPress={() => handleBulkAction('delete')} icon="delete" textColor="#E53935" testID="bulk-action-delete">
               Delete
             </Button>
             <Button mode="outlined" onPress={() => setBulkMenuVisible(false)} style={{ marginTop: 8 }}>

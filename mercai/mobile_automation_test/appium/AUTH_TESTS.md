@@ -76,15 +76,47 @@ paper `<RadioButton>`; the radio owns its own press handler, so tapping the
 wrapper does not reliably toggle it. The testIDs are used to *scroll* to the
 control and the tap goes to the visible label.
 
-## Test accounts
-
-Created on production 2026-09-07, deliberately holding no products — auth does
-not need a catalogue, and bare accounts keep this suite independent of the seed.
+## Test accounts — created automatically
 
 | Username | Password | Role |
 |---|---|---|
 | `e2e_customer` | `E2eTest@2026` | customer |
 | `e2e_seller` | `E2eTest@2026` | seller |
+
+**You do not need to create these.** The `test_accounts` fixture in
+`conftest.py` is session-scoped and autouse: it logs in, and registers the
+account only if login is refused. Two requests per run on the happy path.
+
+This exists because the backend runs on a remote machine that gets rebuilt,
+and a fresh database silently removes both accounts. Without bootstrapping,
+that shows up as all 11 auth tests failing inside the UI with "credentials or
+backend are wrong" — which reads like an app bug rather than an empty
+database. With it, a rebuilt backend needs no manual setup at all.
+
+Both accounts deliberately hold **no products**: authentication does not need
+a catalogue, and bare accounts keep this suite independent of the seed.
+
+The one case bootstrapping cannot repair is an account that exists with a
+*different* password. That raises immediately, naming the env var to set:
+
+```
+cannot authenticate as 'e2e_customer' and cannot create it. Most likely the
+account exists on https://mercai.tuan1970.com with a different password --
+set AUTH_CUSTOMER_PASSWORD in appium/.env to the real one, or delete the
+account.
+```
+
+### Catalogue fixtures
+
+`helpers/catalogue.py` also seeds three products with deliberately spread
+prices (`E2E Alpha Vase` 100k, `E2E Beta Bowl` 250k, `E2E Gamma Teapot` 500k)
+so ordering assertions cannot pass by accident. Request the `catalogue`
+fixture to get them; it is idempotent and not autouse, since auth tests do not
+need data.
+
+Note `appium/.env` is **gitignored** and overrides `BACKEND_URL`. It held the
+dead `mercai-api` host well after the rest of the repo was corrected — if
+seeding hits a host you did not expect, look there first.
 
 `gomthuha` and the other seeded sellers are **not** on production — they come
 from `back_end/scripts/seed_catalogue.py` and exist only on a seeded local

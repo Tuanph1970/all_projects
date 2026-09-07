@@ -47,6 +47,45 @@ def pytest_runtest_makereport(item, call):
     setattr(item, f"rep_{rep.when}", rep)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def test_accounts():
+    """
+    Guarantee the suite's accounts exist before any test drives the app.
+
+    Autouse and session-scoped: two HTTP requests once per run, in exchange
+    for the suite surviving a database rebuild. The backend lives on a remote
+    machine that has been rebuilt before, and a fresh database silently
+    removes these accounts -- after which every auth test fails inside the UI
+    with "credentials or backend are wrong", which looks like an app bug.
+
+    Failing here instead turns that into one honest error at session start,
+    naming the backend it could not reach or authenticate against.
+    """
+    from helpers.catalogue import ensure_accounts
+
+    try:
+        return ensure_accounts()
+    except Exception as exc:
+        pytest.fail(
+            f"could not prepare test accounts on {app_config.backend.base_url}: "
+            f"{exc}",
+            pytrace=False,
+        )
+
+
+@pytest.fixture(scope="session")
+def catalogue(test_accounts):
+    """
+    Fixture products, seeded over the API. Idempotent.
+
+    Not autouse -- the auth tests do not need a catalogue, and making them
+    wait for one would couple them to data they never read.
+    """
+    from helpers.catalogue import ensure_catalogue
+
+    return ensure_catalogue()
+
+
 @pytest.fixture(scope="function")
 def driver(request) -> WebDriver:
     """A fresh Appium driver per test, with a screenshot on failure."""
