@@ -9,6 +9,7 @@ registering a bare account here would produce a seller with nothing to look at.
 from __future__ import annotations
 
 import logging
+import subprocess
 import sys
 from pathlib import Path
 
@@ -35,6 +36,7 @@ def pytest_configure(config):
 
     config.addinivalue_line("markers", "layout: screen layout and geometry tests")
     config.addinivalue_line("markers", "e2e: end-to-end tests")
+    config.addinivalue_line("markers", "auth: authentication tests")
     config.addinivalue_line("markers", "slow: marks tests as slow")
 
 
@@ -48,6 +50,39 @@ def pytest_runtest_makereport(item, call):
 @pytest.fixture(scope="function")
 def driver(request) -> WebDriver:
     """A fresh Appium driver per test, with a screenshot on failure."""
+    _driver = create_driver()
+    yield _driver
+    try:
+        rep = getattr(request.node, "rep_call", None)
+        if rep is not None and rep.failed:
+            screenshot_on_failure(_driver, suffix=request.node.name)
+    except Exception:
+        pass
+    _driver.quit()
+
+
+@pytest.fixture(scope="function")
+def logged_out_driver(request) -> WebDriver:
+    """
+    A driver whose app starts signed out, every time.
+
+    NO_RESET is true by default (the APK is ~120MB and reinstalling it per
+    test is unaffordable), so the app otherwise starts wherever the previous
+    test left it -- usually signed in, which makes every login test a no-op
+    that passes without logging in.
+
+    `adb shell pm clear` wipes the app's data in well under a second without
+    touching the install, so it gets a virgin AsyncStorage (no persisted auth
+    token) at a fraction of the cost of full_reset. It also resets the stored
+    language back to the vi default, which the text locators assume.
+    """
+    subprocess.run(
+        ["adb", "-s", app_config.emulator.udid, "shell", "pm", "clear",
+         app_config.app.app_package],
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
     _driver = create_driver()
     yield _driver
     try:

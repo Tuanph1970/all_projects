@@ -71,8 +71,28 @@ class BackendConfig:
     the host loopback at all.
     """
     base_url: str = os.getenv("BACKEND_URL", "https://mercai.tuan1970.com")
+
+    # Seeded seller from back_end/scripts/seed_catalogue.py. This account owns
+    # products, which the price-intelligence tests need -- but it exists ONLY
+    # where that seed has been run. It is NOT on the production deployment,
+    # whose database is fresh. Point BACKEND_URL at a seeded local stack before
+    # using this one.
     seller_username: str = os.getenv("SELLER_USERNAME", "gomthuha")
     seller_password: str = os.getenv("SELLER_PASSWORD", "MercaiTest@2026")
+
+    # Accounts for the AUTH suite, created on production 2026-09-07. They hold
+    # no products on purpose: authentication does not need a catalogue, and
+    # keeping them bare means the auth tests do not silently depend on the
+    # seed. Both exist on https://mercai.tuan1970.com.
+    auth_customer_username: str = os.getenv("AUTH_CUSTOMER_USERNAME", "e2e_customer")
+    auth_customer_password: str = os.getenv("AUTH_CUSTOMER_PASSWORD", "E2eTest@2026")
+    auth_seller_username: str = os.getenv("AUTH_SELLER_USERNAME", "e2e_seller")
+    auth_seller_password: str = os.getenv("AUTH_SELLER_PASSWORD", "E2eTest@2026")
+
+    # Registration tests create real users and there is no delete-account path
+    # in the suite, so every run leaves a row behind. The prefix makes them
+    # greppable for later cleanup.
+    throwaway_prefix: str = os.getenv("THROWAWAY_PREFIX", "e2e_tmp")
 
 
 @dataclass

@@ -50,6 +50,33 @@ maestro/
 
 ---
 
+## ⚠️ Authentication has moved to Appium (2026-09-07)
+
+**All AUTH-* cases below are superseded by `appium/tests/test_auth.py`** — 11
+tests, passing against production. See [appium/AUTH_TESTS.md](appium/AUTH_TESTS.md).
+
+Run the Appium suite, not the `fast-auth-*.sh` scripts, for authentication:
+
+```bash
+cd appium && python3 -m pytest tests/test_auth.py -v
+```
+
+The Maestro auth scripts are kept for reference but should be treated as
+**historical**. Porting them surfaced four defects that meant some of their
+assertions could never have passed:
+
+- Logout used `logout-button` for both roles; the customer's is
+  `profile-logout-button`.
+- Error assertions were English regexes against a UI that defaults to
+  Vietnamese.
+- `register-phone-input` / `register-shop-name-input` do not exist.
+- Bare `username-input` / `password-input` / `email-input` do not exist.
+
+Other feature areas (PROD, CART, ORD, FUL, ANA) remain on Maestro for now and
+are migrated step by step.
+
+---
+
 ## Implemented Test Scripts
 
 ### Seller Test Scripts
