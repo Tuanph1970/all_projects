@@ -38,9 +38,9 @@ class PortfolioService {
   }
 
   // Sell shares from portfolio
-  async sellStock(symbol, shares) {
+  async sellStock(symbol, shares, price) {
     try {
-      const result = await stockAPI.sellStock(symbol, shares);
+      const result = await stockAPI.sellStock(symbol, shares, price);
       return { success: true, data: result };
     } catch (error) {
       console.error('Failed to sell stock:', error);

@@ -120,8 +120,9 @@ const Holdings = () => {
     
     try {
       const result = await portfolioService.sellStock(
-        selectedStock.symbol, 
-        parseInt(sellData.shares)
+        selectedStock.symbol,
+        parseInt(sellData.shares),
+        selectedStock.currentPrice || selectedStock.avgPrice
       );
 
       if (result.success) {
