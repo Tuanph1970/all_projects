@@ -167,7 +167,7 @@ const LoginForm = () => {
             id: 'lf-username',
             name: 'username',
             type: 'text',
-            label: t('login.label_username'),
+            label: t(formType === 'login' ? 'login.label_login_identifier' : 'login.label_username'),
             autoComplete: 'username',
             Icon: User,
           })}

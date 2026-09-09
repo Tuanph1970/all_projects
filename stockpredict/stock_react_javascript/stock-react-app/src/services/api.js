@@ -33,7 +33,8 @@ export const authAPI = {
       });
 
       if (!response.ok) {
-        throw new Error('Invalid credentials');
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || errorData?.message || 'Invalid credentials');
       }
 
       const data = await response.json();
@@ -57,7 +58,7 @@ export const authAPI = {
         }
       };
     } catch (error) {
-      throw new Error('Invalid credentials');
+      throw new Error(error.message || 'Invalid credentials');
     }
   },
 
@@ -346,7 +347,7 @@ export const stockAPI = {
     }
   },
 
-  sellStock: async (symbol, shares) => {
+  sellStock: async (symbol, shares, price) => {
     try {
       // First get default portfolio
       const portfolioResponse = await fetch(API_ENDPOINTS.PORTFOLIO_DEFAULT, {
@@ -367,8 +368,9 @@ export const stockAPI = {
         headers: getAuthHeaders(),
         body: JSON.stringify({
           symbol: symbol,
-          transaction_type: 'sell',
-          shares: shares
+          type: 'sell',
+          quantity: shares,
+          price: price
         })
       });
 

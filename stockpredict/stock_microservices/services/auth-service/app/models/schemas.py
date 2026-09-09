@@ -35,7 +35,7 @@ class UserCreate(BaseModel):
 
 class UserLogin(BaseModel):
     """Schema for user login"""
-    email: EmailStr
+    email: str = Field(..., description="Account email or username")
     password: str
 
 

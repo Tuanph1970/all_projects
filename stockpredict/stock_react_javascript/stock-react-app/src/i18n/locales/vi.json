@@ -1709,6 +1709,7 @@
     "subtitle_forgot": "Đặt lại mật khẩu",
     "subtitle_change": "Đổi mật khẩu",
     "label_username": "Tên đăng nhập",
+    "label_login_identifier": "Tên đăng nhập hoặc email",
     "label_email": "Email",
     "label_password": "Mật khẩu",
     "label_confirm_password": "Xác nhận mật khẩu",
