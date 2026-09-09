@@ -477,7 +477,14 @@ export const stockAPI = {
       }
 
       const data = await response.json();
-      return data;
+      // Backend returns total_holdings / current_value / total_invested;
+      // fall back to cost basis when prices have never been refreshed.
+      const totalValue = data.current_value || data.total_invested || 0;
+      return {
+        ...data,
+        total_stocks: data.total_holdings || 0,
+        total_value: totalValue
+      };
     } catch (error) {
       console.error('Error fetching portfolio summary:', error);
       return { total_stocks: 0, total_value: 0 };
