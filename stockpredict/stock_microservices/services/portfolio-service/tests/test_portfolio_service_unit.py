@@ -42,6 +42,8 @@ def _make_service():
     svc.repo.get_portfolios_by_user = AsyncMock(return_value=[])
     svc.repo.get_holdings_by_portfolio = AsyncMock(return_value=[])
     svc.repo.get_alerts_by_user = AsyncMock(return_value=[])
+    svc.repo.get_latest_prices_for_symbols = AsyncMock(return_value={})
+    svc.repo.update_holding_prices = AsyncMock(return_value=0)
     return svc
 
 
@@ -287,6 +289,50 @@ async def test_get_portfolio_summary_sorts_holdings_by_pl_for_top_and_worst():
     assert out.worst_performers[-1].symbol == "B"
 
 
+@pytest.mark.asyncio
+async def test_get_portfolio_summary_refreshes_prices_before_computing():
+    """Backlog #43: nothing else calls refresh-prices, so a summary read is
+    what keeps current_value off NULL."""
+    svc = _make_service()
+    svc.repo.get_portfolio_by_id = AsyncMock(return_value=_portfolio())
+    svc.repo.get_portfolio_stats = AsyncMock(return_value={
+        "total_holdings": 1,
+        "total_invested": 1_927_500.0,
+        "current_value": 1_912_500.0,
+        "total_profit_loss": -15_000.0,
+        "profit_loss_percent": -0.78,
+    })
+    svc.repo.get_holdings_by_portfolio = AsyncMock(return_value=[_holding(symbol="POW")])
+    svc.repo.get_latest_prices_for_symbols = AsyncMock(return_value={"POW": 12.75})
+    svc.repo.update_holding_prices = AsyncMock(return_value=1)
+
+    out = await svc.get_portfolio_summary(1, 1)
+    assert out is not None
+    svc.repo.update_holding_prices.assert_awaited_once_with(1, {"POW": 12750.0})
+    # stats are read after the refresh, not before
+    svc.repo.get_portfolio_stats.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_portfolio_summary_survives_a_failing_refresh():
+    """A price-table outage must degrade to cost basis, not 500 the page."""
+    svc = _make_service()
+    svc.repo.get_portfolio_by_id = AsyncMock(return_value=_portfolio())
+    svc.repo.get_portfolio_stats = AsyncMock(return_value={
+        "total_holdings": 1,
+        "total_invested": 1_927_500.0,
+        "current_value": 1_927_500.0,
+        "total_profit_loss": 0.0,
+        "profit_loss_percent": 0.0,
+    })
+    svc.repo.get_holdings_by_portfolio = AsyncMock(return_value=[_holding()])
+    svc.repo.get_latest_prices_for_symbols = AsyncMock(side_effect=RuntimeError("db down"))
+
+    out = await svc.get_portfolio_summary(1, 1)
+    assert out is not None
+    assert out.current_value == 1_927_500.0
+
+
 # ---------------------------------------------------------------------------
 # add_holding
 # ---------------------------------------------------------------------------
@@ -426,21 +472,8 @@ async def test_remove_holding_delegates_to_delete_holding():
 
 
 # ---------------------------------------------------------------------------
-# refresh_prices — httpx mocked
+# refresh_prices — priced from the shared stock_prices tables
 # ---------------------------------------------------------------------------
-
-class _FakeHttpxClient:
-    def __init__(self, response):
-        self._response = response
-
-    async def __aenter__(self):
-        c = MagicMock()
-        c.post = AsyncMock(return_value=self._response)
-        return c
-
-    async def __aexit__(self, *_):
-        return False
-
 
 @pytest.mark.asyncio
 async def test_refresh_prices_returns_zero_when_portfolio_missing():
@@ -457,52 +490,48 @@ async def test_refresh_prices_returns_zero_when_no_holdings():
 
 
 @pytest.mark.asyncio
-async def test_refresh_prices_updates_with_quotes_on_200():
+async def test_refresh_prices_scales_thousands_quote_to_actual_vnd():
+    """stock_prices.close is a thousands-quote (12.75 == 12,750 VND/share)
+    while holdings store average_price in actual VND, so the refresh must
+    multiply by 1000 or profit/loss compares two different axes."""
     svc = _make_service()
     svc.repo.get_portfolio_by_id = AsyncMock(return_value=_portfolio())
     svc.repo.get_holdings_by_portfolio = AsyncMock(
-        return_value=[_holding(symbol="FPT")]
+        return_value=[_holding(symbol="POW")]
     )
+    svc.repo.get_latest_prices_for_symbols = AsyncMock(return_value={"POW": 12.75})
     svc.repo.update_holding_prices = AsyncMock(return_value=1)
 
-    resp = MagicMock()
-    resp.status_code = 200
-    resp.json.return_value = {"quotes": [{"symbol": "FPT", "price": 110.0}]}
-
-    with patch("app.services.portfolio_service.httpx.AsyncClient",
-               return_value=_FakeHttpxClient(resp)):
-        out = await svc.refresh_prices(1, 1)
-    assert out == 1
-    svc.repo.update_holding_prices.assert_awaited_once_with(1, {"FPT": 110.0})
+    assert (await svc.refresh_prices(1, 1)) == 1
+    svc.repo.update_holding_prices.assert_awaited_once_with(1, {"POW": 12750.0})
 
 
 @pytest.mark.asyncio
-async def test_refresh_prices_returns_zero_on_non_200():
+async def test_refresh_prices_returns_zero_when_no_quotes_found():
+    """A symbol with no rows in stock_prices must not write a 0 price —
+    get_portfolio_stats falls back to cost basis instead."""
     svc = _make_service()
     svc.repo.get_portfolio_by_id = AsyncMock(return_value=_portfolio())
     svc.repo.get_holdings_by_portfolio = AsyncMock(return_value=[_holding()])
-    resp = MagicMock()
-    resp.status_code = 503
-    with patch("app.services.portfolio_service.httpx.AsyncClient",
-               return_value=_FakeHttpxClient(resp)):
-        assert (await svc.refresh_prices(1, 1)) == 0
+    svc.repo.get_latest_prices_for_symbols = AsyncMock(return_value={})
+    svc.repo.update_holding_prices = AsyncMock(return_value=0)
+
+    assert (await svc.refresh_prices(1, 1)) == 0
+    svc.repo.update_holding_prices.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_refresh_prices_returns_zero_on_httpx_exception():
+async def test_refresh_prices_queries_each_symbol_once():
     svc = _make_service()
     svc.repo.get_portfolio_by_id = AsyncMock(return_value=_portfolio())
-    svc.repo.get_holdings_by_portfolio = AsyncMock(return_value=[_holding()])
+    svc.repo.get_holdings_by_portfolio = AsyncMock(
+        return_value=[_holding(id=1, symbol="FPT"), _holding(id=2, symbol="FPT")]
+    )
+    svc.repo.get_latest_prices_for_symbols = AsyncMock(return_value={"FPT": 100.0})
+    svc.repo.update_holding_prices = AsyncMock(return_value=2)
 
-    class Boom:
-        async def __aenter__(self):
-            raise ConnectionError("down")
-
-        async def __aexit__(self, *_):
-            return False
-
-    with patch("app.services.portfolio_service.httpx.AsyncClient", return_value=Boom()):
-        assert (await svc.refresh_prices(1, 1)) == 0
+    await svc.refresh_prices(1, 1)
+    assert svc.repo.get_latest_prices_for_symbols.await_args.args[0] == ["FPT"]
 
 
 # ---------------------------------------------------------------------------

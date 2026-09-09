@@ -99,6 +99,16 @@ class PortfolioService:
         if not portfolio:
             return None
 
+        # Mark to market first. Nothing else drives refresh_prices — the
+        # POST /refresh-prices route exists but no caller invokes it — so
+        # without this the summary reports cost basis forever (Backlog #43).
+        # Best-effort: a price-table outage degrades to cost basis rather
+        # than failing the whole summary.
+        try:
+            await self.refresh_prices(portfolio_id, user_id)
+        except Exception as e:
+            logger.warning(f"Price refresh failed for portfolio {portfolio_id}: {e}")
+
         stats = await self.repo.get_portfolio_stats(portfolio_id)
         holdings = await self.repo.get_holdings_by_portfolio(portfolio_id, watchlist_only=False)
 
@@ -202,33 +212,39 @@ class PortfolioService:
         return await self.repo.delete_holding(holding.id)
 
     async def refresh_prices(self, portfolio_id: int, user_id: int) -> int:
-        """Refresh current prices from stock-data-service"""
+        """Mark holdings to the latest close stored for each symbol.
+
+        Reads the stock-data-service tables (companies + stock_prices) that
+        share this MySQL instance rather than calling over HTTP: the previous
+        implementation POSTed to /stocks/quotes, an endpoint stock-data-service
+        does not expose, so every refresh 404'd, was swallowed, and left
+        current_price/current_value NULL on every holding.
+
+        Unit contract — get_latest_prices_for_symbols returns the Vietnamese
+        thousands-quote (12.75 means 12,750 VND/share) while holdings store
+        average_price and total_cost in actual VND, so scale by 1000. This is
+        the same conversion get_alerts applies to target_price.
+
+        Returns the number of holdings repriced.
+        """
         portfolio = await self.repo.get_portfolio_by_id(portfolio_id, user_id)
         if not portfolio:
             return 0
 
-        holdings = await self.repo.get_holdings_by_portfolio(portfolio_id)
+        holdings = await self.repo.get_holdings_by_portfolio(portfolio_id, watchlist_only=False)
         if not holdings:
             return 0
 
-        symbols = [h.symbol for h in holdings]
+        symbols = sorted({h.symbol for h in holdings})
+        quotes = await self.repo.get_latest_prices_for_symbols(symbols)
+        if not quotes:
+            # No price history for these symbols yet. Leave current_value NULL
+            # so get_portfolio_stats falls back to cost basis; writing 0 here
+            # would report the portfolio as a total loss.
+            return 0
 
-        try:
-            async with httpx.AsyncClient() as client:
-                # Call stock-data-service for current prices
-                response = await client.post(
-                    f"{settings.STOCK_DATA_SERVICE_URL}/{settings.API_PREFIX}/api/v2/stocks/quotes",
-                    json={"symbols": symbols},
-                    timeout=30.0
-                )
-                if response.status_code == 200:
-                    data = response.json()
-                    price_data = {item["symbol"]: item["price"] for item in data.get("quotes", [])}
-                    return await self.repo.update_holding_prices(portfolio_id, price_data)
-        except Exception:
-            pass
-
-        return 0
+        price_data = {symbol: close * 1000 for symbol, close in quotes.items()}
+        return await self.repo.update_holding_prices(portfolio_id, price_data)
 
     # Transaction Management
     async def record_transaction(self, portfolio_id: int, user_id: int, data: TransactionCreate) -> Optional[TransactionResponse]:
