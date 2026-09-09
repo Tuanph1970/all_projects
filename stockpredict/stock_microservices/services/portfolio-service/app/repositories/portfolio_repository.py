@@ -294,7 +294,13 @@ class PortfolioRepository:
     async def get_portfolio_stats(self, portfolio_id: int) -> dict:
         holdings = await self.get_holdings_by_portfolio(portfolio_id, watchlist_only=False)
         total_invested = sum(h.total_cost for h in holdings)
-        current_value = sum(h.current_value or 0 for h in holdings)
+        # current_value is only populated once prices are refreshed; until then
+        # value the holding at cost so the summary matches the holdings table
+        # instead of reporting a total of 0 (and a spurious -100% P/L).
+        current_value = sum(
+            h.current_value if h.current_value is not None else h.total_cost
+            for h in holdings
+        )
         total_profit_loss = current_value - total_invested
         profit_loss_percent = (total_profit_loss / total_invested * 100) if total_invested > 0 else 0
 
