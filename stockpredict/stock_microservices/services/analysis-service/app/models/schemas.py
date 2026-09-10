@@ -1,6 +1,6 @@
 """Pydantic Schemas for Analysis Service"""
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field
 from enum import Enum
 
@@ -46,12 +46,55 @@ class MovingAverages(BaseModel):
     EMA_26: Optional[float] = None
 
 
+class MomentumIndicators(BaseModel):
+    """Oscillators derived from close (RSI, MACD) and from the full
+    high/low/close bar (stochastic). All optional: a value is None only
+    when the fetched history is shorter than the indicator's window."""
+    RSI: Optional[float] = None
+    MACD: Optional[float] = None
+    MACD_Signal: Optional[float] = None
+    MACD_Histogram: Optional[float] = None
+    Stoch_K: Optional[float] = None
+    Stoch_D: Optional[float] = None
+
+
+class VolatilityIndicators(BaseModel):
+    """Bollinger band envelope plus Average True Range."""
+    BB_Upper: Optional[float] = None
+    BB_Middle: Optional[float] = None
+    BB_Lower: Optional[float] = None
+    BB_Width: Optional[float] = None       # (upper - lower) / middle, percent
+    ATR: Optional[float] = None
+    ATR_Percent: Optional[float] = None    # ATR as a percent of last close
+
+
+class VolumeIndicators(BaseModel):
+    """Volume-derived measures over the displayed window."""
+    OBV: Optional[float] = None
+    volume_avg_20: Optional[float] = None
+    volume_ratio: Optional[float] = None   # last volume / volume_avg_20
+
+
+class SupportResistance(BaseModel):
+    """Price levels, each list ordered nearest-to-price first."""
+    support_levels: List[float] = []
+    resistance_levels: List[float] = []
+
+
+class TradingSignal(BaseModel):
+    """One indicator's verdict, for the signal grid in the UI."""
+    indicator: str
+    signal: str  # BUY, SELL, NEUTRAL, or a descriptive word (e.g. HIGH)
+    value: Optional[Union[float, str]] = None
+
+
 class TradingAnalysis(BaseModel):
     """Trading recommendation based on technical analysis"""
     recommendation: str  # BUY, SELL, HOLD, STRONG_BUY, STRONG_SELL
     score: float
     confidence: float
     reasons: List[str] = []
+    signals: List[TradingSignal] = []
 
 
 class ChartData(BaseModel):
@@ -69,6 +112,11 @@ class TechnicalAnalysisResponse(BaseModel):
     current_price: CurrentPriceData
     indicators: List[TechnicalIndicator]
     moving_averages: Optional[MovingAverages] = None
+    momentum_indicators: Optional[MomentumIndicators] = None
+    volatility_indicators: Optional[VolatilityIndicators] = None
+    volume_indicators: Optional[VolumeIndicators] = None
+    support_resistance: Optional[SupportResistance] = None
+    fibonacci_levels: Dict[str, float] = {}
     trading_analysis: Optional[TradingAnalysis] = None
     chart_data: Optional[ChartData] = None
     overall_signal: SignalType

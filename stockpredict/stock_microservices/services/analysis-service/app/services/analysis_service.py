@@ -16,6 +16,8 @@ from app.models.schemas import (
     FundamentalAnalysisResponse, FundamentalMetric,
     ScreenerResponse, ScreenerStock, ScreenerFilter,
     CurrentPriceData, MovingAverages, TradingAnalysis, ChartData,
+    MomentumIndicators, VolatilityIndicators, VolumeIndicators,
+    SupportResistance, TradingSignal,
     CompanyInfo, ValuationSummary, ValuationFactor, FinancialRatios,
     GrowthMetrics, IncomeStatement, BalanceSheet, CashFlow,
     AtrPoint, AtrResponse, SwingType, SwingPivot, SwingsResponse,
@@ -25,6 +27,15 @@ from app.models.schemas import (
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+# `period` is a bar count in the UI, but the history API takes a date range.
+# The VN market trades ~5 of every 7 calendar days, minus holidays, so ask for
+# a little over 1.5 calendar days per requested bar.
+CALENDAR_DAYS_PER_BAR = 1.6
+
+# Extra bars fetched *before* the displayed window so the slowest indicator
+# (SMA 200) has a full window at the first displayed bar instead of NaN.
+INDICATOR_WARMUP_BARS = 200
 
 
 class AnalysisService:
@@ -93,6 +104,74 @@ class AnalysisService:
         ).max(axis=1)
         # Wilder's smoothing == EMA with alpha = 1/period.
         return tr.ewm(alpha=1.0 / period, adjust=False, min_periods=period).mean()
+
+    @staticmethod
+    def _safe_float(value: Any, digits: int = 2) -> Optional[float]:
+        """Round to `digits`, or return None for NaN/inf/missing.
+
+        Indicator windows produce NaN until they are filled, and NaN is not
+        valid JSON — it must reach the client as null so the UI can show N/A
+        for a genuinely uncomputable value rather than failing the response.
+        """
+        if value is None:
+            return None
+        try:
+            f = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not np.isfinite(f):
+            return None
+        return round(f, digits)
+
+    def _calculate_stochastic(self, ohlc: pd.DataFrame, k_period: int = 14,
+                              d_period: int = 3) -> tuple:
+        """Stochastic oscillator %K / %D from the high/low/close bar.
+
+        %K is the close's position inside the `k_period` high-low range;
+        %D is its `d_period` simple moving average. Returns the latest pair.
+        """
+        high = ohlc["high"].astype(float).rolling(window=k_period).max()
+        low = ohlc["low"].astype(float).rolling(window=k_period).min()
+        close = ohlc["close"].astype(float)
+        span = high - low
+        # A flat range would divide by zero; treat it as mid-range (50).
+        k = ((close - low) / span.replace(0, np.nan) * 100).fillna(50.0)
+        d = k.rolling(window=d_period).mean()
+        return float(k.iloc[-1]), float(d.iloc[-1]) if not pd.isna(d.iloc[-1]) else float(k.iloc[-1])
+
+    def _calculate_obv(self, ohlc: pd.DataFrame) -> float:
+        """On-Balance Volume accumulated over the supplied window.
+
+        Volume is added on an up close and subtracted on a down close, so the
+        absolute level is only meaningful relative to the start of the window
+        — which is why this runs on the displayed bars, matching the chart.
+        """
+        close = ohlc["close"].astype(float)
+        volume = ohlc["volume"].astype(float)
+        direction = np.sign(close.diff()).fillna(0.0)
+        return float((direction * volume).sum())
+
+    def _calculate_fibonacci_levels(self, ohlc: pd.DataFrame) -> Dict[str, float]:
+        """Retracement levels between the window's extreme low and high.
+
+        Keys are the retracement percentages; values run from the high (0%)
+        down to the low (100%) when the window's high came last, and are
+        mirrored when the low came last, so 0% is always the swing origin.
+        """
+        high = float(ohlc["high"].astype(float).max())
+        low = float(ohlc["low"].astype(float).min())
+        span = high - low
+        if span <= 0:
+            return {}
+        ratios = [0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0]
+        high_is_last = ohlc["high"].astype(float).idxmax() > ohlc["low"].astype(float).idxmin()
+        levels: Dict[str, float] = {}
+        for r in ratios:
+            # Uptrend swing (low then high): retrace down from the high.
+            # Downtrend swing (high then low): retrace up from the low.
+            price = high - span * r if high_is_last else low + span * r
+            levels[f"{r * 100:.1f}%"] = round(price, 2)
+        return levels
 
     def _find_swing_pivots(self, ohlc: pd.DataFrame, window: int = 3) -> List[SwingPivot]:
         """Fractal swing pivots over a rolling window of `window` bars each side.
@@ -183,21 +262,35 @@ class AnalysisService:
         resistances = [lv for lv in levels if lv.type in (SRLevelType.RESISTANCE, SRLevelType.FLIP)]
         return supports, resistances
 
-    def _find_support_resistance(self, prices: pd.Series) -> tuple:
-        prices_list = prices.tolist()
-        supports = []
-        resistances = []
+    def _find_support_resistance(self, ohlc: pd.DataFrame, current_price: float,
+                                 max_levels: int = 3) -> tuple:
+        """Nearest support/resistance levels around `current_price`.
 
-        for i in range(2, len(prices_list) - 2):
-            if prices_list[i] < min(prices_list[i-1], prices_list[i-2], prices_list[i+1], prices_list[i+2]):
-                supports.append(prices_list[i])
-            if prices_list[i] > max(prices_list[i-1], prices_list[i-2], prices_list[i+1], prices_list[i+2]):
-                resistances.append(prices_list[i])
+        Delegates the pivot detection and clustering to `_find_sr_levels`
+        (F-003) and then splits the levels by where price actually is: a
+        level below price supports it, one above resists it. Both lists come
+        back ordered nearest-first, so index 0 is S1 / R1.
+        """
+        sr_supports, sr_resistances = self._find_sr_levels(ohlc)
 
-        supports = sorted(set(supports))[-3:] if supports else [prices.min()]
-        resistances = sorted(set(resistances))[:3] if resistances else [prices.max()]
+        below = sorted(
+            {lv.price for lv in sr_supports + sr_resistances if lv.price < current_price},
+            reverse=True,
+        )[:max_levels]
+        above = sorted(
+            {lv.price for lv in sr_supports + sr_resistances if lv.price > current_price}
+        )[:max_levels]
 
-        return supports, resistances
+        # A window with no pivot on one side (price at a new extreme) falls
+        # back to that side's window extreme so the UI still has a level.
+        if not below:
+            low = float(ohlc["low"].astype(float).min())
+            below = [low] if low < current_price else []
+        if not above:
+            high = float(ohlc["high"].astype(float).max())
+            above = [high] if high > current_price else []
+
+        return below, above
 
     def _determine_signal(self, rsi: float, macd: float, macd_signal: float,
                          current_price: float, sma_20: float, sma_50: float) -> tuple:
@@ -251,20 +344,34 @@ class AnalysisService:
         # change after the first load, making the chart go blank.  The
         # save_analysis call below still runs so portfolio/screener features
         # continue to get updated metrics.
-        df = await self._fetch_historical_data(symbol, period)
-        if df is None or len(df) < 20:
+        #
+        # `period` is the number of bars the caller wants to SEE.  Fetch a
+        # warm-up run ahead of it as well, otherwise every long-window
+        # indicator (SMA 200 above all) is NaN and reaches the UI as N/A.
+        lookback_days = int((period + INDICATOR_WARMUP_BARS) * CALENDAR_DAYS_PER_BAR)
+        full = await self._fetch_historical_data(symbol, lookback_days)
+        if full is None or len(full) < 20:
             return None
 
-        prices = df["close"]
+        # Warm-up bars feed the indicators but are not shown; everything that
+        # describes "the window" (chart, S/R, Fibonacci, volatility, OBV) is
+        # measured on the displayed bars only.
+        df = full.tail(period).reset_index(drop=True)
+
+        full_prices = full["close"].astype(float)
+        prices = df["close"].astype(float)
         current_price = float(prices.iloc[-1])
 
-        # Calculate indicators
-        rsi = self._calculate_rsi(prices)
-        macd, macd_signal = self._calculate_macd(prices)
-        bb_upper, bb_lower, bb_middle = self._calculate_bollinger(prices)
-        sma_20 = float(prices.rolling(20).mean().iloc[-1])
-        sma_50 = float(prices.rolling(50).mean().iloc[-1]) if len(prices) >= 50 else sma_20
-        supports, resistances = self._find_support_resistance(prices)
+        # Calculate indicators — momentum and moving averages read the full
+        # series so their windows are complete at the last bar.
+        rsi = self._calculate_rsi(full_prices)
+        macd, macd_signal = self._calculate_macd(full_prices)
+        bb_upper, bb_lower, bb_middle = self._calculate_bollinger(full_prices)
+        stoch_k, stoch_d = self._calculate_stochastic(full)
+        atr = float(self._calculate_atr(full).iloc[-1]) if len(full) > 14 else float("nan")
+        sma_20 = float(full_prices.rolling(20).mean().iloc[-1])
+        sma_50 = float(full_prices.rolling(50).mean().iloc[-1]) if len(full_prices) >= 50 else sma_20
+        supports, resistances = self._find_support_resistance(df, current_price)
 
         signal, strength, score = self._determine_signal(rsi, macd, macd_signal, current_price, sma_20, sma_50)
 
@@ -333,9 +440,20 @@ class AnalysisService:
             change_percent = None
 
         # Calculate additional moving averages
-        sma_200 = float(prices.rolling(200).mean().iloc[-1]) if len(prices) >= 200 else None
-        ema_12 = float(prices.ewm(span=12).mean().iloc[-1])
-        ema_26 = float(prices.ewm(span=26).mean().iloc[-1])
+        sma_200 = float(full_prices.rolling(200).mean().iloc[-1]) if len(full_prices) >= 200 else None
+        ema_12 = float(full_prices.ewm(span=12).mean().iloc[-1])
+        ema_26 = float(full_prices.ewm(span=26).mean().iloc[-1])
+
+        # Volume measures over the displayed window
+        volumes = df["volume"].astype(float) if "volume" in df.columns else pd.Series(dtype=float)
+        volume_avg_20 = float(volumes.rolling(20).mean().iloc[-1]) if len(volumes) >= 20 else None
+        obv = self._calculate_obv(df) if len(volumes) else None
+        volume_ratio = (
+            float(volumes.iloc[-1]) / volume_avg_20
+            if volume_avg_20 else None
+        )
+
+        fibonacci_levels = self._calculate_fibonacci_levels(df)
 
         # Build chart data
         chart_data = ChartData(
@@ -362,6 +480,14 @@ class AnalysisService:
         if current_price > sma_50:
             reasons.append("Price above 50-day SMA")
 
+        signals = self._build_trading_signals(
+            current_price=current_price,
+            rsi=rsi, macd=macd, macd_signal=macd_signal,
+            stoch_k=stoch_k, sma_20=sma_20, sma_50=sma_50, sma_200=sma_200,
+            bb_upper=bb_upper, bb_lower=bb_lower,
+            volume_ratio=volume_ratio, trend=trend,
+        )
+
         return TechnicalAnalysisResponse(
             symbol=symbol.upper(),
             current_price=CurrentPriceData(
@@ -375,17 +501,44 @@ class AnalysisService:
             ),
             indicators=indicators,
             moving_averages=MovingAverages(
-                SMA_20=round(sma_20, 2),
-                SMA_50=round(sma_50, 2),
-                SMA_200=round(sma_200, 2) if sma_200 else None,
-                EMA_12=round(ema_12, 2),
-                EMA_26=round(ema_26, 2)
+                SMA_20=self._safe_float(sma_20),
+                SMA_50=self._safe_float(sma_50),
+                SMA_200=self._safe_float(sma_200),
+                EMA_12=self._safe_float(ema_12),
+                EMA_26=self._safe_float(ema_26)
             ),
+            momentum_indicators=MomentumIndicators(
+                RSI=self._safe_float(rsi),
+                MACD=self._safe_float(macd, 4),
+                MACD_Signal=self._safe_float(macd_signal, 4),
+                MACD_Histogram=self._safe_float(macd - macd_signal, 4),
+                Stoch_K=self._safe_float(stoch_k),
+                Stoch_D=self._safe_float(stoch_d),
+            ),
+            volatility_indicators=VolatilityIndicators(
+                BB_Upper=self._safe_float(bb_upper),
+                BB_Middle=self._safe_float(bb_middle),
+                BB_Lower=self._safe_float(bb_lower),
+                BB_Width=self._safe_float((bb_upper - bb_lower) / bb_middle * 100 if bb_middle else None),
+                ATR=self._safe_float(atr),
+                ATR_Percent=self._safe_float(atr / current_price * 100 if current_price else None),
+            ),
+            volume_indicators=VolumeIndicators(
+                OBV=self._safe_float(obv, 0),
+                volume_avg_20=self._safe_float(volume_avg_20, 0),
+                volume_ratio=self._safe_float(volume_ratio),
+            ),
+            support_resistance=SupportResistance(
+                support_levels=[round(s, 2) for s in supports],
+                resistance_levels=[round(r, 2) for r in resistances],
+            ),
+            fibonacci_levels=fibonacci_levels,
             trading_analysis=TradingAnalysis(
                 recommendation=signal.value.upper().replace("_", " "),
                 score=float(score),
                 confidence=round(strength, 2),
-                reasons=reasons
+                reasons=reasons,
+                signals=signals
             ),
             chart_data=chart_data,
             overall_signal=signal,
@@ -397,6 +550,61 @@ class AnalysisService:
             volatility=volatility,
             generated_at=datetime.now()
         )
+
+    def _build_trading_signals(self, current_price: float, rsi: float, macd: float,
+                               macd_signal: float, stoch_k: Optional[float],
+                               sma_20: float, sma_50: float, sma_200: Optional[float],
+                               bb_upper: float, bb_lower: float,
+                               volume_ratio: Optional[float], trend: str) -> List[TradingSignal]:
+        """Per-indicator verdicts backing the aggregate recommendation.
+
+        Signal words are the ones the UI colours (BUY / SELL / NEUTRAL); an
+        indicator with no computable value is omitted rather than reported
+        as neutral, so a short history shows fewer rows instead of wrong ones.
+        """
+        def _ma_signal(name: str, level: Optional[float]) -> Optional[TradingSignal]:
+            if level is None or not np.isfinite(level):
+                return None
+            return TradingSignal(
+                indicator=name,
+                signal="BUY" if current_price > level else "SELL",
+                value=round(level, 2),
+            )
+
+        candidates: List[Optional[TradingSignal]] = [
+            TradingSignal(
+                indicator="RSI",
+                signal="BUY" if rsi < 30 else ("SELL" if rsi > 70 else "NEUTRAL"),
+                value=round(rsi, 2),
+            ),
+            TradingSignal(
+                indicator="MACD",
+                signal="BUY" if macd > macd_signal else "SELL",
+                value=round(macd, 4),
+            ),
+            None if stoch_k is None or not np.isfinite(stoch_k) else TradingSignal(
+                indicator="Stochastic",
+                signal="BUY" if stoch_k < 20 else ("SELL" if stoch_k > 80 else "NEUTRAL"),
+                value=round(stoch_k, 2),
+            ),
+            _ma_signal("SMA 20", sma_20),
+            _ma_signal("SMA 50", sma_50),
+            _ma_signal("SMA 200", sma_200),
+            None if not np.isfinite(bb_upper) or not np.isfinite(bb_lower) else TradingSignal(
+                indicator="Bollinger",
+                signal=("BUY" if current_price <= bb_lower
+                        else ("SELL" if current_price >= bb_upper else "NEUTRAL")),
+                value=round(current_price, 2),
+            ),
+            None if volume_ratio is None else TradingSignal(
+                indicator="Volume",
+                signal="HIGH" if volume_ratio > 1.5 else ("LOW" if volume_ratio < 0.5 else "NORMAL"),
+                value=round(volume_ratio, 2),
+            ),
+            TradingSignal(indicator="Trend", signal=trend.upper(), value=trend),
+        ]
+        return [c for c in candidates if c is not None]
+
 
     async def get_fundamental_analysis(self, symbol: str) -> Optional[FundamentalAnalysisResponse]:
         # Fetch fundamental data from stock-data-service

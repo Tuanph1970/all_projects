@@ -51,6 +51,18 @@ def _trend_df(rows: int, start: float, drift: float) -> pd.DataFrame:
     })
 
 
+def _ohlc_from_closes(closes) -> pd.DataFrame:
+    close = np.asarray(closes, dtype=float)
+    return pd.DataFrame({
+        "date": pd.date_range("2026-01-01", periods=len(close), freq="D"),
+        "open": close,
+        "high": close + 0.5,
+        "low": close - 0.5,
+        "close": close,
+        "volume": np.full(len(close), 1000),
+    })
+
+
 # ---------------------------------------------------------------------------
 # Pure indicator math
 # ---------------------------------------------------------------------------
@@ -90,27 +102,33 @@ class TestIndicatorMath:
         upper, lower, middle = svc._calculate_bollinger(prices)
         assert upper > middle > lower
 
-    def test_find_support_resistance_picks_local_extrema(self):
+    def test_find_support_resistance_splits_levels_around_price(self):
         svc = _make_service()
-        # Build a wave with clear pivots.
-        prices = pd.Series([
+        # Wave with clear pivots: troughs near 92, peaks near 105/107.
+        closes = [
             100, 102, 105, 102, 100,   # local high at index 2
-            98, 95, 92, 95, 98,         # local low at index 7
+            98, 95, 92, 95, 98,        # local low at index 7
             101, 104, 107, 104, 101,   # local high at index 12
-        ])
-        supports, resistances = svc._find_support_resistance(prices)
-        # Should detect at least one each.
-        assert len(supports) >= 1
-        assert len(resistances) >= 1
+        ]
+        ohlc = _ohlc_from_closes(closes)
+        supports, resistances = svc._find_support_resistance(ohlc, current_price=100.0)
+        assert supports and resistances
+        # Every support sits below price and every resistance above it — the
+        # old implementation returned troughs above price as "support".
+        assert all(s < 100.0 for s in supports)
+        assert all(r > 100.0 for r in resistances)
+        # Ordered nearest-first, so index 0 is S1 / R1.
+        assert supports == sorted(supports, reverse=True)
+        assert resistances == sorted(resistances)
 
     def test_find_support_resistance_fallback_when_no_pivots(self):
         """A monotonic series has no internal extrema → falls back to
-        the global min/max."""
+        the window extremes on whichever side price allows."""
         svc = _make_service()
-        prices = pd.Series([100 + i for i in range(10)])
-        supports, resistances = svc._find_support_resistance(prices)
-        assert supports == [prices.min()]
-        assert resistances == [prices.max()]
+        ohlc = _ohlc_from_closes([100 + i for i in range(10)])
+        supports, resistances = svc._find_support_resistance(ohlc, current_price=105.0)
+        assert supports == [float(ohlc["low"].min())]
+        assert resistances == [float(ohlc["high"].max())]
 
 
 # ---------------------------------------------------------------------------
@@ -252,23 +270,19 @@ async def test_fetch_historical_data_returns_none_when_data_field_empty():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_technical_analysis_returns_cached_response_when_present():
-    """If the repo returns a cached AnalysisResult, the service builds
-    a response from it without calling _fetch_historical_data."""
+async def test_technical_analysis_always_refetches_ignoring_cache():
+    """The symbol-only cache was removed because it served chart_data=None
+    for every period after the first; every call must hit the history API."""
     svc = _make_service()
-    cached = MagicMock(
-        sma_20=100.0, sma_50=98.0,
-        overall_signal="buy", signal_strength=0.6, technical_score=35,
-        support_levels=[95.0, 90.0], resistance_levels=[105.0, 110.0],
-        created_at=datetime.utcnow(),
-    )
-    svc.repo.get_cached_analysis = AsyncMock(return_value=cached)
-    with patch.object(svc, "_fetch_historical_data", AsyncMock()) as fetch_mock:
+    svc.repo.get_cached_analysis = AsyncMock()
+    svc.repo.save_analysis = AsyncMock()
+    df = _trend_df(rows=60, start=100.0, drift=1.0)
+    with patch.object(svc, "_fetch_historical_data",
+                      AsyncMock(return_value=df)) as fetch_mock:
         out = await svc.get_technical_analysis("FPT")
-    fetch_mock.assert_not_awaited()
+    fetch_mock.assert_awaited_once()
+    svc.repo.get_cached_analysis.assert_not_awaited()
     assert out is not None
-    assert out.technical_score == 35
-    assert out.overall_signal == SignalType.BUY
 
 
 @pytest.mark.asyncio
@@ -331,6 +345,143 @@ async def test_technical_analysis_low_volatility_classification():
     with patch.object(svc, "_fetch_historical_data", AsyncMock(return_value=df)):
         out = await svc.get_technical_analysis("FPT")
     assert out.volatility == "low"
+
+
+# ---------------------------------------------------------------------------
+# get_technical_analysis — the grouped indicator payload the UI reads.
+# Regression: the Indicators tab rendered N/A for every one of these because
+# the response only carried a flat `indicators` list.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_technical_analysis_fills_every_indicator_group():
+    svc = _make_service()
+    svc.repo.save_analysis = AsyncMock()
+    df = _trend_df(rows=260, start=100.0, drift=0.5)
+    with patch.object(svc, "_fetch_historical_data", AsyncMock(return_value=df)):
+        out = await svc.get_technical_analysis("FPT", period=100)
+
+    m = out.momentum_indicators
+    assert m is not None
+    for field in ("RSI", "MACD", "MACD_Signal", "MACD_Histogram", "Stoch_K", "Stoch_D"):
+        assert getattr(m, field) is not None, f"{field} would render as N/A"
+
+    v = out.volatility_indicators
+    assert v is not None
+    for field in ("BB_Upper", "BB_Middle", "BB_Lower", "BB_Width", "ATR", "ATR_Percent"):
+        assert getattr(v, field) is not None, f"{field} would render as N/A"
+    assert v.BB_Lower < v.BB_Middle < v.BB_Upper
+
+    vol = out.volume_indicators
+    assert vol is not None
+    assert vol.volume_avg_20 is not None and vol.volume_ratio is not None
+    assert vol.OBV is not None
+
+    assert out.support_resistance is not None
+    assert out.fibonacci_levels  # non-empty dict keyed by retracement percent
+    assert out.trading_analysis.signals
+
+
+@pytest.mark.asyncio
+async def test_technical_analysis_warmup_makes_sma_200_available():
+    """SMA 200 was always null because only `period` bars were fetched.
+    With the warm-up run it resolves even for a 100-bar display window."""
+    svc = _make_service()
+    svc.repo.save_analysis = AsyncMock()
+    df = _trend_df(rows=300, start=100.0, drift=0.2)
+    with patch.object(svc, "_fetch_historical_data",
+                      AsyncMock(return_value=df)) as fetch_mock:
+        out = await svc.get_technical_analysis("FPT", period=100)
+    # Asked the history API for the display window plus the warm-up run.
+    requested_days = fetch_mock.await_args.args[1]
+    assert requested_days > 100
+    assert out.moving_averages.SMA_200 is not None
+    # Only the requested window is charted, warm-up bars stay hidden.
+    assert len(out.chart_data.dates) == 100
+
+
+@pytest.mark.asyncio
+async def test_technical_analysis_returns_null_not_nan_for_short_history():
+    """A window too short for a 200-bar window must serialise as null
+    (JSON has no NaN) so the UI shows N/A only where it is truly unknown."""
+    svc = _make_service()
+    svc.repo.save_analysis = AsyncMock()
+    df = _trend_df(rows=30, start=100.0, drift=0.5)
+    with patch.object(svc, "_fetch_historical_data", AsyncMock(return_value=df)):
+        out = await svc.get_technical_analysis("FPT", period=100)
+    assert out.moving_averages.SMA_200 is None
+    # Everything computable from 30 bars is still present.
+    assert out.momentum_indicators.RSI is not None
+    assert out.volatility_indicators.ATR is not None
+    # And the payload is JSON-clean — NaN would raise here.
+    import json
+    json.dumps(out.model_dump(mode="json"), allow_nan=False)
+
+
+@pytest.mark.asyncio
+async def test_trading_signals_agree_with_the_uptrend():
+    svc = _make_service()
+    svc.repo.save_analysis = AsyncMock()
+    df = _trend_df(rows=260, start=100.0, drift=1.0)
+    with patch.object(svc, "_fetch_historical_data", AsyncMock(return_value=df)):
+        out = await svc.get_technical_analysis("FPT", period=100)
+    by_name = {sig.indicator: sig for sig in out.trading_analysis.signals}
+    # Price is above every moving average in a monotonic uptrend.
+    assert by_name["SMA 20"].signal == "BUY"
+    assert by_name["SMA 50"].signal == "BUY"
+    assert by_name["Trend"].signal == "BULLISH"
+
+
+class TestNewIndicatorMath:
+    def test_stochastic_pins_to_100_at_window_high(self):
+        svc = _make_service()
+        ohlc = _ohlc_from_closes([100 + i for i in range(30)])
+        k, d = svc._calculate_stochastic(ohlc)
+        # Close is the window's high on a monotonic rise (close == high - 0.5,
+        # so just under 100 but firmly in the top decile).
+        assert k > 90
+        assert 0 <= d <= 100
+
+    def test_stochastic_pins_to_0_at_window_low(self):
+        svc = _make_service()
+        ohlc = _ohlc_from_closes([130 - i for i in range(30)])
+        k, _ = svc._calculate_stochastic(ohlc)
+        assert k < 10
+
+    def test_obv_is_positive_when_closes_rise(self):
+        svc = _make_service()
+        assert svc._calculate_obv(_ohlc_from_closes([100 + i for i in range(10)])) > 0
+
+    def test_obv_is_negative_when_closes_fall(self):
+        svc = _make_service()
+        assert svc._calculate_obv(_ohlc_from_closes([110 - i for i in range(10)])) < 0
+
+    def test_fibonacci_levels_span_the_window_range(self):
+        svc = _make_service()
+        ohlc = _ohlc_from_closes([100 + i for i in range(20)])
+        levels = svc._calculate_fibonacci_levels(ohlc)
+        assert set(levels) == {"0.0%", "23.6%", "38.2%", "50.0%", "61.8%", "78.6%", "100.0%"}
+        low, high = float(ohlc["low"].min()), float(ohlc["high"].max())
+        assert all(low - 0.01 <= p <= high + 0.01 for p in levels.values())
+        # Rising window: 0% is the swing origin (the high), 100% the low.
+        assert levels["0.0%"] == round(high, 2)
+        assert levels["100.0%"] == round(low, 2)
+
+    def test_fibonacci_levels_empty_for_a_flat_window(self):
+        svc = _make_service()
+        flat = pd.DataFrame({
+            "date": pd.date_range("2026-01-01", periods=5, freq="D"),
+            "open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0,
+            "volume": 1000,
+        })
+        assert svc._calculate_fibonacci_levels(flat) == {}
+
+    def test_safe_float_nulls_out_nan_and_inf(self):
+        svc = _make_service()
+        assert svc._safe_float(float("nan")) is None
+        assert svc._safe_float(float("inf")) is None
+        assert svc._safe_float(None) is None
+        assert svc._safe_float(1.23456) == 1.23
 
 
 # ---------------------------------------------------------------------------
@@ -1277,20 +1428,17 @@ async def test_get_regime_returns_undefined_when_data_lacks_ohlc_columns():
         assert (await svc.get_regime("FPT")) is None
 
 
-def test_existing_find_support_resistance_unchanged():
-    """Regression guard: F-003 must NOT change the legacy
-    _find_support_resistance signature or output that get_technical_analysis
-    relies on (backwards-compat requirement)."""
+def test_find_support_resistance_returns_plain_number_lists():
+    """Regression guard: whatever the detection strategy, the output shape
+    TechnicalAnalysisResponse.support_levels / resistance_levels relies on is
+    two lists of plain numbers (they are rounded and JSON-serialised)."""
     svc = _make_service()
-    prices = pd.Series([
+    ohlc = _ohlc_from_closes([
         100, 102, 105, 102, 100,
         98, 95, 92, 95, 98,
         101, 104, 107, 104, 101,
-    ], dtype=float)
-    supports, resistances = svc._find_support_resistance(prices)
-    # Old API: lists of numbers (the original impl returns whatever dtype the
-    # series held — float here, int when given int inputs; both are valid for
-    # backwards compat with the existing TechnicalAnalysisResponse).
+    ])
+    supports, resistances = svc._find_support_resistance(ohlc, current_price=100.0)
     assert isinstance(supports, list) and isinstance(resistances, list)
     assert all(isinstance(s, (int, float)) for s in supports)
     assert all(isinstance(r, (int, float)) for r in resistances)
