@@ -11,6 +11,12 @@ from datetime import datetime, date
 # Mock vnstock3 before importing app modules
 sys.modules['vnstock3'] = MagicMock()
 
+# Unit tests never hit the network: disable the vnai-quota spacing that
+# StockService.vnstock_call() applies between vnstock calls (default 3.1s).
+import os
+os.environ.setdefault("VNSTOCK_MIN_INTERVAL_SECONDS", "0")
+os.environ.setdefault("VNSTOCK_RATE_LIMIT_RETRY", "false")
+
 from app.main import app
 from app.api.dependencies import get_db, get_stock_service
 from app.models.schemas import (

@@ -2,8 +2,10 @@
 Stock Service - Business logic for stock data operations
 """
 import asyncio
+import contextvars
 import logging
 import re
+import time
 from datetime import datetime, date, timedelta
 from typing import Optional, List, Tuple
 import json
@@ -48,6 +50,61 @@ logger = logging.getLogger(__name__)
 
 def _is_rate_limit(exc: Exception) -> bool:
     return _VnaiRateLimitExceeded is not None and isinstance(exc, _VnaiRateLimitExceeded)
+
+
+# vnstock 4.x enforces a per-process quota (vnai: 20 req/min guest, 60 with a
+# free key). One lock + timestamp for the whole process so every caller —
+# request handlers and the nightly sync alike — shares the same budget.
+_vnstock_call_lock: Optional[asyncio.Lock] = None
+_vnstock_lock_loop: Optional[asyncio.AbstractEventLoop] = None
+_vnstock_last_call: float = 0.0
+# True inside the nightly sync task: its calls give the next quota slot away
+# (sleep one interval *after* releasing the lock) so interactive requests are
+# not queued FIFO behind ~240 sync calls.
+vnstock_background: contextvars.ContextVar[bool] = contextvars.ContextVar("vnstock_background", default=False)
+
+
+def _get_vnstock_lock() -> asyncio.Lock:
+    """Process-wide lock, recreated if the running loop changes (an
+    asyncio.Lock binds to the loop that first awaits it)."""
+    global _vnstock_call_lock, _vnstock_lock_loop
+    loop = asyncio.get_running_loop()
+    if _vnstock_call_lock is None or _vnstock_lock_loop is not loop:
+        _vnstock_call_lock = asyncio.Lock()
+        _vnstock_lock_loop = loop
+    return _vnstock_call_lock
+
+
+async def vnstock_call(fn, *args, **kwargs):
+    """Run a blocking vnstock call in a worker thread, spaced so we stay
+    under vnai's per-minute quota. If the quota is hit anyway, honour
+    vnai's ``retry_after`` once before giving up.
+    """
+    global _vnstock_last_call
+    min_interval = settings.vnstock_min_interval
+    try:
+        async with _get_vnstock_lock():
+            for attempt in (1, 2):
+                wait = _vnstock_last_call + min_interval - time.monotonic()
+                if wait > 0:
+                    await asyncio.sleep(wait)
+                _vnstock_last_call = time.monotonic()
+                try:
+                    return await asyncio.to_thread(fn, *args, **kwargs)
+                except Exception as e:
+                    if attempt == 2 or not settings.VNSTOCK_RATE_LIMIT_RETRY or not _is_rate_limit(e):
+                        raise
+                    retry_after = getattr(e, "retry_after", None) or min_interval
+                    retry_after = min(float(retry_after), settings.VNSTOCK_RATE_LIMIT_MAX_WAIT_SECONDS)
+                    logger.warning(
+                        f"vnstock rate limit hit ({getattr(e, 'tier', '?')} tier) — "
+                        f"waiting {retry_after:.0f}s then retrying once"
+                    )
+                    await asyncio.sleep(retry_after)
+                    _vnstock_last_call = 0.0
+    finally:
+        if vnstock_background.get():
+            await asyncio.sleep(min_interval)
 
 
 class StockService:
@@ -199,7 +256,7 @@ class StockService:
         """
         try:
             stock = self.vnstock.stock(symbol="VNM", source=settings.VNSTOCK_DATA_SOURCE)
-            df = stock.listing.all_symbols()
+            df = await vnstock_call(stock.listing.all_symbols)
 
             if df is None or df.empty:
                 logger.warning("No companies returned from vnstock")
@@ -235,7 +292,7 @@ class StockService:
             stock = self.vnstock.stock(symbol="VNM", source=settings.VNSTOCK_DATA_SOURCE)
 
             # symbols_by_group returns a Series, not DataFrame
-            symbols = stock.listing.symbols_by_group(group.upper())
+            symbols = await vnstock_call(stock.listing.symbols_by_group, group.upper())
 
             if symbols is None or len(symbols) == 0:
                 logger.warning(f"No companies returned for group {group}")
@@ -297,6 +354,10 @@ class StockService:
     # ==================== Company Info (Profile/News/Events/Dividends) ====================
 
     # Column mappings: VCI snake_case → frontend camelCase (matching legacy webapi)
+    # Legacy (vnstock 3.x) and current (vnstock 4.x / VCI) overview() column
+    # names, both mapped to the camelCase keys the rest of the code reads.
+    # 4.x dropped history / icb_name* / charter_capital / no_employees and
+    # emits `issue_share` several times, so callers must _dedupe_columns first.
     OVERVIEW_COLUMN_MAP = {
         'symbol': 'ticker', 'issue_share': 'issueShare',
         'company_profile': 'companyProfile', 'history': 'history',
@@ -304,6 +365,10 @@ class StockService:
         'charter_capital': 'charterCapital', 'no_employees': 'noEmployees',
         'no_shareholders': 'noShareholders', 'foreign_percent': 'foreignPercent',
         'outstanding_share': 'outstandingShare', 'free_float_rate': 'freeFloatRate',
+        # vnstock 4.x
+        'sector': 'industry',
+        'foreigner_percentage': 'foreignPercent',
+        'free_float_percentage': 'freeFloatRate',
     }
 
     # Financial statement column maps: vnstock English column → frontend snake_case key.
@@ -406,6 +471,26 @@ class StockService:
     }
 
     @staticmethod
+    def _dedupe_columns(df: pd.DataFrame) -> pd.DataFrame:
+        """Keep the first of any repeated column. vnstock 4.x overview()
+        returns `issue_share` four times; with duplicates, row.get(name)
+        yields a Series and `pd.notna(...)` in an `if` raises."""
+        return df.loc[:, ~df.columns.duplicated()]
+
+    @staticmethod
+    def _first_value(row: pd.Series, *keys, default=None):
+        """First non-null scalar among `keys` in `row` (tolerates missing keys)."""
+        for key in keys:
+            if key not in row.index:
+                continue
+            value = row[key]
+            if isinstance(value, pd.Series):
+                value = value.iloc[0] if len(value) else None
+            if value is not None and not (pd.api.types.is_scalar(value) and pd.isna(value)):
+                return value
+        return default
+
+    @staticmethod
     def _standardize_df(df: pd.DataFrame, column_map: dict, convert_dates: bool = False) -> pd.DataFrame:
         """Rename columns and optionally convert millisecond timestamps to ISO strings."""
         if convert_dates:
@@ -430,7 +515,7 @@ class StockService:
         """
         try:
             stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
-            df = await asyncio.to_thread(stock.company.overview)
+            df = await vnstock_call(stock.company.overview)
 
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
                 return []
@@ -439,27 +524,24 @@ class StockService:
             if isinstance(df, pd.Series):
                 df = df.to_frame().T
 
-            df = self._standardize_df(df, self.OVERVIEW_COLUMN_MAP)
+            df = self._dedupe_columns(df)
+            df = self._dedupe_columns(self._standardize_df(df, self.OVERVIEW_COLUMN_MAP))
 
             # Enrich with trading_stats() for foreign ownership data
             try:
-                ts_df = await asyncio.to_thread(stock.company.trading_stats)
+                ts_df = await vnstock_call(stock.company.trading_stats)
                 if ts_df is not None and not ts_df.empty:
-                    row = ts_df.iloc[0]
-                    df['foreignPercent'] = row.get('current_holding_ratio')
-                    # Derive outstanding shares: foreign_holding_room / current_holding_ratio
-                    ratio = row.get('current_holding_ratio', 0)
-                    holding = row.get('foreign_holding_room', 0)
-                    if ratio and ratio > 0 and holding:
-                        df['outstandingShare'] = int(holding / ratio)
-                    else:
-                        df['outstandingShare'] = df.get('issueShare')
+                    ts_row = self._dedupe_columns(ts_df).iloc[0]
+                    foreign_percent, outstanding = self._foreign_ownership(ts_row, df.iloc[0])
+                    if foreign_percent is not None:
+                        df['foreignPercent'] = foreign_percent
+                    df['outstandingShare'] = outstanding
             except Exception as e:
                 logger.warning(f"Could not enrich trading_stats for {symbol}: {e}")
 
             # Enrich with shareholders() for shareholder count
             try:
-                sh_df = await asyncio.to_thread(stock.company.shareholders)
+                sh_df = await vnstock_call(stock.company.shareholders)
                 if sh_df is not None and not sh_df.empty:
                     df['noShareholders'] = len(sh_df)
             except Exception as e:
@@ -544,7 +626,7 @@ class StockService:
                 logger.error(f"Unknown statement type: {statement_type}")
                 return []
 
-            df = await asyncio.to_thread(method, period=period, lang="en")
+            df = await vnstock_call(method, period=period, lang="en")
 
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
                 return []
@@ -581,7 +663,7 @@ class StockService:
         """Get company news from vnstock."""
         try:
             stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
-            df = await asyncio.to_thread(stock.company.news)
+            df = await vnstock_call(stock.company.news)
 
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
                 return []
@@ -611,7 +693,7 @@ class StockService:
         """Get company events from vnstock."""
         try:
             stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
-            df = await asyncio.to_thread(stock.company.events)
+            df = await vnstock_call(stock.company.events)
 
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
                 return []
@@ -642,7 +724,7 @@ class StockService:
                 logger.info(f"Dividend data not supported by {settings.VNSTOCK_DATA_SOURCE} for {symbol}")
                 return []
 
-            df = await asyncio.to_thread(stock.company.dividends)
+            df = await vnstock_call(stock.company.dividends)
 
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
                 logger.info(f"Dividend data not available for {symbol} - API limitation")
@@ -706,11 +788,39 @@ class StockService:
                 logger.warning(f"Bad JSON in financial_statements id={row.id}")
         return results
 
+    @classmethod
+    def _foreign_ownership(cls, ts_row: pd.Series, overview_row: pd.Series):
+        """(foreign_percent, outstanding_share) from a trading_stats() row.
+
+        vnstock 3.x: current_holding_ratio + foreign_holding_room, from which
+        outstanding shares = room / ratio. vnstock 4.x: foreigner_percentage
+        and number_of_shares_mkt_cap / issue_share directly. Falls back to the
+        overview's issueShare for outstanding shares.
+        """
+        first = cls._first_value
+        ratio = first(ts_row, "current_holding_ratio", "foreigner_percentage")
+        holding = first(ts_row, "foreign_holding_room")
+        foreign_percent = float(ratio) if ratio is not None else None
+
+        outstanding = None
+        if ratio and float(ratio) > 0 and holding:
+            outstanding = int(float(holding) / float(ratio))
+        else:
+            shares = first(ts_row, "number_of_shares_mkt_cap", "issue_share")
+            if shares is None:
+                shares = first(overview_row, "issueShare")
+            if shares is not None:
+                try:
+                    outstanding = int(float(shares))
+                except (ValueError, TypeError):
+                    outstanding = None
+        return foreign_percent, outstanding
+
     async def sync_company_profile(self, symbol: str) -> bool:
         """Fetch profile from vnstock and save to DB cache."""
         try:
             stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
-            df = await asyncio.to_thread(stock.company.overview)
+            df = await vnstock_call(stock.company.overview)
 
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
                 logger.warning(f"No overview data for {symbol}")
@@ -719,53 +829,58 @@ class StockService:
             if isinstance(df, pd.Series):
                 df = df.to_frame().T
 
-            df = self._standardize_df(df, self.OVERVIEW_COLUMN_MAP)
+            df = self._dedupe_columns(df)
+            df = self._dedupe_columns(self._standardize_df(df, self.OVERVIEW_COLUMN_MAP))
             row = df.iloc[0]
+            first = self._first_value
 
+            charter_capital = first(row, "charterCapital")
+            issue_share = first(row, "issueShare")
             kwargs = {
-                "company_profile": row.get("companyProfile") if pd.notna(row.get("companyProfile")) else None,
-                "history": row.get("history") if pd.notna(row.get("history")) else None,
-                "industry": row.get("industry") if pd.notna(row.get("industry")) else None,
-                "industry_l2": row.get("industryL2") if pd.notna(row.get("industryL2")) else None,
-                "industry_l3": row.get("industryL3") if pd.notna(row.get("industryL3")) else None,
-                "charter_capital": float(row["charterCapital"]) if pd.notna(row.get("charterCapital")) else None,
-                "issue_share": float(row["issueShare"]) if pd.notna(row.get("issueShare")) else None,
+                "company_profile": first(row, "companyProfile"),
+                "history": first(row, "history"),
+                "industry": first(row, "industry"),
+                "industry_l2": first(row, "industryL2"),
+                "industry_l3": first(row, "industryL3"),
+                "charter_capital": float(charter_capital) if charter_capital is not None else None,
+                "issue_share": float(issue_share) if issue_share is not None else None,
             }
+            # vnstock 4.x carries foreign ownership on overview() itself
+            if first(row, "foreignPercent") is not None:
+                kwargs["foreign_percent"] = float(first(row, "foreignPercent"))
 
             # Enrich with trading_stats for foreign ownership
             try:
-                ts_df = await asyncio.to_thread(stock.company.trading_stats)
+                ts_df = await vnstock_call(stock.company.trading_stats)
                 if ts_df is not None and not ts_df.empty:
-                    ts_row = ts_df.iloc[0]
-                    kwargs["foreign_percent"] = ts_row.get("current_holding_ratio")
-                    ratio = ts_row.get("current_holding_ratio", 0)
-                    holding = ts_row.get("foreign_holding_room", 0)
-                    if ratio and ratio > 0 and holding:
-                        kwargs["outstanding_share"] = int(holding / ratio)
-                    elif pd.notna(row.get("issueShare")):
-                        kwargs["outstanding_share"] = int(row["issueShare"])
+                    ts_row = self._dedupe_columns(ts_df).iloc[0]
+                    foreign_percent, outstanding = self._foreign_ownership(ts_row, row)
+                    if foreign_percent is not None:
+                        kwargs["foreign_percent"] = foreign_percent
+                    if outstanding is not None:
+                        kwargs["outstanding_share"] = outstanding
             except Exception as e:
                 logger.warning(f"Could not enrich trading_stats for {symbol}: {e}")
 
             # Enrich with shareholders count
             try:
-                sh_df = await asyncio.to_thread(stock.company.shareholders)
+                sh_df = await vnstock_call(stock.company.shareholders)
                 if sh_df is not None and not sh_df.empty:
                     kwargs["no_shareholders"] = len(sh_df)
             except Exception as e:
                 logger.warning(f"Could not enrich shareholders for {symbol}: {e}")
 
-            # Get no_employees from overview if available
-            if pd.notna(row.get("noEmployees")):
+            # Get no_employees from overview if available (3.x only)
+            if first(row, "noEmployees") is not None:
                 try:
-                    kwargs["no_employees"] = int(row["noEmployees"])
+                    kwargs["no_employees"] = int(first(row, "noEmployees"))
                 except (ValueError, TypeError):
                     pass
 
             # Get free_float_rate from overview if available
-            if pd.notna(row.get("freeFloatRate")):
+            if first(row, "freeFloatRate") is not None:
                 try:
-                    kwargs["free_float_rate"] = float(row["freeFloatRate"])
+                    kwargs["free_float_rate"] = float(first(row, "freeFloatRate"))
                 except (ValueError, TypeError):
                     pass
 
@@ -817,7 +932,9 @@ class StockService:
     async def is_company_data_stale(self) -> bool:
         """Check if company data needs re-sync (empty or older than configured days)."""
         count = await self.repository.count_company_profiles()
-        if count == 0:
+        # An interrupted sync leaves a partial cache; every missing VN30
+        # symbol then costs 3 live vnstock calls per profile view.
+        if count < len(self.STOCK_GROUPS["VN30"]):
             return True
         oldest = await self.repository.get_oldest_profile_sync()
         if oldest is None:
@@ -829,6 +946,7 @@ class StockService:
         """Sync profiles, financials, and historical prices for all VN30 companies."""
         symbols = self.STOCK_GROUPS["VN30"]
         results = {"profiles": 0, "financials": 0, "historical": 0, "errors": []}
+        vnstock_background.set(True)  # let interactive requests take quota slots first
 
         for symbol in symbols:
             try:
@@ -1006,7 +1124,7 @@ class StockService:
         """
         try:
             stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
-            df = await asyncio.to_thread(
+            df = await vnstock_call(
                 stock.quote.history,
                 start=start_date.strftime("%Y-%m-%d"),
                 end=end_date.strftime("%Y-%m-%d"),
@@ -1019,7 +1137,7 @@ class StockService:
             # Get company name from listing data
             company_name = symbol.upper()
             try:
-                all_symbols_df = await asyncio.to_thread(stock.listing.all_symbols)
+                all_symbols_df = await vnstock_call(stock.listing.all_symbols)
                 if all_symbols_df is not None and not all_symbols_df.empty:
                     match = all_symbols_df[all_symbols_df["symbol"] == symbol.upper()]
                     if not match.empty:
@@ -1089,7 +1207,7 @@ class StockService:
         try:
             # Fetch from VNStock (run in thread to avoid blocking event loop)
             stock = self.vnstock.stock(symbol=symbol, source=settings.VNSTOCK_DATA_SOURCE)
-            df = await asyncio.to_thread(
+            df = await vnstock_call(
                 stock.quote.history,
                 start=start_date.strftime("%Y-%m-%d"),
                 end=end_date.strftime("%Y-%m-%d"),

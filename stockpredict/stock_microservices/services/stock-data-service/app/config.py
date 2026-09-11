@@ -1,6 +1,7 @@
 """
 Stock Data Service Configuration
 """
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from typing import Optional
@@ -50,6 +51,31 @@ class Settings(BaseSettings):
 
     # VNStock Configuration
     VNSTOCK_DATA_SOURCE: str = "VCI"
+    # vnstock 4.x (via its `vnai` dependency) enforces a client-side quota:
+    # Guest = 20 req/min, free Community key = 60 req/min. vnai reads the key
+    # from the VNSTOCK_API_KEY env var itself; we only use it to pick a default
+    # spacing between calls. Get a key at https://vnstocks.com/login
+    VNSTOCK_API_KEY: Optional[str] = None
+    # Minimum seconds between two vnstock calls. None = derive from the tier
+    # (3.1s guest / 1.05s with key), i.e. just under the per-minute quota.
+    VNSTOCK_MIN_INTERVAL_SECONDS: Optional[float] = None
+    # On RateLimitExceeded, sleep for vnai's retry_after and try once more.
+    VNSTOCK_RATE_LIMIT_RETRY: bool = True
+    VNSTOCK_RATE_LIMIT_MAX_WAIT_SECONDS: float = 90.0
+
+    @field_validator("VNSTOCK_API_KEY", "VNSTOCK_MIN_INTERVAL_SECONDS", mode="before")
+    @classmethod
+    def _blank_env_is_unset(cls, v):
+        """docker-compose passes `${VAR:-}` through as "" — treat as None."""
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        return v
+
+    @property
+    def vnstock_min_interval(self) -> float:
+        if self.VNSTOCK_MIN_INTERVAL_SECONDS is not None:
+            return self.VNSTOCK_MIN_INTERVAL_SECONDS
+        return 1.05 if self.VNSTOCK_API_KEY else 3.1
 
     # Company data sync
     COMPANY_SYNC_STALE_DAYS: int = 7

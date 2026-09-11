@@ -4,6 +4,7 @@ Stock Repository - Data access layer for stock operations
 from datetime import datetime, date, timedelta
 from typing import Optional, List, Tuple
 from sqlalchemy import select, update, delete, func, or_, and_
+from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -159,9 +160,35 @@ class StockRepository:
         return list(result.scalars().all())
 
     async def save_prices(self, prices: List[StockPrice]) -> int:
-        """Save multiple prices (upsert)"""
-        for price in prices:
-            self.session.add(price)
+        """Save multiple prices (upsert on (company_id, date)).
+
+        Daily re-syncs re-fetch a window that overlaps what is already
+        stored, so a plain INSERT collides on idx_price_company_date and the
+        whole batch (including the genuinely new days) is lost.
+        """
+        if not prices:
+            return 0
+        rows = [
+            {
+                "company_id": p.company_id,
+                "date": p.date,
+                "open": p.open,
+                "high": p.high,
+                "low": p.low,
+                "close": p.close,
+                "volume": p.volume,
+                "value": p.value,
+                "adj_close": p.adj_close,
+                "change": p.change,
+                "change_percent": p.change_percent,
+            }
+            for p in prices
+        ]
+        stmt = mysql_insert(StockPrice).values(rows)
+        stmt = stmt.on_duplicate_key_update(
+            {col: stmt.inserted[col] for col in ("open", "high", "low", "close", "volume", "value", "adj_close", "change", "change_percent")}
+        )
+        await self.session.execute(stmt)
         await self.session.commit()
         return len(prices)
 

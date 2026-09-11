@@ -203,7 +203,8 @@ class PriceBoard(Base):
 
     # Metadata
     exchange = Column(String(20), nullable=True)
-    trading_status = Column(String(20), nullable=True)
+    # VCI emits values like TRADING_RESTRICTION_ACTIVATED (29 chars); was String(20)
+    trading_status = Column(String(64), nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     __table_args__ = (

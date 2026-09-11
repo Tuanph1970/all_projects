@@ -9,6 +9,7 @@ from datetime import date
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from sqlalchemy.dialects.mysql import dialect as mysql_dialect
 
 from app.models.domain import Company, Industry, StockPrice
 from app.repositories.stock_repository import StockRepository
@@ -133,7 +134,7 @@ async def test_get_latest_price_returns_single_or_none():
 @pytest.mark.asyncio
 async def test_save_prices_returns_count():
     session = AsyncMock()
-    session.add = MagicMock()
+    session.execute = AsyncMock()
     session.commit = AsyncMock()
     repo = StockRepository(session)
     prices = [
@@ -142,8 +143,33 @@ async def test_save_prices_returns_count():
     ]
     n = await repo.save_prices(prices)
     assert n == 2
-    assert session.add.call_count == 2
+    session.execute.assert_awaited_once()
     session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_save_prices_is_an_upsert_on_company_date():
+    """Daily re-syncs overlap already-stored days; the statement must be
+    INSERT ... ON DUPLICATE KEY UPDATE, not a plain INSERT that dies on
+    idx_price_company_date and drops the new rows with it."""
+    session = AsyncMock()
+    session.execute = AsyncMock()
+    session.commit = AsyncMock()
+    repo = StockRepository(session)
+    await repo.save_prices([StockPrice(company_id=1, date=date(2026, 5, 1), close=100.0, volume=5)])
+    stmt = session.execute.await_args.args[0]
+    sql = str(stmt.compile(dialect=mysql_dialect())).upper()
+    assert "ON DUPLICATE KEY UPDATE" in sql
+    assert "CLOSE = VALUES(CLOSE)" in sql
+
+
+@pytest.mark.asyncio
+async def test_save_prices_empty_batch_is_a_noop():
+    session = AsyncMock()
+    session.execute = AsyncMock()
+    repo = StockRepository(session)
+    assert await repo.save_prices([]) == 0
+    session.execute.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

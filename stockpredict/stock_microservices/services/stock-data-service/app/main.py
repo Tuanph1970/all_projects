@@ -109,6 +109,15 @@ async def _background_company_sync():
             logger.error(f"Scheduled company sync failed: {e}", exc_info=True)
 
 
+# Idempotent ALTERs for columns that outgrew their original definition.
+# MODIFY on an already-widened column is a no-op, so re-running is safe.
+MIGRATION_SQL = [
+    # vnstock 4.x/VCI returns trading_status values up to 29 chars
+    # (e.g. TRADING_RESTRICTION_ACTIVATED); the column was VARCHAR(20).
+    "ALTER TABLE tbl_price_board MODIFY COLUMN trading_status VARCHAR(64) NULL",
+]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator:
     """Application lifespan handler"""
@@ -117,9 +126,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     logger.info(f"Environment: {settings.ENVIRONMENT}")
     logger.info(f"VNStock Data Source: {settings.VNSTOCK_DATA_SOURCE}")
 
-    # Create database tables if not exist
+    # Create database tables if not exist, then apply idempotent column widenings
+    # (create_all never alters existing tables).
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        for stmt in MIGRATION_SQL:
+            try:
+                await conn.execute(text(stmt))
+            except Exception as e:
+                logger.warning(f"Migration statement skipped: {e}")
     logger.info("Database tables initialized")
 
     # Open the shared EventBus connection used by refresh_price_board()

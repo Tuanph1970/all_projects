@@ -420,12 +420,27 @@ async def test_is_company_data_stale_false_when_fresh(monkeypatch):
     monkeypatch.setattr(svc_mod.settings, "COMPANY_SYNC_STALE_DAYS", 7)
 
     repo = MagicMock()
-    repo.count_company_profiles = AsyncMock(return_value=5)
+    repo.count_company_profiles = AsyncMock(return_value=30)
     repo.get_oldest_profile_sync = AsyncMock(
         return_value=datetime.utcnow() - timedelta(days=1)
     )
     svc = _make_service(repo)
     assert await svc.is_company_data_stale() is False
+
+
+@pytest.mark.asyncio
+async def test_is_company_data_stale_true_when_vn30_coverage_is_partial(monkeypatch):
+    """An interrupted sync leaves e.g. 3 of 30 profiles; recent but incomplete
+    must still count as stale so the next startup finishes the job."""
+    from app.services import stock_service as svc_mod
+    monkeypatch.setattr(svc_mod.settings, "COMPANY_SYNC_STALE_DAYS", 7)
+
+    repo = MagicMock()
+    repo.count_company_profiles = AsyncMock(return_value=3)
+    repo.get_oldest_profile_sync = AsyncMock(return_value=datetime.utcnow())
+    svc = _make_service(repo)
+    assert await svc.is_company_data_stale() is True
+    repo.get_oldest_profile_sync.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
