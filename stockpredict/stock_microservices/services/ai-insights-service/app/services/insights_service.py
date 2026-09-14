@@ -1,5 +1,5 @@
 """AI Insights Service - LLM Integration with Real Technical Analysis"""
-from typing import Optional, List, Dict, Any
+from typing import Tuple, Optional, List, Dict, Any
 from datetime import datetime, timedelta
 import httpx
 import json
@@ -1032,8 +1032,15 @@ Maintain current position and monitor for clearer signals before taking action.
             factors=factors
         )
 
-    def _analyze_sentiment_from_indicators(self, df: pd.DataFrame) -> SentimentAnalysis:
-        """Analyze sentiment based on technical indicators"""
+    def _analyze_sentiment_from_indicators(self, df: pd.DataFrame,
+                                           indicators: Optional[Dict[str, str]] = None) -> SentimentAnalysis:
+        """Analyze sentiment based on technical indicators.
+
+        `indicators` is the user's pick per category ({"trend": "SMA", ...}).
+        When given, each category contributes the signal of THAT indicator, so
+        changing a dropdown changes the score. Without it the legacy RSI+MACD
+        reading is used.
+        """
         if len(df) < 20:
             return SentimentAnalysis(
                 sentiment_type="neutral",
@@ -1065,27 +1072,24 @@ Maintain current position and monitor for clearer signals before taking action.
             score -= 0.2
             signals.append("medium-term trend bearish")
 
-        # RSI signal
-        if "rsi" in df.columns and pd.notna(df["rsi"].iloc[-1]):
-            rsi = df["rsi"].iloc[-1]
-            if rsi < 30:
-                score += 0.2
-                signals.append("RSI oversold (potential reversal)")
-            elif rsi > 70:
-                score -= 0.2
-                signals.append("RSI overbought (potential reversal)")
-
-        # MACD signal
-        if "macd" in df.columns and "macd_signal" in df.columns:
-            macd = df["macd"].iloc[-1]
-            macd_signal = df["macd_signal"].iloc[-1]
-            if pd.notna(macd) and pd.notna(macd_signal):
-                if macd > macd_signal:
-                    score += 0.2
-                    signals.append("MACD bullish crossover")
-                else:
-                    score -= 0.2
-                    signals.append("MACD bearish crossover")
+        if indicators:
+            for category in ("trend", "momentum", "volatility", "volume"):
+                name = indicators.get(category)
+                if name:
+                    delta, note = self._indicator_signal(df, category, name, price_change_5d)
+                    score += delta
+                    if note:
+                        signals.append(note)
+        else:
+            # Legacy reading: RSI + MACD only.
+            delta, note = self._indicator_signal(df, "momentum", "RSI", price_change_5d)
+            score += delta
+            if note:
+                signals.append(note)
+            delta, note = self._indicator_signal(df, "trend", "MACD", price_change_5d)
+            score += delta
+            if note:
+                signals.append(note)
 
         # Volume trend
         if "volume" in df.columns:
@@ -1104,7 +1108,9 @@ Maintain current position and monitor for clearer signals before taking action.
         else:
             sentiment_type = "neutral"
 
-        summary = f"Technical indicators suggest {sentiment_type} sentiment. " + ", ".join(signals[:3]).capitalize() + "."
+        used = ", ".join(v for v in (indicators or {}).values() if v)
+        basis = f"{used} suggest" if used else "Technical indicators suggest"
+        summary = f"{basis} {sentiment_type} sentiment. " + ", ".join(signals[:3]).capitalize() + "."
 
         return SentimentAnalysis(
             sentiment_type=sentiment_type,
@@ -1114,13 +1120,122 @@ Maintain current position and monitor for clearer signals before taking action.
             summary=summary
         )
 
-    async def _get_predictions(self, symbol: str, current_price: float) -> PricePrediction:
-        """Get predictions from prediction service or calculate simple predictions"""
+    @staticmethod
+    def _last(df: pd.DataFrame, col: str) -> Optional[float]:
+        if col in df.columns and pd.notna(df[col].iloc[-1]):
+            return float(df[col].iloc[-1])
+        return None
+
+    def _indicator_signal(self, df: pd.DataFrame, category: str, name: str,
+                          price_change_5d: float) -> Tuple[float, Optional[str]]:
+        """Score contribution (+/-) and a human note for one selected indicator.
+
+        Columns come from _calculate_indicators; a missing/NaN column yields
+        (0, None) so a short window never crashes the analysis.
+        """
+        name = (name or "").upper()
+        close = self._last(df, "close")
+        if close is None:
+            return 0.0, None
+
+        if category == "trend":
+            if name == "MACD":
+                macd, sig = self._last(df, "macd"), self._last(df, "macd_signal")
+                if macd is not None and sig is not None:
+                    return (0.2, "MACD bullish crossover") if macd > sig else (-0.2, "MACD bearish crossover")
+            elif name == "SMA":
+                s20, s50 = self._last(df, "sma_20"), self._last(df, "sma_50")
+                if s20 is not None:
+                    if close > s20 and (s50 is None or s20 > s50):
+                        return 0.2, "price above SMA20" + (" with SMA20 > SMA50" if s50 is not None else "")
+                    if close < s20 and (s50 is None or s20 < s50):
+                        return -0.2, "price below SMA20" + (" with SMA20 < SMA50" if s50 is not None else "")
+                    return 0.0, "price and SMAs mixed"
+            elif name == "EMA":
+                e12, e26 = self._last(df, "ema_12"), self._last(df, "ema_26")
+                if e12 is not None and e26 is not None:
+                    return (0.2, "EMA12 above EMA26 (bullish)") if e12 > e26 else (-0.2, "EMA12 below EMA26 (bearish)")
+            elif name == "WMA":
+                w20 = self._last(df, "wma_20")
+                if w20 is not None:
+                    return (0.2, "price above WMA20") if close > w20 else (-0.2, "price below WMA20")
+
+        elif category == "momentum":
+            if name == "RSI":
+                rsi = self._last(df, "rsi")
+                if rsi is not None:
+                    if rsi < 30:
+                        return 0.2, "RSI oversold (potential reversal)"
+                    if rsi > 70:
+                        return -0.2, "RSI overbought (potential reversal)"
+                    return 0.0, f"RSI neutral ({rsi:.0f})"
+            elif name == "STOCHASTIC":
+                k = self._last(df, "stoch_k")
+                if k is not None:
+                    if k < 20:
+                        return 0.2, "Stochastic oversold"
+                    if k > 80:
+                        return -0.2, "Stochastic overbought"
+                    return 0.0, f"Stochastic neutral (%K {k:.0f})"
+            elif name == "MFI":
+                mfi = self._last(df, "mfi")
+                if mfi is not None:
+                    if mfi < 20:
+                        return 0.2, "MFI oversold (money flowing in)"
+                    if mfi > 80:
+                        return -0.2, "MFI overbought (money flowing out)"
+                    return 0.0, f"MFI neutral ({mfi:.0f})"
+
+        elif category == "volatility":
+            if name == "BB":
+                lo, hi = self._last(df, "bb_lower"), self._last(df, "bb_upper")
+                if lo is not None and hi is not None:
+                    if close < lo:
+                        return 0.15, "price below lower Bollinger band (oversold)"
+                    if close > hi:
+                        return -0.15, "price above upper Bollinger band (overbought)"
+                    return 0.0, "price inside Bollinger bands"
+            elif name == "ATR":
+                atr = self._last(df, "atr")
+                if atr is not None and close:
+                    pct = atr / close * 100
+                    if pct > 4:
+                        # High volatility amplifies whatever the short-term move is.
+                        return (0.1 if price_change_5d > 0 else -0.1), f"elevated volatility (ATR {pct:.1f}%)"
+                    return 0.0, f"volatility normal (ATR {pct:.1f}%)"
+
+        elif category == "volume":
+            if name == "OBV":
+                if "obv" in df.columns and len(df) >= 6:
+                    obv_now, obv_prev = float(df["obv"].iloc[-1]), float(df["obv"].iloc[-6])
+                    rising = obv_now > obv_prev
+                    if rising and price_change_5d > 0:
+                        return 0.15, "OBV confirms uptrend"
+                    if not rising and price_change_5d < 0:
+                        return -0.15, "OBV confirms downtrend"
+                    return 0.0, "OBV diverging from price"
+            elif name == "VWAP":
+                vwap = self._last(df, "vwap")
+                if vwap is not None:
+                    return (0.1, "price above VWAP") if close > vwap else (-0.1, "price below VWAP")
+
+        return 0.0, None
+
+    async def _get_predictions(self, symbol: str, current_price: float,
+                               df: Optional[pd.DataFrame] = None) -> PricePrediction:
+        """Get predictions from prediction service or calculate simple predictions.
+
+        `df` (price history, oldest first) feeds the fallback so it reflects the
+        selected window instead of a constant "neutral / 0.0%".
+        """
         try:
             async with httpx.AsyncClient() as client:
+                # prediction-service mounts its router under /predict (and
+                # /models); there is no /predictions prefix on the service.
                 response = await client.get(
-                    f"{settings.PREDICTION_SERVICE_URL}/{settings.API_PREFIX}/api/v2/predictions/predict/{symbol}",
-                    timeout=30.0
+                    f"{settings.PREDICTION_SERVICE_URL}/{settings.API_PREFIX}/api/v2/predict/predict/{symbol}",
+                    params={"days": 5},
+                    timeout=90.0
                 )
                 if response.status_code == 200:
                     data = response.json()
@@ -1164,22 +1279,93 @@ Maintain current position and monitor for clearer signals before taking action.
             logger.error(f"Prediction service error: {e}")
 
         # Fallback to simple prediction based on recent trend
+        return self._simple_trend_prediction(current_price, df)
+
+    def _simple_trend_prediction(self, current_price: float,
+                                 df: Optional[pd.DataFrame], horizon_days: int = 5) -> PricePrediction:
+        """Linear-trend projection of the last 20 closes, `horizon_days` ahead.
+
+        Only used when prediction-service is unavailable. With no history it
+        degrades to the old constant (price unchanged, neutral, 0.4).
+        """
+        predicted_price = current_price
+        change = 0.0
+        confidence = 0.4
+        band = 0.05
+        if df is not None and "close" in df.columns and len(df) >= 10:
+            closes = df["close"].astype(float).tail(20).to_numpy()
+            x = np.arange(len(closes))
+            slope, intercept = np.polyfit(x, closes, 1)
+            predicted_price = float(intercept + slope * (len(closes) - 1 + horizon_days))
+            change = (predicted_price - current_price) / current_price * 100 if current_price else 0.0
+            resid = closes - (intercept + slope * x)
+            fit = 1 - (np.var(resid) / np.var(closes) if np.var(closes) > 0 else 1)
+            confidence = round(float(max(0.3, min(0.6, 0.3 + 0.3 * fit))), 2)
+            daily_vol = float(pd.Series(closes).pct_change().std() or 0.0)
+            band = max(0.02, min(0.15, daily_vol * np.sqrt(horizon_days) * 2))
+        direction = "up" if change > 1 else ("down" if change < -1 else "neutral")
         return PricePrediction(
             ensemble=PredictionModel(
                 model_name="Simple Trend",
-                predicted_price=current_price,
-                predicted_change=0,
-                confidence=0.4,
-                direction="neutral",
-                lower_bound=round(current_price * 0.95, 2),
-                upper_bound=round(current_price * 1.05, 2)
+                predicted_price=round(predicted_price, 2),
+                predicted_change=round(change, 2),
+                confidence=confidence,
+                direction=direction,
+                lower_bound=round(predicted_price * (1 - band), 2),
+                upper_bound=round(predicted_price * (1 + band), 2)
             ),
             model_comparison="Using simple trend analysis - prediction service unavailable"
         )
 
+    # Trading bars each indicator needs before its value is meaningful (the
+    # longest window fully warmed up: e.g. MACD = 26-EMA + 9-signal, ~3x).
+    REQUIRED_BARS: Dict[str, int] = {
+        "MACD": 120, "SMA": 70, "EMA": 80, "WMA": 30,
+        "RSI": 40, "STOCHASTIC": 30, "MFI": 30,
+        "BB": 30, "ATR": 30,
+        "OBV": 30, "VWAP": 30,
+    }
+    MIN_BARS = 20                 # hard floor used by the <20 rows check below
+    CALENDAR_DAYS_PER_BAR = 1.6   # HOSE trading days -> calendar days
+    HOLIDAY_MARGIN_DAYS = 14
+
+    def _required_calendar_days(self, indicators: Optional[Dict[str, str]]) -> int:
+        """Calendar days of history the selected indicators need (MACD ≈ 200)."""
+        bars = max([self.REQUIRED_BARS.get((v or "").upper(), 0)
+                    for v in (indicators or {}).values()] + [self.MIN_BARS])
+        return int(bars * self.CALENDAR_DAYS_PER_BAR) + self.HOLIDAY_MARGIN_DAYS
+
+    def _effective_date_range(self, start_date: str, end_date: str,
+                              indicators: Optional[Dict[str, str]]) -> Tuple[str, str, bool, Optional[str]]:
+        """Widen a too-short range: end = today - 1, start = end - required days.
+
+        Returns (start, end, adjusted, note). Unparseable dates fall back to the
+        same rule so the analysis still runs.
+        """
+        required = self._required_calendar_days(indicators)
+        try:
+            start = datetime.strptime(start_date, "%Y-%m-%d").date()
+            end = datetime.strptime(end_date, "%Y-%m-%d").date()
+            span = (end - start).days
+        except (TypeError, ValueError):
+            span = -1
+        if span >= required:
+            return start_date, end_date, False, None
+        new_end = datetime.now().date() - timedelta(days=1)
+        new_start = new_end - timedelta(days=required)
+        longest = max((indicators or {}).values(), key=lambda v: self.REQUIRED_BARS.get((v or "").upper(), 0),
+                      default=None)
+        note = (f"Selected range ({start_date} → {end_date}) is shorter than the {required} days "
+                f"{longest or 'the selected indicators'} need; analysed {new_start} → {new_end} instead.")
+        return new_start.isoformat(), new_end.isoformat(), True, note
+
     async def get_comprehensive_insights(self, symbol: str, start_date: str, end_date: str,
                                          indicators: Dict[str, str]) -> ComprehensiveInsightsResponse:
         """Generate comprehensive AI insights with real calculations"""
+        start_date, end_date, adjusted, note = self._effective_date_range(start_date, end_date, indicators)
+        window = dict(effective_start_date=start_date, effective_end_date=end_date,
+                      date_range_adjusted=adjusted, date_range_note=note)
+
         # Fetch and calculate indicator data
         df = await self._fetch_historical_prices(symbol, start_date, end_date)
         if df is None or len(df) < 20:
@@ -1187,7 +1373,8 @@ Maintain current position and monitor for clearer signals before taking action.
                 status="error",
                 symbol=symbol.upper(),
                 insights=None,
-                generated_at=datetime.now()
+                generated_at=datetime.now(),
+                **window
             )
 
         # Calculate all indicators
@@ -1205,11 +1392,11 @@ Maintain current position and monitor for clearer signals before taking action.
         # Risk assessment
         risk_assessment = self._calculate_risk_assessment(df)
 
-        # Sentiment analysis
-        sentiment_analysis = self._analyze_sentiment_from_indicators(df)
+        # Sentiment analysis (scored on the indicators the user selected)
+        sentiment_analysis = self._analyze_sentiment_from_indicators(df, indicators)
 
-        # Price predictions
-        price_prediction = await self._get_predictions(symbol, current_price)
+        # Price predictions (df feeds the fallback when prediction-service is down)
+        price_prediction = await self._get_predictions(symbol, current_price, df)
 
         # Calculate AI scores
         pattern_score = sum(p.confidence * (1 if p.pattern_type == "bullish" else -1 if p.pattern_type == "bearish" else 0) for p in patterns) / max(len(patterns), 1) * 50 + 50
@@ -1252,7 +1439,8 @@ Maintain current position and monitor for clearer signals before taking action.
             status="success",
             symbol=symbol.upper(),
             insights=insights,
-            generated_at=datetime.now()
+            generated_at=datetime.now(),
+            **window
         )
 
     async def get_stock_recommendations(self, limit: int = 5) -> List[Dict[str, Any]]:

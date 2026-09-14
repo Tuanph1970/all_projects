@@ -922,7 +922,9 @@
       "mfi_label": "MFI",
       "macd_tooltip_label": "MACD",
       "signal_tooltip_label": "Signal",
-      "volume_tooltip_label": "Vol"
+      "volume_tooltip_label": "Vol",
+      "range_adjusted": "The selected date range was too short for the chosen indicators; it was extended automatically.",
+      "no_data": "Not enough price history to analyse this stock."
     }
   },
   "journal": {

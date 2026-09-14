@@ -297,3 +297,80 @@ async def test_get_feature_importance_returns_none_when_model_has_no_importances
         "app.services.prediction_service.joblib.load", lambda _: plain_model
     )
     assert await svc.get_feature_importance(1) is None
+
+
+# ---------------------------------------------------------------------------
+# predict — history must cover the longest feature window (AI Insights bug:
+# "['sma_50'] not in index" on every call because LOOKBACK_PERIOD is 60
+# CALENDAR days ≈ 42 bars)
+# ---------------------------------------------------------------------------
+
+
+def test_inference_lookback_covers_sma_50_window():
+    svc = _make_service()
+    days = svc._inference_lookback_days()
+    # Enough calendar days for >= 70 trading bars at 1.6 cal-days/bar + margin.
+    assert days >= int(70 * 1.6) + 14
+    assert days >= 60  # never below the configured LOOKBACK_PERIOD
+
+
+def test_prepare_features_without_target_keeps_latest_bar():
+    """Inference must predict from TODAY's features; the training-only
+    next-day target would otherwise NaN-out and drop the last row."""
+    svc = _make_service()
+    df = _ohlcv_df(200)
+    train = svc._prepare_features(df)                    # default: with target
+    infer = svc._prepare_features(df, with_target=False)
+    assert "target" in train.columns and "target" not in infer.columns
+    assert infer["date"].iloc[-1] == df["date"].iloc[-1]
+    assert train["date"].iloc[-1] < df["date"].iloc[-1]
+    assert "sma_50" in infer.columns and infer["sma_50"].notna().all()
+
+
+@pytest.mark.asyncio
+async def test_predict_requests_enough_history_and_uses_latest_bar(monkeypatch):
+    svc = _make_service()
+    model_row = MagicMock(
+        id=1, file_path="/tmp/fake.joblib", model_type=MagicMock(value="xgboost"),
+        accuracy=85.0, feature_columns=["sma_50", "rsi"],
+    )
+    svc.repo.get_active_model = AsyncMock(return_value=model_row)
+    svc.repo.save_prediction = AsyncMock()
+    df = _ohlcv_df(200)
+    fetch = AsyncMock(return_value=df)
+    monkeypatch.setattr(svc, "_fetch_historical_data", fetch)
+    monkeypatch.setattr(svc, "_get_current_price", AsyncMock(return_value=None))
+    seen = {}
+
+    def _predict(X):
+        seen["sma_50"] = float(X["sma_50"].iloc[0])
+        return np.array([123.0])
+
+    monkeypatch.setattr("app.services.prediction_service.joblib.load",
+                        lambda _: MagicMock(predict=_predict))
+
+    result = await svc.predict("FPT", days=1)
+    assert result is not None
+    # Asked for the widened lookback, not the raw 60-day LOOKBACK_PERIOD.
+    assert fetch.await_args.args[1] == svc._inference_lookback_days()
+    # Features came from the most recent bar.
+    expected = df["close"].rolling(50).mean().iloc[-1]
+    assert seen["sma_50"] == pytest.approx(expected)
+
+
+@pytest.mark.asyncio
+async def test_predict_returns_none_instead_of_keyerror_when_history_too_short(monkeypatch):
+    """42 bars (what 60 calendar days yields) cannot fill sma_50: the model's
+    feature list is unsatisfiable, so predict() must return None cleanly."""
+    svc = _make_service()
+    model_row = MagicMock(
+        id=1, file_path="/tmp/fake.joblib", model_type=MagicMock(value="xgboost"),
+        accuracy=85.0, feature_columns=["sma_50", "rsi"],
+    )
+    svc.repo.get_active_model = AsyncMock(return_value=model_row)
+    monkeypatch.setattr(svc, "_fetch_historical_data", AsyncMock(return_value=_ohlcv_df(42)))
+    monkeypatch.setattr(svc, "_get_current_price", AsyncMock(return_value=None))
+    monkeypatch.setattr("app.services.prediction_service.joblib.load",
+                        lambda _: MagicMock(predict=lambda X: np.array([1.0])))
+
+    assert await svc.predict("FPT", days=1) is None

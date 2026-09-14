@@ -922,7 +922,9 @@
       "mfi_label": "MFI",
       "macd_tooltip_label": "MACD",
       "signal_tooltip_label": "Tín hiệu",
-      "volume_tooltip_label": "KL"
+      "volume_tooltip_label": "KL",
+      "range_adjusted": "Khoảng ngày đã chọn quá ngắn cho các chỉ báo đã chọn; hệ thống đã tự động mở rộng.",
+      "no_data": "Không đủ dữ liệu giá để phân tích mã này."
     }
   },
   "journal": {

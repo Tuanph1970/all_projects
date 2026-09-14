@@ -496,3 +496,132 @@ async def test_stock_recommendations_swallows_per_symbol_errors():
         out = await svc.get_stock_recommendations(limit=5)
     # The first symbol errored; the remaining ones produced recs.
     assert len(out) >= 1
+
+
+# ---------------------------------------------------------------------------
+# AI Insights "Analyze does nothing" bug: the selected indicators must change
+# the score, the prediction route must be the real one, and a too-short date
+# range is widened (end = yesterday, start = end - required days).
+# ---------------------------------------------------------------------------
+
+class TestSentimentUsesSelectedIndicators:
+    def _df(self):
+        # Flat price so no momentum baseline; every signal comes from columns.
+        df = _trend_df(rows=30, start=100.0, drift=0.0)
+        df["macd"], df["macd_signal"] = 1.0, 0.0            # MACD bullish
+        df["sma_20"], df["sma_50"] = 120.0, 130.0            # price below SMAs -> bearish
+        df["rsi"] = 50.0                                     # neutral
+        df["stoch_k"] = 10.0                                 # oversold -> bullish
+        return df
+
+    def test_trend_dropdown_changes_score(self):
+        svc = _make_service()
+        macd = svc._analyze_sentiment_from_indicators(self._df(), {"trend": "MACD"})
+        sma = svc._analyze_sentiment_from_indicators(self._df(), {"trend": "SMA"})
+        assert macd.score > 0 > sma.score
+        assert "MACD" in macd.summary and "SMA" in sma.summary
+
+    def test_momentum_dropdown_changes_score(self):
+        svc = _make_service()
+        rsi = svc._analyze_sentiment_from_indicators(self._df(), {"momentum": "RSI"})
+        stoch = svc._analyze_sentiment_from_indicators(self._df(), {"momentum": "Stochastic"})
+        assert rsi.score == 0.0
+        assert stoch.score > 0
+
+    def test_missing_column_is_harmless(self):
+        df = _trend_df(rows=30, start=100.0, drift=0.0)   # no indicator columns at all
+        out = _make_service()._analyze_sentiment_from_indicators(
+            df, {"trend": "WMA", "momentum": "MFI", "volatility": "ATR", "volume": "VWAP"})
+        assert out.sentiment_type == "neutral"
+
+    def test_legacy_call_without_selection_still_reads_rsi_and_macd(self):
+        df = self._df()
+        df["rsi"] = 25.0
+        out = _make_service()._analyze_sentiment_from_indicators(df)
+        assert out.score > 0
+
+
+@pytest.mark.asyncio
+async def test_get_predictions_calls_predict_route_not_predictions():
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"predictions": [{"predicted_price": 110.0, "confidence": 0.7}]}
+    captured = {}
+
+    class Client(_FakeHttpxClient):
+        async def __aenter__(self):
+            c = await super().__aenter__()
+            async def get(url, **kw):
+                captured["url"] = url
+                return resp
+            c.get = get
+            return c
+
+    svc = _make_service()
+    with patch("app.services.insights_service.httpx.AsyncClient", return_value=Client(resp)):
+        await svc._get_predictions("FPT", current_price=100.0)
+    assert "/api/v2/predict/predict/FPT" in captured["url"]
+    assert "/predictions/" not in captured["url"]
+
+
+@pytest.mark.asyncio
+async def test_fallback_prediction_follows_the_windows_trend():
+    """With prediction-service down, the fallback must not be a constant
+    'neutral / 0.0%': a rising window projects up, a falling one down."""
+    resp = MagicMock()
+    resp.status_code = 503
+    svc = _make_service()
+    up = _trend_df(rows=40, start=100.0, drift=1.0)
+    down = _trend_df(rows=40, start=200.0, drift=-1.0)
+    with patch("app.services.insights_service.httpx.AsyncClient", return_value=_FakeHttpxClient(resp)):
+        p_up = await svc._get_predictions("FPT", float(up["close"].iloc[-1]), up)
+        p_down = await svc._get_predictions("FPT", float(down["close"].iloc[-1]), down)
+    assert p_up.ensemble.model_name == "Simple Trend"
+    assert p_up.ensemble.direction == "up" and p_up.ensemble.predicted_change > 0
+    assert p_down.ensemble.direction == "down" and p_down.ensemble.predicted_change < 0
+
+
+class TestEffectiveDateRange:
+    def test_long_enough_range_is_untouched(self):
+        svc = _make_service()
+        out = svc._effective_date_range("2025-01-01", "2026-09-01", {"trend": "MACD"})
+        assert out == ("2025-01-01", "2026-09-01", False, None)
+
+    def test_short_range_is_widened_to_yesterday_minus_required(self):
+        svc = _make_service()
+        start, end, adjusted, note = svc._effective_date_range(
+            "2026-08-20", "2026-09-10", {"trend": "MACD", "momentum": "RSI"})
+        yesterday = (datetime.now() - pd.Timedelta(days=1)).date()
+        required = svc._required_calendar_days({"trend": "MACD", "momentum": "RSI"})
+        assert adjusted is True
+        assert end == yesterday.isoformat()
+        assert start == (yesterday - pd.Timedelta(days=required)).isoformat()
+        assert "MACD" in note
+        # MACD is the longest indicator: roughly the "200 days" rule of thumb.
+        assert 180 <= required <= 230
+
+    def test_required_days_depends_on_selection(self):
+        svc = _make_service()
+        assert svc._required_calendar_days({"trend": "MACD"}) > svc._required_calendar_days({"trend": "WMA"})
+        assert svc._required_calendar_days({}) == int(20 * 1.6) + 14
+
+    def test_garbage_dates_are_replaced(self):
+        svc = _make_service()
+        _, _, adjusted, _ = svc._effective_date_range("", "not-a-date", {"trend": "SMA"})
+        assert adjusted is True
+
+
+@pytest.mark.asyncio
+async def test_comprehensive_insights_reports_effective_window():
+    svc = _make_service()
+    df = _trend_df(rows=120, start=100.0, drift=0.5)
+    fetch = AsyncMock(return_value=df)
+    pred = svc._simple_trend_prediction(100.0, df)
+    with patch.object(svc, "_fetch_historical_prices", fetch), \
+         patch.object(svc, "_get_predictions", AsyncMock(return_value=pred)):
+        out = await svc.get_comprehensive_insights(
+            "FPT", "2026-09-01", "2026-09-10", {"trend": "MACD", "momentum": "RSI"})
+    assert out.status == "success"
+    assert out.date_range_adjusted is True
+    # The widened window is what was actually fetched.
+    assert fetch.await_args.args[1:] == (out.effective_start_date, out.effective_end_date)

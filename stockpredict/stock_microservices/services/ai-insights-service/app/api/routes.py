@@ -472,6 +472,10 @@ async def get_comprehensive_insights(
         "data": {
             "symbol": result.symbol,
             "insights": result.insights.model_dump() if result.insights else None,
-            "generated_at": result.generated_at.isoformat()
+            "generated_at": result.generated_at.isoformat(),
+            "effective_start_date": result.effective_start_date,
+            "effective_end_date": result.effective_end_date,
+            "date_range_adjusted": result.date_range_adjusted,
+            "date_range_note": result.date_range_note,
         }
     }

@@ -61,18 +61,39 @@ class PredictionService:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    f"{settings.STOCK_DATA_SERVICE_URL}/{settings.API_PREFIX}/api/v2/stocks/{symbol}/quote",
+                    f"{settings.STOCK_DATA_SERVICE_URL}/{settings.API_PREFIX}/api/v2/stocks/{symbol}",
                     timeout=30.0
                 )
                 if response.status_code == 200:
                     data = response.json()
-                    return data.get("price") or data.get("close")
+                    return data.get("current_price") or data.get("price") or data.get("close")
         except Exception as e:
             logger.error(f"Failed to get current price for {symbol}: {e}")
         return None
 
-    def _prepare_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Prepare technical features for prediction"""
+    # Longest rolling window in _prepare_features (sma_50 / ema_50), plus the
+    # 14-bar RSI/ATR warm-up and lag rows on top of it.
+    MIN_FEATURE_BARS = 70
+    # Trading bars per calendar day on HOSE, with a margin for Tet/holidays.
+    CALENDAR_DAYS_PER_BAR = 1.6
+
+    def _inference_lookback_days(self) -> int:
+        """Calendar days of history needed so every feature column is populated.
+
+        LOOKBACK_PERIOD (60) is CALENDAR days; that is only ~42 trading bars,
+        so sma_50 was all-NaN, got dropped as an empty column, and
+        df[feature_cols] raised "['sma_50'] not in index" on every predict().
+        """
+        return max(settings.LOOKBACK_PERIOD,
+                   int(self.MIN_FEATURE_BARS * self.CALENDAR_DAYS_PER_BAR) + 14)
+
+    def _prepare_features(self, df: pd.DataFrame, with_target: bool = True) -> pd.DataFrame:
+        """Prepare technical features for prediction.
+
+        with_target=False is the inference path: no next-day target column,
+        so the most recent bar survives dropna() and the prediction is built
+        from today's features rather than yesterday's.
+        """
         df = df.copy()
 
         # Price-based features
@@ -116,8 +137,9 @@ class PredictionService:
             df[f"close_lag_{lag}"] = df["close"].shift(lag)
             df[f"returns_lag_{lag}"] = df["returns"].shift(lag)
 
-        # Target: next day's closing price
-        df["target"] = df["close"].shift(-1)
+        # Target: next day's closing price (training only)
+        if with_target:
+            df["target"] = df["close"].shift(-1)
 
         # Drop columns that are entirely NaN before the row-wise dropna() below.
         # The data service may leave raw fields (adj_close, value, change,
@@ -281,14 +303,19 @@ class PredictionService:
             # Load model
             ml_model = joblib.load(model.file_path)
 
-            # Fetch recent data
-            df = await self._fetch_historical_data(symbol, settings.LOOKBACK_PERIOD)
+            # Fetch recent data (enough bars to fill the longest window)
+            df = await self._fetch_historical_data(symbol, self._inference_lookback_days())
             if df is None:
                 return None
 
             # Prepare features
-            df = self._prepare_features(df)
+            df = self._prepare_features(df, with_target=False)
             feature_cols = model.feature_columns or self._get_feature_columns(df)
+            missing = [c for c in feature_cols if c not in df.columns]
+            if df.empty or missing:
+                logger.error(f"Prediction failed for {symbol}: insufficient history "
+                             f"({len(df)} usable rows, missing features: {missing})")
+                return None
 
             # Get current price
             current_price = await self._get_current_price(symbol)

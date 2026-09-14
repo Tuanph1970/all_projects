@@ -333,6 +333,13 @@ class ComprehensiveInsightsResponse(BaseModel):
     symbol: str
     insights: Optional[ComprehensiveInsights] = None
     generated_at: datetime
+    # Window actually analysed. When the requested range is too short for the
+    # selected indicators the service widens it (end = yesterday, start = end
+    # minus the required length) and reports that here so the UI can show it.
+    effective_start_date: Optional[str] = None
+    effective_end_date: Optional[str] = None
+    date_range_adjusted: bool = False
+    date_range_note: Optional[str] = None
 
 
 # ==========================================

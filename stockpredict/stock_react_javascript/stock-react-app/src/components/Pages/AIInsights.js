@@ -28,6 +28,9 @@ export const AIInsights = () => {
   });
   const [availableIndicators, setAvailableIndicators] = useState({});
   const [insights, setInsights] = useState(null);
+  // Set when the backend widened a too-short date range for the selected
+  // indicators (end = yesterday, start = end - required length).
+  const [rangeNotice, setRangeNotice] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('parameters'); // 'parameters' or 'charts'
@@ -121,6 +124,7 @@ export const AIInsights = () => {
   const fetchAIInsights = async () => {
     setLoading(true);
     setError(null);
+    setRangeNotice(null);
 
     try {
       const response = await axios.post(`${API_BASE_URL}/insights/comprehensive/`, {
@@ -130,10 +134,17 @@ export const AIInsights = () => {
         selected_indicators: selectedIndicators
       });
 
+      const payload = response.data.data || {};
+      if (payload.date_range_adjusted && payload.effective_start_date && payload.effective_end_date) {
+        // Reflect the window that was actually analysed in the date inputs
+        // (this also re-fetches the indicator chart for the same window).
+        setDateRange({ start: payload.effective_start_date, end: payload.effective_end_date });
+        setRangeNotice(payload.date_range_note || t('analysis.ai_insights.range_adjusted'));
+      }
       if (response.data.status === 'success') {
-        setInsights(response.data.data.insights);
+        setInsights(payload.insights);
       } else {
-        setError(response.data.message);
+        setError(response.data.message || t('analysis.ai_insights.no_data'));
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to fetch AI insights');
@@ -658,6 +669,15 @@ export const AIInsights = () => {
       </div>
 
       {/* Error Display */}
+      {rangeNotice && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+          <div className="flex items-center">
+            <AlertTriangle className="w-4 h-4 text-amber-500 mr-2" />
+            <span className="text-sm text-amber-800">{rangeNotice}</span>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
           <div className="flex items-center">
