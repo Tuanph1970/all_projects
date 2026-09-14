@@ -132,7 +132,7 @@ export const TechnicalAnalysis = () => {
 
   const formatCurrency = (value) => {
     if (!value) return 'N/A';
-    return `$${value.toFixed(2)}`;
+    return `${value.toFixed(2)} VND`;
   };
 
   const formatVolume = (value) => {
