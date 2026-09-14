@@ -10,7 +10,9 @@ Provides:
 import logging
 from typing import AsyncGenerator, Optional
 
+from sqlalchemy import event, exc
 from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
@@ -20,6 +22,41 @@ from sqlalchemy.pool import QueuePool
 from stock_common.config import DatabaseConfig
 
 logger = logging.getLogger(__name__)
+
+
+def install_stale_connection_guard(engine: AsyncEngine) -> None:
+    """Discard dead pooled connections at checkout instead of handing them out.
+
+    Pooled MySQL connections die while a service sits idle (server-side
+    ``wait_timeout`` is 8h; SSH-tunnel drops do it faster). The first request
+    after such a gap then fails with ``RuntimeError: unable to perform
+    operation on <TCPTransport closed=True ...>`` -> HTTP 500, which the
+    frontend renders as a screen full of N/A.
+
+    ``pool_pre_ping=True`` does NOT cover this: SQLAlchemy only treats DBAPI
+    ``Error`` subclasses as disconnects, and the asyncmy/uvloop failure is a
+    bare ``RuntimeError`` that escapes the pre-ping and propagates. This
+    listener pings on the pool's ``checkout`` hook and converts *any* failure
+    into ``DisconnectionError``, which makes the pool drop that connection and
+    retry the checkout with a fresh one (up to 3 attempts).
+    """
+
+    @event.listens_for(engine.sync_engine, "checkout")
+    def _ping_on_checkout(dbapi_connection, connection_record, connection_proxy):
+        ping_or_discard(dbapi_connection)
+
+
+def ping_or_discard(dbapi_connection) -> None:
+    """Ping a pooled DBAPI connection; raise DisconnectionError on any failure.
+
+    Split out of :func:`install_stale_connection_guard` so it can be unit-tested
+    without a live driver.
+    """
+    try:
+        dbapi_connection.ping(False)
+    except Exception as err:  # noqa: BLE001 - anything means "not usable"
+        logger.warning("Discarding stale DB connection: %s", err)
+        raise exc.DisconnectionError() from err
 
 
 class DatabaseManager:
@@ -47,11 +84,11 @@ class DatabaseManager:
             pool_size=self.config.pool_size,
             max_overflow=self.config.pool_size * 2,
             pool_timeout=self.config.pool_timeout,
-            pool_recycle=3600,  # Recycle connections after 1 hour
-            pool_pre_ping=True,  # Check connection health before use
+            pool_recycle=1800,  # well under MySQL wait_timeout (8h)
             echo=self.config.echo,
             poolclass=QueuePool,
         )
+        install_stale_connection_guard(self._engine)
 
         self._session_factory = async_sessionmaker(
             bind=self._engine,

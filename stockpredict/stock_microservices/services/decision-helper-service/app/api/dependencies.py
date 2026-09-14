@@ -7,6 +7,7 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from stock_common.database import install_stale_connection_guard
 
 from app.config import get_settings
 
@@ -16,8 +17,12 @@ engine = create_async_engine(
     settings.database_url,
     echo=settings.DEBUG,
     pool_size=settings.DATABASE_POOL_SIZE,
+    # Stale-connection handling lives in install_stale_connection_guard()
+    # below; pool_pre_ping alone cannot catch asyncmy's RuntimeError.
+    pool_recycle=1800,  # well under MySQL wait_timeout (8h)
     max_overflow=10,
 )
+install_stale_connection_guard(engine)
 
 async_session_factory = async_sessionmaker(
     engine, class_=AsyncSession, expire_on_commit=False

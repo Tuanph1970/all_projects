@@ -325,6 +325,27 @@ async def test_technical_analysis_happy_path_builds_full_response():
 
 
 @pytest.mark.asyncio
+async def test_technical_analysis_survives_cache_write_failure():
+    """A dead pooled MySQL connection (idle gap, tunnel drop) must not turn
+    an already-computed analysis into a 500 — the UI shows that as N/A."""
+    svc = _make_service()
+    svc.repo.get_cached_analysis = AsyncMock(return_value=None)
+    svc.repo.save_analysis = AsyncMock(
+        side_effect=RuntimeError("unable to perform operation on <TCPTransport closed=True>")
+    )
+    svc.repo.session = MagicMock()
+    svc.repo.session.rollback = AsyncMock()
+    df = _trend_df(rows=60, start=100.0, drift=1.0)
+    with patch.object(svc, "_fetch_historical_data", AsyncMock(return_value=df)):
+        out = await svc.get_technical_analysis("FPT")
+    assert out is not None
+    assert out.symbol == "FPT"
+    assert out.momentum_indicators.RSI is not None
+    svc.repo.save_analysis.assert_awaited_once()
+    svc.repo.session.rollback.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_technical_analysis_classifies_downtrend():
     svc = _make_service()
     svc.repo.get_cached_analysis = AsyncMock(return_value=None)

@@ -5,6 +5,7 @@ from typing import AsyncGenerator, Optional
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from stock_common.database import install_stale_connection_guard
 
 from app.config import get_settings
 from app.models.domain import User
@@ -18,14 +19,12 @@ settings = get_settings()
 engine = create_async_engine(
     settings.database_url,
     pool_size=settings.DATABASE_POOL_SIZE,
-    # pool_pre_ping disabled: asyncmy's connection.ping() signature requires
-    # a `reconnect` arg that SQLAlchemy's pymysql dialect doesn't pass,
-    # causing every checkout to TypeError. Stale connections still recover
-    # via SQLAlchemy's per-statement error handling.
-    pool_pre_ping=False,
-    pool_recycle=3600,  # recycle every hour as a coarse stale-conn guard
+    # Stale-connection handling lives in install_stale_connection_guard()
+    # below; pool_pre_ping alone cannot catch asyncmy's RuntimeError.
+    pool_recycle=1800,  # well under MySQL wait_timeout (8h)
     echo=settings.DEBUG,
 )
+install_stale_connection_guard(engine)
 
 async_session_factory = async_sessionmaker(
     engine,

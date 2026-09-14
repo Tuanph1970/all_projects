@@ -405,23 +405,33 @@ class AnalysisService:
             TechnicalIndicator(name="BB Lower", value=round(bb_lower, 2), signal="support"),
         ]
 
-        # Cache result
-        await self.repo.save_analysis(
-            symbol=symbol,
-            analysis_type=AnalysisType.TECHNICAL,
-            rsi=rsi,
-            macd=macd,
-            macd_signal=macd_signal,
-            sma_20=sma_20,
-            sma_50=sma_50,
-            bollinger_upper=bb_upper,
-            bollinger_lower=bb_lower,
-            overall_signal=signal.value,
-            signal_strength=strength,
-            technical_score=score,
-            support_levels=supports,
-            resistance_levels=resistances
-        )
+        # Cache result.  This write only feeds portfolio/screener; the response
+        # below is already fully computed from price history, so a DB hiccup
+        # (stale pooled connection after an idle gap, tunnel drop) must not
+        # turn into a 500 that the Indicators tab renders as a wall of N/A.
+        try:
+            await self.repo.save_analysis(
+                symbol=symbol,
+                analysis_type=AnalysisType.TECHNICAL,
+                rsi=rsi,
+                macd=macd,
+                macd_signal=macd_signal,
+                sma_20=sma_20,
+                sma_50=sma_50,
+                bollinger_upper=bb_upper,
+                bollinger_lower=bb_lower,
+                overall_signal=signal.value,
+                signal_strength=strength,
+                technical_score=score,
+                support_levels=supports,
+                resistance_levels=resistances
+            )
+        except Exception as exc:  # noqa: BLE001 - best-effort cache write
+            logger.warning("save_analysis failed for %s (serving uncached): %s", symbol, exc)
+            try:
+                await self.repo.session.rollback()
+            except Exception:  # noqa: BLE001 - connection may already be gone
+                pass
 
         # Get latest OHLCV data
         latest_row = df.iloc[-1]
