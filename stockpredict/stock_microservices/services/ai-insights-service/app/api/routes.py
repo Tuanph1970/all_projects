@@ -343,7 +343,11 @@ async def get_available_indicators(
         indicators_by_category[cat.category] = [
             {
                 "name": indicator,
-                "description": indicator_descriptions.get(indicator, indicator)
+                "description": indicator_descriptions.get(indicator, indicator),
+                # Calendar days of history this indicator needs; the UI widens
+                # a shorter date range as soon as the indicator is selected
+                # (end = today - 1, start = end - required_calendar_days).
+                "required_calendar_days": service._required_calendar_days({cat.category: indicator}),
             }
             for indicator in cat.indicators
         ]

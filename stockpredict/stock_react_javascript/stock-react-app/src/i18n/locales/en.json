@@ -923,6 +923,7 @@
       "macd_tooltip_label": "MACD",
       "signal_tooltip_label": "Signal",
       "volume_tooltip_label": "Vol",
+      "range_adjusted_for": "The selected indicators need {{days}} days of history; the date range was set to the last {{days}} days (ending yesterday).",
       "range_adjusted": "The selected date range was too short for the chosen indicators; it was extended automatically.",
       "no_data": "Not enough price history to analyse this stock."
     }

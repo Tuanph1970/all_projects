@@ -199,3 +199,16 @@ async def test_comprehensive_insights_unwraps_into_flat_data_shape(client: Async
         assert body["data"]["symbol"] == "FPT"
         assert body["data"]["insights"]["ai_score"]["overall_score"] == 72.0
         assert body["data"]["generated_at"].startswith("2026-05-11")
+
+
+@pytest.mark.asyncio
+async def test_available_indicators_carry_required_calendar_days(client: AsyncClient):
+    """The UI widens a too-short date range on dropdown change using this
+    field, so every indicator must carry it and MACD must be the longest."""
+    resp = await client.get(f"{PREFIX}/insights/indicators/available")
+    assert resp.status_code == 200
+    cats = resp.json()["data"]["indicators_by_category"]
+    days = {i["name"]: i["required_calendar_days"] for c in cats.values() for i in c}
+    assert all(isinstance(v, int) and v > 0 for v in days.values())
+    assert days["MACD"] == max(days.values())
+    assert 180 <= days["MACD"] <= 230

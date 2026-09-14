@@ -153,12 +153,48 @@ export const AIInsights = () => {
     }
   };
 
+  // Days of history the current selection needs (from the backend's table,
+  // carried on /insights/indicators/available as required_calendar_days).
+  const requiredDaysFor = useCallback((selection, available) => {
+    let required = 0;
+    Object.entries(selection).forEach(([category, name]) => {
+      const meta = (available[category] || []).find(i => i.name === name);
+      if (meta?.required_calendar_days) required = Math.max(required, meta.required_calendar_days);
+    });
+    return required;
+  }, []);
+
+  // User rule: if the selected range is shorter than the selected indicators
+  // need, set end = today - 1 and start = end - required days. Applied on
+  // every dropdown change so the date inputs move immediately; the backend
+  // applies the same rule as a safety net when Analyze is clicked.
+  const ensureRangeForSelection = useCallback((selection, available) => {
+    const required = requiredDaysFor(selection, available);
+    if (!required) return;
+    const spanDays = (new Date(dateRange.end) - new Date(dateRange.start)) / 86400000;
+    if (Number.isFinite(spanDays) && spanDays >= required) return;
+    const newEnd = new Date();
+    newEnd.setDate(newEnd.getDate() - 1);
+    const newStart = new Date(newEnd);
+    newStart.setDate(newStart.getDate() - required);
+    const iso = (d) => d.toISOString().slice(0, 10);
+    setDateRange({ start: iso(newStart), end: iso(newEnd) });
+    setRangeNotice(t('analysis.ai_insights.range_adjusted_for', { days: required }));
+  }, [requiredDaysFor, dateRange.start, dateRange.end, t]);
+
   const handleIndicatorChange = (category, indicator) => {
-    setSelectedIndicators(prev => ({
-      ...prev,
-      [category]: indicator
-    }));
+    const next = { ...selectedIndicators, [category]: indicator };
+    setSelectedIndicators(next);
+    ensureRangeForSelection(next, availableIndicators);
   };
+
+  // Once the indicator table arrives, check the default selection too.
+  useEffect(() => {
+    if (Object.keys(availableIndicators).length) {
+      ensureRangeForSelection(selectedIndicators, availableIndicators);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableIndicators]);
 
   // eslint-disable-next-line no-unused-vars -- preserved for the indicator-chart path
   const fetchIndicatorData = async () => {
