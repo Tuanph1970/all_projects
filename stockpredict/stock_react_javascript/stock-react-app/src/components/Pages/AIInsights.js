@@ -12,6 +12,19 @@ const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 // Use centralized API configuration - AI endpoints
 const API_BASE_URL = API_BASE_URLS.AI_API;
 
+const DEFAULT_HISTORY_DAYS = 206;
+
+const isoDate = (d) => d.toISOString().slice(0, 10);
+
+// end = today - 1, start = end - days (the auto-widen rule for indicators).
+const defaultDateRange = (days) => {
+  const end = new Date();
+  end.setDate(end.getDate() - 1);
+  const start = new Date(end);
+  start.setDate(start.getDate() - days);
+  return { start: isoDate(start), end: isoDate(end) };
+};
+
 export const AIInsights = () => {
   const { t } = useTranslation();
   const [selectedStock, setSelectedStock] = useState('');
@@ -22,10 +35,10 @@ export const AIInsights = () => {
     volatility: 'BB',
     volume: 'OBV'
   });
-  const [dateRange, setDateRange] = useState({
-    start: '2024-01-01',
-    end: '2024-12-31'
-  });
+  // Default window: the last DEFAULT_HISTORY_DAYS ending yesterday (the
+  // longest requirement, MACD). A fixed historical year here meant the page
+  // silently analysed stale data and the auto-widen rule never triggered.
+  const [dateRange, setDateRange] = useState(() => defaultDateRange(DEFAULT_HISTORY_DAYS));
   const [availableIndicators, setAvailableIndicators] = useState({});
   const [insights, setInsights] = useState(null);
   // Set when the backend widened a too-short date range for the selected
@@ -173,12 +186,7 @@ export const AIInsights = () => {
     if (!required) return;
     const spanDays = (new Date(dateRange.end) - new Date(dateRange.start)) / 86400000;
     if (Number.isFinite(spanDays) && spanDays >= required) return;
-    const newEnd = new Date();
-    newEnd.setDate(newEnd.getDate() - 1);
-    const newStart = new Date(newEnd);
-    newStart.setDate(newStart.getDate() - required);
-    const iso = (d) => d.toISOString().slice(0, 10);
-    setDateRange({ start: iso(newStart), end: iso(newEnd) });
+    setDateRange(defaultDateRange(required));
     setRangeNotice(t('analysis.ai_insights.range_adjusted_for', { days: required }));
   }, [requiredDaysFor, dateRange.start, dateRange.end, t]);
 
