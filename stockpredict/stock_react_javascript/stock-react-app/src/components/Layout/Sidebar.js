@@ -16,6 +16,7 @@ import {
   Wallet,
   BookOpen,
   Crosshair,
+  Newspaper,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -131,6 +132,14 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
         { key: 'performance', labelKey: 'sidebar.performance', route: 'performance' },
         { key: 'alerts',      labelKey: 'sidebar.alerts',      route: 'alerts' },
         { key: 'watchlist',   labelKey: 'sidebar.watchlist',   route: 'watchlist' }
+      ]
+    },
+    {
+      key: 'news',
+      labelKey: 'sidebar.news',
+      icon: Newspaper,
+      submenu: [
+        { key: 'tcb-news', labelKey: 'sidebar.tcb_news', route: 'tcb-news' }
       ]
     },
     {

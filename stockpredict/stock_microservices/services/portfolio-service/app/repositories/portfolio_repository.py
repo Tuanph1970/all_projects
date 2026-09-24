@@ -74,7 +74,11 @@ class PortfolioRepository:
 
     # Holding Operations
     async def add_holding(self, portfolio_id: int, symbol: str, quantity: int = 0,
-                         average_price: Optional[float] = None, is_watchlist_only: bool = False) -> PortfolioHolding:
+                         average_price: Optional[float] = None, is_watchlist_only: bool = False,
+                         **proposal) -> PortfolioHolding:
+        """Insert a holding. `proposal` carries the optional proposal_* columns
+        (who recommended the symbol and what they said); omitted keys fall back to the
+        column defaults."""
         total_cost = (quantity * average_price) if average_price else 0
         holding = PortfolioHolding(
             portfolio_id=portfolio_id,
@@ -82,7 +86,8 @@ class PortfolioRepository:
             quantity=quantity,
             average_price=average_price,
             total_cost=total_cost,
-            is_watchlist_only=is_watchlist_only
+            is_watchlist_only=is_watchlist_only,
+            **{k: v for k, v in proposal.items() if v is not None}
         )
         self.session.add(holding)
         await self.session.commit()

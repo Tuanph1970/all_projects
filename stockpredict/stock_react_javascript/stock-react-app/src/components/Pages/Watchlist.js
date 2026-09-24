@@ -5,6 +5,31 @@ import httpClient from '../../services/httpClient';
 import { API_ENDPOINTS } from '../../constants/api';
 import { useNavigate } from 'react-router-dom';
 
+// BUY / SELL / HOLD / WATCH as written to portfolio_holdings.proposal_action.
+// WATCH is ours: TCBS's "Chờ mua" is an explicit not-yet-a-buy, so it is not folded
+// into BUY. The verbatim wording rides along as the tooltip.
+const PROPOSAL_COLORS = {
+  BUY: { bg: '#dcfce7', fg: '#166534' },
+  SELL: { bg: '#fee2e2', fg: '#991b1b' },
+  HOLD: { bg: '#e0e7ff', fg: '#3730a3' },
+  WATCH: { bg: '#fef3c7', fg: '#92400e' },
+};
+
+const ProposalBadge = ({ action, label }) => {
+  const palette = PROPOSAL_COLORS[action] || { bg: '#f3f4f6', fg: '#6b7280' };
+  return (
+    <span
+      title={label || ''}
+      style={{
+        background: palette.bg, color: palette.fg, borderRadius: 4,
+        padding: '2px 8px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
+      }}
+    >
+      {action}
+    </span>
+  );
+};
+
 const Watchlist = () => {
   const { t } = useTranslation();
   const [items, setItems] = useState([]);
@@ -143,6 +168,8 @@ const Watchlist = () => {
                 <th style={{ padding: 12, textAlign: 'left' }}>{t('tools.watchlist.column_name')}</th>
                 <th style={{ padding: 12, textAlign: 'right' }}>{t('tools.watchlist.column_current_price')}</th>
                 <th style={{ padding: 12, textAlign: 'right' }}>{t('tools.watchlist.column_change')}</th>
+                <th style={{ padding: 12, textAlign: 'center' }}>{t('tools.watchlist.column_proposal_action')}</th>
+                <th style={{ padding: 12, textAlign: 'left' }}>{t('tools.watchlist.column_proposal_by')}</th>
                 <th style={{ padding: 12, textAlign: 'center' }}></th>
               </tr>
             </thead>
@@ -165,6 +192,17 @@ const Watchlist = () => {
                     <td style={{ padding: 12, textAlign: 'right' }}>{formatPrice(item.current_price ?? item.price)}</td>
                     <td style={{ padding: 12, textAlign: 'right', color: positive ? '#16a34a' : '#dc2626' }}>
                       {formatPct(changePct)}
+                    </td>
+                    <td style={{ padding: 12, textAlign: 'center' }}>
+                      {item.proposal_action
+                        ? <ProposalBadge action={item.proposal_action} label={item.proposal_label} />
+                        : <span style={{ color: '#9ca3af' }}>—</span>}
+                    </td>
+                    <td style={{ padding: 12, color: '#4b5563' }} title={item.proposal_note || ''}>
+                      {item.proposal_by || '—'}
+                      {item.proposal_date && (
+                        <span style={{ color: '#9ca3af', fontSize: 12 }}> · {item.proposal_date}</span>
+                      )}
                     </td>
                     <td style={{ padding: 12, textAlign: 'center' }}>
                       <button

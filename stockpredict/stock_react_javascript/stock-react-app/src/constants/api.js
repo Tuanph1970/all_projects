@@ -52,6 +52,7 @@ export const API_BASE_URLS = {
   HELPER_API: `${API_GATEWAY_URL}/stock_helper/api/v2/helper`,
   CHART_DECOMP_API: `${API_GATEWAY_URL}/stock_helper/api/v2/chart-decomp`,
   EVENT_REACTION_API: `${API_GATEWAY_URL}/stock_helper/api/v2/event-reaction`,
+  NEWS_API: `${API_GATEWAY_URL}/stock_helper/api/v2/news`,
 
   // Legacy API (fallback - Django monolith)
   LEGACY_API: `${API_GATEWAY_URL}/api/v1`
@@ -116,6 +117,14 @@ export const API_ENDPOINTS = {
   // Watchlist endpoints
   WATCHLIST: `${API_BASE_URLS.PORTFOLIO_API}/watchlist`,
   WATCHLIST_REMOVE: (symbol) => `${API_BASE_URLS.PORTFOLIO_API}/watchlist/${symbol}`,
+
+  // TCB News — the pasted TCBS daily research email (news-service, port 8013)
+  TCB_NEWS_PREVIEW: `${API_BASE_URLS.NEWS_API}/tcb/preview`,
+  TCB_NEWS: `${API_BASE_URLS.NEWS_API}/tcb`,
+  TCB_NEWS_ITEM: (id) => `${API_BASE_URLS.NEWS_API}/tcb/${id}`,
+  TCB_NEWS_RECOS: `${API_BASE_URLS.NEWS_API}/tcb/recos`,
+  TCB_NEWS_RECORD: `${API_BASE_URLS.NEWS_API}/tcb/calls/record`,
+  TCB_NEWS_SCORE: `${API_BASE_URLS.NEWS_API}/tcb/score`,
 
   // Notifications endpoints — backend persists portfolio.alert.triggered
   // events as Notification rows; the bell-icon widget consumes these.

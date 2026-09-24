@@ -56,6 +56,7 @@ import RiskDashboard from '../Pages/RiskDashboard';
 import WatchlistHeatMap from '../Pages/WatchlistHeatMap';
 import DecisionHelperOverview from '../Pages/DecisionHelperOverview';
 import ChartDecompPage from '../Pages/ChartDecomp';
+import TcbNews from '../Pages/TcbNews';
 import VolForecastPage from '../Pages/ChartDecomp/VolForecastPage';
 import EventReactionPage from '../Pages/EventReaction';
 import AlertCenter from '../common/AlertToast';
@@ -182,6 +183,9 @@ const MainLayout = () => {
             <Route path="/chart-decomp" element={<div className="chart-dense chart-tall"><ChartDecompPage /></div>} />
             <Route path="/vol-forecast" element={<div className="chart-dense chart-tall"><VolForecastPage /></div>} />
             <Route path="/event-reaction" element={<EventReactionPage />} />
+
+            {/* News */}
+            <Route path="/tcb-news" element={<TcbNews />} />
 
             {/* Tools */}
             <Route path="/screener" element={<StockScreener />} />

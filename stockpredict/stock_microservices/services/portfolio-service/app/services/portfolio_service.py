@@ -13,7 +13,8 @@ from app.models.schemas import (
     PortfolioCreate, PortfolioUpdate, PortfolioResponse, PortfolioWithHoldings, PortfolioSummary,
     HoldingCreate, HoldingUpdate, HoldingResponse,
     TransactionCreate, TransactionResponse,
-    AlertCreate, AlertUpdate, AlertResponse
+    AlertCreate, AlertUpdate, AlertResponse,
+    WatchlistAdd
 )
 
 settings = get_settings()
@@ -167,6 +168,51 @@ class PortfolioService:
             )
 
         # Fire-and-forget: trigger stock-data-service to ensure company exists and sync historical data
+        asyncio.create_task(self._trigger_ensure_and_sync(data.symbol))
+
+        return HoldingResponse.model_validate(holding) if holding else None
+
+    async def add_to_watchlist(
+        self, portfolio_id: int, user_id: int, data: WatchlistAdd
+    ) -> Optional[HoldingResponse]:
+        """Put a symbol on the watchlist, carrying an optional proposal.
+
+        Deliberately not `add_holding`: that method merges quantities and rewrites
+        `is_watchlist_only` from its input, so pushing a broker recommendation for a
+        stock the user actually owns would demote the position to watchlist-only and
+        drop it out of the holdings screen. Here an existing row keeps its quantity and
+        its watchlist flag untouched — only the proposal columns are refreshed, which is
+        exactly what a new call on a symbol you already hold should do.
+        """
+        portfolio = await self.repo.get_portfolio_by_id(portfolio_id, user_id)
+        if not portfolio:
+            return None
+
+        proposal = {
+            "proposal_by": data.proposal_by,
+            "proposal_action": data.proposal_action,
+            "proposal_label": data.proposal_label,
+            "proposal_date": data.proposal_date,
+            "proposal_note": data.proposal_note,
+        }
+        supplied = {k: v for k, v in proposal.items() if v is not None}
+
+        existing = await self.repo.get_holding(portfolio_id, data.symbol)
+        if existing:
+            holding = (
+                await self.repo.update_holding(existing.id, **supplied)
+                if supplied else existing
+            )
+        else:
+            holding = await self.repo.add_holding(
+                portfolio_id=portfolio_id,
+                symbol=data.symbol,
+                quantity=0,
+                is_watchlist_only=True,
+                **supplied,
+            )
+
+        # Fire-and-forget: make sure the company exists and its history is synced.
         asyncio.create_task(self._trigger_ensure_and_sync(data.symbol))
 
         return HoldingResponse.model_validate(holding) if holding else None

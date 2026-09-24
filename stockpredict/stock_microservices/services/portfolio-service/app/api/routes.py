@@ -326,10 +326,10 @@ async def add_to_watchlist(
     """Add symbol to watchlist (default portfolio)"""
     service = PortfolioService(db)
     default_portfolio = await service.get_or_create_default_portfolio(current_user["user_id"])
-    holding = await service.add_holding(
+    holding = await service.add_to_watchlist(
         default_portfolio.id,
         current_user["user_id"],
-        HoldingCreate(symbol=symbol, is_watchlist_only=True)
+        WatchlistAdd(symbol=symbol)
     )
     if not holding:
         raise HTTPException(status_code=500, detail="Failed to add to watchlist")
@@ -426,13 +426,16 @@ async def add_to_watchlist_json(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Add symbol to watchlist via JSON body"""
+    """Add symbol to watchlist via JSON body.
+
+    Carries the optional proposal_* fields, which is how a confirmed TCB News
+    recommendation reaches the watch screen (proposal_by defaults to "TCB")."""
     service = PortfolioService(db)
     default_portfolio = await service.get_or_create_default_portfolio(current_user["user_id"])
-    holding = await service.add_holding(
+    holding = await service.add_to_watchlist(
         default_portfolio.id,
         current_user["user_id"],
-        HoldingCreate(symbol=data.symbol, is_watchlist_only=True)
+        data
     )
     if not holding:
         raise HTTPException(status_code=500, detail="Failed to add to watchlist")

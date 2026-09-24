@@ -22,9 +22,12 @@ from sqlalchemy import create_engine
 from starlette.responses import Response
 
 from app.api.routes import router
+from app.api.tcb_routes import router as tcb_router
 from app.config import get_settings
 from app.deps import container
 from app.repositories.news_repository import NewsRepository
+from app.repositories.tcb_repository import TcbRepository
+from app.services.watchlist_push import WatchlistPusher
 
 settings = get_settings()
 logging.basicConfig(level=logging.DEBUG if settings.DEBUG else logging.INFO)
@@ -52,6 +55,19 @@ async def lifespan(app: FastAPI):
         repo.ensure_schema()
         container.repo = repo
 
+        # Pasted-TCBS-mail tables share the engine and the Base with news_events, so
+        # this only adds the three tcb_news* tables (FR-BM-MARKET/FR-BM-CALLS).
+        tcb_repo = TcbRepository(engine)
+        tcb_repo.ensure_schema()
+        container.tcb_repo = tcb_repo
+        container.watchlist_pusher = WatchlistPusher(
+            settings.PORTFOLIO_SERVICE_URL,
+            api_prefix=settings.API_PREFIX,
+            timeout=settings.HTTP_TIMEOUT_SECONDS,
+        )
+        if settings.ENABLE_SCORING:
+            _start_call_scorer(tcb_repo)
+
         # Start the company poller outside test env (TestClient must not spawn pollers
         # or touch RabbitMQ/upstreams). N12 adds the macro poller behind ENABLE_MACRO.
         if settings.ENABLE_COMPANY and settings.ENVIRONMENT != "test":
@@ -69,6 +85,8 @@ async def lifespan(app: FastAPI):
         await container.scheduler.stop()
     if container.macro_scheduler is not None:
         await container.macro_scheduler.stop()
+    if container.scoring_scheduler is not None:
+        await container.scoring_scheduler.stop()
     if container.bus is not None:
         try:
             await container.bus.disconnect()
@@ -108,6 +126,29 @@ def _start_company_poller(repo: NewsRepository) -> None:
     container.bus = bus
     container.company_poller = poller
     container.scheduler = sched
+
+
+def _start_call_scorer(tcb_repo: TcbRepository) -> None:
+    """Wire the forward-return scorer (FR-BM-SCORE) and, outside tests, its schedule.
+
+    The scorer itself is always constructed so `POST /news/tcb/score` works on demand;
+    only the background loop is skipped under ENVIRONMENT=test, matching the pollers.
+    A stock-data-service outage defers a tick, it never fails startup."""
+    from app.ingest.price_history import PriceHistorySource
+    from app.services.call_scorer import CallScorer
+    from app.services.scheduler import PollerScheduler
+
+    prices = PriceHistorySource(
+        settings.STOCK_DATA_SERVICE_URL,
+        api_prefix=settings.API_PREFIX,
+        timeout=settings.HTTP_TIMEOUT_SECONDS,
+    )
+    scorer = CallScorer(tcb_repo, prices, index_symbol=settings.MARKET_INDEX_SYMBOL)
+    container.call_scorer = scorer
+    if settings.ENVIRONMENT != "test":
+        sched = PollerScheduler(scorer, settings.SCORING_INTERVAL_SECONDS, name="call-scorer")
+        sched.start()
+        container.scoring_scheduler = sched
 
 
 def _load_macro_sources() -> list:
@@ -179,6 +220,12 @@ app.include_router(
     router,
     prefix=f"/{settings.API_PREFIX}/api/v2/news",
     tags=["News"],
+)
+
+app.include_router(
+    tcb_router,
+    prefix=f"/{settings.API_PREFIX}/api/v2/news",
+    tags=["TCB News"],
 )
 
 

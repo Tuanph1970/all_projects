@@ -267,7 +267,7 @@ async def test_add_to_watchlist(client: AsyncClient, mock_portfolio, mock_holdin
     with patch("app.api.routes.PortfolioService") as MockService:
         mock_service = MagicMock()
         mock_service.get_or_create_default_portfolio = AsyncMock(return_value=mock_portfolio)
-        mock_service.add_holding = AsyncMock(return_value=watchlist_holding)
+        mock_service.add_to_watchlist = AsyncMock(return_value=watchlist_holding)
         MockService.return_value = mock_service
 
         response = await client.post("/stock_helper/api/v2/portfolio/watchlist/VNM")

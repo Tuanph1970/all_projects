@@ -1,7 +1,7 @@
 """Domain Models for Portfolio Service"""
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum as SQLEnum, BigInteger
+from sqlalchemy import Column, Integer, String, Float, Boolean, Date, DateTime, ForeignKey, Text, Enum as SQLEnum, BigInteger
 from sqlalchemy.orm import relationship, DeclarativeBase
 import enum
 
@@ -52,6 +52,18 @@ class PortfolioHolding(Base):
     profit_loss = Column(Float, nullable=True)
     profit_loss_percent = Column(Float, nullable=True)
     is_watchlist_only = Column(Boolean, default=False)
+
+    # Who proposed watching this symbol, and what they said.
+    # Written by the TCB News screen when a "3. Khuyến nghị cổ phiếu" recommendation is
+    # confirmed; a manual add takes the server default. `proposal_label` keeps the
+    # desk's exact wording ("Chờ mua") beside the normalised action, so the
+    # normalisation is never lossy.
+    proposal_by = Column(String(32), nullable=True, server_default="TCB")
+    proposal_action = Column(String(8), nullable=True)      # BUY | SELL | HOLD | WATCH
+    proposal_label = Column(String(128), nullable=True)     # verbatim source phrase
+    proposal_date = Column(Date, nullable=True)             # the session it was made on
+    proposal_note = Column(Text, nullable=True)             # rationale excerpt
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

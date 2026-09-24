@@ -73,7 +73,9 @@
     "watchlist": "Watchlist",
     "chart_decomp": "Chart Decomposition",
     "vol_forecast": "Forecast & Backtest",
-    "event_reaction": "Event Reaction"
+    "event_reaction": "Event Reaction",
+    "news": "News",
+    "tcb_news": "TCB News"
   },
   "page_titles": {
     "dashboard": {
@@ -255,6 +257,10 @@
     "vol_forecast": {
       "title": "Forecast & Backtest",
       "emphasis": "Backtest"
+    },
+    "tcb-news": {
+      "title": "TCB News",
+      "emphasis": "TCB"
     }
   },
   "agent": {
@@ -481,7 +487,9 @@
       "remove_tooltip": "Remove from list",
       "load_error": "Couldn't load the watchlist",
       "add_error": "Couldn't add the symbol",
-      "remove_error": "Couldn't remove {{symbol}}"
+      "remove_error": "Couldn't remove {{symbol}}",
+      "column_proposal_by": "Proposed by",
+      "column_proposal_action": "Call"
     }
   },
   "portfolio": {
@@ -923,7 +931,7 @@
       "macd_tooltip_label": "MACD",
       "signal_tooltip_label": "Signal",
       "volume_tooltip_label": "Vol",
-      "range_adjusted_for": "The selected indicators need {{days}} days of history; the date range was set to the last {{days}} days (ending yesterday).",
+      "range_adjusted_for": "The selected indicators need {{days}} days of history; the date range was set to the last {{days}} days ending {{end}}.",
       "range_adjusted": "The selected date range was too short for the chosen indicators; it was extended automatically.",
       "no_data": "Not enough price history to analyse this stock."
     }
@@ -2259,7 +2267,8 @@
     "input": {
       "title": "Input Data",
       "ticker_label": "Ticker",
-      "ticker_placeholder": "E.g. VCB, HPG, VIC…",
+      "ticker_placeholder": "Select a ticker…",
+      "no_user_tickers": "No tickers yet — add symbols to your watchlist or portfolio",
       "period_label": "Data Period",
       "period_1y": "1 Year",
       "period_2y": "2 Years",
@@ -2555,19 +2564,51 @@
       ],
       "howto_title": "How to use the GUI",
       "steps": [
-        { "title": "Measure an event", "desc": "On the Analysis tab, fill in Symbol, Market index, Event kind, Event date, Actual and Consensus, then click Measure. Surprise = Actual − Consensus." },
-        { "title": "Read the latest measurement", "desc": "The result card shows Surprise (σ, standardized), CAR (abnormal return), Beta, and whether the reaction was a Jump. Green = positive, red = negative." },
-        { "title": "Build up at least 3 events", "desc": "Each measurement is appended to the “Measured events” table. Measure several events (same or different symbols) to form a cross-section." },
-        { "title": "Run cross-sectional exposure", "desc": "Pick an Inference mode (cluster by event date / portfolio / iid), then click Run exposure. Read γ₁ (exposure), its t-stat, and R²." },
-        { "title": "Optional: calibrate the jump test", "desc": "Tick “Compute jump null-FPR” before measuring to estimate the jump test’s false-positive rate under a no-jump null." }
+        {
+          "title": "Measure an event",
+          "desc": "On the Analysis tab, fill in Symbol, Market index, Event kind, Event date, Actual and Consensus, then click Measure. Surprise = Actual − Consensus."
+        },
+        {
+          "title": "Read the latest measurement",
+          "desc": "The result card shows Surprise (σ, standardized), CAR (abnormal return), Beta, and whether the reaction was a Jump. Green = positive, red = negative."
+        },
+        {
+          "title": "Build up at least 3 events",
+          "desc": "Each measurement is appended to the “Measured events” table. Measure several events (same or different symbols) to form a cross-section."
+        },
+        {
+          "title": "Run cross-sectional exposure",
+          "desc": "Pick an Inference mode (cluster by event date / portfolio / iid), then click Run exposure. Read γ₁ (exposure), its t-stat, and R²."
+        },
+        {
+          "title": "Optional: calibrate the jump test",
+          "desc": "Tick “Compute jump null-FPR” before measuring to estimate the jump test’s false-positive rate under a no-jump null."
+        }
       ],
       "glossary_title": "Metrics glossary",
-      "flow": ["Measure event", "Read CAR / Jump", "Collect ≥3", "Run exposure γ₁"],
+      "flow": [
+        "Measure event",
+        "Read CAR / Jump",
+        "Collect ≥3",
+        "Run exposure γ₁"
+      ],
       "glossary": [
-        { "term": "Surprise (σ)", "desc": "Standardized surprise: how many standard deviations Actual beat/missed Consensus." },
-        { "term": "CAR", "desc": "Cumulative Abnormal Return over the event window, after removing the market move." },
-        { "term": "Jump", "desc": "Lee–Mykland test flag: was the move a genuine discontinuity, not normal noise?" },
-        { "term": "Exposure (γ₁)", "desc": "Slope of CAR on surprise across events — the systematic reaction per unit of surprise." }
+        {
+          "term": "Surprise (σ)",
+          "desc": "Standardized surprise: how many standard deviations Actual beat/missed Consensus."
+        },
+        {
+          "term": "CAR",
+          "desc": "Cumulative Abnormal Return over the event window, after removing the market move."
+        },
+        {
+          "term": "Jump",
+          "desc": "Lee–Mykland test flag: was the move a genuine discontinuity, not normal noise?"
+        },
+        {
+          "term": "Exposure (γ₁)",
+          "desc": "Slope of CAR on surprise across events — the systematic reaction per unit of surprise."
+        }
       ]
     },
     "measure_title": "Measure an event",
@@ -2616,5 +2657,71 @@
     "se": "SE(γ₁)",
     "r_squared": "R²",
     "n_events": "Event dates"
+  },
+  "tcb_news": {
+    "title": "TCB News",
+    "subtitle": "Paste the daily TCBS research email. Review what was extracted, then save it and send the recommendations to your watchlist.",
+    "content_label": "Email content",
+    "content_placeholder": "Paste the whole email body here…",
+    "session_date_label": "Trading session",
+    "parse_button": "Parse",
+    "parsing": "Parsing…",
+    "save_button": "Save & add {{count}} to watchlist",
+    "saving": "Saving…",
+    "preview_title": "What the parser found",
+    "preview_hint": "Detected language: {{lang}}. Check the session date and untick anything you do not want on the watchlist — nothing is saved until you press Save.",
+    "section_market": "Market",
+    "section_recos": "Recommendations",
+    "section_companies": "Corporate news",
+    "vnindex_close": "VN-Index close",
+    "change_pct": "Change",
+    "change_pts": "Change (points)",
+    "matched_value": "Matched value",
+    "matched_volume": "Matched volume",
+    "putthrough": "Put-through",
+    "total_value": "Total value",
+    "foreign_net": "Foreign net",
+    "foreign_buy": "Foreign buy",
+    "foreign_sell": "Foreign sell",
+    "foreign_ytd": "Foreign net YTD",
+    "top_buy": "Net bought",
+    "top_sell": "Net sold",
+    "col_push": "Add",
+    "col_symbol": "Symbol",
+    "col_action": "Action",
+    "col_label": "TCB wording",
+    "col_rationale": "Rationale",
+    "col_session": "Session",
+    "col_change": "Change",
+    "push_aria": "Add {{symbol}} to the watchlist",
+    "action_unknown": "Unknown",
+    "no_recos": "This email carries no stock recommendation.",
+    "unknown_action_hint": "A recommendation whose wording we don't recognise is left unticked — check it before adding it to the watchlist.",
+    "history_title": "Saved emails",
+    "history_empty": "No emails saved yet.",
+    "refresh": "Refresh",
+    "delete_tooltip": "Delete this email",
+    "saved": "Saved the {{date}} session and added {{pushed}} recommendation(s) to the watchlist.",
+    "duplicate": "This email is already saved (session {{date}}); nothing was changed.",
+    "push_failed": "Couldn't add to the watchlist: {{symbols}}. The email is saved — try again from the watchlist screen.",
+    "parse_error": "Couldn't parse this email",
+    "save_error": "Couldn't save this email",
+    "delete_error": "Couldn't delete this email",
+    "ledger_title": "Call ledger",
+    "record_title": "TCB track record",
+    "score_now": "Score now",
+    "scoring": "Scoring…",
+    "score_error": "Couldn't run the scoring pass",
+    "col_horizon": "Horizon",
+    "col_n": "Calls",
+    "col_hit_rate": "TCB hit rate",
+    "col_benchmark": "Index benchmark",
+    "col_mean_return": "Mean return",
+    "col_mean_excess": "Mean vs index",
+    "col_vs_index_20d": "20d vs index",
+    "record_not_yet": "Not reportable yet — {{scored}} scored call(s). A hit rate over a handful of calls is noise, so the aggregate is withheld until 30. Individual results are in the ledger above.",
+    "record_hint": "{{scored}} of {{total}} calls scored. A horizon shows a dash until it has fully elapsed.",
+    "record_benchmark_note": "The benchmark is the same directional bet placed on the VN-Index over the same windows. TCB only shows skill where its hit rate beats that column — a high hit rate in a rising market is not evidence on its own.",
+    "unadjusted_warning": "Returns use raw closing prices: this database does not populate adjusted closes, so a stock dividend or split inside a window shows as a return that did not economically happen."
   }
 }

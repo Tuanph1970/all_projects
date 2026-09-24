@@ -1,5 +1,5 @@
 """Pydantic Schemas for Portfolio Service"""
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field
 from enum import Enum
@@ -68,6 +68,11 @@ class HoldingResponse(BaseModel):
     profit_loss: Optional[float]
     profit_loss_percent: Optional[float]
     is_watchlist_only: bool
+    proposal_by: Optional[str] = None
+    proposal_action: Optional[str] = None
+    proposal_label: Optional[str] = None
+    proposal_date: Optional[date] = None
+    proposal_note: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -183,8 +188,17 @@ class PortfolioWithHoldings(PortfolioResponse):
 
 # Watchlist Schemas
 class WatchlistAdd(BaseModel):
-    """Schema for adding to watchlist via JSON body"""
+    """Schema for adding to watchlist via JSON body.
+
+    The proposal fields are optional: the TCB News screen sends them when a broker
+    recommendation is confirmed, a manual add from the watchlist screen omits them and
+    the column default applies."""
     symbol: str = Field(..., max_length=20)
+    proposal_by: Optional[str] = Field(default=None, max_length=32)
+    proposal_action: Optional[str] = Field(default=None, max_length=8)
+    proposal_label: Optional[str] = Field(default=None, max_length=128)
+    proposal_date: Optional[date] = None
+    proposal_note: Optional[str] = None
 
 
 class WatchlistItem(BaseModel):
@@ -192,6 +206,8 @@ class WatchlistItem(BaseModel):
     current_price: Optional[float]
     change_percent: Optional[float]
     added_at: datetime
+    proposal_by: Optional[str] = None
+    proposal_action: Optional[str] = None
 
 
 class WatchlistResponse(BaseModel):

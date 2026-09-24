@@ -44,10 +44,19 @@ class Settings(BaseSettings):
     ENABLE_MACRO: bool = False
     ENABLE_BRIDGE: bool = False
     ENABLE_EMAIL: bool = False
+    # Forward-return scoring of stored TCBS calls (FR-BM-SCORE). Cheap and local to
+    # the calls already stored, so on by default; degrades to a no-op with no calls.
+    ENABLE_SCORING: bool = True
 
     # Poll cadence (seconds).
     COMPANY_POLL_INTERVAL_SECONDS: int = 900   # 15 min
     MACRO_POLL_INTERVAL_SECONDS: int = 1800    # 30 min
+    # Horizons fill as sessions elapse, so a few passes a day is ample.
+    SCORING_INTERVAL_SECONDS: int = 21600      # 6 h
+    # The index every call is measured against (EC-B7's benchmark).
+    MARKET_INDEX_SYMBOL: str = "VNINDEX"
+    # Below this many scored calls the track record is not reportable (FR-BM-RECORD).
+    SCORING_MIN_CALLS: int = 30
 
     # Only these sentiments trigger a notification (good/bad only — EC-N8).
     NOTIFY_SENTIMENTS: str = "good,bad"

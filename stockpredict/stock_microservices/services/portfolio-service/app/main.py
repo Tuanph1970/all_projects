@@ -102,6 +102,42 @@ async def lifespan(app: FastAPI):
             except Exception as e:  # noqa: BLE001
                 logger.warning("notifications.type enum migration skipped: %s", e)
 
+    # Idempotent: add the watchlist proposal columns to an existing MySQL database
+    # (create_all already has them on a fresh one). Each column is checked in
+    # information_schema first, so a reboot is a no-op.
+    #
+    # proposal_by is added WITHOUT a default and given one afterwards on purpose:
+    # `ADD COLUMN ... DEFAULT 'TCB'` would backfill every row already on the watchlist,
+    # labelling symbols the user added themselves as TCB recommendations. Existing rows
+    # stay NULL; only new rows take the 'TCB' default.
+    if engine.dialect.name == "mysql":
+        proposal_columns = {
+            "proposal_by": "VARCHAR(32) NULL",
+            "proposal_action": "VARCHAR(8) NULL",
+            "proposal_label": "VARCHAR(128) NULL",
+            "proposal_date": "DATE NULL",
+            "proposal_note": "TEXT NULL",
+        }
+        async with engine.begin() as conn:
+            for column, ddl in proposal_columns.items():
+                try:
+                    exists = await conn.execute(text(
+                        "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                        "WHERE TABLE_SCHEMA = DATABASE() "
+                        "AND TABLE_NAME = 'portfolio_holdings' AND COLUMN_NAME = :col"
+                    ), {"col": column})
+                    if exists.scalar():
+                        continue
+                    await conn.execute(text(
+                        f"ALTER TABLE portfolio_holdings ADD COLUMN {column} {ddl}"))
+                    if column == "proposal_by":
+                        await conn.execute(text(
+                            "ALTER TABLE portfolio_holdings "
+                            "ALTER COLUMN proposal_by SET DEFAULT 'TCB'"))
+                    logger.info("Added portfolio_holdings.%s", column)
+                except Exception as e:  # noqa: BLE001
+                    logger.warning("portfolio_holdings.%s migration skipped: %s", column, e)
+
     # Subscribe to stock.price.updated events for event-driven alert evaluation.
     # Returns None silently if RabbitMQ is unavailable — service still serves CRUD.
     await start_alert_consumer(service_name=settings.SERVICE_NAME)

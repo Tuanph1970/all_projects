@@ -73,7 +73,9 @@
     "watchlist": "Danh sách theo dõi",
     "chart_decomp": "Phân rã biểu đồ",
     "vol_forecast": "Dự báo & Backtest",
-    "event_reaction": "Phản ứng sự kiện"
+    "event_reaction": "Phản ứng sự kiện",
+    "news": "Tin tức",
+    "tcb_news": "Tin TCB"
   },
   "page_titles": {
     "dashboard": {
@@ -255,6 +257,10 @@
     "vol_forecast": {
       "title": "Dự báo & Backtest",
       "emphasis": "Backtest"
+    },
+    "tcb-news": {
+      "title": "Tin TCB",
+      "emphasis": "TCB"
     }
   },
   "agent": {
@@ -481,7 +487,9 @@
       "remove_tooltip": "Xóa khỏi danh sách",
       "load_error": "Không thể tải danh sách theo dõi",
       "add_error": "Không thể thêm mã",
-      "remove_error": "Không thể xóa {{symbol}}"
+      "remove_error": "Không thể xóa {{symbol}}",
+      "column_proposal_by": "Nguồn đề xuất",
+      "column_proposal_action": "Khuyến nghị"
     }
   },
   "portfolio": {
@@ -923,7 +931,7 @@
       "macd_tooltip_label": "MACD",
       "signal_tooltip_label": "Tín hiệu",
       "volume_tooltip_label": "KL",
-      "range_adjusted_for": "Các chỉ báo đã chọn cần {{days}} ngày dữ liệu; khoảng ngày đã được đặt thành {{days}} ngày gần nhất (kết thúc hôm qua).",
+      "range_adjusted_for": "Các chỉ báo đã chọn cần {{days}} ngày dữ liệu; khoảng ngày đã được đặt thành {{days}} ngày gần nhất, kết thúc {{end}}.",
       "range_adjusted": "Khoảng ngày đã chọn quá ngắn cho các chỉ báo đã chọn; hệ thống đã tự động mở rộng.",
       "no_data": "Không đủ dữ liệu giá để phân tích mã này."
     }
@@ -2259,7 +2267,8 @@
     "input": {
       "title": "Dữ liệu đầu vào",
       "ticker_label": "Mã cổ phiếu",
-      "ticker_placeholder": "VD: VCB, HPG, VIC…",
+      "ticker_placeholder": "Chọn mã cổ phiếu…",
+      "no_user_tickers": "Chưa có mã nào — hãy thêm mã vào danh sách theo dõi hoặc danh mục",
       "period_label": "Kỳ dữ liệu",
       "period_1y": "1 năm",
       "period_2y": "2 năm",
@@ -2555,19 +2564,51 @@
       ],
       "howto_title": "Cách dùng giao diện",
       "steps": [
-        { "title": "Đo một sự kiện", "desc": "Ở thẻ Phân tích, nhập Mã CK, Chỉ số thị trường, Loại sự kiện, Ngày sự kiện, Giá trị thực tế và Đồng thuận, rồi bấm Đo. Bất ngờ = Thực tế − Đồng thuận." },
-        { "title": "Đọc kết quả đo mới nhất", "desc": "Thẻ kết quả hiển thị Bất ngờ (σ, đã chuẩn hoá), CAR (lợi suất bất thường), Beta, và liệu phản ứng có phải một cú Nhảy. Xanh = dương, đỏ = âm." },
-        { "title": "Tích luỹ tối thiểu 3 sự kiện", "desc": "Mỗi lần đo được thêm vào bảng “Sự kiện đã đo”. Hãy đo nhiều sự kiện (cùng hoặc khác mã) để tạo thành một lát cắt chéo." },
-        { "title": "Chạy độ nhạy chéo", "desc": "Chọn kiểu Suy diễn (gom cụm theo ngày sự kiện / danh mục / iid), rồi bấm Chạy độ nhạy. Đọc γ₁ (độ nhạy), giá trị t, và R²." },
-        { "title": "Tuỳ chọn: hiệu chỉnh kiểm định nhảy", "desc": "Tích “Tính null-FPR cho nhảy” trước khi đo để ước lượng tỷ lệ báo động giả của kiểm định nhảy dưới giả thuyết không có nhảy." }
+        {
+          "title": "Đo một sự kiện",
+          "desc": "Ở thẻ Phân tích, nhập Mã CK, Chỉ số thị trường, Loại sự kiện, Ngày sự kiện, Giá trị thực tế và Đồng thuận, rồi bấm Đo. Bất ngờ = Thực tế − Đồng thuận."
+        },
+        {
+          "title": "Đọc kết quả đo mới nhất",
+          "desc": "Thẻ kết quả hiển thị Bất ngờ (σ, đã chuẩn hoá), CAR (lợi suất bất thường), Beta, và liệu phản ứng có phải một cú Nhảy. Xanh = dương, đỏ = âm."
+        },
+        {
+          "title": "Tích luỹ tối thiểu 3 sự kiện",
+          "desc": "Mỗi lần đo được thêm vào bảng “Sự kiện đã đo”. Hãy đo nhiều sự kiện (cùng hoặc khác mã) để tạo thành một lát cắt chéo."
+        },
+        {
+          "title": "Chạy độ nhạy chéo",
+          "desc": "Chọn kiểu Suy diễn (gom cụm theo ngày sự kiện / danh mục / iid), rồi bấm Chạy độ nhạy. Đọc γ₁ (độ nhạy), giá trị t, và R²."
+        },
+        {
+          "title": "Tuỳ chọn: hiệu chỉnh kiểm định nhảy",
+          "desc": "Tích “Tính null-FPR cho nhảy” trước khi đo để ước lượng tỷ lệ báo động giả của kiểm định nhảy dưới giả thuyết không có nhảy."
+        }
       ],
       "glossary_title": "Chú giải chỉ số",
-      "flow": ["Đo sự kiện", "Đọc CAR / Nhảy", "Gom ≥3", "Chạy độ nhạy γ₁"],
+      "flow": [
+        "Đo sự kiện",
+        "Đọc CAR / Nhảy",
+        "Gom ≥3",
+        "Chạy độ nhạy γ₁"
+      ],
       "glossary": [
-        { "term": "Bất ngờ (σ)", "desc": "Bất ngờ chuẩn hoá: Thực tế vượt/hụt Đồng thuận bao nhiêu độ lệch chuẩn." },
-        { "term": "CAR", "desc": "Lợi suất bất thường luỹ kế trong cửa sổ sự kiện, sau khi loại bỏ biến động thị trường." },
-        { "term": "Nhảy (Jump)", "desc": "Cờ kiểm định Lee–Mykland: cú biến động có phải bước nhảy thật, không phải nhiễu thường?" },
-        { "term": "Độ nhạy (γ₁)", "desc": "Hệ số góc của CAR theo bất ngờ qua các sự kiện — phản ứng hệ thống trên mỗi đơn vị bất ngờ." }
+        {
+          "term": "Bất ngờ (σ)",
+          "desc": "Bất ngờ chuẩn hoá: Thực tế vượt/hụt Đồng thuận bao nhiêu độ lệch chuẩn."
+        },
+        {
+          "term": "CAR",
+          "desc": "Lợi suất bất thường luỹ kế trong cửa sổ sự kiện, sau khi loại bỏ biến động thị trường."
+        },
+        {
+          "term": "Nhảy (Jump)",
+          "desc": "Cờ kiểm định Lee–Mykland: cú biến động có phải bước nhảy thật, không phải nhiễu thường?"
+        },
+        {
+          "term": "Độ nhạy (γ₁)",
+          "desc": "Hệ số góc của CAR theo bất ngờ qua các sự kiện — phản ứng hệ thống trên mỗi đơn vị bất ngờ."
+        }
       ]
     },
     "measure_title": "Đo một sự kiện",
@@ -2616,5 +2657,71 @@
     "se": "SE(γ₁)",
     "r_squared": "R²",
     "n_events": "Số ngày sự kiện"
+  },
+  "tcb_news": {
+    "title": "Tin TCB",
+    "subtitle": "Dán email phân tích hằng ngày của TCBS. Kiểm tra nội dung được tách, sau đó lưu và đưa khuyến nghị vào danh mục theo dõi.",
+    "content_label": "Nội dung email",
+    "content_placeholder": "Dán toàn bộ nội dung email vào đây…",
+    "session_date_label": "Phiên giao dịch",
+    "parse_button": "Phân tích",
+    "parsing": "Đang phân tích…",
+    "save_button": "Lưu & thêm {{count}} mã vào danh mục theo dõi",
+    "saving": "Đang lưu…",
+    "preview_title": "Kết quả tách nội dung",
+    "preview_hint": "Ngôn ngữ nhận diện: {{lang}}. Kiểm tra ngày phiên và bỏ chọn mã bạn không muốn theo dõi — chưa có gì được lưu cho tới khi bấm Lưu.",
+    "section_market": "Thị trường",
+    "section_recos": "Khuyến nghị cổ phiếu",
+    "section_companies": "Tin doanh nghiệp",
+    "vnindex_close": "VN-Index đóng cửa",
+    "change_pct": "Thay đổi",
+    "change_pts": "Thay đổi (điểm)",
+    "matched_value": "Giá trị khớp lệnh",
+    "matched_volume": "KL khớp lệnh",
+    "putthrough": "Thỏa thuận",
+    "total_value": "Tổng giá trị",
+    "foreign_net": "Khối ngoại ròng",
+    "foreign_buy": "Khối ngoại mua",
+    "foreign_sell": "Khối ngoại bán",
+    "foreign_ytd": "Khối ngoại ròng từ đầu năm",
+    "top_buy": "Mua ròng",
+    "top_sell": "Bán ròng",
+    "col_push": "Thêm",
+    "col_symbol": "Mã",
+    "col_action": "Khuyến nghị",
+    "col_label": "Nguyên văn TCB",
+    "col_rationale": "Lý do",
+    "col_session": "Phiên",
+    "col_change": "Thay đổi",
+    "push_aria": "Thêm {{symbol}} vào danh mục theo dõi",
+    "action_unknown": "Chưa rõ",
+    "no_recos": "Email này không có khuyến nghị cổ phiếu.",
+    "unknown_action_hint": "Khuyến nghị có cách diễn đạt chưa nhận diện được sẽ không tự chọn — hãy kiểm tra trước khi thêm vào danh mục theo dõi.",
+    "history_title": "Email đã lưu",
+    "history_empty": "Chưa có email nào được lưu.",
+    "refresh": "Làm mới",
+    "delete_tooltip": "Xóa email này",
+    "saved": "Đã lưu phiên {{date}} và thêm {{pushed}} khuyến nghị vào danh mục theo dõi.",
+    "duplicate": "Email này đã được lưu trước đó (phiên {{date}}); không có thay đổi nào.",
+    "push_failed": "Không thêm được vào danh mục theo dõi: {{symbols}}. Email đã được lưu — hãy thử lại từ màn hình danh mục theo dõi.",
+    "parse_error": "Không phân tích được email này",
+    "save_error": "Không lưu được email này",
+    "delete_error": "Không xóa được email này",
+    "ledger_title": "Nhật ký khuyến nghị",
+    "record_title": "Thành tích khuyến nghị của TCB",
+    "score_now": "Chấm điểm ngay",
+    "scoring": "Đang chấm điểm…",
+    "score_error": "Không chạy được lượt chấm điểm",
+    "col_horizon": "Kỳ hạn",
+    "col_n": "Số khuyến nghị",
+    "col_hit_rate": "Tỷ lệ đúng của TCB",
+    "col_benchmark": "Chuẩn so sánh (VN-Index)",
+    "col_mean_return": "Lợi nhuận bình quân",
+    "col_mean_excess": "Chênh so với chỉ số",
+    "col_vs_index_20d": "20 phiên so với chỉ số",
+    "record_not_yet": "Chưa đủ dữ liệu để công bố — mới có {{scored}} khuyến nghị được chấm. Tỷ lệ đúng trên vài khuyến nghị chỉ là nhiễu, nên số tổng hợp được giữ lại cho tới khi đủ 30. Kết quả từng mã xem ở bảng trên.",
+    "record_hint": "Đã chấm {{scored}}/{{total}} khuyến nghị. Kỳ hạn chưa đủ số phiên sẽ hiển thị dấu gạch.",
+    "record_benchmark_note": "Chuẩn so sánh là cùng một lệnh đặt trên VN-Index trong đúng khoảng thời gian đó. TCB chỉ thực sự có năng lực khi tỷ lệ đúng vượt cột này — tỷ lệ đúng cao trong thị trường tăng không tự nó là bằng chứng.",
+    "unadjusted_warning": "Lợi nhuận tính trên giá đóng cửa thô: cơ sở dữ liệu này chưa có giá điều chỉnh, nên cổ tức bằng cổ phiếu hay chia tách trong kỳ sẽ hiện thành mức biến động không có thật về mặt kinh tế."
   }
 }
