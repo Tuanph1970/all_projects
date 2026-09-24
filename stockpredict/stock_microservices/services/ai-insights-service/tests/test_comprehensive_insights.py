@@ -625,3 +625,58 @@ async def test_comprehensive_insights_reports_effective_window():
     assert out.date_range_adjusted is True
     # The widened window is what was actually fetched.
     assert fetch.await_args.args[1:] == (out.effective_start_date, out.effective_end_date)
+
+
+# ---------------------------------------------------------------------------
+# _indicator_signal — trend category is graded by magnitude, so switching the
+# Trend dropdown between MACD / SMA / EMA / WMA changes the score even when
+# all of them agree on direction (the "Analyze changes nothing" report).
+# ---------------------------------------------------------------------------
+
+class TestTrendSignalIsGraded:
+    def _df(self, **cols):
+        df = _trend_df(rows=25, start=100.0, drift=0.0)
+        for k, v in cols.items():
+            df[k] = v
+        return df
+
+    def test_macd_signal_scales_with_histogram(self):
+        svc = _make_service()
+        weak, _ = svc._indicator_signal(self._df(macd=0.05, macd_signal=0.0), "trend", "MACD", 0.0)
+        strong, _ = svc._indicator_signal(self._df(macd=2.0, macd_signal=0.0), "trend", "MACD", 0.0)
+        assert 0 < weak < strong <= 0.2
+
+    def test_sma_signal_scales_with_distance_from_sma20(self):
+        svc = _make_service()
+        close = 100.0
+        near, _ = svc._indicator_signal(self._df(sma_20=close * 0.995, sma_50=close * 0.99), "trend", "SMA", 0.0)
+        far, _ = svc._indicator_signal(self._df(sma_20=close * 0.90, sma_50=close * 0.85), "trend", "SMA", 0.0)
+        assert 0 < near < far <= 0.2
+
+    def test_ema_signal_scales_with_spread(self):
+        svc = _make_service()
+        near, _ = svc._indicator_signal(self._df(ema_12=99.8, ema_26=100.0), "trend", "EMA", 0.0)
+        far, _ = svc._indicator_signal(self._df(ema_12=95.0, ema_26=100.0), "trend", "EMA", 0.0)
+        assert -0.2 <= far < near < 0
+
+    def test_wma_signal_scales_with_distance(self):
+        svc = _make_service()
+        near, _ = svc._indicator_signal(self._df(wma_20=99.9), "trend", "WMA", 0.0)
+        far, _ = svc._indicator_signal(self._df(wma_20=90.0), "trend", "WMA", 0.0)
+        assert 0 < near < far <= 0.2
+
+    def test_agreeing_trend_indicators_still_give_distinct_scores(self):
+        """Same bearish direction from every trend indicator, but different
+        magnitudes → the sentiment score differs per selection."""
+        svc = _make_service()
+        df = self._df(macd=-0.1, macd_signal=0.0,          # weak
+                      sma_20=104.0, sma_50=106.0,           # moderate
+                      ema_12=92.0, ema_26=100.0,            # strong
+                      rsi=50.0)
+        scores = {
+            name: svc._analyze_sentiment_from_indicators(
+                df, {"trend": name, "momentum": "RSI"}).score
+            for name in ("MACD", "SMA", "EMA")
+        }
+        assert all(v < 0 for v in scores.values())
+        assert len(set(scores.values())) == 3, scores

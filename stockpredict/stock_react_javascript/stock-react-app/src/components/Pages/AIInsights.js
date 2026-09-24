@@ -177,29 +177,36 @@ export const AIInsights = () => {
     return required;
   }, []);
 
-  // User rule: if the selected range is shorter than the selected indicators
-  // need, set end = today - 1 and start = end - required days. Applied on
-  // every dropdown change so the date inputs move immediately; the backend
-  // applies the same rule as a safety net when Analyze is clicked.
-  const ensureRangeForSelection = useCallback((selection, available) => {
+  // User rule: the date range follows the indicator selection. Every dropdown
+  // change re-fits the window to exactly what the selection needs:
+  // start = end - required days (end is kept; it defaults to yesterday). A
+  // "widen only" rule is not enough here — the default window (206 days,
+  // MACD) already covers SMA/EMA/WMA, so switching to them never moved the
+  // start date and the analysis re-ran on the very same window. The backend
+  // still widens a too-short range as a safety net when Analyze is clicked.
+  const fitRangeToSelection = useCallback((selection, available) => {
     const required = requiredDaysFor(selection, available);
     if (!required) return;
-    const spanDays = (new Date(dateRange.end) - new Date(dateRange.start)) / 86400000;
-    if (Number.isFinite(spanDays) && spanDays >= required) return;
-    setDateRange(defaultDateRange(required));
-    setRangeNotice(t('analysis.ai_insights.range_adjusted_for', { days: required }));
+    const yesterday = defaultDateRange(0).end;
+    const end = dateRange.end && dateRange.end <= yesterday ? dateRange.end : yesterday;
+    const start = new Date(end);
+    start.setDate(start.getDate() - required);
+    const next = { start: isoDate(start), end };
+    if (next.start === dateRange.start && next.end === dateRange.end) return;
+    setDateRange(next);
+    setRangeNotice(t('analysis.ai_insights.range_adjusted_for', { days: required, end }));
   }, [requiredDaysFor, dateRange.start, dateRange.end, t]);
 
   const handleIndicatorChange = (category, indicator) => {
     const next = { ...selectedIndicators, [category]: indicator };
     setSelectedIndicators(next);
-    ensureRangeForSelection(next, availableIndicators);
+    fitRangeToSelection(next, availableIndicators);
   };
 
   // Once the indicator table arrives, check the default selection too.
   useEffect(() => {
     if (Object.keys(availableIndicators).length) {
-      ensureRangeForSelection(selectedIndicators, availableIndicators);
+      fitRangeToSelection(selectedIndicators, availableIndicators);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availableIndicators]);

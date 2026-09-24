@@ -1126,6 +1126,24 @@ Maintain current position and monitor for clearer signals before taking action.
             return float(df[col].iloc[-1])
         return None
 
+    TREND_WEIGHT = 0.2               # max |contribution| of the trend category
+    TREND_FULL_STRENGTH_PCT = 0.05   # 5% spread vs price = full weight
+    TREND_MIN_STRENGTH = 0.2         # a confirmed direction is never worth < 20%
+
+    @classmethod
+    def _graded_trend(cls, spread: float) -> float:
+        """Signed trend contribution in [-TREND_WEIGHT, +TREND_WEIGHT].
+
+        `spread` is a fraction of price (e.g. (close - sma20) / sma20). The
+        magnitude grows linearly up to TREND_FULL_STRENGTH_PCT and never drops
+        below TREND_MIN_STRENGTH so the direction always counts.
+        """
+        if not np.isfinite(spread) or spread == 0:
+            return 0.0
+        strength = min(1.0, abs(spread) / cls.TREND_FULL_STRENGTH_PCT)
+        strength = max(cls.TREND_MIN_STRENGTH, strength)
+        return round(np.copysign(cls.TREND_WEIGHT * strength, spread), 3)
+
     def _indicator_signal(self, df: pd.DataFrame, category: str, name: str,
                           price_change_5d: float) -> Tuple[float, Optional[str]]:
         """Score contribution (+/-) and a human note for one selected indicator.
@@ -1139,26 +1157,42 @@ Maintain current position and monitor for clearer signals before taking action.
             return 0.0, None
 
         if category == "trend":
+            # Trend signals are GRADED: ±0.2 × strength, where strength is the
+            # indicator's spread relative to price (full weight at
+            # TREND_FULL_STRENGTH_PCT). A flat ±0.2 vote made MACD/SMA/EMA/WMA
+            # indistinguishable whenever they agreed on direction, so the
+            # Trend dropdown had no visible effect on the score.
             if name == "MACD":
                 macd, sig = self._last(df, "macd"), self._last(df, "macd_signal")
                 if macd is not None and sig is not None:
-                    return (0.2, "MACD bullish crossover") if macd > sig else (-0.2, "MACD bearish crossover")
+                    delta = self._graded_trend((macd - sig) / close if close else 0.0)
+                    return delta, ("MACD bullish crossover" if delta > 0 else "MACD bearish crossover") + \
+                        f" (histogram {(macd - sig):+.2f})"
             elif name == "SMA":
                 s20, s50 = self._last(df, "sma_20"), self._last(df, "sma_50")
                 if s20 is not None:
+                    dist = (close - s20) / s20 if s20 else 0.0
                     if close > s20 and (s50 is None or s20 > s50):
-                        return 0.2, "price above SMA20" + (" with SMA20 > SMA50" if s50 is not None else "")
+                        return self._graded_trend(dist), \
+                            f"price {dist * 100:+.1f}% above SMA20" + (" with SMA20 > SMA50" if s50 is not None else "")
                     if close < s20 and (s50 is None or s20 < s50):
-                        return -0.2, "price below SMA20" + (" with SMA20 < SMA50" if s50 is not None else "")
+                        return self._graded_trend(dist), \
+                            f"price {abs(dist) * 100:.1f}% below SMA20" + (" with SMA20 < SMA50" if s50 is not None else "")
                     return 0.0, "price and SMAs mixed"
             elif name == "EMA":
                 e12, e26 = self._last(df, "ema_12"), self._last(df, "ema_26")
                 if e12 is not None and e26 is not None:
-                    return (0.2, "EMA12 above EMA26 (bullish)") if e12 > e26 else (-0.2, "EMA12 below EMA26 (bearish)")
+                    spread = (e12 - e26) / e26 if e26 else 0.0
+                    delta = self._graded_trend(spread)
+                    return delta, (f"EMA12 {spread * 100:+.1f}% above EMA26 (bullish)" if delta > 0
+                                   else f"EMA12 {abs(spread) * 100:.1f}% below EMA26 (bearish)")
             elif name == "WMA":
                 w20 = self._last(df, "wma_20")
                 if w20 is not None:
-                    return (0.2, "price above WMA20") if close > w20 else (-0.2, "price below WMA20")
+                    dist = (close - w20) / w20 if w20 else 0.0
+                    delta = self._graded_trend(dist)
+                    return delta, (f"price {dist * 100:+.1f}% above WMA20" if delta > 0
+                                   else f"price {abs(dist) * 100:.1f}% below WMA20")
 
         elif category == "momentum":
             if name == "RSI":

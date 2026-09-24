@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { analysisAPI, stockAPI } from '../../services/api';
+import { analysisAPI } from '../../services/api';
+import useUserTickers from '../../hooks/useUserTickers';
 import { AlertCircle, TrendingUp, TrendingDown, Activity, BarChart2, LineChart, Target, Zap, ChevronDown } from 'lucide-react';
 import { format } from "d3-format";
 import { timeFormat } from "d3-time-format";
@@ -71,40 +72,8 @@ export const TechnicalAnalysis = () => {
   });
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  // Ticker dropdown options (watchlist + portfolio)
-  const [tickerOptions, setTickerOptions] = useState([]);
-  const [tickersLoading, setTickersLoading] = useState(true);
-
-  // Load ticker options from watchlist + portfolio holdings
-  useEffect(() => {
-    const loadTickers = async () => {
-      setTickersLoading(true);
-      try {
-        const [watchlist, portfolio] = await Promise.all([
-          stockAPI.getWatchlist().catch(() => []),
-          stockAPI.getPortfolio().catch(() => [])
-        ]);
-        const fromWatch = watchlist.map(item => ({
-          symbol: item.symbol || item,
-          name: item.name || item.symbol || String(item)
-        }));
-        const fromPortfolio = portfolio.map(item => ({
-          symbol: item.symbol,
-          name: item.name || item.symbol
-        }));
-        const seen = new Set();
-        const combined = [...fromWatch, ...fromPortfolio].filter(item => {
-          if (!item.symbol || seen.has(item.symbol)) return false;
-          seen.add(item.symbol);
-          return true;
-        });
-        setTickerOptions(combined);
-      } finally {
-        setTickersLoading(false);
-      }
-    };
-    loadTickers();
-  }, []);
+  // Ticker dropdown options (watchlist + portfolio holdings)
+  const { tickers: tickerOptions, loading: tickersLoading } = useUserTickers();
 
   const fetchTechnicalAnalysis = useCallback(async (symbol, p) => {
     setLoading(true);

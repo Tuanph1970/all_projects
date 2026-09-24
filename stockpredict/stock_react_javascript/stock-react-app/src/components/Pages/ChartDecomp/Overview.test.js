@@ -14,6 +14,18 @@ jest.mock('../../../services/companyService', () => ({
   __esModule: true,
   default: { searchCompanies: jest.fn().mockResolvedValue({ success: true, data: [] }) },
 }));
+// The ticker dropdown lists only what the user watches or holds.
+const mockUseUserTickers = jest.fn();
+jest.mock('../../../hooks/useUserTickers', () => ({
+  __esModule: true,
+  default: () => mockUseUserTickers(),
+}));
+beforeEach(() => {
+  mockUseUserTickers.mockReturnValue({
+    loading: false,
+    tickers: [{ symbol: 'POW', name: 'PV Power' }, { symbol: 'HPG', name: 'Hoa Phat' }],
+  });
+});
 
 async function setLang(lang) {
   await i18n.changeLanguage(lang);
@@ -72,5 +84,27 @@ describe('ChartDecomp Overview tab', () => {
     expect(screen.getByText('Tách xu hướng thật khỏi nhiễu ngắn hạn')).toBeInTheDocument();
 
     await setLang('en'); // restore for other suites
+  });
+
+  test('ticker dropdown offers only the user\'s watchlist + holdings, first one pre-selected', async () => {
+    await setLang('en');
+    render(<ChartDecompPage />);
+    fireEvent.click(screen.getByRole('button', { name: /Signal Decomposition/i }));
+
+    const select = screen.getByDisplayValue('POW – PV Power');
+    const labels = within(select).getAllByRole('option').map(o => o.textContent);
+    expect(labels).toEqual(['POW – PV Power', 'HPG – Hoa Phat']);
+    // No free-text ticker box any more.
+    expect(screen.queryByPlaceholderText(/VCB/)).not.toBeInTheDocument();
+  });
+
+  test('empty watchlist + portfolio disables the picker with a hint', async () => {
+    mockUseUserTickers.mockReturnValue({ loading: false, tickers: [] });
+    await setLang('en');
+    render(<ChartDecompPage />);
+    fireEvent.click(screen.getByRole('button', { name: /Signal Decomposition/i }));
+
+    const hint = screen.getByText('No tickers yet — add symbols to your watchlist or portfolio');
+    expect(hint.closest('select')).toBeDisabled();
   });
 });

@@ -9,6 +9,7 @@ import { Activity, RefreshCw, TrendingUp, Zap, BarChart2, GitBranch, Info, Arrow
 import { useTranslation } from 'react-i18next';
 import chartDecompService from '../../../services/chartDecompService';
 import companyService from '../../../services/companyService';
+import useUserTickers from '../../../hooks/useUserTickers';
 import DecompCombinedChart from './DecompCombinedChart';
 
 // ── Palette & theme ───────────────────────────────────────────────────────────
@@ -149,14 +150,46 @@ function generateDemoSeries(n = 512) {
   return x;
 }
 
+// Symbol picker limited to what the user owns or watches (watchlist ∪
+// holdings). `allowEmpty` adds a blank first row for optional inputs (the
+// coherence second ticker).
+function UserTickerSelect({ value, onChange, tickers, loading, allowEmpty, t, style }) {
+  const empty = !loading && tickers.length === 0;
+  return (
+    <select
+      style={{ ...s.select, minWidth: 140, ...style }}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      disabled={loading || empty}
+      title={empty ? t('chart_decomp.input.no_user_tickers') : undefined}
+    >
+      {loading && <option value="">{t('chart_decomp.input.loading')}</option>}
+      {empty && <option value="">{t('chart_decomp.input.no_user_tickers')}</option>}
+      {!loading && !empty && allowEmpty && <option value="">{t('chart_decomp.input.ticker_placeholder')}</option>}
+      {tickers.map(tk => (
+        <option key={tk.symbol} value={tk.symbol}>
+          {tk.name && tk.name !== tk.symbol ? `${tk.symbol} – ${tk.name}` : tk.symbol}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function InputPanel({ onSeriesReady, t }) {
-  const [ticker, setTicker]   = useState('VCB');
+  const { tickers, loading: tickersLoading } = useUserTickers();
+  const [ticker, setTicker]   = useState('');
   const [period, setPeriod]   = useState('2Y');
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
   const [info, setInfo]       = useState(null);
 
+  // Pre-select the first watched/held symbol once the list arrives.
+  useEffect(() => {
+    if (!ticker && tickers.length) setTicker(tickers[0].symbol);
+  }, [tickers, ticker]);
+
   const loadTicker = async () => {
+    if (!ticker) return;
     setLoading(true); setError(null); setInfo(null);
     try {
       const resp = await companyService.getCompanyCharts(ticker, period);
@@ -199,13 +232,7 @@ function InputPanel({ onSeriesReady, t }) {
       <div style={s.row}>
         <div style={s.field}>
           <span style={s.label}>{t('chart_decomp.input.ticker_label')}</span>
-          <input
-            style={s.input}
-            value={ticker}
-            onChange={e => setTicker(e.target.value.toUpperCase())}
-            placeholder={t('chart_decomp.input.ticker_placeholder')}
-            onKeyDown={e => e.key === 'Enter' && loadTicker()}
-          />
+          <UserTickerSelect value={ticker} onChange={setTicker} tickers={tickers} loading={tickersLoading} t={t} />
         </div>
         <div style={s.field}>
           <span style={s.label}>{t('chart_decomp.input.period_label')}</span>
@@ -216,7 +243,7 @@ function InputPanel({ onSeriesReady, t }) {
             <option value="5Y">{t('chart_decomp.input.period_5y')}</option>
           </select>
         </div>
-        <button style={s.btn()} onClick={loadTicker} disabled={loading}>
+        <button style={s.btn()} onClick={loadTicker} disabled={loading || !ticker}>
           {loading ? <Spinner /> : <RefreshCw size={14} />}
           {loading ? t('chart_decomp.input.loading') : t('chart_decomp.input.load_btn')}
         </button>
@@ -530,6 +557,7 @@ function TimeFreqTab({ series, t }) {
 // ── Hurst & Coherence Tab ─────────────────────────────────────────────────────
 
 function HurstTab({ series, t }) {
+  const { tickers: userTickers, loading: userTickersLoading } = useUserTickers();
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState(null);
   const [result, setResult]       = useState(null);
@@ -664,13 +692,8 @@ function HurstTab({ series, t }) {
         <div style={s.row}>
           <div style={s.field}>
             <span style={s.label}>{t('chart_decomp.hurst.coherence_ticker2')}</span>
-            <input
-              style={s.input}
-              value={ticker2}
-              onChange={e => setTicker2(e.target.value.toUpperCase())}
-              placeholder="VD: TCB, HPG…"
-              onKeyDown={e => e.key === 'Enter' && loadSecondSeries()}
-            />
+            <UserTickerSelect value={ticker2} onChange={setTicker2} tickers={userTickers}
+              loading={userTickersLoading} allowEmpty t={t} />
           </div>
           <button style={s.btn(COLORS.success)} onClick={loadSecondSeries} disabled={!ticker2 || loadingS2}>
             {loadingS2 ? <Spinner /> : <RefreshCw size={14} />}
