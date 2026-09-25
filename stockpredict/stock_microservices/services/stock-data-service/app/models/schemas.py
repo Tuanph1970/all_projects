@@ -106,6 +106,8 @@ class StockPriceResponse(BaseModel):
     close: float
     volume: Optional[int] = None
     value: Optional[int] = None
+    # Mirrors `close`: the upstream series is already back-adjusted for share-count
+    # events (bonus issues, stock dividends). See StockPrice.adj_close in domain.py.
     adj_close: Optional[float] = None
     change: Optional[float] = None
     change_percent: Optional[float] = None

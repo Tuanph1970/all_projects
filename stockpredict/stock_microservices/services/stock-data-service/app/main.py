@@ -137,6 +137,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
                 logger.warning(f"Migration statement skipped: {e}")
     logger.info("Database tables initialized")
 
+    # One-time backfill: adj_close was never written before Backlog #56, leaving every
+    # historical row NULL. A NULL there reads as "unadjusted" to anything computing a
+    # return, so the rows are restated to match what the source actually gave us — the
+    # already-back-adjusted close (see StockPrice.adj_close). Self-limiting: after the
+    # first run no row matches, so a reboot touches nothing.
+    async with engine.begin() as conn:
+        try:
+            result = await conn.execute(text(
+                "UPDATE stock_prices SET adj_close = close "
+                "WHERE adj_close IS NULL AND close IS NOT NULL"
+            ))
+            if result.rowcount:
+                logger.info("Backfilled adj_close on %s price row(s)", result.rowcount)
+        except Exception as e:
+            logger.warning(f"adj_close backfill skipped: {e}")
+
     # Open the shared EventBus connection used by refresh_price_board()
     # to publish stock.price.updated events. Best-effort — service still
     # serves data if RabbitMQ is unreachable.

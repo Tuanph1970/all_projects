@@ -2722,6 +2722,7 @@
     "record_not_yet": "Not reportable yet — {{scored}} scored call(s). A hit rate over a handful of calls is noise, so the aggregate is withheld until 30. Individual results are in the ledger above.",
     "record_hint": "{{scored}} of {{total}} calls scored. A horizon shows a dash until it has fully elapsed.",
     "record_benchmark_note": "The benchmark is the same directional bet placed on the VN-Index over the same windows. TCB only shows skill where its hit rate beats that column — a high hit rate in a rising market is not evidence on its own.",
-    "unadjusted_warning": "Returns use raw closing prices: this database does not populate adjusted closes, so a stock dividend or split inside a window shows as a return that did not economically happen."
+    "unadjusted_warning": "Some returns use raw closing prices because no adjusted close was available for that symbol — a bonus issue or stock dividend inside the window will show as a move that did not economically happen.",
+    "capital_adjusted_note": "Returns are capital-adjusted (bonus issues, stock dividends and splits) but not total-return — cash dividends paid inside a window are not added back, so a high-yield stock reads slightly low."
   }
 }

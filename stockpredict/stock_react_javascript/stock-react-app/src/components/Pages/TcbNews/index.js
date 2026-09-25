@@ -498,9 +498,17 @@ const TcbNews = () => {
               </tbody>
             </table>
           </div>
+          {/* The orange warning is now the exception: stock-data-service records the
+              adjusted close, so it fires only where a symbol genuinely lacked one. The
+              grey note below is true of every scored return and always shows. */}
           {ledger.some((r) => r.ret_adjusted === false && r.ref_close != null) && (
             <p style={{ fontSize: 12, color: '#92400e', marginTop: 8 }}>
               {t('tcb_news.unadjusted_warning')}
+            </p>
+          )}
+          {ledger.some((r) => r.ref_close != null) && (
+            <p style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+              {t('tcb_news.capital_adjusted_note')}
             </p>
           )}
         </div>

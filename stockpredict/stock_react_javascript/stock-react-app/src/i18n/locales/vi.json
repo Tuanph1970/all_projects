@@ -2722,6 +2722,7 @@
     "record_not_yet": "Chưa đủ dữ liệu để công bố — mới có {{scored}} khuyến nghị được chấm. Tỷ lệ đúng trên vài khuyến nghị chỉ là nhiễu, nên số tổng hợp được giữ lại cho tới khi đủ 30. Kết quả từng mã xem ở bảng trên.",
     "record_hint": "Đã chấm {{scored}}/{{total}} khuyến nghị. Kỳ hạn chưa đủ số phiên sẽ hiển thị dấu gạch.",
     "record_benchmark_note": "Chuẩn so sánh là cùng một lệnh đặt trên VN-Index trong đúng khoảng thời gian đó. TCB chỉ thực sự có năng lực khi tỷ lệ đúng vượt cột này — tỷ lệ đúng cao trong thị trường tăng không tự nó là bằng chứng.",
-    "unadjusted_warning": "Lợi nhuận tính trên giá đóng cửa thô: cơ sở dữ liệu này chưa có giá điều chỉnh, nên cổ tức bằng cổ phiếu hay chia tách trong kỳ sẽ hiện thành mức biến động không có thật về mặt kinh tế."
+    "unadjusted_warning": "Một số mã tính lợi nhuận trên giá đóng cửa thô do không có giá điều chỉnh — cổ tức bằng cổ phiếu hoặc chia tách trong kỳ sẽ hiện thành mức biến động không có thật về mặt kinh tế.",
+    "capital_adjusted_note": "Lợi nhuận đã điều chỉnh theo sự kiện thay đổi số lượng cổ phiếu (cổ tức cổ phiếu, chia tách) nhưng chưa cộng lại cổ tức tiền mặt trả trong kỳ, nên mã có tỷ suất cổ tức cao sẽ hiện thấp hơn thực tế một chút."
   }
 }

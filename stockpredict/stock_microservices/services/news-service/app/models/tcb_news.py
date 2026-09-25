@@ -171,9 +171,12 @@ class TcbNewsReco(Base):
     ret_20d_vs_index: Mapped[float | None] = mapped_column(Float, nullable=True)
     ret_60d_vs_index: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    # True when prices used were split/dividend adjusted. False means raw closes, so a
-    # corporate action inside the window shows up as a return that never happened —
-    # the caller is told rather than left to assume.
+    # True when the prices used carried an adjusted close. Normally true: the upstream
+    # series is back-adjusted for share-count events and stock-data-service records that
+    # (Backlog #56). False means we fell back to raw closes for this symbol, so a bonus
+    # issue inside the window shows up as a return that never happened — the caller is
+    # told rather than left to assume. Either way the figure is capital-adjusted, not
+    # total-return: cash dividends are not added back.
     ret_adjusted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

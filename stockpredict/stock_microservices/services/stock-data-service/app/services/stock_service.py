@@ -75,6 +75,30 @@ def _get_vnstock_lock() -> asyncio.Lock:
     return _vnstock_call_lock
 
 
+def adjusted_close(row) -> Optional[float]:
+    """The adjusted close for one vnstock row.
+
+    vnstock/VCI returns a back-adjusted series — its OHLCV column map is exactly
+    time/open/high/low/close/volume with no separate adjusted field, and a share-count
+    event restates the whole prior history (verified against TCB's 1:1 bonus issue,
+    ex-date June 2024, whose series is continuous at the post-bonus level). So `close`
+    IS the adjusted close and this mirrors it.
+
+    Writing it rather than leaving NULL is the point (Backlog #56): a NULL adj_close
+    reads as "prices are unadjusted" to anything computing a return, which is the
+    opposite of the truth and had already produced a false warning downstream.
+
+    A future source that does expose an explicit adjusted column is picked up here
+    without touching either call site.
+    """
+    for key in ("adj_close", "adjusted_close", "adjClose"):
+        value = row.get(key)
+        if value is not None:
+            return float(value)
+    close = row.get("close")
+    return float(close) if close is not None else None
+
+
 async def vnstock_call(fn, *args, **kwargs):
     """Run a blocking vnstock call in a worker thread, spaced so we stay
     under vnai's per-minute quota. If the quota is hit anyway, honour
@@ -1164,7 +1188,7 @@ class StockService:
                         close=float(row.get("close", 0)),
                         volume=int(row.get("volume", 0)),
                         value=None,
-                        adj_close=None,
+                        adj_close=adjusted_close(row),
                         change=None,
                         change_percent=None,
                     )
@@ -1227,6 +1251,7 @@ class StockService:
                     high=row.get("high"),
                     low=row.get("low"),
                     close=row.get("close"),
+                    adj_close=adjusted_close(row),
                     volume=int(row.get("volume", 0)),
                 )
                 prices.append(price)

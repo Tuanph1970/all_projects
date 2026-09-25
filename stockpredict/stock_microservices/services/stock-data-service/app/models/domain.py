@@ -103,7 +103,19 @@ class StockPrice(Base):
     volume = Column(BigInteger, nullable=True)
     value = Column(BigInteger, nullable=True)  # Trading value
 
-    # Adjusted prices
+    # Adjusted close.
+    #
+    # The upstream source (vnstock/VCI) already returns a BACK-ADJUSTED series: when a
+    # bonus issue or stock dividend changes the share count, every prior price in the
+    # history is restated. Verified against TCB's 1:1 bonus issue (ex-date June 2024),
+    # whose series runs smoothly through the event at the post-bonus level, and ACB's
+    # 2023 stock dividend. So `close` IS the adjusted close, and this column mirrors it.
+    #
+    # It is populated rather than left NULL because a NULL here reads as "unadjusted" to
+    # any consumer computing a return, which is the opposite of the truth (Backlog #56).
+    #
+    # Scope: adjusted for share-count events. Cash-dividend adjustment is NOT verified —
+    # treat this as capital-adjusted, not total-return.
     adj_close = Column(Float, nullable=True)
 
     # Change metrics

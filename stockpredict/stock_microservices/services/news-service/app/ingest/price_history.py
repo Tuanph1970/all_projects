@@ -6,11 +6,16 @@ Unlike that module this one carries no pandas dependency — the scorer needs an
 (date, close) sequence and nothing more, and news-service's image has no pandas.
 
 Adjusted vs raw close (EC-B5's sibling problem): a forward return computed on raw closes
-reads a stock dividend as a loss — TPB's 15% stock dividend in the 23/9 mail would show
-as roughly -13% with no economic event behind it. `adj_close` is therefore preferred,
-with a fall back to `close` and a flag saying which was used, so a caller can qualify
-what it reports. In this database `adj_close` is currently never written on ingest, so
-the fallback is what runs today.
+reads a stock dividend as a loss — a 1:1 bonus issue would show as roughly -50% with no
+economic event behind it. `adj_close` is therefore preferred, with a fall back to `close`
+and a flag saying which was used, so a caller can qualify what it reports.
+
+Upstream reality (Backlog #56): vnstock/VCI hands stock-data-service a series that is
+already back-adjusted for share-count events, and stock-data-service now writes that
+into `adj_close` rather than leaving it NULL — so `adjusted` comes back True and the
+fallback is the exception, not the rule. The adjustment covers bonus issues, stock
+dividends and splits; cash-dividend adjustment is NOT verified, so a scored return is
+capital-adjusted rather than total-return.
 """
 from __future__ import annotations
 

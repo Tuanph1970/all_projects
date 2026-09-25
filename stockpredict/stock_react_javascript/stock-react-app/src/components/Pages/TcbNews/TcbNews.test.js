@@ -228,10 +228,26 @@ test('scoring now re-reads the ledger and the record', async () => {
   await waitFor(() => expect(tcbNewsService.recos).toHaveBeenCalled());
 });
 
-test('the raw-close caveat is shown when returns are unadjusted', async () => {
+test('the raw-close warning fires only when a symbol lacked an adjusted close', async () => {
   withLedger([SCORED], { success: false, error: { response: { data: { scored_calls: 1 } } } });
   render(<TcbNews />);
   expect(await screen.findByText('tcb_news.unadjusted_warning')).toBeInTheDocument();
+});
+
+test('adjusted returns carry no raw-close warning', async () => {
+  // The normal case after Backlog #56: stock-data-service records the adjusted close.
+  withLedger([{ ...SCORED, ret_adjusted: true }],
+    { success: false, error: { response: { data: { scored_calls: 1 } } } });
+  render(<TcbNews />);
+  await screen.findByText('tcb_news.ledger_title');
+  expect(screen.queryByText('tcb_news.unadjusted_warning')).not.toBeInTheDocument();
+});
+
+test('the capital-adjusted note shows on any scored return, adjusted or not', async () => {
+  withLedger([{ ...SCORED, ret_adjusted: true }],
+    { success: false, error: { response: { data: { scored_calls: 1 } } } });
+  render(<TcbNews />);
+  expect(await screen.findByText('tcb_news.capital_adjusted_note')).toBeInTheDocument();
 });
 
 test('no caveat before anything has been scored', async () => {
@@ -241,4 +257,5 @@ test('no caveat before anything has been scored', async () => {
   render(<TcbNews />);
   await screen.findByText('tcb_news.ledger_title');
   expect(screen.queryByText('tcb_news.unadjusted_warning')).not.toBeInTheDocument();
+  expect(screen.queryByText('tcb_news.capital_adjusted_note')).not.toBeInTheDocument();
 });
