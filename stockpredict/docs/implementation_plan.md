@@ -277,3 +277,15 @@ All assert **properties**, never the SRS's synthetic magnitudes (CLAUDE.md).
 slotting `B1`, `B2` (and optionally `B3`/`B4`) wherever convenient; `B5` last if chosen.
 
 *Plan only — no code. Next: Phase 3 (implement one task at a time, starting at A1 or A0).*
+
+---
+
+## Follow-on candidate register (not part of this plan)
+
+`docs/implementation_plan_edwards_magee.md` (2026-10-10) registers the **Edwards & Magee
+validation layer** — candidates `EM-1`…`EM-9` drawn from
+`docs/edwards-magee-technical-analysis-of-stock-trends-9th-edition.md` and audited against the
+shipped code. Four of them (`EM-1` volume validation, `EM-2` volume-weighted S/R, `EM-8`
+objective calibration, `EM-9` penetration filter) touch the Part II detectors this plan built, so
+read that register before extending Track A. It is a **Phase-0 artifact**: no design, no plan, no
+code, nothing started.
