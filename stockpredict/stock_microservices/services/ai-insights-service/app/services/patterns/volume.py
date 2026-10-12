@@ -335,3 +335,232 @@ def volume_trend(
     return VolumeTrendResult(
         value=max(-1.0, min(1.0, rho)), bars_used=len(pairs), reason=""
     )
+
+
+# --- V4: the asymmetry rule (FR-EM-V3) --------------------------------------
+
+@dataclass(frozen=True)
+class BreakoutRule:
+    """`FR-EM-V3` encoded as **data**, one instance per direction.
+
+    The SRS calls the asymmetry *"the single most important requirement in this
+    document, and the one a naive 'volume confirms everything' implementation
+    gets wrong"*. Edwards & Magee, Ch 7:
+
+        "It takes buying to put stocks up, but they can fall of their own
+        weight."
+
+    So an upside break **requires** expansion and is penalised without it,
+    while a downside break treats expansion as optional corroboration and is
+    **not** penalised by its absence.
+
+    It is a rule object rather than a branch inside each detector for one
+    concrete reason: `FR-EM-V5` requires that the inverse head-and-shoulders
+    **not** reuse the top's rule inverted, and that the H&S bottom carry the
+    strongest penalty in the set. Those are new *instances* of this class
+    (task V5), not new conditionals — and `FR-EM-V4`'s non-monotone case,
+    where more volume scores *lower* on a downside triangle break, extends the
+    same object (task V6). A branch per detector is how the inversion silently
+    becomes a sign error later.
+
+    Fields
+    ------
+    confirm_rvol    : the `rvol` at or above which volume counts as expansion.
+    confirm_reward  : score credit when it is met, in ``[0, 0.5]``.
+    dull_penalty    : score debit when expansion is required and absent, in
+                      ``[0, 0.5]``. Exactly ``0.0`` is what "absence SHALL NOT
+                      penalise" means, and it is asserted as such.
+
+    Every number is a default pending the `S2` sweep (`FR-EM-V11`), never a
+    constant from the book treated as truth.
+    """
+    direction: str
+    expansion_required: bool
+    confirm_rvol: float = 1.5
+    confirm_reward: float = 0.5
+    dull_penalty: float = 0.5
+
+    def __post_init__(self) -> None:
+        if self.expansion_required and self.dull_penalty <= 0.0:
+            raise ValueError("a rule requiring expansion must penalise its absence")
+        if not self.expansion_required and self.dull_penalty != 0.0:
+            raise ValueError(
+                "FR-EM-V3: where expansion is only corroborating, its absence "
+                "must not penalise — dull_penalty must be exactly 0.0"
+            )
+
+
+#: Upside break — E&M's "it takes buying to put stocks up".
+BULLISH_BREAKOUT = BreakoutRule(
+    direction="bullish", expansion_required=True, confirm_reward=0.5, dull_penalty=0.5
+)
+
+#: Downside break — "they can fall of their own weight". Corroboration is
+#: worth less than required evidence being met, hence the smaller reward, and
+#: its absence costs nothing at all.
+BEARISH_BREAKOUT = BreakoutRule(
+    direction="bearish", expansion_required=False, confirm_reward=0.3, dull_penalty=0.0
+)
+
+BREAKOUT_RULES: Dict[str, BreakoutRule] = {
+    "bullish": BULLISH_BREAKOUT,
+    "bearish": BEARISH_BREAKOUT,
+}
+
+#: The user-facing vocabulary for a verdict (`FR-EM-V9` renders these).
+#: ``suspect`` is `FR-EM-V4`'s non-monotone case and is produced from task V6.
+VERDICT_CONFIRMS = "confirms"
+VERDICT_NEUTRAL = "neutral"
+VERDICT_CONTRADICTS = "contradicts"
+VERDICT_SUSPECT = "suspect"
+
+
+def score_breakout(rvol: float, rule: BreakoutRule) -> float:
+    """Breakout volume as a score in ``[0, 1]``, where **0.5 is "no
+    information"** rather than "bad".
+
+    Above ``confirm_rvol`` the score rises: half the reward is credited at the
+    threshold itself and the rest is earned as `rvol` climbs to twice it, so
+    the verdict is graded rather than a step — a step cannot be swept
+    (`FR-EM-V11`) and would make `H1` satisfiable by a near-constant.
+
+    Below the threshold the two directions part company, which is the whole of
+    `FR-EM-V3`: a required expansion that is missing is graded down toward
+    ``rvol = 0``, whereas a merely corroborating one returns exactly 0.5 —
+    missing evidence, not adverse evidence.
+    """
+    if rvol >= rule.confirm_rvol:
+        excess = (rvol - rule.confirm_rvol) / rule.confirm_rvol
+        return 0.5 + rule.confirm_reward * (0.5 + 0.5 * min(1.0, excess))
+    if rule.dull_penalty == 0.0:
+        return 0.5
+    shortfall = (rule.confirm_rvol - rvol) / rule.confirm_rvol
+    return 0.5 - rule.dull_penalty * min(1.0, max(0.0, shortfall))
+
+
+def factor_from_score(score: float) -> float:
+    """Map a score in ``[0, 1]`` onto the `FR-EM-V7` multiplier.
+
+    Piecewise linear and monotone through the three fixed points that make the
+    mapping meaningful: ``0.0 -> FACTOR_FLOOR``, ``0.5 -> 1.0`` (a score of
+    "no information" must not move the confidence at all), and
+    ``1.0 -> FACTOR_CEILING``.
+
+    The two halves have different slopes because the bounds are deliberately
+    asymmetric: E&M's volume evidence is better at discrediting a formation
+    than at promoting one. Bounded by construction, so no verdict can erase a
+    geometrically excellent pattern or manufacture a poor one — volume is
+    corroboration, not the finding.
+    """
+    score = min(1.0, max(0.0, score))
+    if score >= 0.5:
+        return NEUTRAL_FACTOR + (score - 0.5) / 0.5 * (FACTOR_CEILING - NEUTRAL_FACTOR)
+    return NEUTRAL_FACTOR - (0.5 - score) / 0.5 * (NEUTRAL_FACTOR - FACTOR_FLOOR)
+
+
+def verdict_label(score: float) -> str:
+    if score > 0.5:
+        return VERDICT_CONFIRMS
+    if score < 0.5:
+        return VERDICT_CONTRADICTS
+    return VERDICT_NEUTRAL
+
+
+def breakout_bar(match: Any, ohlc: Any) -> Optional[int]:
+    """The bar on which the pattern's boundary was penetrated, or ``None``.
+
+    The operative event for `FR-EM-V3` is the break, and no detector reports
+    its index — they report the formation's ``key_bars`` and the ``neckline``
+    that is the break *level*. So the bar is located as the first one after the
+    formation whose close penetrates that level in the pattern's own direction.
+
+    ``None`` is a real and common answer, not a failure: a formation that has
+    not broken out yet has no breakout volume to judge. `V3`'s null run shows
+    roughly half of directional detections are in that state at any moment.
+
+    Causality (C1) holds trivially — every bar examined is at or before the
+    last bar of the frame, which *is* the prediction time. There is no look
+    past the right edge, and no bar before the formation is consulted.
+    """
+    neckline = getattr(match, "neckline", None)
+    key_bars = getattr(match, "key_bars", None)
+    rule = BREAKOUT_RULES.get(getattr(match, "pattern_type", ""))
+    if neckline is None or not key_bars or rule is None:
+        return None
+    try:
+        close = ohlc["close"].to_numpy(dtype=float)
+    except (KeyError, TypeError, AttributeError):
+        return None
+
+    for i in range(int(key_bars[-1]) + 1, len(close)):
+        if rule.direction == "bullish" and close[i] > neckline:
+            return i
+        if rule.direction == "bearish" and close[i] < neckline:
+            return i
+    return None
+
+
+def evaluate_breakout_volume(
+    match: Any,
+    ohlc: Any,
+    baseline_window: int = DEFAULT_BASELINE_WINDOW,
+) -> VolumeVerdict:
+    """`FR-EM-V3` + `FR-EM-V7` — the volume verdict on one detection.
+
+    This is the **generic** breakout rule: it applies the direction asymmetry
+    at the penetration bar and nothing else. The per-detector conditions of
+    `FR-EM-V5` — the shoulders' relative volume, the flag drying up, the
+    triangle's suspect downside break — are tasks V5 and V6, and will refine
+    or replace this verdict per detector rather than sit beside it.
+
+    Every unavailability path returns ``VolumeVerdict.neutral`` (factor exactly
+    ``1.0``, score ``None``), because unknown must never read as "volume
+    contradicts" (`FR-EM-V7`, `EC-V1`–`EC-V4`). ``match`` and ``ohlc`` are
+    duck-typed so this module stays independent of ``base.py``, which imports
+    it.
+    """
+    try:
+        if "volume" not in ohlc:
+            return VolumeVerdict.neutral("no_volume_column")
+        volume = ohlc["volume"].to_numpy(dtype=float)
+    except (KeyError, TypeError, AttributeError):
+        return VolumeVerdict.neutral("no_volume_column")
+
+    rule = BREAKOUT_RULES.get(getattr(match, "pattern_type", ""))
+    if rule is None:
+        # A neutral-typed pattern (the symmetrical triangle, a common gap) has
+        # no direction, so the asymmetry has nothing to apply. Its own
+        # condition is FR-EM-V5, task V6.
+        return VolumeVerdict.neutral("no_directional_rule")
+
+    bar = breakout_bar(match, ohlc)
+    if bar is None:
+        return VolumeVerdict.neutral("no_breakout_yet")
+
+    rv = relative_volume(volume, bar, baseline_window)
+    if not rv.known:
+        return VolumeVerdict.neutral(
+            rv.reason or "rvol_unavailable",
+            thin_volume=rv.reason in {"dormant_no_baseline", "insufficient_history"},
+        )
+
+    score = score_breakout(rv.value, rule)
+    # Key order is fixed: the UI renders this dict in order, and `H6`'s
+    # determinism assertion compares it.
+    evidence: Dict[str, Any] = {
+        "status": "known",
+        "verdict": verdict_label(score),
+        "condition": "breakout volume",
+        "direction": rule.direction,
+        "expansion_required": rule.expansion_required,
+        "rvol": round(float(rv.value), 3),
+        "confirm_rvol": rule.confirm_rvol,
+        "baseline": round(float(rv.baseline or 0.0), 1),
+        "baseline_window": baseline_window,
+        "bars_used": rv.bars_used,
+        "breakout_bar": bar,
+        "citation": "E&M Ch 7",
+    }
+    return VolumeVerdict(
+        score=round(score, 6), factor=round(factor_from_score(score), 6), evidence=evidence
+    )

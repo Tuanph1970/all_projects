@@ -55,7 +55,7 @@ from __future__ import annotations
 
 import math
 import os
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
@@ -67,7 +67,7 @@ from app.services.patterns import (
     run_trap_detectors,
 )
 from app.services.patterns.base import PatternMatch
-from app.services.patterns.volume import DEFAULT_BASELINE_WINDOW
+from app.services.patterns.volume import DEFAULT_BASELINE_WINDOW, breakout_bar
 
 # --- Harness constants ------------------------------------------------------
 
@@ -261,7 +261,6 @@ def _hs_top(rng: np.random.Generator, leg: int = 8) -> PlantedFrame:
     off = LEAD_IN_BARS
     ls_peak = off + leg
     rs_peak = off + 4 * leg
-    break_bar = off + 5 * leg
     volume = _scripted_volume(
         close.size,
         rng,
@@ -269,7 +268,6 @@ def _hs_top(rng: np.random.Generator, leg: int = 8) -> PlantedFrame:
             (off, ls_peak + 2, 1.6, 2.4),          # heavy left shoulder
             (rs_peak - leg, rs_peak + 2, 1.0, 0.55),  # decidedly lighter right
         ],
-        bursts=[(break_bar, 2.8, 4)],              # pick-up on the break
     )
     return PlantedFrame(
         "hs_top", _frame(close, volume),
@@ -298,7 +296,6 @@ def _inv_hs(rng: np.random.Generator, leg: int = 8) -> PlantedFrame:
         close.size,
         rng,
         ramps=[(off + 3 * leg, break_bar, 0.8, 2.0)],   # builds into the break
-        bursts=[(break_bar, 3.5, 5)],                   # the mandatory burst
     )
     return PlantedFrame(
         "inv_hs", _frame(close, volume),
@@ -330,7 +327,6 @@ def _double_top(rng: np.random.Generator, leg: int = 8) -> PlantedFrame:
             (off, first_peak + 2, 1.5, 2.3),
             (second_peak - leg, second_peak + 2, 1.0, 0.6),
         ],
-        bursts=[(off + 4 * leg - 2, 2.2, 3)],
     )
     return PlantedFrame(
         "double_top", _frame(close, volume),
@@ -359,7 +355,6 @@ def _double_bottom(rng: np.random.Generator, leg: int = 8) -> PlantedFrame:
         close.size,
         rng,
         ramps=[(second_low - leg, second_low + 1, 1.2, 0.5)],   # quiet retest
-        bursts=[(off + 4 * leg - 2, 3.0, 4)],                   # confirming push
     )
     return PlantedFrame(
         "double_bottom", _frame(close, volume),
@@ -423,19 +418,57 @@ def _symmetrical_triangle(rng: np.random.Generator, n_bars: int = 80) -> Planted
     )
 
 
+def with_breakout_burst(planted: PlantedFrame, multiplier: float) -> PlantedFrame:
+    """Put the breakout burst on the bar the **detector** calls the break.
+
+    Why this is a second phase rather than another entry in ``bursts``: the
+    builders know where the geometry *draws* the penetration, but a detector
+    locates it from its own ``neckline``, and the two differ by several bars —
+    an H&S top drawn to break at bar 100 is detected as breaking at 107,
+    because the neckline sits at the trough lows and the final leg takes that
+    long to close below it.
+
+    The original V2 fixtures put the burst at the drawn index, which left
+    ``rvol`` at the operative bar sitting around 0.95 — flat. Nothing noticed,
+    because nothing read volume until V4. So the burst is now applied *after*
+    detection, at ``breakout_bar``, which is the bar the rule under test will
+    actually read. The fixture now plants what it claims to plant.
+
+    Decays geometrically over the following bars, the way the breakout-day
+    volume spurt does rather than reverting in one session.
+    """
+    matches = [m for m in detect_all(planted.frame) if m.pattern_name == planted.target_pattern]
+    if not matches:
+        return planted
+    bar = breakout_bar(matches[0], planted.frame)
+    if bar is None:
+        return planted
+
+    frame = planted.frame.copy(deep=True)
+    volume = frame["volume"].to_numpy(dtype=float).copy()
+    for k in range(4):
+        if bar + k < volume.size:
+            volume[bar + k] *= 1.0 + (multiplier - 1.0) * (0.5 ** k)
+    frame["volume"] = np.maximum(np.round(volume), 1.0)
+    return replace(planted, frame=frame)
+
+
 def planted_frames(seed: int = 20261012) -> List[PlantedFrame]:
     """The planted set for `H1`, one frame per E&M volume condition.
 
     Seeded, so `H6` determinism is testable and a failure is reproducible.
     """
     rng = np.random.default_rng(seed)
+    # The burst multipliers mirror the emphasis E&M put on each break: the
+    # inverse H&S "conspicuous burst" is the strongest, the double top's
+    # downside confirmation the mildest. Defaults pending the S2 sweep.
     return [
-        _hs_top(rng),
-        _inv_hs(rng),
-        _double_top(rng),
-        _double_bottom(rng),
-        _bull_flag(rng),
-        _symmetrical_triangle(rng),
+        with_breakout_burst(_hs_top(rng), 2.8),
+        with_breakout_burst(_inv_hs(rng), 3.5),
+        with_breakout_burst(_double_top(rng), 2.2),
+        with_breakout_burst(_double_bottom(rng), 3.0),
+        _bull_flag(rng),               # no break in the frame — V6's condition
+        _symmetrical_triangle(rng),    # pattern_type "neutral" — V6's condition
     ]
 
 
@@ -586,6 +619,13 @@ class NullReport:
     the shipped detectors fire on series that contain nothing. ``*_pct95`` is
     the significance gate — a real detection has to clear what the null
     produces 95% of the time before it means anything.
+
+    ``confidence_*`` and ``geometric_*`` are recorded **separately and both**,
+    because `FR-EM-V7` makes ``confidence`` a composite that V4 deliberately
+    moves. Only the geometric series is comparable across V4, so that is the
+    one the baseline-drift test watches; the composite series is what the
+    survivor gate is measured on. Before V4 the two are identical, which is
+    itself worth having on record.
     """
     null_name: str
     volume_source: str
@@ -595,8 +635,13 @@ class NullReport:
     detections_by_pattern: Dict[str, float]
     confidence_pct95_overall: float
     confidence_pct95_by_pattern: Dict[str, float]
+    geometric_pct95_overall: float = 0.0
+    geometric_pct95_by_pattern: Dict[str, float] = field(default_factory=dict)
     n_detections_total: int = 0
     n_surviving: Optional[int] = None
+    mean_confidence: float = 0.0
+    mean_geometric: float = 0.0
+    n_tied_at_gate: Optional[int] = None
     notes: Dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> Dict[str, Any]:
@@ -648,9 +693,12 @@ def run_null(
     rng = np.random.default_rng(seed)
     per_pattern_counts: Dict[str, int] = {}
     per_pattern_conf: Dict[str, List[float]] = {}
+    per_pattern_geom: Dict[str, List[float]] = {}
     all_conf: List[float] = []
+    all_geom: List[float] = []
     total = 0
     surviving = 0
+    tied = 0
 
     for _ in range(n_surrogates):
         if volume_source is None:
@@ -664,9 +712,14 @@ def run_null(
                 gate = thresholds.get(match.pattern_name)
                 if gate is None or float(match.confidence) > gate:
                     surviving += 1
+                if gate is not None and abs(geometric_confidence_of(match) - gate) < 1e-9:
+                    tied += 1
             per_pattern_counts[match.pattern_name] = per_pattern_counts.get(match.pattern_name, 0) + 1
             per_pattern_conf.setdefault(match.pattern_name, []).append(float(match.confidence))
             all_conf.append(float(match.confidence))
+            geometric = geometric_confidence_of(match)
+            per_pattern_geom.setdefault(match.pattern_name, []).append(geometric)
+            all_geom.append(geometric)
 
     return NullReport(
         null_name=null_name,
@@ -681,6 +734,80 @@ def run_null(
         confidence_pct95_by_pattern={
             k: round(_pct95(v), 6) for k, v in sorted(per_pattern_conf.items())
         },
+        geometric_pct95_overall=round(_pct95(all_geom), 6),
+        geometric_pct95_by_pattern={
+            k: round(_pct95(v), 6) for k, v in sorted(per_pattern_geom.items())
+        },
         n_detections_total=total,
         n_surviving=None if thresholds is None else surviving,
+        mean_confidence=round(float(np.mean(all_conf)) if all_conf else 0.0, 6),
+        mean_geometric=round(float(np.mean(all_geom)) if all_geom else 0.0, 6),
+        n_tied_at_gate=None if thresholds is None else tied,
     )
+
+
+# --- V4 / H3 support: mirrored geometry, identical volume ------------------
+
+def mirrored_pair(base: float = 100.0, leg: int = 8) -> Tuple[PlantedFrame, PlantedFrame]:
+    """A bearish H&S top and its exact mirror, an inverse H&S, sharing one
+    **constant** volume column.
+
+    This is the fixture `FR-EM-V3` names: *"the same geometry mirrored, with
+    the same flat breakout volume, must score lower bullish than bearish"*.
+
+    Three things make it a fair test of the asymmetry and nothing else:
+
+    * the bullish close series is ``2*base - bearish``, so the geometry is a
+      reflection to the bit, and ``hl_pad`` is symmetric so high/low mirror too;
+    * the volume column is **literally constant**, so ``rvol`` at every bar is
+      exactly ``1.0`` and the comparison cannot turn on a noise draw;
+    * both frames get the *same* array object's values, so there is no
+      asymmetry anywhere except the one under test — the direction.
+    """
+    body = _piecewise_linear([
+        (base, base + 10.0, leg + 1),
+        (base + 10.0, base, leg + 1),
+        (base, base + 18.0, leg + 1),
+        (base + 18.0, base, leg + 1),
+        (base, base + 10.0, leg + 1),
+        (base + 10.0, base - 3.0, leg + 1),
+    ])
+    bearish_close = np.concatenate([_lead_in(base), body])
+    bullish_close = 2.0 * base - bearish_close
+    volume = np.full(bearish_close.size, BASE_VOLUME, dtype=float)
+
+    return (
+        PlantedFrame(
+            "mirror_bearish", _frame(bearish_close, volume),
+            "downside break on flat volume — expansion is corroboration only",
+            "E&M Ch 7", "Head and Shoulders",
+        ),
+        PlantedFrame(
+            "mirror_bullish", _frame(bullish_close, volume),
+            "upside break on flat volume — expansion is required evidence",
+            "E&M Ch 7", "Inverse Head and Shoulders",
+        ),
+    )
+
+
+def with_burst_at(frame: pd.DataFrame, index: int, multiplier: float) -> pd.DataFrame:
+    """Copy of ``frame`` with one bar's volume multiplied.
+
+    Used to turn a flat-volume fixture into an expanding-volume one *at the
+    bar the production locator actually picked*, so the reward tests aim at
+    the real breakout event rather than a bar the test guessed at.
+    """
+    out = frame.copy(deep=True)
+    volume = out["volume"].to_numpy(dtype=float).copy()
+    volume[index] *= multiplier
+    out["volume"] = volume
+    return out
+
+
+def single_match(frame: pd.DataFrame, pattern_name: str) -> PatternMatch:
+    """The one detection named ``pattern_name``, or a clear assertion."""
+    matches = [m for m in detect_all(frame) if m.pattern_name == pattern_name]
+    assert len(matches) == 1, (
+        f"expected exactly one {pattern_name!r}, got {[m.pattern_name for m in matches]}"
+    )
+    return matches[0]

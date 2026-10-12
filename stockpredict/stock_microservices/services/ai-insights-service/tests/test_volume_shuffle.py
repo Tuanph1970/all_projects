@@ -30,13 +30,12 @@ untouched geometric reading no matter what the volume layer decides.
 """
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import List
 
 import numpy as np
 import pytest
 
 from tests.volume_harness import (
-    VolumeScorerMissing,
     detect_all,
     geometric_confidence_of,
     planted_frames,
@@ -50,6 +49,22 @@ SHUFFLE_SEED = 31337
 #: A property threshold, not a magnitude from the book: it only has to be
 #: clearly outside the noise of the scripted frames' lognormal jitter.
 MIN_SCORE_DROP = 0.05
+
+#: Frames whose E&M condition is **not** a breakout event, and which V4's
+#: generic breakout rule therefore cannot score. Recorded here, named, rather
+#: than quietly dropped from the assertion:
+#:
+#: * ``bull_flag`` — the planted frame ends *inside* the flag, so there is no
+#:   penetration to read. Its condition is "volume dries up through the flag"
+#:   (Ch 8/11), a span measure, which is `FR-EM-V5` / task V6.
+#: * ``symmetrical_triangle`` — ``SymmetricalTriangleDetector`` returns
+#:   ``pattern_type="neutral"``, so the direction-aware rule has no direction
+#:   to apply. Its condition is "volume diminishes toward the apex", also V6.
+#:
+#: Both are covered by ``TestConsolidationFramesAreOwedByV6`` below, which is
+#: xfail(strict) until V6 lands — so the gap is tracked by a failing test
+#: rather than by this comment.
+CONSOLIDATION_FRAMES = {"bull_flag", "symmetrical_triangle"}
 
 
 def _signature(matches) -> List[tuple]:
@@ -174,14 +189,13 @@ class TestH1GeometryIsInvariant:
 # H1 property 1 — the score must care about alignment  (pending V4)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=VolumeScorerMissing,
-    reason="EM-1 task V4 (PatternMatch composition + asymmetry rule) not implemented yet",
-)
 class TestH1VolumeScoreFallsUnderShuffle:
-    """The core evidence test. Red until V4, then it must flip to green and
-    these markers must be removed — ``strict=True`` enforces that."""
+    """The core evidence test — **live since V4**.
+
+    It was committed at V2 as ``xfail(strict=True, raises=VolumeScorerMissing)``
+    and the markers came off when V4's scorer landed, which is what
+    ``strict=True`` was there to force.
+    """
 
     def test_mean_volume_score_falls_across_the_planted_set(self):
         rng = np.random.default_rng(SHUFFLE_SEED)
@@ -200,33 +214,41 @@ class TestH1VolumeScoreFallsUnderShuffle:
             f"describe."
         )
 
-    def test_the_drop_shows_on_the_planted_pattern_itself(self):
+    @pytest.mark.parametrize(
+        "planted",
+        [pf for pf in planted_frames() if pf.name not in CONSOLIDATION_FRAMES],
+        ids=lambda pf: pf.name,
+    )
+    def test_the_drop_shows_on_the_planted_pattern_itself(self, planted):
         """The aggregate could be carried by incidental detections, so assert
-        it where the volume script actually is. Reported per pattern, because
-        which E&M condition failed to register is the useful diagnostic."""
+        it where the volume script actually is.
+
+        Parametrised per frame rather than collected into one dict, because
+        *which* E&M condition failed to register is the whole diagnostic, and a
+        lumped assertion reports only that an average moved. The split also
+        makes the scope of V4 explicit: see ``CONSOLIDATION_FRAMES``.
+        """
         rng = np.random.default_rng(SHUFFLE_SEED)
-        failures: Dict[str, str] = {}
-        for pf in planted_frames():
-            def target_scores(frame):
-                return [
+
+        def target_scores(frame):
+            return [
+                s
+                for s in (
                     volume_score_of(m)
                     for m in detect_all(frame)
-                    if m.pattern_name == pf.target_pattern
-                ]
-
-            aligned = [s for s in target_scores(pf.frame) if s is not None]
-            shuffled = [
-                s for s in target_scores(shuffle_volume(pf.frame, rng)) if s is not None
-            ]
-            if not aligned or not shuffled:
-                failures[pf.name] = "target pattern carried no volume_score"
-                continue
-            if float(np.mean(aligned)) <= float(np.mean(shuffled)):
-                failures[pf.name] = (
-                    f"aligned={np.mean(aligned):.4f} did not exceed "
-                    f"shuffled={np.mean(shuffled):.4f} — {pf.condition} ({pf.citation})"
+                    if m.pattern_name == planted.target_pattern
                 )
-        assert not failures, failures
+                if s is not None
+            ]
+
+        aligned = target_scores(planted.frame)
+        shuffled = target_scores(shuffle_volume(planted.frame, rng))
+        assert aligned, f"{planted.name}: the planted pattern carried no volume_score"
+        assert shuffled, f"{planted.name}: the shuffled frame carried no volume_score"
+        assert float(np.mean(aligned)) > float(np.mean(shuffled)), (
+            f"{planted.name}: aligned={np.mean(aligned):.4f} did not exceed "
+            f"shuffled={np.mean(shuffled):.4f} — {planted.condition} ({planted.citation})"
+        )
 
     def test_unavailable_volume_scores_none_not_zero(self):
         """`FR-EM-V7`: unknown must read as ``None``, never ``0.0``, which
@@ -236,3 +258,38 @@ class TestH1VolumeScoreFallsUnderShuffle:
         no_volume = planted_frames()[0].frame.drop(columns=["volume"])
         for match in detect_all(no_volume):
             assert volume_score_of(match) is None
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="EM-1 task V6 (continuation rules: drying-up spans) not implemented yet",
+)
+@pytest.mark.parametrize("name", sorted(CONSOLIDATION_FRAMES))
+def test_consolidation_frames_are_owed_by_v6(name):
+    """The two planted conditions V4's breakout rule cannot reach.
+
+    V4 scores the *penetration*; these two frames encode a condition about
+    volume *through the formation*, which V6 implements. Carried as a strict
+    xfail so the debt is a failing test with a name rather than a line in a
+    commit message — when V6 lands, these pass, strict turns that into a
+    failure, and the marker comes off.
+    """
+    planted = next(pf for pf in planted_frames() if pf.name == name)
+    rng = np.random.default_rng(SHUFFLE_SEED)
+
+    def target_scores(frame):
+        return [
+            s
+            for s in (
+                volume_score_of(m)
+                for m in detect_all(frame)
+                if m.pattern_name == planted.target_pattern
+            )
+            if s is not None
+        ]
+
+    aligned = target_scores(planted.frame)
+    assert aligned, f"{name}: no volume_score on the planted pattern"
+    assert float(np.mean(aligned)) > float(
+        np.mean(target_scores(shuffle_volume(planted.frame, rng)) or [0.0])
+    )

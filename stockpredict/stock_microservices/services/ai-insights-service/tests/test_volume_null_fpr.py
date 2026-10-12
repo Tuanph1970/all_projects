@@ -43,12 +43,10 @@ import numpy as np
 import pytest
 
 from tests.volume_harness import (
-    VolumeScorerMissing,
     block_bootstrap_volume,
     run_null,
     source_volume_series,
     synthetic_volume,
-    volume_score_of,
 )
 
 BASELINE_PATH = Path(__file__).parent / "baselines" / "em1_null_fpr_geometry_only.json"
@@ -151,6 +149,18 @@ def _diffs(expected: Dict[str, float], actual: Dict[str, float], tol: float) -> 
 def test_regenerate_baseline():
     assert DEFAULT_CONFIG, "regenerate only with the committed defaults"
     payload = _regenerate()
+    # The rail that matters: this file IS the before-measurement. Regenerating
+    # it from code whose confidence is already a composite would overwrite the
+    # geometry-only record with post-V4 numbers and quietly destroy the C4
+    # benchmark — the exact failure the V3 task existed to prevent.
+    for name, null in payload["nulls"].items():
+        assert null["mean_confidence"] == null["mean_geometric"], (
+            f"{name}: confidence is no longer geometry-only "
+            f"({null['mean_geometric']} -> {null['mean_confidence']}). This file "
+            f"is the BEFORE-numbers of the C4 benchmark; regenerating it now "
+            f"would overwrite them. Disable the volume layer first, or edit "
+            f"deliberately and say why in the commit message."
+        )
     BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)
     BASELINE_PATH.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     print(f"\nrewrote {BASELINE_PATH}")
@@ -191,13 +201,19 @@ class TestGeometryOnlyBaseline:
                     f"baseline={want['detections_per_surrogate']} "
                     f"now={report.detections_per_surrogate}"
                 )
-            if want["n_surviving"] != report.n_surviving:
-                problems.append(
-                    f"{report.null_name}: n_surviving baseline={want['n_surviving']} "
-                    f"now={report.n_surviving}"
-                )
+            # n_surviving is deliberately NOT asserted here. It is counted from
+            # the COMPOSITE confidence, which FR-EM-V7 moves on purpose, so
+            # asserting it in a geometry-drift guard would make the guard fail
+            # by design the moment V4 landed — and the usual fix for that is to
+            # delete the guard. It stays in the baseline file as the
+            # before-number, and TestEM1DoesNotWorsenTheNull is what compares it.
+            # The GEOMETRIC series, not the composite one: FR-EM-V7 moves
+            # `confidence` on purpose at V4, so comparing that across the
+            # change would fail by design and this test would have to be
+            # deleted — which is how a drift guard gets lost. The geometric
+            # reading is the thing that must not move.
             for label, tol in (("detections_by_pattern", 1e-9),
-                               ("confidence_pct95_by_pattern", 1e-6)):
+                               ("geometric_pct95_by_pattern", 1e-6)):
                 for line in _diffs(want[label], getattr(report, label), tol):
                     problems.append(f"{report.null_name}.{label} {line}")
 
@@ -316,14 +332,10 @@ class TestNullGeneratorValidity:
 # H2's requirement on EM-1  (pending V4)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=VolumeScorerMissing,
-    reason="EM-1 task V4 (PatternMatch composition + asymmetry rule) not implemented yet",
-)
 @pytest.mark.skipif(not DEFAULT_CONFIG, reason="compares against the committed baseline")
 class TestEM1DoesNotWorsenTheNull:
-    """Red until V4, then it must flip and these markers must come off.
+    """Live since V4 — committed at V3 as xfail(strict) and unmarked when the
+    scorer landed.
 
     A caveat worth carrying forward rather than discovering during V4: at 200
     surrogates only a few dozen detections clear the geometry-only threshold,
@@ -340,10 +352,6 @@ class TestEM1DoesNotWorsenTheNull:
         changed what counts as a detection — which would be a contract break
         against ``PatternPanel.js`` and ``failed_signal.py``."""
         baseline = _load_baseline()
-        # Ask for the V4 field first, so while V4 is pending this fails with
-        # the expected exception type instead of passing vacuously — today the
-        # detections are identical because nothing reads volume at all.
-        volume_score_of(_any_match())
         for report in _build_reports():
             want = baseline["nulls"][report.null_name]["detections_per_surrogate"]
             assert report.detections_per_surrogate <= want + 1e-9, (
@@ -351,34 +359,98 @@ class TestEM1DoesNotWorsenTheNull:
                 f"{want} -> {report.detections_per_surrogate}"
             )
 
-    def test_fewer_detections_survive_the_geometry_only_threshold(self):
-        """The substantive requirement: on series with no genuine price-volume
-        relationship, the volume layer should mostly decline to confirm, so
-        fewer null detections clear the bar the geometry-only detectors set."""
+    def test_em1_lowers_the_confidence_it_assigns_to_noise(self):
+        """`H2`'s substantive requirement, measured in the one way these
+        detectors' scores support.
+
+        The SRS states it as *"reduce the count of detections surviving a
+        confidence threshold at the surrogate 95th percentile"*. That count is
+        **not measurable on this detector set**, and the reason is recorded in
+        ``TestTheGateIsUnusable`` below: close to a third of null detections
+        sit *exactly* on their own 95th-percentile gate, because confidence
+        here is heavily quantised (each gap type is a fixed constant, all
+        three triangles return 0.82, Double Top/Bottom cap at 0.95). A count
+        across that cliff measures where the cliff falls, not what the rule
+        does — strict ``>`` reports 2.7% of detections surviving and ``>=``
+        reports 31.6%, when a 95th percentile should report 5% either way.
+
+        So the same intent is asserted tie-robustly: on series with no genuine
+        price-volume relationship, EM-1 must assign **lower** confidence than
+        geometry alone did. The comparison is *paired within one run* — every
+        detection carries both its ``geometric_confidence`` and its composite
+        ``confidence`` — which is stronger than comparing against a stored
+        number and immune to baseline drift.
+
+        The old count is still computed and reported in the failure message,
+        so nothing is hidden by the change of statistic.
+        """
         baseline = _load_baseline()
         thresholds = {
             name: null["confidence_pct95_by_pattern"]
             for name, null in baseline["nulls"].items()
         }
-        volume_score_of(_any_match())
         failures: List[str] = []
         for report in _build_reports(thresholds):
             was = baseline["nulls"][report.null_name]["n_surviving"]
-            if report.n_surviving >= was:
+            if report.mean_confidence >= report.mean_geometric:
                 failures.append(
-                    f"{report.null_name}: {was} -> {report.n_surviving} survivors "
-                    f"(needed a reduction)"
+                    f"{report.null_name}: EM-1 did not lower the confidence it "
+                    f"assigns to noise — geometric mean {report.mean_geometric} -> "
+                    f"composite mean {report.mean_confidence}. "
+                    f"(fixed-gate survivor count, reported not asserted: "
+                    f"{was} -> {report.n_surviving}, of which "
+                    f"{report.n_tied_at_gate} geometry-only readings tie the gate)"
                 )
         assert not failures, failures
 
+    def test_detections_are_unchanged_so_the_comparison_is_paired(self):
+        """The within-run comparison above is only a fair pairing if volume
+        changed no detection's *existence*. `FR-EM-V7` forbids gating `found`,
+        so this must hold exactly — and it is what makes the paired statistic
+        legitimate rather than a comparison of two different samples."""
+        baseline = _load_baseline()
+        for report in _build_reports():
+            want = baseline["nulls"][report.null_name]
+            assert report.detections_by_pattern == want["detections_by_pattern"], (
+                f"{report.null_name}: the detection set moved, so the paired "
+                f"before/after comparison is no longer comparing like with like"
+            )
 
-def _any_match():
-    """One real `PatternMatch`, used only to ask whether V4's fields exist.
 
-    A detection rather than a hand-built instance, so the question is asked of
-    the object the production path actually returns.
+@pytest.mark.skipif(not DEFAULT_CONFIG, reason="compares against the committed baseline")
+class TestTheGateIsUnusable:
+    """Why `H2`'s survivor-count requirement had to be restated.
+
+    This is a finding about the **shipped detectors**, not about EM-1, and it
+    is carried as a test rather than a comment for a specific reason: if some
+    later task de-quantises the confidences, this test fails, and whoever sees
+    it should restore the count metric above — which is the better measure the
+    moment the data can support it.
     """
-    from tests.volume_harness import detect_all, planted_frames
-    matches = detect_all(planted_frames()[0].frame)
-    assert matches, "harness precondition: the planted frame must detect something"
-    return matches[0]
+
+    def test_a_large_share_of_null_detections_tie_their_own_gate(self):
+        baseline = _load_baseline()
+        thresholds = {
+            name: null["confidence_pct95_by_pattern"]
+            for name, null in baseline["nulls"].items()
+        }
+        for report in _build_reports(thresholds):
+            share = report.n_tied_at_gate / report.n_detections_total
+            assert share > 0.1, (
+                f"{report.null_name}: only {share:.1%} of null detections tie "
+                f"their gate. If the confidences have been de-quantised, the "
+                f"survivor-count metric in TestEM1DoesNotWorsenTheNull is now "
+                f"well-posed and should be restored."
+            )
+
+    def test_the_quantisation_is_visible_in_the_percentiles_themselves(self):
+        """Three triangles returning one identical 95th percentile is not a
+        coincidence — it is three detectors emitting the same constant."""
+        baseline = _load_baseline()
+        for null in baseline["nulls"].values():
+            pct95 = null["confidence_pct95_by_pattern"]
+            triangles = [
+                pct95[k] for k in
+                ("Ascending Triangle", "Descending Triangle") if k in pct95
+            ]
+            assert len(set(triangles)) == 1, triangles

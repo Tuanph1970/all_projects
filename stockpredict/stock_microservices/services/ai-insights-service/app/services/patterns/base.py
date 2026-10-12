@@ -7,11 +7,18 @@ in Day 2 / Day 3 is local to a single file.
 """
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+
+from app.services.patterns.volume import (
+    NEUTRAL_FACTOR,
+    VolumeVerdict,
+    evaluate_breakout_volume,
+)
 
 
 @dataclass
@@ -22,15 +29,65 @@ class PatternMatch:
     Ch 5): for bearish patterns it is below the breakout line, for bullish
     patterns above. Callers use it as a first-cut profit target (Ch 10) and
     as the reference price for the failed-signal detector (Ch 11, F-006).
+
+    EM-1 (`FR-EM-V7`) adds the volume layer. `confidence` becomes the
+    **composite** `geometric_confidence x volume_factor`, and the geometric
+    reading is preserved rather than overwritten, so a caller — and the UI —
+    can see that volume moved the number and by how much. Every volume field
+    is `Optional` and defaulted, so existing construction sites and HTTP
+    clients are unaffected (`EC-V3`).
+
+    Volume **weights** the score; it never gates `found`. That is deliberate:
+    `found` is consumed by `PatternPanel.js`, `AIInsights.js` and
+    decision-helper's `failed_signal.py`, where flipping it on volume grounds
+    would read as patterns disappearing.
     """
     pattern_name: str
     pattern_type: str                    # "bullish" | "bearish"
     found: bool
-    confidence: float                    # 0..1
+    confidence: float                    # 0..1 — composite once volume is read
     key_bars: List[int] = field(default_factory=list)
     measured_move_target: Optional[float] = None
     neckline: Optional[float] = None     # breakout level for the pattern
     details: dict = field(default_factory=dict)
+    # --- EM-1 / FR-EM-V7 ---
+    volume_score: Optional[float] = None       # 0..1; None = unknown, never 0.0
+    volume_factor: float = NEUTRAL_FACTOR      # the multiplier actually applied
+    volume_evidence: dict = field(default_factory=dict)
+    geometric_confidence: Optional[float] = None   # the pre-volume reading
+
+
+def apply_volume_evidence(
+    match: Optional[PatternMatch], ohlc: pd.DataFrame
+) -> Optional[PatternMatch]:
+    """Compose the volume verdict onto one detection (`FR-EM-V7`).
+
+    Idempotent — a second call is a no-op, which matters because a detector
+    may be invoked through a runner that has already finalised the match.
+
+    Failure isolation (`NFR-V1`) is the reason for the bare `except`: each
+    detector is already wrapped in a `try/except` by its runner
+    (`reversal.py:386`, `continuation.py:789`), so an exception escaping here
+    would swallow the **detection** along with the error. Volume therefore
+    fails *inward*, to a neutral factor, and the pattern survives.
+    """
+    if match is None or not match.found:
+        return match
+    if match.geometric_confidence is not None:
+        return match
+
+    geometric = float(match.confidence)
+    try:
+        verdict = evaluate_breakout_volume(match, ohlc)
+    except Exception:  # noqa: BLE001 — NFR-V1: a volume bug must not drop a detection
+        verdict = VolumeVerdict.neutral("volume_evaluation_failed")
+
+    match.geometric_confidence = geometric
+    match.volume_score = verdict.score
+    match.volume_factor = verdict.factor
+    match.volume_evidence = verdict.evidence
+    match.confidence = float(round(min(1.0, max(0.0, geometric * verdict.factor)), 3))
+    return match
 
 
 class PatternDetector:
@@ -38,6 +95,34 @@ class PatternDetector:
 
     pattern_name: str = "Pattern"
     pattern_type: str = "neutral"
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Wrap every subclass's `detect` so the volume layer is applied
+        exactly once, in exactly one place.
+
+        `FR-EM-V3` must be *"encoded once, as data"* — a call to
+        `apply_volume_evidence` written into each of the twelve detectors
+        would be twelve places to forget it, and a thirteenth detector added
+        later would silently return no volume verdict while looking correct.
+        Wrapping here also keeps the object consistent however it is reached:
+        a direct `Detector().detect(df)` and the `run_*_detectors` aggregator
+        return the same fields.
+
+        Only a class that defines `detect` itself is wrapped, and the wrapper
+        marks itself, so neither inheritance nor a re-import double-applies it
+        (`apply_volume_evidence` is idempotent regardless).
+        """
+        super().__init_subclass__(**kwargs)
+        inner: Optional[Callable[..., Any]] = cls.__dict__.get("detect")
+        if inner is None or getattr(inner, "_em1_volume_wrapped", False):
+            return
+
+        @functools.wraps(inner)
+        def wrapper(self: "PatternDetector", ohlc: pd.DataFrame, *args: Any, **kw: Any):
+            return apply_volume_evidence(inner(self, ohlc, *args, **kw), ohlc)
+
+        wrapper._em1_volume_wrapped = True  # type: ignore[attr-defined]
+        cls.detect = wrapper  # type: ignore[assignment]
 
     def detect(self, ohlc: pd.DataFrame) -> Optional[PatternMatch]:
         raise NotImplementedError

@@ -355,15 +355,27 @@ class PatternMatch(BaseModel):
     bearish patterns it sits below the neckline, for bullish patterns
     above. The decision-helper-service consumes this directly into its
     target_module (Ch 10) and failed-signal detector (Ch 11).
+
+    EM-1 (`FR-EM-V7`) adds the volume fields. All are `Optional` with
+    defaults, so the change is **additive** and an existing client that does
+    not know about them is unaffected (`EC-V3`, `FR-EM-V8`). `confidence` is
+    now the composite `geometric_confidence x volume_factor` — an intended
+    behaviour change, called out in the release notes and the user guide,
+    and the reason task `S1` measures decision-helper before and after.
     """
     pattern_name: str
     pattern_type: str                    # "bullish" | "bearish"
     found: bool
-    confidence: float                    # 0..1
+    confidence: float                    # 0..1 — composite once volume is read
     key_bars: List[int]                  # bar indices defining the pattern
     measured_move_target: Optional[float] = None
     neckline: Optional[float] = None
     details: Dict[str, Any] = Field(default_factory=dict)
+    # --- EM-1 / FR-EM-V7: volume weights the score, it never gates `found` ---
+    volume_score: Optional[float] = None       # 0..1; None = unknown, never 0.0
+    volume_factor: float = 1.0                 # the multiplier actually applied
+    volume_evidence: Dict[str, Any] = Field(default_factory=dict)
+    geometric_confidence: Optional[float] = None   # the pre-volume reading
 
 
 class ReversalPatternsResponse(BaseModel):
