@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import PositionCalculator from './PositionCalculator';
+import i18n from '../../i18n';
 
 // Inputs now have htmlFor/id linkage, so we can use the accessible
 // getByLabelText API instead of indexing into role queries.
@@ -17,6 +18,18 @@ const setInput = (which, value) => {
 };
 
 const findShares = () => screen.getByTestId('pc-shares').textContent;
+
+// This suite asserts on Vietnamese copy, so it must initialise the shared
+// i18n instance and pin the language explicitly. Without the import,
+// react-i18next runs uninitialised and `t('a.b.c')` returns the KEY, so every
+// query for a translated string fails; without the explicit changeLanguage,
+// the browser language detector decides, and jsdom reports en-US.
+// (These components were internationalised in May 2026 — commits d4dcc00d and
+// 2a3c7ce4 — and the tests, written earlier against hardcoded Vietnamese
+// literals, were never given the harness to resolve them.)
+beforeAll(async () => {
+  await i18n.changeLanguage('vi');
+});
 
 describe('PositionCalculator', () => {
   test('renders with sensible defaults and computes a position size', () => {

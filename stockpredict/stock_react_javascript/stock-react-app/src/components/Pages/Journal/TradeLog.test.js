@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import TradeLog from './TradeLog';
 import journalService from '../../../services/journalService';
+import i18n from '../../../i18n';
 
 jest.mock('../../../services/journalService');
 
@@ -23,6 +24,18 @@ const renderPage = () =>
       <TradeLog />
     </MemoryRouter>
   );
+
+// This suite asserts on Vietnamese copy, so it must initialise the shared
+// i18n instance and pin the language explicitly. Without the import,
+// react-i18next runs uninitialised and `t('a.b.c')` returns the KEY, so every
+// query for a translated string fails; without the explicit changeLanguage,
+// the browser language detector decides, and jsdom reports en-US.
+// (These components were internationalised in May 2026 — commits d4dcc00d and
+// 2a3c7ce4 — and the tests, written earlier against hardcoded Vietnamese
+// literals, were never given the harness to resolve them.)
+beforeAll(async () => {
+  await i18n.changeLanguage('vi');
+});
 
 describe("TradeLog — today's plan card", () => {
   test("renders today's plan when one exists for today", async () => {
