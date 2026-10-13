@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 # --- Defaults ---------------------------------------------------------------
 # Every number here is a *default pending the S2 sweep* (FR-EM-V11), never a
@@ -44,6 +44,29 @@ from typing import Any, Dict, List, Optional, Sequence
 # 1940s-60s NYSE issues.
 
 DEFAULT_BASELINE_WINDOW = 50   # trailing bars behind the bar being judged
+
+#: The SECOND, much longer baseline (`FR-EM-V5` row 11, SRS open question 3).
+#: Ch 10.1's One-Day Reversal requires "volume exceeding anything for months",
+#: which is not a statement about the last fifty bars. ~120 trading bars is
+#: roughly six months on a VN daily series.
+LONG_BASELINE_WINDOW = 120
+
+#: Compared against a high **percentile** of that long window rather than its
+#: maximum. "Anything for months" reads as a maximum, but `EC-V5` requires
+#: robustness to one absurd vendor print, and a maximum would let a single bad
+#: row suppress every one-day reversal behind it — permanently and silently.
+#: The 98th percentile of 120 bars is the second or third heaviest bar: the
+#: same statement in substance, bounded against one bad row. `S2` sweeps it.
+LONG_BASELINE_PERCENTILE = 98.0
+
+#: `rvol` at or above which a gap's volume counts as "extraordinary" for the
+#: purposes of Ch 12's exhaustion test. A default pending the S2 sweep.
+GAP_EXHAUSTION_RVOL = 3.0
+
+#: How much of the gap the following bars must carry before the advance counts
+#: as "commensurate". Below this, with extraordinary volume, the gap is an
+#: exhaustion gap rather than a runaway.
+GAP_FOLLOW_THROUGH_FRACTION = 0.5
 MIN_BASELINE_BARS = 10         # below this there is no usable baseline (EC-V4)
 MAX_WIDEN_FACTOR = 4           # how far back EC-V2 may widen past a dead window
 MIN_TREND_BARS = 4             # below this a direction verdict is meaningless
@@ -105,6 +128,9 @@ class VolumeVerdict:
     score: Optional[float]
     factor: float
     evidence: Dict[str, Any] = field(default_factory=dict)
+    #: `FR-EM-V5` row 10: the one case where volume changes a pattern's
+    #: **label** rather than only its score. ``None`` everywhere else.
+    reclassify_to: Optional[str] = None
 
     @classmethod
     def neutral(cls, reason: str = "no_volume_data", *, thin_volume: bool = False) -> "VolumeVerdict":
@@ -146,6 +172,21 @@ def _median(values: Sequence[float]) -> float:
     if n % 2:
         return ordered[mid]
     return (ordered[mid - 1] + ordered[mid]) / 2.0
+
+
+def _percentile(values: Sequence[float], percentile: float) -> float:
+    """Linear-interpolated percentile, computed without numpy so this module
+    stays a plain-Python primitive layer like the rest of its helpers."""
+    ordered = sorted(values)
+    if not ordered:
+        return 0.0
+    if len(ordered) == 1:
+        return ordered[0]
+    position = (len(ordered) - 1) * min(100.0, max(0.0, percentile)) / 100.0
+    low = int(math.floor(position))
+    high = min(len(ordered) - 1, low + 1)
+    weight = position - low
+    return ordered[low] * (1.0 - weight) + ordered[high] * weight
 
 
 def _average_ranks(values: Sequence[float]) -> List[float]:
@@ -714,6 +755,7 @@ def _anchor_span(
     n: int,
     window: int,
     to_anchor: Optional[int] = None,
+    start_offset: int = 0,
 ) -> Optional[tuple]:
     """Bar range for a condition, clipped to the frame.
 
@@ -729,7 +771,8 @@ def _anchor_span(
     if to_anchor is not None:
         if to_anchor >= len(key_bars):
             return None
-        start, end = int(key_bars[anchor]), min(n, int(key_bars[to_anchor]) + 1)
+        start = int(key_bars[anchor]) + start_offset
+        end = min(n, int(key_bars[to_anchor]) + 1)
     else:
         centre = int(key_bars[anchor])
         start, end = max(0, centre - window), min(n, centre + window + 1)
@@ -830,12 +873,15 @@ class SpanLevel:
     weight: float = 1.0
     citation: str = ""
     to_anchor: Optional[int] = None
+    start_offset: int = 0
 
     def anchors_include(self, anchor: int) -> bool:
         return anchor == self.anchor
 
     def evaluate(self, volume, key_bars, n, window, baseline_window, _end):
-        span = _anchor_span(key_bars, self.anchor, n, window, self.to_anchor)
+        span = _anchor_span(
+            key_bars, self.anchor, n, window, self.to_anchor, self.start_offset
+        )
         if span is None:
             return None, {"verdict": "unknown", "reason": "anchor_out_of_range", "value": None}
         rv = span_relative_volume(volume, span[0], span[1], baseline_window)
@@ -914,6 +960,69 @@ class SpanTrend:
         }
 
 
+@dataclass(frozen=True)
+class BarExtreme:
+    """One bar's volume against a high percentile of a **long** trailing window.
+
+    `FR-EM-V5` row 11 and SRS open question 3. Ch 10.1's One-Day Reversal
+    requires *"volume exceeding anything for months"*, so this is the only
+    condition in the module that does not use ``baseline_window`` — the whole
+    point is that the comparison window is a different, much longer one.
+
+    A percentile rather than a maximum, for `EC-V5`'s reason: see
+    `LONG_BASELINE_PERCENTILE`.
+    """
+    label: str
+    anchor: int
+    window: int = LONG_BASELINE_WINDOW
+    percentile: float = LONG_BASELINE_PERCENTILE
+    threshold: float = 1.0
+    required: bool = True
+    weight: float = 1.0
+    citation: str = ""
+
+    def anchors_include(self, anchor: int) -> bool:
+        return anchor == self.anchor
+
+    def evaluate(self, volume, key_bars, n, _window, _baseline_window, _end):
+        if self.anchor >= len(key_bars):
+            return None, {"verdict": "unknown", "reason": "anchor_out_of_range", "value": None}
+        index = int(key_bars[self.anchor])
+        here = _usable(volume[index]) if 0 <= index < n else None
+        if here is None:
+            return None, {"verdict": "unknown", "reason": "missing_volume", "value": None}
+
+        start = max(0, index - self.window)
+        prior = [v for v in (_usable(x) for x in volume[start:index]) if v is not None]
+        if len(prior) < MIN_BASELINE_BARS:
+            return None, {
+                "verdict": "unknown", "reason": "insufficient_long_history",
+                "value": None, "window": self.window,
+            }
+
+        reference = _percentile(prior, self.percentile)
+        if reference <= 0.0:
+            return None, {
+                "verdict": "unknown", "reason": "dormant_long_window",
+                "value": None, "window": self.window,
+            }
+
+        ratio = here / reference
+        margin = (ratio - self.threshold) / self.threshold
+        score = _graded_score(margin, required=self.required)
+        return score, {
+            "verdict": verdict_label(score),
+            "value": round(ratio, 3),
+            "threshold": self.threshold,
+            "window": self.window,
+            "percentile": self.percentile,
+            "reference": round(reference, 1),
+            "bars_used": len(prior),
+            "required": self.required,
+            "citation": self.citation,
+        }
+
+
 #: The head-and-shoulders bottom's breakout rule — the strongest in the set.
 #: E&M, Ch 7: *"there must be a conspicuous burst of volume on the neckline
 #: penetration. Without it, don't trust the breakout."* Strictest on both
@@ -949,6 +1058,10 @@ class PatternVolumeRule:
     #: break happens — the symmetrical triangle, whose upside break requires
     #: expansion while its downside break on heavy volume is suspect.
     breakout_by_direction: Optional[Dict[str, BreakoutRule]] = None
+    #: Set only by the gap family. A callable ``(match, ohlc) -> Optional[str]``
+    #: returning the new ``pattern_name``, so the dispatcher stays generic and
+    #: the one detector that re-labels declares that it does.
+    reclassify: Optional[Callable[..., Optional[str]]] = None
 
     def breakout_for(self, direction: str) -> Optional[BreakoutRule]:
         if self.breakout_by_direction is not None:
@@ -1150,6 +1263,140 @@ PATTERN_RULES.update({
 })
 
 
+def reclassify_gap(match: Any, ohlc: Any) -> Optional[str]:
+    """`FR-EM-V5` row 10 — Ch 12's exhaustion test, or ``None`` to leave the
+    label alone.
+
+    E&M recognise an exhaustion gap by *"extraordinary volume with price
+    failing to advance commensurately"* on the day after. That is a **volume**
+    rule, and `continuation.py`'s classifier has no volume to read: it sees a
+    gap in the trend direction that has not been filled and calls it a
+    *runaway*. So this is the one place EM-1 changes a label.
+
+    **Deliberately narrow** (SRS open question 4). Only the exhaustion case is
+    re-classified, because it is the only one the SRS says the current
+    classifier cannot express. Separating *breakaway* from *runaway* on volume
+    is plausible but has no evidence behind it yet, so it stays geometry-driven
+    until the `S2` sweep — inventing a second re-labelling rule here would be
+    exactly the unverified claim `CLAUDE.md` forbids.
+
+    Both halves of the rule are required. Extraordinary volume that *does*
+    carry price is a breakaway or a runaway, and a stall on ordinary volume is
+    just a stall; only the conjunction is an exhaustion gap.
+    """
+    details = getattr(match, "details", {}) or {}
+    key_bars = getattr(match, "key_bars", None)
+    if not key_bars or details.get("gap_type") == "exhaustion":
+        return None
+
+    gap_bar = int(key_bars[-1])
+    try:
+        volume = ohlc["volume"].to_numpy(dtype=float)
+        close = ohlc["close"].to_numpy(dtype=float)
+    except (KeyError, TypeError, AttributeError):
+        return None
+
+    rv = relative_volume(volume, gap_bar, DEFAULT_BASELINE_WINDOW)
+    if not rv.known or rv.value < GAP_EXHAUSTION_RVOL:
+        return None
+
+    gap_size = float(details.get("gap_size") or 0.0)
+    if gap_size <= 0.0:
+        return None
+
+    # "The day after" — read the bars that exist, never past the right edge
+    # (C1): the frame's last bar IS the prediction time.
+    after = close[gap_bar + 1: gap_bar + 4]
+    if after.size == 0:
+        return None
+
+    sign = 1.0 if details.get("gap_direction") == "up" else -1.0
+    advance = float((after.max() if sign > 0 else after.min()) - close[gap_bar]) * sign
+    if advance >= GAP_FOLLOW_THROUGH_FRACTION * gap_size:
+        return None
+
+    return "Gap (exhaustion)"
+
+
+#: ``to_anchor=1`` with the same anchor reads **exactly one bar** — the gap
+#: itself. A gap is a single-bar event, so the default ±`ANCHOR_WINDOW` window
+#: would take the median of seven bars and wash the gap's own volume out
+#: entirely: measured, a gap on nine times its baseline scored *neutral*
+#: because the six ordinary bars around it dominated the median.
+_GAP_VOLUME_CONDITION = SpanLevel(
+    label="volume on the gap",
+    anchor=1, to_anchor=1, expect="high", threshold=1.5,
+    required=False, citation="E&M Ch 12",
+)
+
+_TRAP_CONDITION = SpanLevel(
+    # The span starts AFTER the penetration — see `_anchor_span`'s start_offset.
+    label="no follow-through volume after the penetration",
+    anchor=0, to_anchor=1, start_offset=1,
+    expect="low", threshold=0.9, required=True, citation="E&M Ch 13, Ch 35",
+)
+
+_TRAP_NOTE = (
+    "volume's role is INVERTED here: a genuine break is nearly always followed "
+    "by a marked volume pickup, so the ABSENCE of follow-through is the trap's "
+    "signature and raises confidence rather than lowering it"
+)
+
+PATTERN_RULES.update({
+    # key_bars = [bar before the gap, the gap bar]
+    **{
+        name: PatternVolumeRule(
+            pattern_name=name,
+            breakout=None,
+            conditions=(_GAP_VOLUME_CONDITION,),
+            citation="E&M Ch 12",
+            reclassify=reclassify_gap,
+            unscored_note=(
+                "volume may RE-LABEL this gap as an exhaustion gap: extraordinary "
+                "volume with price failing to advance commensurately (Ch 12)"
+            ),
+        )
+        for name in ("Gap (common)", "Gap (breakaway)", "Gap (runaway)")
+    },
+    # Already exhaustion: scored, but not re-labelled again.
+    "Gap (exhaustion)": PatternVolumeRule(
+        pattern_name="Gap (exhaustion)",
+        breakout=None,
+        conditions=(_GAP_VOLUME_CONDITION,),
+        citation="E&M Ch 12",
+        reclassify=reclassify_gap,
+        unscored_note="an exhaustion gap is already a volume reading; it is not re-labelled again",
+    ),
+    # key_bars = [the wide bar]
+    "Wide-Ranging Day": PatternVolumeRule(
+        pattern_name="Wide-Ranging Day",
+        breakout=None,
+        conditions=(
+            BarExtreme(
+                label="volume exceeding anything for months",
+                anchor=0, required=True, citation="E&M Ch 10.1",
+            ),
+        ),
+        citation="E&M Ch 10, Ch 10.1",
+        unscored_note=(
+            "without volume exceeding anything for months this is an ordinary "
+            "wide day, not a One-Day Reversal"
+        ),
+    ),
+    # key_bars = [penetration bar, reversion bar]
+    "Bull Trap": PatternVolumeRule(
+        pattern_name="Bull Trap", breakout=None,
+        conditions=(_TRAP_CONDITION,), citation="E&M Ch 13, Ch 35",
+        unscored_note=_TRAP_NOTE,
+    ),
+    "Bear Trap": PatternVolumeRule(
+        pattern_name="Bear Trap", breakout=None,
+        conditions=(_TRAP_CONDITION,), citation="E&M Ch 13, Ch 35",
+        unscored_note=_TRAP_NOTE,
+    ),
+})
+
+
 def evaluate_pattern_volume(
     match: Any,
     ohlc: Any,
@@ -1247,6 +1494,21 @@ def evaluate_pattern_volume(
     }
     if rule.unscored_note:
         evidence["not_scored"] = rule.unscored_note
+
+    reclassified: Optional[str] = None
+    if rule.reclassify is not None:
+        try:
+            candidate = rule.reclassify(match, ohlc)
+        except Exception:  # noqa: BLE001 — NFR-V1: never drop a detection
+            candidate = None
+        if candidate and candidate != getattr(match, "pattern_name", ""):
+            reclassified = candidate
+            evidence["reclassified_from"] = match.pattern_name
+            evidence["reclassified_to"] = candidate
+
     return VolumeVerdict(
-        score=round(score, 6), factor=round(factor_from_score(score), 6), evidence=evidence
+        score=round(score, 6),
+        factor=round(factor_from_score(score), 6),
+        evidence=evidence,
+        reclassify_to=reclassified,
     )

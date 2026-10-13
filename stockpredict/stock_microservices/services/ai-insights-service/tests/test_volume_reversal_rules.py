@@ -41,6 +41,7 @@ from dataclasses import replace
 
 from app.services.patterns.volume import (
     BEARISH_BREAKOUT,
+    BarExtreme,
     BULLISH_BREAKOUT,
     INVERSE_HS_BREAKOUT,
     NEUTRAL_FACTOR,
@@ -353,4 +354,4 @@ class TestTheRegistry:
         for rule in PATTERN_RULES.values():
             for condition in rule.conditions:
                 assert isinstance(condition.required, bool)
-                assert isinstance(condition, (SpanRatio, SpanLevel, SpanTrend))
+                assert isinstance(condition, (SpanRatio, SpanLevel, SpanTrend, BarExtreme))

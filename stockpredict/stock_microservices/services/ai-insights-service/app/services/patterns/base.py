@@ -87,6 +87,21 @@ def apply_volume_evidence(
     match.volume_factor = verdict.factor
     match.volume_evidence = verdict.evidence
     match.confidence = float(round(min(1.0, max(0.0, geometric * verdict.factor)), 3))
+
+    # FR-EM-V5 row 10: the gap family is the one place volume changes a
+    # pattern's LABEL and not just its score (Ch 12's exhaustion gap, which
+    # the geometry-only classifier cannot express). The previous label is kept
+    # in both `details` and `volume_evidence`, because `pattern_name` is what
+    # PatternPanel.js renders and a label that moved with no record of what it
+    # was would be indistinguishable from a detector bug.
+    if verdict.reclassify_to:
+        match.details = {
+            **match.details,
+            "gap_type_before_volume": match.details.get("gap_type"),
+            "gap_type": verdict.reclassify_to.removeprefix("Gap (").removesuffix(")"),
+            "reclassified_by": "volume",
+        }
+        match.pattern_name = verdict.reclassify_to
     return match
 
 

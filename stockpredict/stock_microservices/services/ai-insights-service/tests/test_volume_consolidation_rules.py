@@ -322,11 +322,11 @@ class TestPerDetectorCalibration:
 # ---------------------------------------------------------------------------
 
 class TestRegistryAndBounds:
-    def test_the_registry_now_covers_nine_detectors(self):
-        """Four reversal from V5, five consolidation from V6a. The three V6b
-        reaches — Gap, Wide-Ranging Day and the traps — are still absent, so
-        that task cannot land half-done unnoticed."""
-        assert set(PATTERN_RULES) == {
+    def test_the_five_consolidation_detectors_are_registered(self):
+        """Membership of the whole registry is asserted in
+        ``test_volume_bar_pattern_rules.py`` since V6b completed it; this keeps
+        V6a's own five under test."""
+        assert {
             "Head and Shoulders",
             "Inverse Head and Shoulders",
             "Double Top",
@@ -336,7 +336,7 @@ class TestRegistryAndBounds:
             "Symmetrical Triangle",
             "Ascending Triangle",
             "Descending Triangle",
-        }
+        } <= set(PATTERN_RULES)
 
     @pytest.mark.parametrize("name,pattern", FORMATIONS, ids=[f[0] for f in FORMATIONS])
     def test_scores_and_factors_stay_in_range(self, name, pattern):

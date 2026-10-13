@@ -129,6 +129,28 @@ def _load_baseline() -> Dict[str, Any]:
     return json.loads(BASELINE_PATH.read_text())
 
 
+#: Patterns whose NAME EM-1 may legitimately change. `FR-EM-V5` row 10 lets
+#: volume re-label a gap — "Gap (runaway)" becomes "Gap (exhaustion)" when
+#: extraordinary volume is not followed through (Ch 12) — so per-name counts in
+#: this family are not comparable across V6b, while the family's TOTAL is: a
+#: re-label moves a detection between classes and never creates or destroys
+#: one. Measured on the committed nulls, 2 of 1377 detections are re-labelled.
+RELABELLED_FAMILY = "Gap ("
+
+
+def _collapse_family(counts: Dict[str, float]) -> Dict[str, float]:
+    """Sum the re-labellable family into one key, leaving everything else."""
+    out: Dict[str, float] = {}
+    for key, value in counts.items():
+        collapsed = "Gap" if key.startswith(RELABELLED_FAMILY) else key
+        out[collapsed] = out.get(collapsed, 0.0) + value
+    return out
+
+
+def _without_family(counts: Dict[str, float]) -> Dict[str, float]:
+    return {k: v for k, v in counts.items() if not k.startswith(RELABELLED_FAMILY)}
+
+
 def _diffs(expected: Dict[str, float], actual: Dict[str, float], tol: float) -> List[str]:
     out: List[str] = []
     for key in sorted(set(expected) | set(actual)):
@@ -212,10 +234,27 @@ class TestGeometryOnlyBaseline:
             # change would fail by design and this test would have to be
             # deleted — which is how a drift guard gets lost. The geometric
             # reading is the thing that must not move.
-            for label, tol in (("detections_by_pattern", 1e-9),
-                               ("geometric_pct95_by_pattern", 1e-6)):
-                for line in _diffs(want[label], getattr(report, label), tol):
-                    problems.append(f"{report.null_name}.{label} {line}")
+            # Detection counts: compared with the re-labellable family
+            # collapsed, so the comparison measures what it meant to — that
+            # the detection SET did not move — rather than how EM-1 names it.
+            for line in _diffs(
+                _collapse_family(want["detections_by_pattern"]),
+                _collapse_family(report.detections_by_pattern),
+                1e-9,
+            ):
+                problems.append(f"{report.null_name}.detections_by_pattern {line}")
+
+            # Geometric percentiles: the family is EXCLUDED rather than
+            # collapsed, because a percentile of a union is not a function of
+            # the per-class percentiles, so collapsing would be arithmetic
+            # rather than a comparison. Every other pattern's geometric
+            # reading must still be identical.
+            for line in _diffs(
+                _without_family(want["geometric_pct95_by_pattern"]),
+                _without_family(report.geometric_pct95_by_pattern),
+                1e-6,
+            ):
+                problems.append(f"{report.null_name}.geometric_pct95_by_pattern {line}")
 
         assert not problems, (
             "the geometry-only null-FPR baseline has drifted:\n  "
@@ -411,9 +450,34 @@ class TestEM1DoesNotWorsenTheNull:
         baseline = _load_baseline()
         for report in _build_reports():
             want = baseline["nulls"][report.null_name]
-            assert report.detections_by_pattern == want["detections_by_pattern"], (
+            assert report.detections_per_surrogate == pytest.approx(
+                want["detections_per_surrogate"], abs=1e-9
+            ), (
+                f"{report.null_name}: the number of detections moved, so volume "
+                f"has started gating `found` — FR-EM-V7 forbids that"
+            )
+            assert _collapse_family(report.detections_by_pattern) == pytest.approx(
+                _collapse_family(want["detections_by_pattern"]), abs=1e-9
+            ), (
                 f"{report.null_name}: the detection set moved, so the paired "
                 f"before/after comparison is no longer comparing like with like"
+            )
+
+    def test_relabelling_conserves_the_gap_family(self):
+        """`FR-EM-V5` row 10 lets volume move a detection between gap classes.
+        It must never create or destroy one — that would be gating `found` by
+        the back door, and it is the invariant that makes collapsing the family
+        a legitimate comparison rather than a convenient one."""
+        baseline = _load_baseline()
+        for report in _build_reports():
+            want = baseline["nulls"][report.null_name]["detections_by_pattern"]
+            before = sum(v for k, v in want.items() if k.startswith(RELABELLED_FAMILY))
+            after = sum(
+                v for k, v in report.detections_by_pattern.items()
+                if k.startswith(RELABELLED_FAMILY)
+            )
+            assert after == pytest.approx(before, abs=1e-9), (
+                f"{report.null_name}: the gap family went {before} -> {after}"
             )
 
 

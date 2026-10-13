@@ -628,6 +628,140 @@ def consolidation_frames(seed: int = 20261014, *, textbook: bool = True) -> List
     ]
 
 
+def _exhaustion_gap(rng: np.random.Generator, *, textbook: bool = True) -> PlantedFrame:
+    """A gap in an established advance, then price failing to carry on.
+
+    Ch 12's exhaustion gap is recognised by *"extraordinary volume with price
+    failing to advance commensurately"* on the day after — a **volume** rule
+    that the shipped classifier has no way to express, which is why it calls
+    this frame a *runaway* gap on geometry alone. The textbook variant is the
+    one case where EM-1 re-labels a pattern rather than only scoring it.
+
+    ``textbook=False`` keeps the same gap and the same advance continuing, on
+    ordinary volume: a genuine runaway, which must be left alone.
+    """
+    rise = np.linspace(100.0, 128.0, 40)
+    lead = _lead_in(100.0)
+    gap_open = rise[-1] * 1.05
+    drift = np.linspace(0.0, -0.6, 6) if textbook else np.linspace(0.0, 4.0, 6)
+    close = np.concatenate([lead, rise, gap_open + drift])
+    gap_bar = lead.size + 40
+
+    high, low = close + 0.4, close - 0.4
+    low[gap_bar] = gap_open - 0.1          # the gap itself: low[i] > high[i-1]
+    volume = _scripted_volume(
+        close.size, rng, bursts=[(gap_bar, 9.0 if textbook else 1.6, 2)]
+    )
+    return PlantedFrame(
+        "exhaustion_gap", _frame(close, volume, high=high, low=low),
+        "extraordinary volume with price failing to advance commensurately",
+        "E&M Ch 12", "Gap (runaway)",
+    )
+
+
+def _one_day_reversal(rng: np.random.Generator, *, textbook: bool = True) -> PlantedFrame:
+    """A wide-range bar closing near its high after a decline.
+
+    Ch 10.1: a true One-Day Reversal requires *"volume exceeding anything for
+    months"*, which is a **long**-lookback measure and not the 50-bar baseline
+    every other rule uses. Without that volume it is an ordinary wide day and
+    must score low. The lead-in is long enough for that long window to exist.
+    """
+    lead = _lead_in(100.0, bars=150)
+    decline = np.linspace(100.0, 82.0, 25)
+    tail = 6
+    close = np.concatenate([lead, decline, np.full(tail, 82.0)])
+    bar = close.size - tail
+
+    high, low = close + 0.4, close - 0.4
+    high[bar], low[bar] = close[bar] + 6.0, close[bar] - 6.0
+    close[bar] = low[bar] + 0.85 * (high[bar] - low[bar])   # closes in the upper half
+    volume = _scripted_volume(
+        close.size, rng, bursts=[(bar, 12.0 if textbook else 1.2, 1)]
+    )
+    return PlantedFrame(
+        "one_day_reversal", _frame(close, volume, high=high, low=low),
+        "volume exceeding anything for months",
+        "E&M Ch 10.1", "Wide-Ranging Day",
+    )
+
+
+def _bull_trap(rng: np.random.Generator, *, textbook: bool = True) -> PlantedFrame:
+    """Resistance touched twice, pierced, then given back.
+
+    Ch 13/35: a genuine break is *"nearly always followed by sudden
+    acceleration and a marked volume pickup"* **after** the penetration. So
+    here volume works the other way round from everywhere else in EM-1 — the
+    **absence** of follow-through is the trap's signature, and therefore
+    *raises* confidence that it is a trap.
+
+    ``textbook=True`` is the trap: the pierce is not followed through on
+    volume. ``textbook=False`` has heavy follow-through, which argues the break
+    was real and the trap reading is wrong.
+    """
+    lead = _lead_in(100.0)
+    seg = np.concatenate([
+        np.linspace(100, 112, 9),
+        np.linspace(112, 104, 9)[1:],
+        np.linspace(104, 112, 9)[1:],
+        np.linspace(112, 105, 9)[1:],
+        np.linspace(105, 116, 7)[1:],      # the pierce
+        np.linspace(116, 103, 7)[1:],      # and the reversion
+    ])
+    close = np.concatenate([lead, seg])
+    volume = _scripted_volume(close.size, rng)
+    planted = PlantedFrame(
+        "bull_trap", _frame(close, volume),
+        "a penetration with no follow-through volume is the trap signature",
+        "E&M Ch 13, Ch 35", "Bull Trap",
+    )
+    return with_follow_through_volume(planted, 0.3 if textbook else 3.0)
+
+
+def with_follow_through_volume(planted: PlantedFrame, multiple: float) -> PlantedFrame:
+    """Scale the volume on the bars **after** the detected penetration.
+
+    Two-phase for the same reason ``with_breakout_burst`` is: the builder knows
+    where it *drew* the pierce, but `TrapDetector` locates the penetration and
+    the reversion itself, from its own clustered support/resistance levels, and
+    the two differ — this fixture draws the pierce at bar 93 and the detector
+    reports 99/100. A first attempt scaled the drawn bars and moved the reading
+    by 0.03, which is noise.
+
+    So the span is taken from ``key_bars`` after detection: ``(penetration,
+    reversion]``, exactly the bars the rule reads.
+    """
+    matches = [m for m in detect_all(planted.frame) if m.pattern_name == planted.target_pattern]
+    if not matches:
+        return planted
+    key_bars = matches[0].key_bars
+    if len(key_bars) < 2:
+        return planted
+
+    frame = planted.frame.copy(deep=True)
+    volume = frame["volume"].to_numpy(dtype=float).copy()
+    start, end = int(key_bars[0]) + 1, min(volume.size, int(key_bars[1]) + 1)
+    volume[start:end] *= multiple
+    frame["volume"] = np.maximum(np.round(volume), 1.0)
+    return replace(planted, frame=frame)
+
+
+def bar_pattern_frames(seed: int = 20261015, *, textbook: bool = True) -> List[PlantedFrame]:
+    """The three `V6b` formations: gap, one-day reversal, trap.
+
+    Grouped apart from the others because each reads volume at or just after a
+    **single bar** rather than across a formation, and because all three invert
+    or extend the usual reading — the gap re-labels, the one-day reversal needs
+    a second much longer baseline, and the trap rewards volume's absence.
+    """
+    rng = np.random.default_rng(seed)
+    return [
+        _exhaustion_gap(rng, textbook=textbook),
+        _one_day_reversal(rng, textbook=textbook),
+        _bull_trap(rng, textbook=textbook),
+    ]
+
+
 def with_resolution(
     frame: pd.DataFrame,
     direction: str,
