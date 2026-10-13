@@ -29,6 +29,26 @@ def _session_returning_scalar(value):
     return session
 
 
+def _session_returning_first(value):
+    """A session whose result answers ``scalars().first()``.
+
+    The third shape, and the only method that needs it is
+    `get_default_portfolio`. That is deliberate rather than accidental: it
+    selects with ``.order_by(created_at, id).limit(1)`` and takes ``first()``
+    so a user who has ended up with duplicate ``is_default`` rows gets the
+    oldest one, instead of ``scalar_one_or_none()`` raising
+    MultipleResultsFound and 500-ing every default-portfolio and watchlist
+    call. This helper existing is what keeps the test honest about that.
+    """
+    session = AsyncMock()
+    result = MagicMock()
+    scalars = MagicMock()
+    scalars.first.return_value = value
+    result.scalars.return_value = scalars
+    session.execute = AsyncMock(return_value=result)
+    return session
+
+
 def _session_returning_list(rows):
     session = AsyncMock()
     result = MagicMock()
@@ -119,8 +139,34 @@ async def test_get_portfolios_by_user_returns_rows():
 @pytest.mark.asyncio
 async def test_get_default_portfolio_returns_row_or_none():
     expected = _portfolio(is_default=True)
-    repo = PortfolioRepository(_session_returning_scalar(expected))
+    repo = PortfolioRepository(_session_returning_first(expected))
     assert (await repo.get_default_portfolio(user_id=1)) is expected
+
+
+@pytest.mark.asyncio
+async def test_get_default_portfolio_returns_none_when_user_has_no_default():
+    repo = PortfolioRepository(_session_returning_first(None))
+    assert (await repo.get_default_portfolio(user_id=1)) is None
+
+
+@pytest.mark.asyncio
+async def test_get_default_portfolio_asks_for_the_oldest_row_only():
+    """The duplicate-row guard, asserted on the query rather than the result.
+
+    A user can end up with more than one ``is_default`` row (duplicate
+    get-or-create races). The repository must ask the database for a single,
+    deterministically-chosen row — ordered oldest-first and limited to one —
+    so the endpoint cannot 500 on MultipleResultsFound. Nothing tested that
+    before, which is how the switch to ``scalars().first()`` drifted away from
+    this module's mocks in the first place (Backlog #75).
+    """
+    session = _session_returning_first(_portfolio(is_default=True))
+    repo = PortfolioRepository(session)
+    await repo.get_default_portfolio(user_id=1)
+
+    statement = str(session.execute.await_args.args[0])
+    assert "ORDER BY" in statement.upper()
+    assert "LIMIT" in statement.upper()
 
 
 @pytest.mark.asyncio
