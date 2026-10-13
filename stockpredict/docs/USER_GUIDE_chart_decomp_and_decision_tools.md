@@ -22,6 +22,7 @@
 **Phần 2 — Công cụ hỗ trợ quyết định / Decision Tools**
 - [2.1 Tổng quan / General View](#21--tổng-quan--general-view)
 - [2.2 Màn hình quyết định / Decision Console](#22--màn-hình-quyết-định--decision-console)
+  - [2.2.1 — Xác nhận bằng khối lượng / Volume validation](#221--xác-nhận-bằng-khối-lượng--volume-validation-edwards--magee)
 - [2.3 Bảng quyết định Watchlist / Watchlist Board](#23--bảng-quyết-định-watchlist--watchlist-board)
 - [2.4 Phòng thử nghiệm Backtest / Backtest Studio](#24--phòng-thử-nghiệm-backtest--backtest-studio)
 - [2.5 Kỷ luật giao dịch / Discipline Dashboard](#25--kỷ-luật-giao-dịch--discipline-dashboard)
@@ -256,6 +257,48 @@ This menu has 12 sub-items forming an end-to-end trading workflow: **understand 
   2. (Optional) open the risk panel: account equity, max risk % per trade, max concurrent positions, max correlation.
   3. Run the analysis and read: **Market regime** (Up/Down/Range), the **triggering signal**, **confidence (0–100%)**, the **recommended action** (BUY / SELL / SELL SHORT / COVER / HOLD / WAIT / REVERSE), with **entry / stop / target** prices and **share count**.
   4. You can save the recommendation as a trade plan in the journal.
+
+---
+
+## 2.2.1 — Xác nhận bằng khối lượng / Volume validation (Edwards & Magee)
+
+**🎯 Lợi ích / Benefit**
+- **VI:** Một mẫu hình đẹp trên biểu đồ chưa chắc đáng tin. Edwards & Magee coi **khối lượng là điều kiện hiệu lực** của mẫu hình, không phải thứ trang trí. Mục này cho bạn biết khối lượng **xác nhận hay phản bác** từng mẫu hình, và vì sao — để bạn không vào lệnh theo một hình vẽ mà thị trường không hề hưởng ứng.
+- **EN:** A clean-looking pattern is not automatically a trustworthy one. Edwards & Magee treat **volume as the condition of a pattern's validity**, not as decoration. This tells you whether volume **confirms or contradicts** each pattern, and why — so you do not act on a shape the market never backed.
+
+**🛠️ Cách thực hiện / How to achieve it**
+- **VI:**
+  1. Mở **Màn hình quyết định** (mục 2.2) và xem bảng **Mẫu biểu đồ**. Mỗi thẻ mẫu hình nay có một **nhãn khối lượng**.
+  2. Đọc nhãn: **Khối lượng xác nhận** (khối lượng ủng hộ mẫu hình) · **trung tính** (không nói gì) · **phản bác** (khối lượng đi ngược điều kiện) · **đáng ngờ** (⚠ khối lượng *đảo ngược ý nghĩa* mẫu hình — xem bên dưới).
+  3. Xem cặp số **Hình mẫu 70% → 59%**: số đầu là độ tin cậy chỉ dựa trên *hình dạng*, số sau là độ tin cậy **sau khi** tính khối lượng. Nếu chỉ hiện một số, khối lượng không làm thay đổi gì.
+  4. Mỗi dòng bên dưới là **một điều kiện của sách**, kèm con số thực tế (ví dụ *vai phải nhẹ hơn vai trái · 0,53×*) và chương sách (E&M Ch 6). Dòng không đọc được sẽ **ẩn đi**, không hiển thị như một điều kiện thất bại.
+  5. Bảng **Mẫu biểu đồ** trên trang **AI Insights** (Phân tích ▸ AI Insights) hiển thị cùng nhãn ở dạng gọn. Lưu ý: bảng *Nhận diện mẫu hình* ở trên nó là công cụ **khác** (xu hướng theo đường trung bình), không có khối lượng.
+- **EN:**
+  1. Open the **Decision Console** (§2.2) and look at the **Chart Patterns** panel. Every pattern card now carries a **volume verdict**.
+  2. Read the verdict: **Volume confirms** (volume supports the pattern) · **neutral** (it says nothing) · **contradicts** (volume fails the condition) · **suspect** (⚠ volume *inverts the pattern's meaning* — see below).
+  3. Read the pair **Shape 70% → 59%**: the first number is confidence from *geometry alone*, the second is confidence **after** volume. If only one number shows, volume changed nothing.
+  4. Each row beneath is **one condition from the book**, with the figure behind it (e.g. *right shoulder lighter than left · 0.53×*) and the chapter (E&M Ch 6). A row that cannot be read is **hidden**, not shown as a failed condition.
+  5. The **Chart Patterns** card on the **AI Insights** page (Analysis ▸ AI Insights) shows the same verdict compactly. Note the *Pattern Recognition* table above it is a **different** tool (moving-average trend), with no volume.
+
+**⚠️ Bốn điều cần biết / Four things worth knowing**
+- **VI:**
+  - **Độ tin cậy đã thay đổi.** Con số trên thẻ mẫu hình giờ là *hình dạng × khối lượng*, nên nó **khác với trước đây** — thường thấp hơn. Đây là thay đổi có chủ ý. Độ tin cậy trên **thẻ hành động** (MUA/CHỜ…) **không** bị ảnh hưởng: nó đến từ tầng xác nhận tín hiệu, không liên quan mẫu hình.
+  - **"Đáng ngờ" khác "phản bác".** Phản bác = thiếu bằng chứng. Đáng ngờ = bằng chứng *ngược lại*: khối lượng lớn khi phá vỡ **xuống** của tam giác thường là cú rũ bỏ 2–3 ngày (Ch 8); khối lượng lớn **trong** lá cờ biến nó thành vùng đảo chiều (Ch 11). Ở đây **khối lượng càng lớn càng xấu**.
+  - **Quy tắc bất đối xứng.** Phá vỡ **lên** *bắt buộc* có khối lượng tăng; phá vỡ **xuống** thì không — *"cần có lực mua để đẩy giá lên, nhưng giá có thể tự rơi vì trọng lượng của nó"* (Ch 7).
+  - **Mã thanh khoản thấp:** nếu thấy *"Khối lượng quá mỏng để đánh giá"*, hệ thống **không** phạt mẫu hình — thiếu dữ liệu không phải bằng chứng xấu.
+- **EN:**
+  - **Confidence has changed.** The number on a pattern card is now *shape × volume*, so it **differs from before** — usually lower. That is intended. The confidence on the **action card** (BUY/WAIT…) is **unaffected**: it comes from the signal confirmation layer and never touched patterns.
+  - **"Suspect" is not "contradicts".** Contradicts = evidence missing. Suspect = evidence *the other way*: heavy volume on a **downside** triangle break is usually a 2–3 day shakeout (Ch 8), and heavy volume **inside** a flag turns it into a reversal area (Ch 11). Here **more volume is worse**.
+  - **The rule is asymmetric.** An **upside** break *requires* volume expansion; a **downside** break does not — *"it takes buying to put stocks up, but they can fall of their own weight"* (Ch 7).
+  - **Thin tickers:** if you see *"Volume too thin to judge"*, the pattern is **not** penalised — missing data is not adverse evidence.
+
+**📊 Cao trào khối lượng / Volume climax**
+- **VI:** Khi xuất hiện, một dải cảnh báo hiện trên bảng: khối lượng cực lớn mà **giá gần như không đi đâu** (Ch 10 "cao trào bán", Ch 28). Đây là **thông tin tham khảo** — hệ thống không tự đổi khuyến nghị. Rất hiếm: trong 18 mã thử nghiệm chỉ 2 mã có.
+- **EN:** When present, a banner appears on the panel: enormous volume with **price going nowhere** (Ch 10's selling climax, Ch 28). It is **evidence only** — nothing in the recommendation changes because of it. It is genuinely rare: 2 of 18 symbols tested.
+
+**🔧 Thông số / Parameters**
+- **VI:** Cửa sổ so sánh khối lượng mặc định là **100 phiên** (hiển thị trong phản hồi API là `baseline_window`); "cao trào" dùng cửa sổ dài **120 phiên**. Các giá trị này được **đo và chọn bằng dữ liệu**, không phải lấy từ sách — xem `docs/em1_s2_parameter_sweep.md`.
+- **EN:** The volume comparison window defaults to **100 bars** (reported as `baseline_window` in the API response); the climax check uses a longer **120-bar** window. These values were **measured and chosen from data**, not taken from the book — see `docs/em1_s2_parameter_sweep.md`.
 
 ---
 

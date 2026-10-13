@@ -172,11 +172,19 @@ class TestH5ThinAndMissingData:
         """EC-V1: 'never impute zero'. Dropping the holes must leave the
         baseline on the surviving bars."""
         vol: List[Optional[float]] = _flat(80, 1_000_000.0)
-        for i in range(40, 50):
+        holes = range(40, 50)
+        for i in holes:
             vol[i] = None
-        rv = relative_volume(vol, 70)
+        index = 70
+        rv = relative_volume(vol, index)
         assert rv.baseline == pytest.approx(1_000_000.0)
-        assert rv.bars_used == 40          # 50-bar window minus 10 holes
+        # Stated against the window actually in force, not a literal: the
+        # default is swept (`FR-EM-V11`, and it moved 50 -> 100 at S2), and the
+        # PROPERTY under test is that holes are skipped rather than imputed —
+        # which a hardcoded count stops expressing the moment the window moves.
+        window_start = max(0, index - DEFAULT_BASELINE_WINDOW)
+        expected = (index - window_start) - len([i for i in holes if i >= window_start])
+        assert rv.bars_used == expected
 
     def test_too_few_bars_before_the_index_is_unknown(self):
         """EC-V4: fewer than MIN_BASELINE_BARS usable bars → unknown."""

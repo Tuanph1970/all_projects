@@ -43,7 +43,15 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 # trusted constant and never a test assertion. E&M's own figures come from
 # 1940s-60s NYSE issues.
 
-DEFAULT_BASELINE_WINDOW = 50   # trailing bars behind the bar being judged
+# SWEPT at S2 (FR-EM-V11), not inherited. 100 beat 50 on H1 separation on
+# 12/12 independent shuffle seeds (+0.0135 +/- 0.0080 paired), beat it on the
+# textbook-vs-adverse gap, and gave the most balanced verdict distribution on
+# 18 real symbols. Availability is unaffected: `_baseline_from` degrades to
+# whatever history exists above MIN_BASELINE_BARS, so 100% of detections still
+# score even at the 100-bar lookback the UI requests. It is also the better
+# reading of E&M's "high for that stock in that period" — ~5 months rather
+# than ~2.5. Evidence: docs/em1_s2_parameter_sweep.md.
+DEFAULT_BASELINE_WINDOW = 100  # trailing bars behind the bar being judged
 
 #: The SECOND, much longer baseline (`FR-EM-V5` row 11, SRS open question 3).
 #: Ch 10.1's One-Day Reversal requires "volume exceeding anything for months",
@@ -74,6 +82,12 @@ MIN_TREND_BARS = 4             # below this a direction verdict is meaningless
 # Factor bounds (FR-EM-V7). Deliberately asymmetric: E&M's volume evidence is
 # better at discrediting a formation than at promoting one, so the floor sits
 # further from neutral than the ceiling. V4 composes with these.
+# SWEPT at S2. Tightening the floor to 0.4 buys more noise suppression
+# (-15.2% vs -11.7% on H2) but lets volume cut a confidence by 60%, which is
+# more authority than "volume is corroboration, not the finding" allows.
+# Raising the ceiling actively HURTS suppression (1.30 -> -9.9%) by upgrading
+# noise. (0.5, 1.15) is kept as the balance, now with evidence rather than as
+# a guess. Evidence: docs/em1_s2_parameter_sweep.md.
 NEUTRAL_FACTOR = 1.0
 FACTOR_FLOOR = 0.5
 FACTOR_CEILING = 1.15
@@ -1519,12 +1533,21 @@ def evaluate_pattern_volume(
 #: `rvol` against the LONG baseline at or above which volume counts as extreme.
 #: A climax is extreme *against months*, not against the last fifty bars — the
 #: same reasoning as `FR-EM-V5` row 11. Default pending the `S2` sweep.
-CLIMAX_RVOL = 2.5
+# SWEPT at S2 against 9,646 real bars over 18 symbols, because at the original
+# 2.5 the flag fired ZERO times — it was unreachable, not merely rare
+# (Backlog #72). rvol was the binding gate, not progress: 2.5 yielded nothing
+# at ANY progress threshold. 2.0 fires on 2 bars / 2 symbols, which is the
+# once-in-years event E&M describe; 1.5 would give 12 bars / 8 symbols, too
+# common for a "climax".
+CLIMAX_RVOL = 2.0
 
 #: Net progress, measured in typical-move units, at or below which the bar's
 #: price did not go anywhere worth that volume. Ch 12's phrase is "failing to
 #: advance commensurately"; this is that phrase made arithmetic.
-CLIMAX_PROGRESS_RATIO = 0.6
+# Loosened from 0.6 with the same evidence. A climax bar plunges and snaps
+# back, so its close-to-close progress is small but rarely near zero, and on
+# real VN data extreme volume essentially always carries SOME move.
+CLIMAX_PROGRESS_RATIO = 1.0
 
 
 @dataclass(frozen=True)
