@@ -244,10 +244,15 @@ class PlantedFrame:
     target_pattern: str = ""
 
 
-def _hs_top(rng: np.random.Generator, leg: int = 8) -> PlantedFrame:
+def _hs_top(rng: np.random.Generator, leg: int = 8, *, textbook: bool = True) -> PlantedFrame:
     """H&S top. Ch 7: heavy left shoulder, *decidedly lighter* right shoulder,
     and the break of the neckline is where activity picks up. Head volume is
-    deliberately left unscripted — E&M say it is not a tell."""
+    deliberately left unscripted — E&M say it is not a tell.
+
+    ``textbook=False`` reverses only the shoulder weighting — heavy right,
+    light left — leaving the geometry bit-identical. That pair is what lets a
+    test say the rule reads its *condition* rather than the shape.
+    """
     base, shoulder, head = 100.0, 10.0, 18.0
     body = _piecewise_linear([
         (base, base + shoulder, leg + 1),
@@ -265,8 +270,11 @@ def _hs_top(rng: np.random.Generator, leg: int = 8) -> PlantedFrame:
         close.size,
         rng,
         ramps=[
-            (off, ls_peak + 2, 1.6, 2.4),          # heavy left shoulder
+            (off, ls_peak + 2, 1.6, 2.4),             # heavy left shoulder
             (rs_peak - leg, rs_peak + 2, 1.0, 0.55),  # decidedly lighter right
+        ] if textbook else [
+            (off, ls_peak + 2, 1.0, 0.6),             # adverse: light left
+            (rs_peak - leg, rs_peak + 2, 1.6, 2.6),   # adverse: heavy right
         ],
     )
     return PlantedFrame(
@@ -276,7 +284,7 @@ def _hs_top(rng: np.random.Generator, leg: int = 8) -> PlantedFrame:
     )
 
 
-def _inv_hs(rng: np.random.Generator, leg: int = 8) -> PlantedFrame:
+def _inv_hs(rng: np.random.Generator, leg: int = 8, *, textbook: bool = True) -> PlantedFrame:
     """Inverse H&S. Ch 7's near-absolute: a bottom *requires* the breakout
     burst — "it takes buying to put stocks up" — and volume builds through the
     right shoulder rather than drying up."""
@@ -291,11 +299,14 @@ def _inv_hs(rng: np.random.Generator, leg: int = 8) -> PlantedFrame:
     ])
     close = np.concatenate([_lead_in(base), body])
     off = LEAD_IN_BARS
-    break_bar = off + 5 * leg
+    drawn_break = off + 5 * leg
     volume = _scripted_volume(
         close.size,
         rng,
-        ramps=[(off + 3 * leg, break_bar, 0.8, 2.0)],   # builds into the break
+        # The adverse case is the one E&M single out: a bottom whose volume
+        # dries up instead of building, and whose penetration carries no burst.
+        ramps=[(off + 3 * leg, drawn_break, 0.8, 2.0)] if textbook
+        else [(off + 3 * leg, close.size, 1.6, 0.5)],
     )
     return PlantedFrame(
         "inv_hs", _frame(close, volume),
@@ -304,7 +315,7 @@ def _inv_hs(rng: np.random.Generator, leg: int = 8) -> PlantedFrame:
     )
 
 
-def _double_top(rng: np.random.Generator, leg: int = 8) -> PlantedFrame:
+def _double_top(rng: np.random.Generator, leg: int = 8, *, textbook: bool = True) -> PlantedFrame:
     """Double top. Ch 7: the second top makes its high on *lighter* volume
     than the first — the distribution tell."""
     base, peak_h, trough_d = 100.0, 15.0, 8.0
@@ -326,6 +337,9 @@ def _double_top(rng: np.random.Generator, leg: int = 8) -> PlantedFrame:
         ramps=[
             (off, first_peak + 2, 1.5, 2.3),
             (second_peak - leg, second_peak + 2, 1.0, 0.6),
+        ] if textbook else [
+            (off, first_peak + 2, 1.0, 0.6),
+            (second_peak - leg, second_peak + 2, 1.5, 2.4),
         ],
     )
     return PlantedFrame(
@@ -335,7 +349,7 @@ def _double_top(rng: np.random.Generator, leg: int = 8) -> PlantedFrame:
     )
 
 
-def _double_bottom(rng: np.random.Generator, leg: int = 8) -> PlantedFrame:
+def _double_bottom(rng: np.random.Generator, leg: int = 8, *, textbook: bool = True) -> PlantedFrame:
     """Double bottom. Ch 7, read through the asymmetry of `FR-EM-V3`: the
     second low is quiet, and the confirming push through the intervening peak
     must carry volume."""
@@ -354,7 +368,9 @@ def _double_bottom(rng: np.random.Generator, leg: int = 8) -> PlantedFrame:
     volume = _scripted_volume(
         close.size,
         rng,
-        ramps=[(second_low - leg, second_low + 1, 1.2, 0.5)],   # quiet retest
+        # "Conspicuously dull and rounded" (Ch 9) vs a loud retest.
+        ramps=[(second_low - leg, second_low + 1, 1.2, 0.5)] if textbook
+        else [(second_low - leg, second_low + 1, 1.0, 2.2)],
     )
     return PlantedFrame(
         "double_bottom", _frame(close, volume),
@@ -469,6 +485,27 @@ def planted_frames(seed: int = 20261012) -> List[PlantedFrame]:
         with_breakout_burst(_double_bottom(rng), 3.0),
         _bull_flag(rng),               # no break in the frame — V6's condition
         _symmetrical_triangle(rng),    # pattern_type "neutral" — V6's condition
+    ]
+
+
+def adverse_frames(seed: int = 20261013) -> List[PlantedFrame]:
+    """The same four reversal geometries with the **opposite** volume script,
+    and deliberately **no breakout burst**.
+
+    Pairing these against ``planted_frames`` is the cleanest statement that a
+    rule reads its E&M condition and not the shape: the price series are
+    identical bit for bit, so any difference in the verdict came from volume.
+
+    Only the four reversal frames are built. The flag and triangle conditions
+    are span measures that no rule reads until V6, so an "adverse" variant of
+    them would assert nothing today.
+    """
+    rng = np.random.default_rng(seed)
+    return [
+        _hs_top(rng, textbook=False),
+        _inv_hs(rng, textbook=False),
+        _double_top(rng, textbook=False),
+        _double_bottom(rng, textbook=False),
     ]
 
 

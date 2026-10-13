@@ -73,10 +73,21 @@ class TestH3Asymmetry:
 
     def test_a_bearish_break_on_flat_volume_is_not_penalised(self):
         """*"They can fall of their own weight."* Absence of expansion on a
-        downside break SHALL NOT penalise — so the factor is exactly neutral,
-        not merely "not much below" it."""
+        downside break SHALL NOT penalise — exactly neutral, not merely "not
+        much below" neutral.
+
+        Asserted on the **breakout component** rather than on the composite
+        factor. Since V5 the composite also carries the formation conditions of
+        `FR-EM-V5`, and those *can* legitimately penalise a bearish pattern —
+        an H&S top whose right shoulder is not lighter than its left has failed
+        a required condition, and that has nothing to do with the breakout
+        asymmetry. `FR-EM-V3` is a statement about the penetration, so it is
+        tested at the penetration.
+        """
         (_, bearish), _ = _pair()
-        assert bearish.volume_factor == NEUTRAL_FACTOR
+        component = bearish.volume_evidence["components"]["breakout volume"]
+        assert component["score"] == 0.5
+        assert component["verdict"] == "neutral"
 
     def test_a_bullish_break_on_flat_volume_is_penalised(self):
         """*"It takes buying to put stocks up."* Absence of expansion on an
@@ -164,10 +175,22 @@ class TestFRV7Composition:
                 assert 0.0 <= match.confidence <= 1.0
 
     def test_an_extreme_burst_cannot_push_confidence_above_one(self):
+        """A 0.95 geometric reading composes past 1.0 at the ceiling, so the
+        clamp is load-bearing: `found` and `confidence` are consumed by
+        PatternPanel.js and failed_signal.py as a 0..1 number.
+
+        The burst is asserted to *help* and to stay bounded, rather than to
+        drive the factor to exactly the ceiling — since V5 the composite also
+        averages in the inverse H&S's "volume builds" condition, so one bar
+        cannot saturate it alone. The ceiling itself is pinned by
+        ``test_factor_is_bounded_however_extreme_the_score``.
+        """
         frame, match = _pair()[1]
         boosted = single_match(with_burst_at(frame, breakout_bar(match, frame), 50.0), BULLISH_PATTERN)
-        assert boosted.volume_factor == pytest.approx(FACTOR_CEILING)
-        assert boosted.confidence == 1.0
+        assert boosted.volume_factor > match.volume_factor
+        assert boosted.volume_factor <= FACTOR_CEILING
+        assert 0.0 <= boosted.confidence <= 1.0
+        assert boosted.volume_evidence["components"]["breakout volume"]["verdict"] == "confirms"
 
 
 # ---------------------------------------------------------------------------
@@ -249,7 +272,9 @@ class TestNFRV1FailureIsolation:
         def boom(*_args, **_kwargs):
             raise RuntimeError("synthetic volume failure")
 
-        monkeypatch.setattr(base_module, "evaluate_breakout_volume", boom)
+        # The dispatcher V5 introduced is what base.py calls; patching the
+        # generic breakout evaluator would no longer exercise the path.
+        monkeypatch.setattr(base_module, "evaluate_pattern_volume", boom)
 
         pf = planted_frames()[0]
         matches = detect_all(pf.frame)
@@ -274,10 +299,14 @@ class TestEvidenceIsRenderable:
         assert evidence["status"] == "known"
         assert evidence["verdict"] in {"confirms", "neutral", "contradicts", "suspect"}
         assert evidence["direction"] == "bullish"
-        assert evidence["expansion_required"] is True
-        assert isinstance(evidence["rvol"], float)
-        assert evidence["breakout_bar"] == breakout_bar(bullish, mirrored_pair()[1].frame)
         assert evidence["baseline_window"] > 0
+
+        # Since V5 each condition reports itself under `components`, because a
+        # rule now tests more than one thing and the UI renders them per row.
+        breakout = evidence["components"]["breakout volume"]
+        assert breakout["required"] is True
+        assert isinstance(breakout["value"], float)
+        assert breakout["breakout_bar"] == breakout_bar(bullish, mirrored_pair()[1].frame)
 
     def test_evidence_key_order_is_stable(self):
         """`H6`. The UI renders this dict in order, and a comparison test on
@@ -297,8 +326,17 @@ class TestEvidenceIsRenderable:
         score to label is asserted rather than left to the renderer."""
         _, (_, bullish) = _pair()
         assert bullish.volume_evidence["verdict"] == "contradicts"
+        assert bullish.volume_evidence["components"]["breakout volume"]["verdict"] == "contradicts"
+
+        # The bearish composite reads "contradicts" since V5 — not because of
+        # the break, which is untouched, but because the H&S top's *required*
+        # shoulder condition is unmet on a flat volume column. The two are
+        # separate statements and are asserted separately.
         (_, bearish), _ = _pair()
-        assert bearish.volume_evidence["verdict"] == "neutral"
+        assert bearish.volume_evidence["components"]["breakout volume"]["verdict"] == "neutral"
+        assert bearish.volume_evidence["components"][
+            "right shoulder lighter than left"
+        ]["verdict"] == "contradicts"
 
 
 class TestPatternMatchDefaults:

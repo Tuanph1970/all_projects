@@ -390,9 +390,13 @@ class BreakoutRule:
             )
 
 
-#: Upside break — E&M's "it takes buying to put stocks up".
+#: Upside break — E&M's "it takes buying to put stocks up". The default for
+#: any bullish pattern without a condition of its own. Its penalty is
+#: deliberately *not* the maximum: `FR-EM-V5` reserves the strongest penalty in
+#: the set for the head-and-shoulders bottom (`INVERSE_HS_BREAKOUT`, task V5),
+#: which is the one case E&M state as near-absolute.
 BULLISH_BREAKOUT = BreakoutRule(
-    direction="bullish", expansion_required=True, confirm_reward=0.5, dull_penalty=0.5
+    direction="bullish", expansion_required=True, confirm_reward=0.5, dull_penalty=0.4
 )
 
 #: Downside break — "they can fall of their own weight". Corroboration is
@@ -415,6 +419,28 @@ VERDICT_CONTRADICTS = "contradicts"
 VERDICT_SUSPECT = "suspect"
 
 
+def _graded_score(
+    margin: float, *, required: bool, reward: float = 0.5, penalty: float = 0.5
+) -> float:
+    """The one scoring shape every condition in this module uses.
+
+    ``margin`` is the condition's satisfaction, normalised: ``>= 0`` means met,
+    by that relative amount, saturating at ``1.0``; negative means unmet, by
+    that relative shortfall.
+
+    Met conditions earn half their reward at the threshold and the rest as the
+    margin grows, so a verdict is graded rather than a step — a step cannot be
+    swept (`FR-EM-V11`) and would let a near-constant satisfy `H1`. Unmet
+    conditions cost nothing unless they were **required**, which is exactly the
+    "required / corroborating" vocabulary `FR-EM-V5` is written in.
+    """
+    if margin >= 0.0:
+        return 0.5 + reward * (0.5 + 0.5 * min(1.0, margin))
+    if not required:
+        return 0.5
+    return 0.5 - penalty * min(1.0, -margin)
+
+
 def score_breakout(rvol: float, rule: BreakoutRule) -> float:
     """Breakout volume as a score in ``[0, 1]``, where **0.5 is "no
     information"** rather than "bad".
@@ -429,13 +455,13 @@ def score_breakout(rvol: float, rule: BreakoutRule) -> float:
     ``rvol = 0``, whereas a merely corroborating one returns exactly 0.5 —
     missing evidence, not adverse evidence.
     """
-    if rvol >= rule.confirm_rvol:
-        excess = (rvol - rule.confirm_rvol) / rule.confirm_rvol
-        return 0.5 + rule.confirm_reward * (0.5 + 0.5 * min(1.0, excess))
-    if rule.dull_penalty == 0.0:
-        return 0.5
-    shortfall = (rule.confirm_rvol - rvol) / rule.confirm_rvol
-    return 0.5 - rule.dull_penalty * min(1.0, max(0.0, shortfall))
+    margin = (rvol - rule.confirm_rvol) / rule.confirm_rvol
+    return _graded_score(
+        margin,
+        required=rule.expansion_required,
+        reward=rule.confirm_reward,
+        penalty=rule.dull_penalty,
+    )
 
 
 def factor_from_score(score: float) -> float:
@@ -561,6 +587,365 @@ def evaluate_breakout_volume(
         "breakout_bar": bar,
         "citation": "E&M Ch 7",
     }
+    return VolumeVerdict(
+        score=round(score, 6), factor=round(factor_from_score(score), 6), evidence=evidence
+    )
+
+
+# --- V5: per-detector conditions (FR-EM-V5) ---------------------------------
+#
+# Three condition shapes cover every reversal rule in the book, and they are
+# different shapes on purpose. E&M do not state one condition four times with
+# different numbers; they state a *comparison* for the head-and-shoulders top
+# (one shoulder against the other), a *direction* for the bottom (volume
+# building through the formation), and a *level* for the double bottom (a
+# second low that is conspicuously dull). Collapsing them into one
+# parametrised rule would lose the distinction the book insists on — which is
+# why `tests/test_volume_reversal_rules.py` asserts on the rule objects and
+# not only on their output.
+#
+# Anchors are **positions within `match.key_bars`**, not bar indices, so a rule
+# is written in terms of the formation ("the right shoulder") rather than in
+# terms of a frame it has never seen.
+
+#: Half-width of the window read around an anchor bar. `swing_window` is the
+#: detectors' own notion of a swing's extent (`reversal.py` defaults it to 3),
+#: so a shoulder is read over the same bars the detector called a shoulder.
+ANCHOR_WINDOW = 3
+
+
+def _anchor_span(key_bars: Sequence[int], anchor: int, n: int, window: int) -> Optional[tuple]:
+    """Bar range around ``key_bars[anchor]``, clipped to the frame."""
+    if anchor >= len(key_bars):
+        return None
+    centre = int(key_bars[anchor])
+    start, end = max(0, centre - window), min(n, centre + window + 1)
+    if end <= start:
+        return None
+    return start, end
+
+
+@dataclass(frozen=True)
+class SpanRatio:
+    """One formation span's typical `rvol` against another's.
+
+    The head-and-shoulders top's condition (Ch 6, *"the right shoulder on
+    decidedly less volume"*) and the double top's (Ch 9, *"less volume on the
+    second top"*) are both of this shape: evidence is the **comparison**, not
+    either level on its own.
+    """
+    label: str
+    a_anchor: int
+    b_anchor: int
+    expect: str                 # "a_lower" | "a_higher"
+    ratio: float                # the threshold the comparison must clear
+    required: bool
+    weight: float = 1.0
+    citation: str = ""
+
+    def anchors_include(self, anchor: int) -> bool:
+        return anchor in (self.a_anchor, self.b_anchor)
+
+    def evaluate(self, volume, key_bars, n, window, baseline_window, _end):
+        a = _anchor_span(key_bars, self.a_anchor, n, window)
+        b = _anchor_span(key_bars, self.b_anchor, n, window)
+        if a is None or b is None:
+            return None, {"verdict": "unknown", "reason": "anchor_out_of_range", "value": None}
+        rv_a = span_relative_volume(volume, a[0], a[1], baseline_window)
+        rv_b = span_relative_volume(volume, b[0], b[1], baseline_window)
+        if not rv_a.known or not rv_b.known or rv_b.value == 0.0:
+            return None, {"verdict": "unknown", "reason": "span_unavailable", "value": None}
+
+        ratio = rv_a.value / rv_b.value
+        margin = (
+            (self.ratio - ratio) / self.ratio
+            if self.expect == "a_lower"
+            else (ratio - self.ratio) / self.ratio
+        )
+        score = _graded_score(margin, required=self.required)
+        return score, {
+            "verdict": verdict_label(score),
+            "value": round(ratio, 3),
+            "threshold": self.ratio,
+            "expect": self.expect,
+            "required": self.required,
+            "a_rvol": round(rv_a.value, 3),
+            "b_rvol": round(rv_b.value, 3),
+            "citation": self.citation,
+        }
+
+
+@dataclass(frozen=True)
+class SpanLevel:
+    """One span's `rvol` against an absolute threshold.
+
+    The double bottom's *"conspicuously dull and rounded"* second low (Ch 9) is
+    a level, not a comparison: `rvol` is already normalised against the
+    symbol's own trailing history, so "dull" is a statement about that number
+    directly.
+    """
+    label: str
+    anchor: int
+    expect: str                 # "low" | "high"
+    threshold: float
+    required: bool
+    weight: float = 1.0
+    citation: str = ""
+
+    def anchors_include(self, anchor: int) -> bool:
+        return anchor == self.anchor
+
+    def evaluate(self, volume, key_bars, n, window, baseline_window, _end):
+        span = _anchor_span(key_bars, self.anchor, n, window)
+        if span is None:
+            return None, {"verdict": "unknown", "reason": "anchor_out_of_range", "value": None}
+        rv = span_relative_volume(volume, span[0], span[1], baseline_window)
+        if not rv.known:
+            return None, {"verdict": "unknown", "reason": rv.reason or "span_unavailable", "value": None}
+
+        margin = (
+            (self.threshold - rv.value) / self.threshold
+            if self.expect == "low"
+            else (rv.value - self.threshold) / self.threshold
+        )
+        score = _graded_score(margin, required=self.required)
+        return score, {
+            "verdict": verdict_label(score),
+            "value": round(rv.value, 3),
+            "threshold": self.threshold,
+            "expect": self.expect,
+            "required": self.required,
+            "citation": self.citation,
+        }
+
+
+@dataclass(frozen=True)
+class SpanTrend:
+    """The *direction* of volume from an anchor to the end of the formation.
+
+    The inverse head-and-shoulders' condition (Ch 7, volume must **build**
+    through the head and the right-shoulder rally) is a direction, and this is
+    the shape that makes the bottom's rule structurally unlike the top's — the
+    requirement that the bottom not be the top inverted.
+    """
+    label: str
+    from_anchor: int
+    expect: str                 # "building" | "drying"
+    threshold: float
+    required: bool
+    weight: float = 1.0
+    citation: str = ""
+
+    def anchors_include(self, anchor: int) -> bool:
+        return anchor == self.from_anchor
+
+    def evaluate(self, volume, key_bars, n, window, _baseline_window, end):
+        if self.from_anchor >= len(key_bars):
+            return None, {"verdict": "unknown", "reason": "anchor_out_of_range", "value": None}
+        start = int(key_bars[self.from_anchor])
+        stop = min(n, (end if end is not None else int(key_bars[-1]) + window) + 1)
+        trend = volume_trend(volume, start, stop)
+        if not trend.known:
+            return None, {"verdict": "unknown", "reason": trend.reason or "span_too_short", "value": None}
+
+        margin = (
+            (trend.value - self.threshold) / max(1e-9, 1.0 - self.threshold)
+            if self.expect == "building"
+            else (-trend.value - self.threshold) / max(1e-9, 1.0 - self.threshold)
+        )
+        score = _graded_score(margin, required=self.required)
+        return score, {
+            "verdict": verdict_label(score),
+            "value": round(trend.value, 3),
+            "threshold": self.threshold,
+            "expect": self.expect,
+            "required": self.required,
+            "bars_used": trend.bars_used,
+            "citation": self.citation,
+        }
+
+
+#: The head-and-shoulders bottom's breakout rule — the strongest in the set.
+#: E&M, Ch 7: *"there must be a conspicuous burst of volume on the neckline
+#: penetration. Without it, don't trust the breakout."* Strictest on both
+#: axes: it demands more volume before it is satisfied (`confirm_rvol`) and it
+#: costs more when it is not (`dull_penalty`).
+INVERSE_HS_BREAKOUT = BreakoutRule(
+    direction="bullish",
+    expansion_required=True,
+    confirm_rvol=2.0,
+    confirm_reward=0.5,
+    dull_penalty=0.5,
+)
+
+
+@dataclass(frozen=True)
+class PatternVolumeRule:
+    """One detector's volume condition set (`FR-EM-V5`).
+
+    ``unscored_note`` records what the rule deliberately does **not** look at,
+    which for the head-and-shoulders top is load-bearing rather than
+    decorative: E&M report that of confirmed tops roughly a third are heavier
+    on the left shoulder, a third about equal and a third heavier on the head,
+    so head volume carries no information and scoring it would fit noise.
+    """
+    pattern_name: str
+    breakout: Optional[BreakoutRule]
+    conditions: tuple
+    citation: str
+    breakout_weight: float = 1.0
+    unscored_note: str = ""
+
+
+PATTERN_RULES: Dict[str, PatternVolumeRule] = {
+    # key_bars = [left shoulder, trough 1, head, trough 2, right shoulder]
+    "Head and Shoulders": PatternVolumeRule(
+        pattern_name="Head and Shoulders",
+        breakout=BEARISH_BREAKOUT,
+        conditions=(
+            SpanRatio(
+                label="right shoulder lighter than left",
+                a_anchor=4, b_anchor=0, expect="a_lower",
+                ratio=0.75, required=True, citation="E&M Ch 6",
+            ),
+        ),
+        citation="E&M Ch 6",
+        unscored_note=(
+            "head volume is deliberately not scored: of confirmed tops ~1/3 are "
+            "heavier on the left shoulder, ~1/3 equal, ~1/3 heavier on the head"
+        ),
+    ),
+    "Inverse Head and Shoulders": PatternVolumeRule(
+        pattern_name="Inverse Head and Shoulders",
+        breakout=INVERSE_HS_BREAKOUT,
+        conditions=(
+            SpanTrend(
+                label="volume builds through the head and right-shoulder rally",
+                from_anchor=2, expect="building",
+                threshold=0.1, required=True, citation="E&M Ch 7",
+            ),
+        ),
+        citation="E&M Ch 7",
+        # The burst is the near-absolute here, so it outweighs the build.
+        breakout_weight=2.0,
+        unscored_note="the price pattern is the top inverted; the volume pattern is not",
+    ),
+    # key_bars = [first peak, trough, second peak]
+    "Double Top": PatternVolumeRule(
+        pattern_name="Double Top",
+        breakout=BEARISH_BREAKOUT,
+        conditions=(
+            SpanRatio(
+                label="second top lighter than the first",
+                a_anchor=2, b_anchor=0, expect="a_lower",
+                ratio=0.8, required=True, citation="E&M Ch 9",
+            ),
+        ),
+        citation="E&M Ch 9",
+    ),
+    # key_bars = [first trough, peak, second trough]
+    "Double Bottom": PatternVolumeRule(
+        pattern_name="Double Bottom",
+        breakout=BULLISH_BREAKOUT,
+        conditions=(
+            SpanLevel(
+                label="second bottom conspicuously dull",
+                anchor=2, expect="low",
+                threshold=0.8, required=True, citation="E&M Ch 9",
+            ),
+        ),
+        citation="E&M Ch 9",
+    ),
+}
+
+
+def evaluate_pattern_volume(
+    match: Any,
+    ohlc: Any,
+    baseline_window: int = DEFAULT_BASELINE_WINDOW,
+    anchor_window: int = ANCHOR_WINDOW,
+) -> VolumeVerdict:
+    """`FR-EM-V5` — the volume verdict for one detection, via its own rule.
+
+    Dispatches on ``pattern_name`` through `PATTERN_RULES`. A pattern with no
+    entry falls back to `evaluate_breakout_volume`, the generic asymmetric
+    breakout rule from V4 — so the detectors V6 has not reached yet keep the
+    verdict they already had instead of losing it.
+
+    Components are averaged by weight, with "unknown" components dropped rather
+    than counted as zero (`EC-V1`): a condition that cannot be read is missing
+    evidence, and the conditions that *can* be read are still evidence. If none
+    can be read, the result is neutral.
+    """
+    rule = PATTERN_RULES.get(getattr(match, "pattern_name", ""))
+    if rule is None:
+        return evaluate_breakout_volume(match, ohlc, baseline_window)
+
+    try:
+        if "volume" not in ohlc:
+            return VolumeVerdict.neutral("no_volume_column")
+        volume = ohlc["volume"].to_numpy(dtype=float)
+    except (KeyError, TypeError, AttributeError):
+        return VolumeVerdict.neutral("no_volume_column")
+
+    key_bars = list(getattr(match, "key_bars", []) or [])
+    if not key_bars:
+        return VolumeVerdict.neutral("no_key_bars")
+
+    n = len(volume)
+    bar = breakout_bar(match, ohlc)
+    components: Dict[str, Any] = {}
+    weighted: List[tuple] = []
+
+    for condition in rule.conditions:
+        score, detail = condition.evaluate(
+            volume, key_bars, n, anchor_window, baseline_window, bar
+        )
+        components[condition.label] = detail
+        if score is not None:
+            weighted.append((condition.weight, score))
+
+    if rule.breakout is not None:
+        if bar is None:
+            components["breakout volume"] = {
+                "verdict": "unknown", "reason": "no_breakout_yet", "value": None
+            }
+        else:
+            rv = relative_volume(volume, bar, baseline_window)
+            if not rv.known:
+                components["breakout volume"] = {
+                    "verdict": "unknown", "reason": rv.reason or "rvol_unavailable", "value": None
+                }
+            else:
+                score = score_breakout(rv.value, rule.breakout)
+                components["breakout volume"] = {
+                    "verdict": verdict_label(score),
+                    "value": round(rv.value, 3),
+                    "threshold": rule.breakout.confirm_rvol,
+                    "required": rule.breakout.expansion_required,
+                    "score": round(score, 6),
+                    "breakout_bar": bar,
+                    "citation": rule.citation,
+                }
+                weighted.append((rule.breakout_weight, score))
+
+    if not weighted:
+        return VolumeVerdict.neutral("no_readable_condition")
+
+    total = sum(w for w, _ in weighted)
+    score = sum(w * s for w, s in weighted) / total
+    evidence: Dict[str, Any] = {
+        "status": "known",
+        "verdict": verdict_label(score),
+        "pattern": rule.pattern_name,
+        "direction": getattr(match, "pattern_type", ""),
+        "components": components,
+        "baseline_window": baseline_window,
+        "anchor_window": anchor_window,
+        "citation": rule.citation,
+    }
+    if rule.unscored_note:
+        evidence["not_scored"] = rule.unscored_note
     return VolumeVerdict(
         score=round(score, 6), factor=round(factor_from_score(score), 6), evidence=evidence
     )

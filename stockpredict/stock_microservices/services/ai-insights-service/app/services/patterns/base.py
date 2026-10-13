@@ -17,7 +17,7 @@ import pandas as pd
 from app.services.patterns.volume import (
     NEUTRAL_FACTOR,
     VolumeVerdict,
-    evaluate_breakout_volume,
+    evaluate_pattern_volume,
 )
 
 
@@ -78,7 +78,7 @@ def apply_volume_evidence(
 
     geometric = float(match.confidence)
     try:
-        verdict = evaluate_breakout_volume(match, ohlc)
+        verdict = evaluate_pattern_volume(match, ohlc)
     except Exception:  # noqa: BLE001 — NFR-V1: a volume bug must not drop a detection
         verdict = VolumeVerdict.neutral("volume_evaluation_failed")
 
