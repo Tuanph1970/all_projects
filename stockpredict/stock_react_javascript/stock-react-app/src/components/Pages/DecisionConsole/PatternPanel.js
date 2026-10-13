@@ -3,53 +3,12 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, TrendingUp, TrendingDown, ArrowRight, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { VERDICTS, VerdictChip, cardVerdict, confidenceReadings } from '../../common/volumeVerdict';
 
 // ── Volume verdict (EM-1 / FR-EM-V9) ────────────────────────────────────────
-
-// The four verdicts the backend can report, and how each reads on a card.
-// `suspect` is deliberately the loudest: it does not mean "weak evidence", it
-// means the evidence inverts the pattern's meaning — E&M's 2–3 day shakeout on
-// a high-volume downside break (Ch 8), or heavy volume inside a flag turning a
-// continuation into a minor reversal area (Ch 11).
-const VERDICTS = {
-  confirms: { color: '#059669', bg: 'rgba(5,150,105,0.10)' },
-  neutral: { color: '#6b7280', bg: 'rgba(107,114,128,0.10)' },
-  contradicts: { color: '#dc2626', bg: 'rgba(220,38,38,0.10)' },
-  suspect: { color: '#d97706', bg: 'rgba(217,119,6,0.12)' },
-};
-
-/**
- * The verdict to show on the card.
- *
- * Escalates to `suspect` when any single condition is suspect, because the
- * backend's card-level verdict is derived from a score and a score cannot
- * express an inversion — `verdict_label` only ever returns confirms, neutral
- * or contradicts. Without this escalation one of FR-EM-V9's four verdicts
- * would be unreachable in the UI even though the backend computes it.
- */
-const cardVerdict = (evidence) => {
-  const components = evidence?.components ?? {};
-  const anySuspect = Object.values(components).some(c => c?.verdict === 'suspect');
-  return anySuspect ? 'suspect' : evidence?.verdict;
-};
-
-const VerdictChip = ({ verdict }) => {
-  const { t } = useTranslation();
-  const style = VERDICTS[verdict];
-  if (!style) return null;
-  return (
-    <span
-      style={{
-        fontSize: 10, fontWeight: 700, color: style.color, background: style.bg,
-        padding: '2px 7px', borderRadius: 4, whiteSpace: 'nowrap',
-        display: 'inline-flex', alignItems: 'center', gap: 4,
-      }}
-    >
-      {verdict === 'suspect' && <AlertTriangle size={10} />}
-      {t(`decision_helper.pattern_panel.volume_verdict.${verdict}`)}
-    </span>
-  );
-};
+// The verdict vocabulary, the suspect-escalation rule and the confidence
+// readings live in ../../common/volumeVerdict so this panel and the AI
+// Insights page (F2) cannot drift apart on any of them.
 
 /**
  * One E&M condition and the figure behind it.
@@ -126,14 +85,10 @@ const PatternCard = ({ pattern }) => {
   const border = isBullish ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)';
   const Icon = isBullish ? TrendingUp : TrendingDown;
 
-  const pct = Math.round((pattern.confidence ?? 0) * 100);
-  const geometricPct = pattern.geometric_confidence != null
-    ? Math.round(pattern.geometric_confidence * 100)
-    : null;
-  // Show both readings only when volume actually moved the number. A neutral
-  // verdict multiplies by exactly 1.0, and printing "68% → 68%" would be noise
-  // dressed up as information.
-  const volumeMovedIt = geometricPct != null && geometricPct !== pct;
+  // `moved` is false when volume left the number alone, so the card shows one
+  // percentage rather than "68% → 68%".
+  const { composite: pct, geometric: geometricPct, moved: volumeMovedIt } =
+    confidenceReadings(pattern);
   const verdict = cardVerdict(pattern.volume_evidence);
 
   return (

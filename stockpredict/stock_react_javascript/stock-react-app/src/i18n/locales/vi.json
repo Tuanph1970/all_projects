@@ -933,7 +933,9 @@
       "volume_tooltip_label": "KL",
       "range_adjusted_for": "Các chỉ báo đã chọn cần {{days}} ngày dữ liệu; khoảng ngày đã được đặt thành {{days}} ngày gần nhất, kết thúc {{end}}.",
       "range_adjusted": "Khoảng ngày đã chọn quá ngắn cho các chỉ báo đã chọn; hệ thống đã tự động mở rộng.",
-      "no_data": "Không đủ dữ liệu giá để phân tích mã này."
+      "no_data": "Không đủ dữ liệu giá để phân tích mã này.",
+      "chart_patterns_title": "Mẫu biểu đồ",
+      "chart_patterns_subtitle": "Mẫu hình Edwards & Magee, đối chiếu với khối lượng"
     }
   },
   "journal": {

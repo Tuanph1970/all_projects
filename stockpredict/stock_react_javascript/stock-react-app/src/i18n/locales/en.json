@@ -933,7 +933,9 @@
       "volume_tooltip_label": "Vol",
       "range_adjusted_for": "The selected indicators need {{days}} days of history; the date range was set to the last {{days}} days ending {{end}}.",
       "range_adjusted": "The selected date range was too short for the chosen indicators; it was extended automatically.",
-      "no_data": "Not enough price history to analyse this stock."
+      "no_data": "Not enough price history to analyse this stock.",
+      "chart_patterns_title": "Chart Patterns",
+      "chart_patterns_subtitle": "Edwards & Magee formations, validated against volume"
     }
   },
   "journal": {

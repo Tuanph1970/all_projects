@@ -3,6 +3,8 @@ import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import { TrendingUp, TrendingDown, AlertTriangle, Brain, Activity, Shield, Target, RefreshCw, BarChart3, ChartLine } from 'lucide-react';
 import UnifiedFinancialChart from '../ui/UnifiedFinancialChart';
+import ChartPatternsCompact from '../common/ChartPatternsCompact';
+import helperService from '../../services/helperService';
 
 import { API_BASE_URLS, API_ENDPOINTS } from '../../constants/api';
 
@@ -48,6 +50,13 @@ export const AIInsights = () => {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('parameters'); // 'parameters' or 'charts'
   const [indicatorData, setIndicatorData] = useState(null);
+  // EM-1 / F2: the Edwards & Magee formations come from a DIFFERENT endpoint
+  // than this page's main payload. `/insights/comprehensive/` returns
+  // `pattern_recognition`, an SMA-based Uptrend/Downtrend heuristic with no
+  // volume fields; the volume-validated chart patterns live behind
+  // `/insights/patterns/{symbol}`. Hence a separate, best-effort fetch.
+  const [chartPatterns, setChartPatterns] = useState(null);
+  const [chartPatternsClimax, setChartPatternsClimax] = useState(null);
   const [chartLoading, setChartLoading] = useState(false);
 
   // Fetch portfolio holdings for stock dropdown
@@ -140,6 +149,21 @@ export const AIInsights = () => {
     setRangeNotice(null);
 
     try {
+      // Best-effort and deliberately not awaited alongside the main payload:
+      // a pattern-scan failure must not cost the user the rest of the
+      // analysis, and ChartPatternsCompact renders nothing when it has
+      // nothing, so there is no empty card to clean up.
+      setChartPatterns(null);
+      setChartPatternsClimax(null);
+      helperService.getPatterns(selectedStock)
+        .then((res) => {
+          if (res?.success) {
+            setChartPatterns(res.data?.patterns ?? []);
+            setChartPatternsClimax(res.data?.volume_climax ?? null);
+          }
+        })
+        .catch(() => { /* silent: see above */ });
+
       const response = await axios.post(`${API_BASE_URL}/insights/comprehensive/`, {
         symbol: selectedStock,
         start_date: dateRange.start,
@@ -1025,6 +1049,13 @@ export const AIInsights = () => {
               </table>
             </div>
           )}
+
+          {/* Chart Patterns — EM-1 / F2: the volume-validated E&M formations,
+              distinct from the `pattern_recognition` heuristic above. */}
+          <ChartPatternsCompact
+            patterns={chartPatterns}
+            volumeClimax={chartPatternsClimax}
+          />
 
           {/* Price Predictions - 6-Column Table Layout */}
           {insights?.price_prediction && (
