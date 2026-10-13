@@ -69,10 +69,28 @@ JS=$(curl -s --max-time 15 "$FE/stock-app/" | grep -oE '/stock-app/static/js/mai
 if [ -z "$JS" ]; then
   bad "could not locate main.js at $FE/stock-app/"
 else
-  BUNDLE=$(curl -s --max-time 45 "$FE$JS")
-  for needle in "Volume confirms" "Volume suspect" "volume_climax" "chart_patterns_title"; do
-    grep -q "$needle" <<<"$BUNDLE" && ok "bundle has '$needle'" || bad "bundle MISSING '$needle' (stale image?)"
-  done
+  curl -s --max-time 45 "$FE$JS" -o "$TMP/main.js"
+  # Checked in Python, not grep: the minifier escapes non-ASCII string
+  # literals, so the Vietnamese copy is present as \xNN sequences and a
+  # literal grep for it reports a false MISSING. Both forms are accepted.
+  python3 - "$TMP/main.js" <<'PY2'
+import sys
+raw = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+needles = [
+    ("en", "Volume confirms"), ("en", "Volume suspect"),
+    ("en", "volume_climax"), ("en", "chart_patterns_title"),
+    ("vi", "Khối lượng xác nhận"), ("vi", "Khối lượng đáng ngờ"),
+]
+missing = []
+for lang, s in needles:
+    if s in raw or s.encode("unicode_escape").decode("ascii") in raw:
+        print(f"  PASS  bundle has [{lang}] '{s}'")
+    else:
+        print(f"  FAIL  bundle MISSING [{lang}] '{s}' (stale image?)")
+        missing.append(s)
+sys.exit(1 if missing else 0)
+PY2
+  if [ $? -eq 0 ]; then pass=$((pass+6)); else fail=$((fail+1)); fi
 fi
 
 echo ""; echo "=== $pass passed, $fail failed ==="
