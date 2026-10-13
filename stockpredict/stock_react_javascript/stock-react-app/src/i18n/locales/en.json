@@ -1789,7 +1789,19 @@
       "bearish": "Bearish",
       "confidence": "Confidence",
       "neckline": "Neckline / Breakout",
-      "measured_move": "Measured Move"
+      "measured_move": "Measured Move",
+      "volume_verdict": {
+        "confirms": "Volume confirms",
+        "neutral": "Volume neutral",
+        "contradicts": "Volume contradicts",
+        "suspect": "Volume suspect"
+      },
+      "volume_geometric": "Shape",
+      "volume_required": "required",
+      "volume_thin": "Volume too thin to judge",
+      "volume_reclassified": "Volume re-read this gap — was {{from}}",
+      "volume_climax": "Volume climax",
+      "volume_climax_detail": "{{rvol}}× the heaviest of {{window}} bars, with price going nowhere"
     },
     "risk_prefs": {
       "title": "Risk Preferences",

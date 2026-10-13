@@ -191,6 +191,10 @@ const DecisionConsole = () => {
   const [planOpen, setPlanOpen] = useState(false);
   const [showPrefs, setShowPrefs] = useState(false);
   const [patterns, setPatterns] = useState(null);
+  // EM-1 / FR-EM-V6: a climax is a property of the series, not of any
+  // formation, so the backend returns it once per scan rather than per
+  // pattern. Kept beside `patterns` for the same reason.
+  const [volumeClimax, setVolumeClimax] = useState(null);
   const [patternsLoading, setPatternsLoading] = useState(false);
   const [patternsError, setPatternsError] = useState(null);
   const [portfolioTickers, setPortfolioTickers] = useState([]);
@@ -259,8 +263,10 @@ const DecisionConsole = () => {
       }
       if (patternResult.status === 'fulfilled' && patternResult.value?.success) {
         setPatterns(patternResult.value.data?.patterns ?? []);
+        setVolumeClimax(patternResult.value.data?.volume_climax ?? null);
       } else {
         setPatternsError(true);
+        setVolumeClimax(null);
       }
     } finally {
       setLoading(false);
@@ -329,6 +335,7 @@ const DecisionConsole = () => {
             patterns={patterns}
             loading={patternsLoading}
             error={patternsError}
+            volumeClimax={volumeClimax}
           />
 
           {/* ── discipline violations ── */}

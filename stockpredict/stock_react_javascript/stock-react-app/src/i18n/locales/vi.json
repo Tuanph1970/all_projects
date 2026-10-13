@@ -1789,7 +1789,19 @@
       "bearish": "Giảm giá",
       "confidence": "Độ tin cậy",
       "neckline": "Đường cổ / Điểm bứt phá",
-      "measured_move": "Mục tiêu đo lường"
+      "measured_move": "Mục tiêu đo lường",
+      "volume_verdict": {
+        "confirms": "Khối lượng xác nhận",
+        "neutral": "Khối lượng trung tính",
+        "contradicts": "Khối lượng phản bác",
+        "suspect": "Khối lượng đáng ngờ"
+      },
+      "volume_geometric": "Hình mẫu",
+      "volume_required": "bắt buộc",
+      "volume_thin": "Khối lượng quá mỏng để đánh giá",
+      "volume_reclassified": "Khối lượng đọc lại khoảng trống này — trước là {{from}}",
+      "volume_climax": "Cao trào khối lượng",
+      "volume_climax_detail": "{{rvol}}× mức cao nhất trong {{window}} phiên, nhưng giá không đi đâu"
     },
     "risk_prefs": {
       "title": "Cài đặt rủi ro",
