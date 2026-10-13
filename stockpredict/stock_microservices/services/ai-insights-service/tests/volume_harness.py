@@ -746,6 +746,48 @@ def with_follow_through_volume(planted: PlantedFrame, multiple: float) -> Plante
     return replace(planted, frame=frame)
 
 
+def _volume_climax(rng: np.random.Generator, *, textbook: bool = True) -> PlantedFrame:
+    """A selling-climax bar: enormous volume, a wide range, and almost no net
+    progress because price plunged and snapped back inside the session.
+
+    `FR-EM-V6` defines climactic as *extreme `rvol` against a long baseline
+    **and** price progress not commensurate*, and the snap-back is what makes
+    the progress non-commensurate — Ch 10's selling climax, Ch 28's "prepare
+    to retire into your shell".
+
+    The pair differs **only** in the volume on that one bar, so a test can say
+    the flag reads volume rather than shape. Deliberately contrasts with
+    ``_one_day_reversal``, which also spikes volume but *does* make its move,
+    and must therefore not be flagged.
+    """
+    lead = _lead_in(100.0, bars=150)
+    decline = np.linspace(100.0, 86.0, 20)
+    close = np.concatenate([lead, decline, np.full(3, 86.0)])
+    bar = close.size - 3
+
+    high, low = close + 0.4, close - 0.4
+    low[bar] = close[bar] - 9.0          # the plunge
+    high[bar] = close[bar] + 0.6
+    # close[bar] stays at the prior level: the snap-back, so net progress is
+    # tiny against a range that is anything but.
+    volume = _scripted_volume(
+        close.size, rng, bursts=[(bar, 10.0 if textbook else 1.1, 0)]
+    )
+    return PlantedFrame(
+        "selling_climax", _frame(close, volume, high=high, low=low),
+        "extreme volume with price progress not commensurate",
+        "E&M Ch 10, Ch 28", "",
+    )
+
+
+def climax_frames(seed: int = 20261016, *, textbook: bool = True) -> List[PlantedFrame]:
+    """`FR-EM-V6`'s pair. Not a pattern fixture — the climax flag is
+    independent of any detector, which is the whole point of the requirement.
+    """
+    rng = np.random.default_rng(seed)
+    return [_volume_climax(rng, textbook=textbook)]
+
+
 def bar_pattern_frames(seed: int = 20261015, *, textbook: bool = True) -> List[PlantedFrame]:
     """The three `V6b` formations: gap, one-day reversal, trap.
 

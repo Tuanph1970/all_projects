@@ -28,12 +28,60 @@ from app.models.schemas import (
     ComprehensiveInsights, ComprehensiveInsightsResponse,
     # F-005 / F-006 pattern catalog
     PatternMatch as PatternMatchSchema,
+    VolumeClimax as VolumeClimaxSchema,
     ReversalPatternsResponse,
     AllPatternsResponse,
 )
 from app.services.patterns.reversal import run_reversal_detectors
 from app.services.patterns.continuation import run_continuation_detectors
 from app.services.patterns.trap import run_trap_detectors
+from app.services.patterns.volume import (
+    DEFAULT_BASELINE_WINDOW,
+    ClimaxFlag,
+    detect_volume_climax,
+)
+
+
+def _pattern_to_schema(m) -> "PatternMatchSchema":
+    """One place where a detector result becomes the wire format (`FR-EM-V8`).
+
+    There were two of these, built field by field — `get_all_patterns` and
+    `get_reversal_patterns` — and that is precisely why EM-1's volume fields
+    sat on `PatternMatch` from V4 to V6b without ever reaching a client: adding
+    a field to the dataclass and to the pydantic model changed nothing, because
+    neither builder mentioned it. One function now, so the next field cannot be
+    half-shipped.
+    """
+    return PatternMatchSchema(
+        pattern_name=m.pattern_name,
+        pattern_type=m.pattern_type,
+        found=m.found,
+        confidence=m.confidence,
+        key_bars=m.key_bars,
+        measured_move_target=m.measured_move_target,
+        neckline=m.neckline,
+        details=m.details,
+        # --- EM-1 / FR-EM-V7 ---
+        volume_score=m.volume_score,
+        volume_factor=m.volume_factor,
+        volume_evidence=m.volume_evidence,
+        geometric_confidence=m.geometric_confidence,
+    )
+
+
+def _climax_to_schema(flag: Optional[ClimaxFlag]) -> "Optional[VolumeClimaxSchema]":
+    """`FR-EM-V6`, reported once per scan. ``None`` stays ``None`` — an absent
+    climax is a null field, never a fabricated one."""
+    if flag is None:
+        return None
+    return VolumeClimaxSchema(
+        bar_index=flag.bar_index,
+        rvol_long=flag.rvol_long,
+        progress_ratio=flag.progress_ratio,
+        window=flag.window,
+        reason=flag.reason,
+        citation=flag.citation,
+    )
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -1981,6 +2029,7 @@ Maintain current position and monitor for clearer signals before taking action.
                 pattern_count=0,
                 categories={"reversal": 0, "continuation": 0, "trap": 0},
                 generated_at=datetime.now(),
+                baseline_window=DEFAULT_BASELINE_WINDOW,
             )
 
         df = df.tail(lookback_bars).reset_index(drop=True)
@@ -1989,23 +2038,10 @@ Maintain current position and monitor for clearer signals before taking action.
         continuation_matches = run_continuation_detectors(df)
         trap_matches = run_trap_detectors(df)
 
-        def _to_schema(m) -> PatternMatchSchema:
-            return PatternMatchSchema(
-                pattern_name=m.pattern_name,
-                pattern_type=m.pattern_type,
-                found=m.found,
-                confidence=m.confidence,
-                key_bars=m.key_bars,
-                measured_move_target=m.measured_move_target,
-                neckline=m.neckline,
-                details=m.details,
-            )
-
-        all_matches = (
-            [_to_schema(m) for m in reversal_matches]
-            + [_to_schema(m) for m in continuation_matches]
-            + [_to_schema(m) for m in trap_matches]
-        )
+        all_matches = [
+            _pattern_to_schema(m)
+            for m in (*reversal_matches, *continuation_matches, *trap_matches)
+        ]
         all_matches.sort(
             key=lambda m: (m.key_bars[-1] if m.key_bars else 0), reverse=True
         )
@@ -2021,6 +2057,8 @@ Maintain current position and monitor for clearer signals before taking action.
                 "trap": len(trap_matches),
             },
             generated_at=datetime.now(),
+            baseline_window=DEFAULT_BASELINE_WINDOW,
+            volume_climax=_climax_to_schema(detect_volume_climax(df)),
         )
 
     async def get_reversal_patterns(
@@ -2047,6 +2085,7 @@ Maintain current position and monitor for clearer signals before taking action.
                 lookback_bars=0,
                 patterns=[],
                 generated_at=datetime.now(),
+                baseline_window=DEFAULT_BASELINE_WINDOW,
             )
 
         # Trim to exactly the requested lookback so detectors see a stable
@@ -2057,18 +2096,8 @@ Maintain current position and monitor for clearer signals before taking action.
         return ReversalPatternsResponse(
             symbol=symbol.upper(),
             lookback_bars=len(df),
-            patterns=[
-                PatternMatchSchema(
-                    pattern_name=m.pattern_name,
-                    pattern_type=m.pattern_type,
-                    found=m.found,
-                    confidence=m.confidence,
-                    key_bars=m.key_bars,
-                    measured_move_target=m.measured_move_target,
-                    neckline=m.neckline,
-                    details=m.details,
-                )
-                for m in matches
-            ],
+            patterns=[_pattern_to_schema(m) for m in matches],
             generated_at=datetime.now(),
+            baseline_window=DEFAULT_BASELINE_WINDOW,
+            volume_climax=_climax_to_schema(detect_volume_climax(df)),
         )

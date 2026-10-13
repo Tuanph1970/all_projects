@@ -378,12 +378,33 @@ class PatternMatch(BaseModel):
     geometric_confidence: Optional[float] = None   # the pre-volume reading
 
 
+class VolumeClimax(BaseModel):
+    """EM-1 `FR-EM-V6` — a bar read as climactic: extreme volume against a
+    long baseline, with price progress not commensurate (E&M Ch 10's selling
+    climax, Ch 28, Ch 12's exhaustion gap).
+
+    **Evidence only.** It is reported so a user can see it and is deliberately
+    not attached to any pattern, so nothing downstream scores with it. Acting
+    on it — E&M's "cancel further commitments in that direction" — belongs to
+    decision-helper and is a separate candidate.
+    """
+    bar_index: int
+    rvol_long: float
+    progress_ratio: float
+    window: int
+    reason: str
+    citation: str
+
+
 class ReversalPatternsResponse(BaseModel):
     """Aggregated reversal-pattern scan for one symbol."""
     symbol: str
     lookback_bars: int
     patterns: List[PatternMatch]
     generated_at: datetime
+    # --- EM-1 / FR-EM-V8 (additive) ---
+    baseline_window: int = 50          # the window the rvol readings used
+    volume_climax: Optional[VolumeClimax] = None
 
 
 class AllPatternsResponse(BaseModel):
@@ -395,3 +416,10 @@ class AllPatternsResponse(BaseModel):
     pattern_count: int                    # len(patterns) for quick inspection
     categories: Dict[str, int]            # {"reversal": N, "continuation": N, "trap": N}
     generated_at: datetime
+    # --- EM-1 / FR-EM-V8 (additive) ---
+    #: The `baseline_window` the rvol readings in this response actually used,
+    #: so a figure stays reproducible after the `S2` sweep moves the default.
+    baseline_window: int = 50
+    #: `FR-EM-V6`, reported once per scan rather than per pattern because a
+    #: climax is a property of the series, not of a formation.
+    volume_climax: Optional[VolumeClimax] = None

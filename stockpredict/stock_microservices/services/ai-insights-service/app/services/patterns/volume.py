@@ -1512,3 +1512,117 @@ def evaluate_pattern_volume(
         evidence=evidence,
         reclassify_to=reclassified,
     )
+
+
+# --- V7: the climactic-volume flag (FR-EM-V6) -------------------------------
+
+#: `rvol` against the LONG baseline at or above which volume counts as extreme.
+#: A climax is extreme *against months*, not against the last fifty bars — the
+#: same reasoning as `FR-EM-V5` row 11. Default pending the `S2` sweep.
+CLIMAX_RVOL = 2.5
+
+#: Net progress, measured in typical-move units, at or below which the bar's
+#: price did not go anywhere worth that volume. Ch 12's phrase is "failing to
+#: advance commensurately"; this is that phrase made arithmetic.
+CLIMAX_PROGRESS_RATIO = 0.6
+
+
+@dataclass(frozen=True)
+class ClimaxFlag:
+    """One bar read as climactic (`FR-EM-V6`).
+
+    Ch 10's selling climax, Ch 28's *"prepare to retire into your shell"* and
+    Ch 12's exhaustion gap are the same observation three times: enormous
+    volume that buys almost no net movement. Where price plunges and snaps
+    back inside the session, the snap-back is exactly what makes the progress
+    non-commensurate.
+
+    **Evidence only in this slice.** The flag is returned on the scan response
+    and deliberately never reaches a `PatternMatch`, so nothing downstream can
+    begin scoring with it by accident. Acting on it — E&M's "cancel further
+    commitments in that direction" — belongs to decision-helper and is a
+    separate Phase-0 candidate.
+    """
+    bar_index: int
+    rvol_long: float
+    progress_ratio: float
+    window: int
+    reason: str
+    citation: str = "E&M Ch 10, Ch 28"
+
+
+def detect_volume_climax(
+    ohlc: Any,
+    long_window: int = LONG_BASELINE_WINDOW,
+    percentile: float = LONG_BASELINE_PERCENTILE,
+    rvol_threshold: float = CLIMAX_RVOL,
+    progress_threshold: float = CLIMAX_PROGRESS_RATIO,
+) -> Optional[ClimaxFlag]:
+    """`FR-EM-V6` — the most recent climactic bar in the frame, or ``None``.
+
+    Independent of any pattern, which is why it is a reading on the frame
+    rather than a condition inside a rule. Both halves of the definition are
+    required: extreme volume that *does* carry price is a breakout or a
+    one-day reversal, not a climax, and treating every heavy day as a warning
+    would make the flag worthless.
+
+    The scale for "commensurate" is the **median absolute close-to-close
+    move** over the same long window, which keeps this module free of any
+    dependency on the detectors' ATR helper and is robust to one wild bar by
+    construction (`EC-V5`).
+
+    Scans backwards from the most recent bar, so a live reading reports the
+    latest climax rather than the first one in the window. Causality (C1)
+    holds: the baseline for bar ``i`` reads only bars before ``i``, and no bar
+    after ``i`` is consulted at all.
+    """
+    try:
+        if "volume" not in ohlc:
+            return None
+        volume = ohlc["volume"].to_numpy(dtype=float)
+        close = ohlc["close"].to_numpy(dtype=float)
+    except (KeyError, TypeError, AttributeError):
+        return None
+
+    n = len(close)
+    if n < long_window // 2 or n < MIN_BASELINE_BARS + 2:
+        return None
+
+    for i in range(n - 1, 0, -1):
+        start = max(0, i - long_window)
+        prior_volume = [v for v in (_usable(x) for x in volume[start:i]) if v is not None]
+        here = _usable(volume[i])
+        if here is None or len(prior_volume) < long_window // 2:
+            continue
+
+        reference = _percentile(prior_volume, percentile)
+        if reference <= 0.0:
+            continue
+        rvol_long = here / reference
+        if rvol_long < rvol_threshold:
+            continue
+
+        moves = [abs(close[j] - close[j - 1]) for j in range(max(1, start + 1), i)]
+        typical = _median(moves) if moves else 0.0
+        if typical <= 0.0:
+            continue
+
+        progress_ratio = abs(close[i] - close[i - 1]) / typical
+        if progress_ratio > progress_threshold:
+            # Volume was extreme but price went somewhere with it. That is a
+            # breakout or a one-day reversal, and the rules for those already
+            # read it — flagging it here as well would double-count.
+            continue
+
+        return ClimaxFlag(
+            bar_index=i,
+            rvol_long=round(float(rvol_long), 3),
+            progress_ratio=round(float(progress_ratio), 3),
+            window=long_window,
+            reason=(
+                f"volume {rvol_long:.1f}x the {percentile:.0f}th percentile of "
+                f"{long_window} bars, with net progress {progress_ratio:.2f}x a "
+                f"typical day"
+            ),
+        )
+    return None
