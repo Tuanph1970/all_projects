@@ -198,30 +198,48 @@ class TestFRV7Composition:
 # ---------------------------------------------------------------------------
 
 class TestUnknownIsNeutral:
-    def test_no_locatable_breakout_is_neutral_not_adverse(self):
-        """A pattern that has not broken out yet has no breakout volume to
-        judge. That is missing evidence, not bad evidence — scoring it 0.0
-        would read as "volume contradicts"."""
+    """Unknown must read as neutral, never as "volume contradicts".
+
+    Two of this class's original examples were retired by V6a and the reason is
+    worth stating, because one of them was a deliberate reversal rather than a
+    relocation:
+
+    * *"a neutral pattern type carries no directional verdict"* was **inverted
+      on purpose**. At V4 a ``pattern_type="neutral"`` pattern had no direction
+      to apply the asymmetry to, so it scored nothing. V6a's whole point is
+      that the symmetrical triangle takes its direction from the penetration
+      itself, so it now does score. The superseding statement lives in
+      ``test_volume_consolidation_rules.py::TestDirectionInference``.
+    * *"no locatable breakout is neutral"* used the flag, which since V6a has a
+      readable mast ratio and therefore a verdict. The property still holds and
+      is asserted below where it now lives — on the breakout **component**.
+    """
+
+    def test_an_unlocatable_breakout_contributes_nothing(self):
         flag = next(pf for pf in planted_frames() if pf.name == "bull_flag")
         match = single_match(flag.frame, "Flag")
         assert breakout_bar(match, flag.frame) is None
+        component = match.volume_evidence["components"]["breakout volume"]
+        assert component["verdict"] == "unknown"
+        assert component["value"] is None
+        assert component["reason"] == "no_breakout_yet"
+
+    def test_a_rule_with_no_readable_condition_is_neutral(self):
+        """Every condition unknown — the only honest answer is no verdict, and
+        a factor of exactly 1.0 rather than a score of 0.0."""
+        flag = next(pf for pf in planted_frames() if pf.name == "bull_flag")
+        frame = flag.frame.copy(deep=True)
+        frame["volume"] = np.nan
+        match = single_match(frame, "Flag")
         assert match.volume_score is None
         assert match.volume_factor == NEUTRAL_FACTOR
         assert match.confidence == match.geometric_confidence
 
-    def test_a_neutral_pattern_type_carries_no_directional_verdict(self):
-        """`SymmetricalTriangleDetector` returns ``pattern_type="neutral"``,
-        so the direction-aware rule has nothing to apply. Its own condition —
-        volume diminishing toward the apex — is `FR-EM-V5`, task V6."""
-        triangle = next(pf for pf in planted_frames() if pf.name == "symmetrical_triangle")
-        match = single_match(triangle.frame, "Symmetrical Triangle")
-        assert match.pattern_type == "neutral"
-        assert match.volume_score is None
-        assert match.volume_factor == NEUTRAL_FACTOR
-
     def test_evidence_says_why_there_is_no_verdict(self):
         flag = next(pf for pf in planted_frames() if pf.name == "bull_flag")
-        evidence = single_match(flag.frame, "Flag").volume_evidence
+        frame = flag.frame.copy(deep=True)
+        frame["volume"] = np.nan
+        evidence = single_match(frame, "Flag").volume_evidence
         assert evidence["status"] == "unknown"
         assert evidence["reason"]
 

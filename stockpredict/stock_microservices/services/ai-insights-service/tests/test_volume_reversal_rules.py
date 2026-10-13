@@ -37,6 +37,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from dataclasses import replace
+
 from app.services.patterns.volume import (
     BEARISH_BREAKOUT,
     BULLISH_BREAKOUT,
@@ -307,23 +309,37 @@ class TestUnavailabilityAndBounds:
 # ---------------------------------------------------------------------------
 
 class TestTheRegistry:
-    def test_it_covers_exactly_the_four_reversal_detectors(self):
-        """V6 adds the continuation and trap entries. Asserting the current
-        membership means that task cannot land half-done unnoticed."""
-        assert set(PATTERN_RULES) == {
+    def test_the_four_reversal_detectors_are_registered(self):
+        """Membership of the whole registry is asserted in
+        ``test_volume_consolidation_rules.py`` since V6a added five more
+        entries; this keeps V5's own four under test."""
+        assert {
             "Head and Shoulders",
             "Inverse Head and Shoulders",
             "Double Top",
             "Double Bottom",
-        }
+        } <= set(PATTERN_RULES)
 
     def test_an_unregistered_pattern_falls_back_to_the_generic_breakout_rule(self):
-        """The eight detectors V6 has not reached yet must keep the V4
-        behaviour rather than losing their verdict."""
-        flag = _by_name(planted_frames(), "bull_flag")
-        match = single_match(flag.frame, "Flag")
-        assert "Flag" not in PATTERN_RULES
-        assert match.volume_evidence["status"] == "unknown"   # no break in this frame
+        """The detectors V6b has not reached yet — Gap, Wide-Ranging Day and
+        the traps — must keep V4's generic behaviour rather than losing their
+        verdict entirely.
+
+        Asked of a match carrying an unregistered name rather than of a real
+        detection, so the test keeps testing the fallback as more patterns get
+        registered instead of going stale the moment one does.
+        """
+        planted = _by_name(planted_frames(), "hs_top")
+        real = single_match(planted.frame, "Head and Shoulders")
+        unregistered = replace(real, pattern_name="Not A Registered Pattern")
+        assert unregistered.pattern_name not in PATTERN_RULES
+
+        verdict = evaluate_pattern_volume(unregistered, planted.frame)
+        assert verdict.score is not None
+        # The generic rule reports a flat breakout verdict, not the nested
+        # per-condition evidence a registered rule produces.
+        assert "components" not in verdict.evidence
+        assert verdict.evidence["condition"] == "breakout volume"
 
     def test_every_rule_cites_the_book(self):
         for name, rule in PATTERN_RULES.items():

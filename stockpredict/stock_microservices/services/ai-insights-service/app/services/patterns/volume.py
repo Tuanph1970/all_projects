@@ -379,6 +379,11 @@ class BreakoutRule:
     confirm_rvol: float = 1.5
     confirm_reward: float = 0.5
     dull_penalty: float = 0.5
+    #: `FR-EM-V4`: the rvol at or above which *more* volume makes the break
+    #: WORSE, not better — E&M Ch 8's shakeout. ``None`` means the rule is
+    #: monotone, which every rule before V6a was.
+    suspect_above_rvol: Optional[float] = None
+    suspect_penalty: float = 0.5
 
     def __post_init__(self) -> None:
         if self.expansion_required and self.dull_penalty <= 0.0:
@@ -388,6 +393,15 @@ class BreakoutRule:
                 "FR-EM-V3: where expansion is only corroborating, its absence "
                 "must not penalise — dull_penalty must be exactly 0.0"
             )
+        if self.suspect_above_rvol is not None:
+            if self.suspect_above_rvol <= self.confirm_rvol:
+                raise ValueError(
+                    "FR-EM-V4: the suspect threshold must sit ABOVE the confirming "
+                    "one, or there is no corroborating band between them and the "
+                    "rule is monotone after all"
+                )
+            if self.suspect_penalty <= 0.0:
+                raise ValueError("a suspect band with no penalty is not a suspect band")
 
 
 #: Upside break — E&M's "it takes buying to put stocks up". The default for
@@ -441,6 +455,16 @@ def _graded_score(
     return 0.5 - penalty * min(1.0, -margin)
 
 
+def _suspect_score(margin: float, penalty: float) -> float:
+    """`FR-EM-V4` — the mirror of `_graded_score`'s met branch, below neutral.
+
+    Crossing a suspect threshold costs half the penalty immediately, because a
+    shakeout is a categorical read rather than a matter of degree, and the rest
+    accrues as the excess grows.
+    """
+    return 0.5 - penalty * (0.5 + 0.5 * min(1.0, max(0.0, margin)))
+
+
 def score_breakout(rvol: float, rule: BreakoutRule) -> float:
     """Breakout volume as a score in ``[0, 1]``, where **0.5 is "no
     information"** rather than "bad".
@@ -455,6 +479,15 @@ def score_breakout(rvol: float, rule: BreakoutRule) -> float:
     ``rvol = 0``, whereas a merely corroborating one returns exactly 0.5 —
     missing evidence, not adverse evidence.
     """
+    if rule.suspect_above_rvol is not None and rvol >= rule.suspect_above_rvol:
+        # FR-EM-V4. Past this point the curve TURNS DOWN: a break on
+        # extraordinary volume is read as a shakeout rather than as
+        # conviction, so the same evidence that corroborated a moment ago now
+        # counts against the pattern. This is the one place in the module
+        # where more volume is worse, and it is deliberate.
+        excess = (rvol - rule.suspect_above_rvol) / rule.suspect_above_rvol
+        return _suspect_score(excess, rule.suspect_penalty)
+
     margin = (rvol - rule.confirm_rvol) / rule.confirm_rvol
     return _graded_score(
         margin,
@@ -492,6 +525,79 @@ def verdict_label(score: float) -> str:
     return VERDICT_NEUTRAL
 
 
+@dataclass(frozen=True)
+class BreakoutEvent:
+    """A located penetration and the direction it went.
+
+    The direction is carried separately from ``pattern_type`` because the
+    symmetrical triangle has none — it reports ``"neutral"`` and can resolve
+    either way, and `FR-EM-V5` gives the two resolutions **opposite**
+    treatment: an upside break requires expansion, a downside break on heavy
+    volume is suspect. So the direction has to come from the break itself.
+    """
+    bar: int
+    direction: str
+    boundary: float
+
+
+def _boundaries(match: Any) -> tuple:
+    """The upper and lower levels a penetration is measured against.
+
+    Directional patterns publish the one that matters as ``neckline``. The
+    symmetrical triangle publishes the upper line as ``neckline`` and the
+    lower line only implicitly — but exactly, since
+    ``details["target_dn"] = breakout_l - pattern_height``
+    (`continuation.py`), so the lower line is recoverable by addition rather
+    than by re-fitting the trendline or guessing at it.
+    """
+    neckline = getattr(match, "neckline", None)
+    if neckline is None:
+        return None, None
+    details = getattr(match, "details", {}) or {}
+    if "target_dn" in details and "pattern_height" in details:
+        try:
+            return float(neckline), float(details["target_dn"]) + float(details["pattern_height"])
+        except (TypeError, ValueError):
+            return float(neckline), None
+    return float(neckline), None
+
+
+def breakout_event(match: Any, ohlc: Any) -> Optional[BreakoutEvent]:
+    """Locate the penetration and say which way it went, or ``None``.
+
+    For a pattern with a direction, the boundary is ``neckline`` and the
+    direction is the pattern's own. For a ``neutral`` pattern, both boundaries
+    are used and whichever is pierced first decides the direction.
+
+    Causality (C1) holds trivially: every bar examined is at or before the last
+    bar of the frame, which *is* the prediction time, and no bar before the
+    formation is consulted.
+    """
+    key_bars = getattr(match, "key_bars", None)
+    if not key_bars:
+        return None
+    upper, lower = _boundaries(match)
+    if upper is None:
+        return None
+    try:
+        close = ohlc["close"].to_numpy(dtype=float)
+    except (KeyError, TypeError, AttributeError):
+        return None
+
+    pattern_type = getattr(match, "pattern_type", "")
+    for i in range(int(key_bars[-1]) + 1, len(close)):
+        if pattern_type == "bullish" and close[i] > upper:
+            return BreakoutEvent(i, "bullish", upper)
+        if pattern_type == "bearish" and close[i] < upper:
+            return BreakoutEvent(i, "bearish", upper)
+        if pattern_type not in ("bullish", "bearish"):
+            if close[i] > upper:
+                return BreakoutEvent(i, "bullish", upper)
+            if lower is not None and close[i] < lower:
+                return BreakoutEvent(i, "bearish", lower)
+    return None
+
+
 def breakout_bar(match: Any, ohlc: Any) -> Optional[int]:
     """The bar on which the pattern's boundary was penetrated, or ``None``.
 
@@ -508,22 +614,10 @@ def breakout_bar(match: Any, ohlc: Any) -> Optional[int]:
     last bar of the frame, which *is* the prediction time. There is no look
     past the right edge, and no bar before the formation is consulted.
     """
-    neckline = getattr(match, "neckline", None)
-    key_bars = getattr(match, "key_bars", None)
-    rule = BREAKOUT_RULES.get(getattr(match, "pattern_type", ""))
-    if neckline is None or not key_bars or rule is None:
+    if getattr(match, "pattern_type", "") not in BREAKOUT_RULES:
         return None
-    try:
-        close = ohlc["close"].to_numpy(dtype=float)
-    except (KeyError, TypeError, AttributeError):
-        return None
-
-    for i in range(int(key_bars[-1]) + 1, len(close)):
-        if rule.direction == "bullish" and close[i] > neckline:
-            return i
-        if rule.direction == "bearish" and close[i] < neckline:
-            return i
-    return None
+    event = breakout_event(match, ohlc)
+    return None if event is None else event.bar
 
 
 def evaluate_breakout_volume(
@@ -614,12 +708,32 @@ def evaluate_breakout_volume(
 ANCHOR_WINDOW = 3
 
 
-def _anchor_span(key_bars: Sequence[int], anchor: int, n: int, window: int) -> Optional[tuple]:
-    """Bar range around ``key_bars[anchor]``, clipped to the frame."""
+def _anchor_span(
+    key_bars: Sequence[int],
+    anchor: int,
+    n: int,
+    window: int,
+    to_anchor: Optional[int] = None,
+) -> Optional[tuple]:
+    """Bar range for a condition, clipped to the frame.
+
+    With ``to_anchor`` it is the span **between** two key bars — which is how
+    V6a expresses "through the flag" (``key_bars[2]`` to ``key_bars[3]``) and
+    "the mast" (``key_bars[0]`` to ``key_bars[1]``). Without it, a window of
+    ``±window`` around a single key bar, which is how V5 expresses "the right
+    shoulder". Both are needed: a shoulder is a *point* in the formation, a
+    flag is an *interval*.
+    """
     if anchor >= len(key_bars):
         return None
-    centre = int(key_bars[anchor])
-    start, end = max(0, centre - window), min(n, centre + window + 1)
+    if to_anchor is not None:
+        if to_anchor >= len(key_bars):
+            return None
+        start, end = int(key_bars[anchor]), min(n, int(key_bars[to_anchor]) + 1)
+    else:
+        centre = int(key_bars[anchor])
+        start, end = max(0, centre - window), min(n, centre + window + 1)
+    start = max(0, start)
     if end <= start:
         return None
     return start, end
@@ -642,13 +756,30 @@ class SpanRatio:
     required: bool
     weight: float = 1.0
     citation: str = ""
+    #: Set either to compare the span BETWEEN two key bars instead of a window
+    #: around one — "through the flag" against "the mast".
+    a_to_anchor: Optional[int] = None
+    b_to_anchor: Optional[int] = None
+    #: `FR-EM-V4`: a ratio this far the wrong way inverts the pattern rather
+    #: than merely failing its condition. On a flag, a consolidation trading as
+    #: heavily as the thrust that created it is no longer a pause — Ch 11's
+    #: "minor reversal area". Carried here as well as on `SpanTrend` because a
+    #: detected flag span is often only three bars, too short for a rank trend
+    #: to be readable at all, so the ratio is the only place the inversion can
+    #: be expressed.
+    suspect_at: Optional[float] = None
+    suspect_penalty: float = 0.5
 
     def anchors_include(self, anchor: int) -> bool:
         return anchor in (self.a_anchor, self.b_anchor)
 
+    @property
+    def kind(self) -> str:
+        return "ratio"
+
     def evaluate(self, volume, key_bars, n, window, baseline_window, _end):
-        a = _anchor_span(key_bars, self.a_anchor, n, window)
-        b = _anchor_span(key_bars, self.b_anchor, n, window)
+        a = _anchor_span(key_bars, self.a_anchor, n, window, self.a_to_anchor)
+        b = _anchor_span(key_bars, self.b_anchor, n, window, self.b_to_anchor)
         if a is None or b is None:
             return None, {"verdict": "unknown", "reason": "anchor_out_of_range", "value": None}
         rv_a = span_relative_volume(volume, a[0], a[1], baseline_window)
@@ -657,14 +788,21 @@ class SpanRatio:
             return None, {"verdict": "unknown", "reason": "span_unavailable", "value": None}
 
         ratio = rv_a.value / rv_b.value
-        margin = (
-            (self.ratio - ratio) / self.ratio
-            if self.expect == "a_lower"
-            else (ratio - self.ratio) / self.ratio
-        )
-        score = _graded_score(margin, required=self.required)
+        wrong_way = ratio if self.expect == "a_lower" else 1.0 / max(ratio, 1e-9)
+        if self.suspect_at is not None and wrong_way >= self.suspect_at:
+            excess = (wrong_way - self.suspect_at) / self.suspect_at
+            score = _suspect_score(excess, self.suspect_penalty)
+            verdict = VERDICT_SUSPECT
+        else:
+            margin = (
+                (self.ratio - ratio) / self.ratio
+                if self.expect == "a_lower"
+                else (ratio - self.ratio) / self.ratio
+            )
+            score = _graded_score(margin, required=self.required)
+            verdict = verdict_label(score)
         return score, {
-            "verdict": verdict_label(score),
+            "verdict": verdict,
             "value": round(ratio, 3),
             "threshold": self.ratio,
             "expect": self.expect,
@@ -691,12 +829,13 @@ class SpanLevel:
     required: bool
     weight: float = 1.0
     citation: str = ""
+    to_anchor: Optional[int] = None
 
     def anchors_include(self, anchor: int) -> bool:
         return anchor == self.anchor
 
     def evaluate(self, volume, key_bars, n, window, baseline_window, _end):
-        span = _anchor_span(key_bars, self.anchor, n, window)
+        span = _anchor_span(key_bars, self.anchor, n, window, self.to_anchor)
         if span is None:
             return None, {"verdict": "unknown", "reason": "anchor_out_of_range", "value": None}
         rv = span_relative_volume(volume, span[0], span[1], baseline_window)
@@ -735,6 +874,12 @@ class SpanTrend:
     required: bool
     weight: float = 1.0
     citation: str = ""
+    #: `FR-EM-V4`: a trend this far in the WRONG direction is not merely an
+    #: unmet condition, it inverts the pattern's meaning. Ch 11 on flags:
+    #: "high or irregular volume inside the pattern turns it into a minor
+    #: reversal area". ``None`` leaves the condition monotone.
+    suspect_at: Optional[float] = None
+    suspect_penalty: float = 0.5
 
     def anchors_include(self, anchor: int) -> bool:
         return anchor == self.from_anchor
@@ -748,14 +893,18 @@ class SpanTrend:
         if not trend.known:
             return None, {"verdict": "unknown", "reason": trend.reason or "span_too_short", "value": None}
 
-        margin = (
-            (trend.value - self.threshold) / max(1e-9, 1.0 - self.threshold)
-            if self.expect == "building"
-            else (-trend.value - self.threshold) / max(1e-9, 1.0 - self.threshold)
-        )
-        score = _graded_score(margin, required=self.required)
+        signed = trend.value if self.expect == "building" else -trend.value
+        if self.suspect_at is not None and -signed >= self.suspect_at:
+            # Moving decisively the wrong way: an inversion, not a shortfall.
+            excess = (-signed - self.suspect_at) / max(1e-9, 1.0 - self.suspect_at)
+            score = _suspect_score(excess, self.suspect_penalty)
+            verdict = VERDICT_SUSPECT
+        else:
+            margin = (signed - self.threshold) / max(1e-9, 1.0 - self.threshold)
+            score = _graded_score(margin, required=self.required)
+            verdict = verdict_label(score)
         return score, {
-            "verdict": verdict_label(score),
+            "verdict": verdict,
             "value": round(trend.value, 3),
             "threshold": self.threshold,
             "expect": self.expect,
@@ -795,6 +944,22 @@ class PatternVolumeRule:
     citation: str
     breakout_weight: float = 1.0
     unscored_note: str = ""
+    #: Set instead of ``breakout`` when the two resolutions of one formation
+    #: get **opposite** treatment and the direction is not known until the
+    #: break happens — the symmetrical triangle, whose upside break requires
+    #: expansion while its downside break on heavy volume is suspect.
+    breakout_by_direction: Optional[Dict[str, BreakoutRule]] = None
+
+    def breakout_for(self, direction: str) -> Optional[BreakoutRule]:
+        if self.breakout_by_direction is not None:
+            return self.breakout_by_direction.get(direction)
+        return self.breakout
+
+    def all_breakouts(self) -> List[BreakoutRule]:
+        """Every breakout rule this pattern can use — for tests and sweeps."""
+        if self.breakout_by_direction is not None:
+            return list(self.breakout_by_direction.values())
+        return [] if self.breakout is None else [self.breakout]
 
 
 PATTERN_RULES: Dict[str, PatternVolumeRule] = {
@@ -859,6 +1024,132 @@ PATTERN_RULES: Dict[str, PatternVolumeRule] = {
 }
 
 
+#: Ch 8, the ascending triangle: resolution runs about 9:1 to the upside, so
+#: an upside break without expansion is a failed requirement.
+ASCENDING_BREAKOUT = BreakoutRule(
+    direction="bullish", expansion_required=True, confirm_rvol=1.5,
+    confirm_reward=0.5, dull_penalty=0.45,
+)
+
+#: Ch 8, the descending triangle: downside resolution, so volume only
+#: corroborates — and `FR-EM-V4`'s inversion applies, an *extreme* downside
+#: break being a 2-3 day shakeout rather than conviction. This is the rule
+#: whose scoring curve rises and then falls.
+DESCENDING_BREAKOUT = BreakoutRule(
+    direction="bearish", expansion_required=False, confirm_rvol=1.5,
+    confirm_reward=0.3, dull_penalty=0.0,
+    suspect_above_rvol=3.0, suspect_penalty=0.45,
+)
+
+#: The symmetrical triangle resolving upward — Ch 8's "expands on the
+#: breakout", required because the formation itself predicts nothing.
+SYMMETRICAL_UP_BREAKOUT = BreakoutRule(
+    direction="bullish", expansion_required=True, confirm_rvol=1.5,
+    confirm_reward=0.5, dull_penalty=0.45,
+)
+
+#: The symmetrical triangle resolving downward. E&M call a high-volume
+#: downside break suspect *"especially out near the apex"*; a break located
+#: after the final pivot of a converging formation is near the apex by
+#: construction, so no separate apex-distance measure is taken here — a
+#: refinement recorded for the `S2` sweep rather than guessed at now.
+#: The suspect threshold is lower than the descending triangle's because this
+#: is the book's worst offender for false moves.
+SYMMETRICAL_DOWN_BREAKOUT = BreakoutRule(
+    direction="bearish", expansion_required=False, confirm_rvol=1.5,
+    confirm_reward=0.2, dull_penalty=0.0,
+    suspect_above_rvol=2.5, suspect_penalty=0.5,
+)
+
+_TRIANGLE_DRYING = dict(
+    label="volume diminishes toward the apex",
+    from_anchor=0, expect="drying", threshold=0.15, required=True,
+    citation="E&M Ch 8",
+)
+
+PATTERN_RULES.update({
+    # key_bars = [pole_start, pole_end, flag_start, last bar]
+    "Flag": PatternVolumeRule(
+        pattern_name="Flag",
+        breakout=None,
+        # A flag takes its direction from the pole, so the generic asymmetric
+        # rules apply to its resumption: a bull flag breaking up needs volume,
+        # a bear flag breaking down does not. Declared per direction rather
+        # than left implicit so the rule *says* it has a breakout condition,
+        # and the dispatcher can report "no break yet" instead of silently
+        # omitting the row.
+        breakout_by_direction={"bullish": BULLISH_BREAKOUT, "bearish": BEARISH_BREAKOUT},
+        conditions=(
+            SpanRatio(
+                label="flag volume markedly below the mast",
+                a_anchor=2, a_to_anchor=3, b_anchor=0, b_to_anchor=1,
+                expect="a_lower", ratio=0.6, required=True, citation="E&M Ch 11",
+                suspect_at=1.0,
+            ),
+            SpanTrend(
+                label="volume dries up continuously through the flag",
+                from_anchor=2, expect="drying", threshold=0.1, required=False,
+                suspect_at=0.3, citation="E&M Ch 11",
+            ),
+        ),
+        citation="E&M Ch 11",
+        unscored_note=(
+            "expansion inside the flag is suspect, not merely unhelpful: it "
+            "turns a continuation into a minor reversal area"
+        ),
+    ),
+    # key_bars = [pole_start, pole_end, pennant_start, last bar]
+    "Pennant": PatternVolumeRule(
+        pattern_name="Pennant",
+        breakout=None,
+        breakout_by_direction={"bullish": BULLISH_BREAKOUT, "bearish": BEARISH_BREAKOUT},
+        conditions=(
+            SpanRatio(
+                label="pennant volume markedly below the mast",
+                a_anchor=2, a_to_anchor=3, b_anchor=0, b_to_anchor=1,
+                expect="a_lower", ratio=0.5, required=True, citation="E&M Ch 11",
+                suspect_at=0.9,
+            ),
+            SpanTrend(
+                # Stricter than the flag: "volume dries up even faster,
+                # sometimes to almost nothing".
+                label="volume dries up continuously through the pennant",
+                from_anchor=2, expect="drying", threshold=0.25, required=False,
+                suspect_at=0.3, citation="E&M Ch 11",
+            ),
+        ),
+        citation="E&M Ch 11",
+    ),
+    # key_bars = the trendline pivots, in order
+    "Symmetrical Triangle": PatternVolumeRule(
+        pattern_name="Symmetrical Triangle",
+        breakout=None,
+        breakout_by_direction={
+            "bullish": SYMMETRICAL_UP_BREAKOUT,
+            "bearish": SYMMETRICAL_DOWN_BREAKOUT,
+        },
+        conditions=(SpanTrend(**_TRIANGLE_DRYING),),
+        citation="E&M Ch 8",
+        # The book's worst offender for false moves, so volume gets more say
+        # here than on the other two triangles.
+        breakout_weight=2.0,
+        unscored_note="a high-volume downside break near the apex is suspect, not confirming",
+    ),
+    "Ascending Triangle": PatternVolumeRule(
+        pattern_name="Ascending Triangle",
+        breakout=ASCENDING_BREAKOUT,
+        conditions=(SpanTrend(**_TRIANGLE_DRYING),),
+        citation="E&M Ch 8",
+    ),
+    "Descending Triangle": PatternVolumeRule(
+        pattern_name="Descending Triangle",
+        breakout=DESCENDING_BREAKOUT,
+        conditions=(SpanTrend(**_TRIANGLE_DRYING),),
+        citation="E&M Ch 8",
+    ),
+})
+
+
 def evaluate_pattern_volume(
     match: Any,
     ohlc: Any,
@@ -893,7 +1184,8 @@ def evaluate_pattern_volume(
         return VolumeVerdict.neutral("no_key_bars")
 
     n = len(volume)
-    bar = breakout_bar(match, ohlc)
+    event = breakout_event(match, ohlc)
+    bar = None if event is None else event.bar
     components: Dict[str, Any] = {}
     weighted: List[tuple] = []
 
@@ -905,10 +1197,13 @@ def evaluate_pattern_volume(
         if score is not None:
             weighted.append((condition.weight, score))
 
-    if rule.breakout is not None:
-        if bar is None:
+    if rule.breakout is not None or rule.breakout_by_direction is not None:
+        breakout = rule.breakout_for(event.direction) if event is not None else None
+        if bar is None or breakout is None:
             components["breakout volume"] = {
-                "verdict": "unknown", "reason": "no_breakout_yet", "value": None
+                "verdict": "unknown",
+                "reason": "no_breakout_yet" if bar is None else "no_rule_for_direction",
+                "value": None,
             }
         else:
             rv = relative_volume(volume, bar, baseline_window)
@@ -917,12 +1212,18 @@ def evaluate_pattern_volume(
                     "verdict": "unknown", "reason": rv.reason or "rvol_unavailable", "value": None
                 }
             else:
-                score = score_breakout(rv.value, rule.breakout)
+                score = score_breakout(rv.value, breakout)
+                suspect = (
+                    breakout.suspect_above_rvol is not None
+                    and rv.value >= breakout.suspect_above_rvol
+                )
                 components["breakout volume"] = {
-                    "verdict": verdict_label(score),
+                    "verdict": VERDICT_SUSPECT if suspect else verdict_label(score),
                     "value": round(rv.value, 3),
-                    "threshold": rule.breakout.confirm_rvol,
-                    "required": rule.breakout.expansion_required,
+                    "threshold": breakout.confirm_rvol,
+                    "suspect_above": breakout.suspect_above_rvol,
+                    "required": breakout.expansion_required,
+                    "direction": breakout.direction,
                     "score": round(score, 6),
                     "breakout_bar": bar,
                     "citation": rule.citation,

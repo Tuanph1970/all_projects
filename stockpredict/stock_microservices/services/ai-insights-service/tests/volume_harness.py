@@ -67,7 +67,7 @@ from app.services.patterns import (
     run_trap_detectors,
 )
 from app.services.patterns.base import PatternMatch
-from app.services.patterns.volume import DEFAULT_BASELINE_WINDOW, breakout_bar
+from app.services.patterns.volume import DEFAULT_BASELINE_WINDOW, breakout_event
 
 # --- Harness constants ------------------------------------------------------
 
@@ -379,7 +379,7 @@ def _double_bottom(rng: np.random.Generator, leg: int = 8, *, textbook: bool = T
     )
 
 
-def _bull_flag(rng: np.random.Generator) -> PlantedFrame:
+def _bull_flag(rng: np.random.Generator, *, textbook: bool = True) -> PlantedFrame:
     """Bull flag. Ch 8/11: a heavy pole, volume *drying up* through the flag,
     and expansion on the resumption. The drying-up span is what
     ``volume_trend`` was built to read."""
@@ -399,6 +399,11 @@ def _bull_flag(rng: np.random.Generator) -> PlantedFrame:
         ramps=[
             (pole_start, flag_start, 1.8, 3.0),                  # heavy pole
             (flag_start, close.size, 1.4, 0.45),                 # dries up
+        ] if textbook else [
+            (pole_start, flag_start, 1.8, 3.0),
+            # Ch 11's inversion: high volume INSIDE the flag turns it from a
+            # continuation into a minor reversal area.
+            (flag_start, close.size, 1.0, 2.8),
         ],
     )
     return PlantedFrame(
@@ -408,7 +413,9 @@ def _bull_flag(rng: np.random.Generator) -> PlantedFrame:
     )
 
 
-def _symmetrical_triangle(rng: np.random.Generator, n_bars: int = 80) -> PlantedFrame:
+def _symmetrical_triangle(
+    rng: np.random.Generator, n_bars: int = 80, *, textbook: bool = True
+) -> PlantedFrame:
     """Symmetrical triangle. Ch 8: *"volume diminishes irregularly but
     noticeably toward the apex"*, then the break carries activity."""
     base, start_amp = 100.0, 18.0
@@ -423,7 +430,8 @@ def _symmetrical_triangle(rng: np.random.Generator, n_bars: int = 80) -> Planted
         # "Irregularly" matters: a monotone decay would be readable by a
         # trend measure that is not rank-based, which would let a weaker
         # implementation pass. The sine term keeps it bumpy.
-        ramps=[(off, close.size, 2.2, 0.4)],
+        ramps=[(off, close.size, 2.2, 0.4)] if textbook
+        else [(off, close.size, 0.45, 2.3)],      # adverse: swells to the apex
     )
     wobble = 1.0 + 0.25 * np.sin(2 * math.pi * np.arange(close.size) / 9.0)
     volume = np.maximum(np.round(volume * wobble), 1.0)
@@ -451,14 +459,21 @@ def with_breakout_burst(planted: PlantedFrame, multiplier: float) -> PlantedFram
     actually read. The fixture now plants what it claims to plant.
 
     Decays geometrically over the following bars, the way the breakout-day
-    volume spurt does rather than reverting in one session.
+    volume spurt does rather than reverting in one session. A ``multiplier``
+    below 1.0 suppresses instead, which is how the adverse fixtures express a
+    break that creeps through its boundary on dying volume.
+
+    Uses ``breakout_event`` rather than ``breakout_bar`` so it also works for a
+    ``neutral`` pattern such as the symmetrical triangle, whose direction is
+    only known once the penetration is located.
     """
     matches = [m for m in detect_all(planted.frame) if m.pattern_name == planted.target_pattern]
     if not matches:
         return planted
-    bar = breakout_bar(matches[0], planted.frame)
-    if bar is None:
+    event = breakout_event(matches[0], planted.frame)
+    if event is None:
         return planted
+    bar = event.bar
 
     frame = planted.frame.copy(deep=True)
     volume = frame["volume"].to_numpy(dtype=float).copy()
@@ -486,6 +501,173 @@ def planted_frames(seed: int = 20261012) -> List[PlantedFrame]:
         _bull_flag(rng),               # no break in the frame — V6's condition
         _symmetrical_triangle(rng),    # pattern_type "neutral" — V6's condition
     ]
+
+
+def _bull_pennant(rng: np.random.Generator, *, textbook: bool = True) -> PlantedFrame:
+    """Bull pennant with explicit converging channels (the shape
+    `PennantDetector` needs), and Ch 11's volume script: a spurt on the mast,
+    then *"volume dries up even faster than a flag, sometimes to almost
+    nothing"*.
+
+    ``textbook=False`` is the inversion E&M warn about: high or irregular
+    volume **inside** the consolidation, which turns it from a continuation
+    into a minor reversal area (`FR-EM-V4`).
+    """
+    base, n_base, pole_bars, pole_height, pennant_bars = 100.0, 25, 6, 15.0, 8
+    pole_top = base + pole_height
+    lead = _lead_in(base)
+    n_total = lead.size + n_base + pole_bars + pennant_bars
+    close = np.zeros(n_total)
+    high = np.zeros(n_total)
+    low = np.zeros(n_total)
+    close[: lead.size] = lead
+    high[: lead.size] = lead + 0.5
+    low[: lead.size] = lead - 0.5
+
+    off = lead.size
+    for i in range(n_base):
+        close[off + i], high[off + i], low[off + i] = base, base + 0.5, base - 0.5
+    pole_start = off + n_base
+    for j in range(pole_bars):
+        i = pole_start + j
+        close[i] = base + (j + 1) * pole_height / pole_bars
+        high[i], low[i] = close[i] + 0.5, close[i] - 0.5
+    pn_start = pole_start + pole_bars
+    for j in range(pennant_bars):
+        t = j / max(pennant_bars - 1, 1)
+        upper = (pole_top - 1.0) - 3.0 * t
+        lower = (pole_top - 7.0) + 3.0 * t
+        close[pn_start + j] = (upper + lower) / 2
+        high[pn_start + j], low[pn_start + j] = upper, lower
+
+    volume = _scripted_volume(
+        n_total,
+        rng,
+        ramps=[
+            (pole_start, pn_start, 1.8, 3.2),          # the mast's spurt
+            (pn_start, n_total, 1.0, 0.18),            # dries to almost nothing
+        ] if textbook else [
+            (pole_start, pn_start, 1.8, 3.2),
+            (pn_start, n_total, 0.9, 2.6),             # adverse: expands inside
+        ],
+    )
+    return PlantedFrame(
+        "bull_pennant", _frame(close, volume, high=high, low=low),
+        "mast spurt, then volume dries up even faster than a flag",
+        "E&M Ch 11", "Pennant",
+    )
+
+
+def _ascending_triangle(rng: np.random.Generator, *, textbook: bool = True) -> PlantedFrame:
+    """Flat resistance with rising lows. Ch 8: resolution runs about 9:1 to
+    the upside, so breakout expansion is **required** here."""
+    base, resistance, n_bars = 100.0, 120.0, 80
+    bars = np.arange(n_bars, dtype=float)
+    low_line = base + (resistance - base) * bars / n_bars
+    amplitude = resistance - low_line
+    body = low_line + amplitude * (np.sin(2 * math.pi * bars / 12) + 1) / 2
+    close = np.concatenate([_lead_in(base), body])
+    off = LEAD_IN_BARS
+    volume = _scripted_volume(
+        close.size, rng,
+        ramps=[(off, close.size, 2.2, 0.45)] if textbook
+        else [(off, close.size, 0.5, 2.4)],       # adverse: swells to the apex
+    )
+    return PlantedFrame(
+        "ascending_triangle", _frame(close, volume),
+        "volume diminishes toward the apex; upside break needs expansion",
+        "E&M Ch 8", "Ascending Triangle",
+    )
+
+
+def _descending_triangle(rng: np.random.Generator, *, textbook: bool = True) -> PlantedFrame:
+    """Descending highs with flat support. Ch 8: downside resolution, so
+    breakout volume only corroborates — and an *extreme* downside break is
+    suspect (`FR-EM-V4`), a 2-3 day shakeout."""
+    base, top, n_bars = 80.0, 120.0, 80
+    bars = np.arange(n_bars, dtype=float)
+    high_line = top - (top - base) * bars / n_bars
+    amplitude = high_line - base
+    body = base + amplitude * (np.sin(2 * math.pi * bars / 12) + 1) / 2
+    close = np.concatenate([_lead_in(base + (top - base) / 2.0), body])
+    off = LEAD_IN_BARS
+    volume = _scripted_volume(
+        close.size, rng,
+        ramps=[(off, close.size, 2.0, 0.5)] if textbook
+        else [(off, close.size, 0.5, 2.2)],
+    )
+    return PlantedFrame(
+        "descending_triangle", _frame(close, volume),
+        "volume diminishes toward the apex; downside break corroborating only",
+        "E&M Ch 8", "Descending Triangle",
+    )
+
+
+def consolidation_frames(seed: int = 20261014, *, textbook: bool = True) -> List[PlantedFrame]:
+    """The five `V6a` formations: flag, pennant and the three triangles.
+
+    Separate from ``planted_frames`` because their conditions are about volume
+    *through the formation* rather than at a penetration, and because three of
+    them did not exist before V6a needed them.
+    """
+    rng = np.random.default_rng(seed)
+    # The symmetrical triangle is the one formation here that penetrates a
+    # boundary inside its own frame, so its pair has to be consistent end to
+    # end. Ch 8 is a two-part statement — volume "diminishes irregularly but
+    # noticeably toward the apex, THEN expands on the breakout" — and a
+    # fixture that dried up and then crept through on nothing would be
+    # planting a textbook formation with a false-move resolution.
+    return [
+        _bull_flag(rng, textbook=textbook),
+        _bull_pennant(rng, textbook=textbook),
+        with_breakout_burst(
+            _symmetrical_triangle(rng, textbook=textbook), 2.5 if textbook else 0.35
+        ),
+        _ascending_triangle(rng, textbook=textbook),
+        _descending_triangle(rng, textbook=textbook),
+    ]
+
+
+def with_resolution(
+    frame: pd.DataFrame,
+    direction: str,
+    *,
+    bars: int = 6,
+    move: float = 0.06,
+    volume_multiple: float = 1.0,
+) -> pd.DataFrame:
+    """Append a breakout leg so a consolidation's **breakout** rule can be read.
+
+    All five V6a formations are detected while still unresolved — which is the
+    point of a flag or a triangle, and why their formation conditions are the
+    primary evidence. But `FR-EM-V4`'s suspect rule and Ch 8's
+    "upside break requires expansion" are statements about the *penetration*,
+    so a resolved frame has to be built deliberately.
+
+    ``volume_multiple`` is applied against the trailing median, so it is the
+    `rvol` the breakout bars will read — which is what lets a test sweep the
+    rule from dull through confirming to suspect.
+
+    Known limitation, recorded because it shaped the test suite: extending a
+    **flag or pennant** this way makes the detector stop reporting it, since
+    the added leg changes the pole-and-consolidation structure it matched on.
+    Those two are therefore tested on their formation conditions only.
+    """
+    close = frame["close"].to_numpy(dtype=float)
+    volume = frame["volume"].to_numpy(dtype=float)
+    sign = 1.0 if direction == "bullish" else -1.0
+    leg = close[-1] * (1.0 + sign * move * np.linspace(1.0 / bars, 1.0, bars))
+    recent = volume[-DEFAULT_BASELINE_WINDOW:]
+    baseline = float(np.median(recent[recent > 0]))
+    leg_volume = np.full(bars, max(1.0, round(baseline * volume_multiple)))
+
+    return pd.DataFrame({
+        "open": np.concatenate([frame["open"].to_numpy(dtype=float), leg]),
+        "high": np.concatenate([frame["high"].to_numpy(dtype=float), leg + 0.5]),
+        "low": np.concatenate([frame["low"].to_numpy(dtype=float), leg - 0.5]),
+        "close": np.concatenate([close, leg]),
+        "volume": np.concatenate([volume, leg_volume]),
+    })
 
 
 def adverse_frames(seed: int = 20261013) -> List[PlantedFrame]:

@@ -61,9 +61,11 @@ MIN_SCORE_DROP = 0.05
 #:   ``pattern_type="neutral"``, so the direction-aware rule has no direction
 #:   to apply. Its condition is "volume diminishes toward the apex", also V6.
 #:
-#: Both are covered by ``TestConsolidationFramesAreOwedByV6`` below, which is
-#: xfail(strict) until V6 lands — so the gap is tracked by a failing test
-#: rather than by this comment.
+#: Both were covered by an xfail(strict) test until **V6a** implemented their
+#: span conditions, at which point it XPASSed and the marker came off — which
+#: is exactly what strict xfail is for. They stay excluded from the breakout
+#: assertion above and are asserted by
+#: ``test_consolidation_frames_score_since_v6a`` instead.
 CONSOLIDATION_FRAMES = {"bull_flag", "symmetrical_triangle"}
 
 
@@ -260,19 +262,13 @@ class TestH1VolumeScoreFallsUnderShuffle:
             assert volume_score_of(match) is None
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="EM-1 task V6 (continuation rules: drying-up spans) not implemented yet",
-)
 @pytest.mark.parametrize("name", sorted(CONSOLIDATION_FRAMES))
-def test_consolidation_frames_are_owed_by_v6(name):
-    """The two planted conditions V4's breakout rule cannot reach.
+def test_consolidation_frames_score_since_v6a(name):
+    """Was `xfail(strict)` from V4 until V6a implemented the span conditions.
 
-    V4 scores the *penetration*; these two frames encode a condition about
-    volume *through the formation*, which V6 implements. Carried as a strict
-    xfail so the debt is a failing test with a name rather than a line in a
-    commit message — when V6 lands, these pass, strict turns that into a
-    failure, and the marker comes off.
+    The debt it recorded is paid: the flag now scores from its mast ratio and
+    the symmetrical triangle from its drying trend, so both planted conditions
+    register and both respond to the volume being permuted away.
     """
     planted = next(pf for pf in planted_frames() if pf.name == name)
     rng = np.random.default_rng(SHUFFLE_SEED)
@@ -290,6 +286,6 @@ def test_consolidation_frames_are_owed_by_v6(name):
 
     aligned = target_scores(planted.frame)
     assert aligned, f"{name}: no volume_score on the planted pattern"
-    assert float(np.mean(aligned)) > float(
-        np.mean(target_scores(shuffle_volume(planted.frame, rng)) or [0.0])
-    )
+    shuffled = target_scores(shuffle_volume(planted.frame, rng))
+    assert shuffled, f"{name}: no volume_score after the shuffle"
+    assert float(np.mean(aligned)) > float(np.mean(shuffled))
