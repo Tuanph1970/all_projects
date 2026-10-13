@@ -1,5 +1,21 @@
 """Tests for StockService.get_company_financials.
 
+**Fixture format (Backlog #47).** These fixtures are vnstock **4.x long
+format**: metric names live in the values of an ``item_en`` column and each
+reporting period is its own column (``2026-Q1``, ``2025-Q1``, ...). They were
+3.x *wide* format — one row, metrics as column names — until 2026-10-13, which
+is why all eleven of them failed from commit 567cd1bc onward:
+``_latest_metrics`` returns ``{}`` the moment ``item_en`` is absent, so every
+field read ``None`` and the tests asserted against a method that could not
+work.
+
+The format and the metric names are not taken from the code under test, which
+would be circular. They come from 567cd1bc's own message — which records the
+transposition and says it was verified against VNM/FPT/HPG/TCB — and were
+re-confirmed live on 2026-10-13 through
+``GET /companies/{symbol}/financials``, where FPT returns pe=11.60, pb=2.44,
+roe=18.71, roa=9.57 from real vendor data.
+
 This is the largest single method in stock_service.py (~195 stmts of
 multi-level DataFrame mining across 4 vnstock finance endpoints:
 ratio, income_statement, balance_sheet, cash_flow). Each block is
@@ -26,6 +42,27 @@ import pandas as pd
 import pytest
 
 from app.services.stock_service import StockService
+
+
+#: The period labels the production code parses (`_period_columns` accepts
+#: YYYY-Qn and YYYY, newest first).
+LATEST_PERIOD = "2026-Q1"
+PRIOR_YEAR_PERIOD = "2025-Q1"
+
+
+def _long(metrics: dict, prior: dict = None) -> pd.DataFrame:
+    """Build a vnstock 4.x long-format statement.
+
+    ``metrics`` maps an ``item_en`` metric name to its value in the latest
+    period. ``prior`` optionally supplies the same-quarter-last-year column,
+    which is what `_yoy` needs to compute growth — in 4.x growth is DERIVED
+    from two period columns, not read from a "... YoY (%)" column the way 3.x
+    reported it.
+    """
+    rows = {"item_en": list(metrics), LATEST_PERIOD: list(metrics.values())}
+    if prior is not None:
+        rows[PRIOR_YEAR_PERIOD] = [prior.get(k) for k in metrics]
+    return pd.DataFrame(rows)
 
 
 def _make_service(repo=None) -> StockService:
@@ -135,20 +172,28 @@ async def test_company_name_uses_listing_when_available():
 # ---------------------------------------------------------------------------
 
 def _ratio_df_basic():
-    """Mimic vnstock's flat-column ratio output with the metric names the
-    code searches for (P/E, ROE (%), etc.). One row is enough — the
-    method only reads iloc[0]."""
-    return pd.DataFrame({
-        "P/E": [15.0],
-        "P/B": [2.3],
-        "P/S": [1.1],
-        "ROE (%)": [0.20],     # < 1 → will be x100
-        "ROA (%)": [0.07],     # < 1 → x100
-        "EPS (VND)": [3500.0],
-        "BVPS (VND)": [25000.0],
-        "Debt/Equity": [0.6],
-        "Net Profit Margin (%)": [0.12],   # < 1 → x100
-        "Market Capital (Bn. VND)": [200_000.0],
+    """vnstock 4.x ratio output, using the metric names the code picks.
+
+    Note what moved between versions besides the shape: 3.x "Debt/Equity"
+    is 4.x "Debt to Equity", "Net Profit Margin (%)" is "After-tax Profit
+    Margin (%)", and "Market Capital (Bn. VND)" is "Market Cap". EPS now
+    comes from the income statement rather than the ratio sheet.
+    """
+    return _long({
+        "P/E": 15.0,
+        "P/B": 2.3,
+        "P/S": 1.1,
+        "ROE (%)": 0.20,                      # < 1 -> x100 by _as_percent
+        "ROA (%)": 0.07,                      # < 1 -> x100
+        "Debt to Equity": 0.6,
+        "Current Ratio": 1.8,
+        "Quick Ratio": 1.4,
+        "Gross Margin (%)": 0.35,
+        "EBIT Margin (%)": 0.18,
+        "After-tax Profit Margin (%)": 0.12,  # < 1 -> x100
+        "EV/EBITDA": 9.5,
+        "Dividend Yield (%)": 0.02,
+        "Market Cap": 200_000.0,
     })
 
 
@@ -164,10 +209,15 @@ async def test_ratio_block_populates_flat_and_nested_fields_with_percent_convers
     assert out.roe == pytest.approx(20.0)
     assert out.roa == pytest.approx(7.0)
     assert out.profit_margin == pytest.approx(12.0)
-    assert out.eps == 3500.0
-    assert out.book_value_per_share == 25000.0
     assert out.debt_to_equity == 0.6
     assert out.market_cap == 200_000.0
+    assert out.current_ratio == 1.8
+    assert out.ev_ebitda == 9.5
+    # eps now comes from the income statement, not the ratio sheet, so this
+    # ratio-only fixture leaves it unset. book_value_per_share is unset for a
+    # different and less innocent reason — see
+    # TestFieldsTheFourXAdaptationDropped at the end of this module.
+    assert out.eps is None
     # Nested mirror.
     assert out.financial_ratios is not None
     assert out.financial_ratios.pe == 15.0
@@ -177,10 +227,10 @@ async def test_ratio_block_populates_flat_and_nested_fields_with_percent_convers
 @pytest.mark.asyncio
 async def test_ratio_block_skips_percent_conversion_when_already_percent_scaled():
     """ROE already > 1 (e.g. expressed as 22.5) is left alone."""
-    ratio_df = pd.DataFrame({
-        "P/E": [10.0],
-        "ROE (%)": [22.5],  # > 1 → no conversion
-        "ROA (%)": [8.0],   # > 1 → no conversion
+    ratio_df = _long({
+        "P/E": 10.0,
+        "ROE (%)": 22.5,  # > 1 -> no conversion
+        "ROA (%)": 8.0,   # > 1 -> no conversion
     })
     fake_stock = _build_fake_stock(ratio_df=ratio_df)
     svc = _make_service()
@@ -193,9 +243,9 @@ async def test_ratio_block_skips_percent_conversion_when_already_percent_scaled(
 @pytest.mark.asyncio
 async def test_ratio_block_exception_is_swallowed_and_other_blocks_still_run():
     """ratio() raising should not skip income_statement / balance_sheet / cash_flow."""
-    is_df = pd.DataFrame({
-        "Revenue (Bn. VND)": [1000.0],
-        "Attribute to parent company (Bn. VND)": [100.0],
+    is_df = _long({
+        "Net sales": 1000.0,
+        "Attributable to parent company": 100.0,
     })
     fake_stock = _build_fake_stock(
         ratio_raises=RuntimeError("ratio API down"),
@@ -214,37 +264,46 @@ async def test_ratio_block_exception_is_swallowed_and_other_blocks_still_run():
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_income_statement_block_converts_yoy_to_percent_when_fractional():
-    """A YoY value with abs < 10 is treated as a fraction (0.15 → 15%)."""
-    is_df = pd.DataFrame({
-        "Revenue (Bn. VND)": [1000.0],
-        "Attribute to parent company (Bn. VND)": [120.0],
-        "Revenue YoY (%)": [0.15],     # fractional → x100 → 15%
-        "Attribute to parent company YoY (%)": [-0.08],  # → -8%
-    })
+async def test_income_statement_block_derives_yoy_growth_from_two_periods():
+    """Growth is COMPUTED, not reported.
+
+    3.x shipped a "Revenue YoY (%)" column and the old code scaled it. 4.x
+    ships no such column: `_yoy` takes the latest period and the same quarter
+    a year earlier and returns `(cur - prev) / abs(prev) * 100`. So the test
+    supplies both columns and checks the arithmetic.
+    """
+    is_df = _long(
+        {"Net sales": 1150.0, "Attributable to parent company": 92.0},
+        prior={"Net sales": 1000.0, "Attributable to parent company": 100.0},
+    )
+    fake_stock = _build_fake_stock(is_df=is_df)
+    svc = _make_service()
+    with _patch_vnstock(svc, _vnstock_with(fake_stock)):
+        out = await svc.get_company_financials("FPT")
+    assert out.income_statement.revenue == 1150.0
+    assert out.income_statement.netIncome == 92.0
+    assert out.revenue_growth == pytest.approx(15.0)    # 1150 vs 1000
+    assert out.earnings_growth == pytest.approx(-8.0)   # 92 vs 100
+    assert out.growth_metrics.revenueGrowth == pytest.approx(15.0)
+
+
+@pytest.mark.asyncio
+async def test_no_prior_year_column_means_no_growth_rather_than_a_wrong_one():
+    """With only the latest period, growth is unknowable.
+
+    This is the live situation (Backlog #76): on FPT/TCB/VNM the vendor
+    response carries no same-quarter-prior-year column, so `revenue_growth`
+    and `earnings_growth` come back None in production. Reporting 0% or
+    guessing would be worse than reporting nothing.
+    """
+    is_df = _long({"Net sales": 1000.0})
     fake_stock = _build_fake_stock(is_df=is_df)
     svc = _make_service()
     with _patch_vnstock(svc, _vnstock_with(fake_stock)):
         out = await svc.get_company_financials("FPT")
     assert out.income_statement.revenue == 1000.0
-    assert out.income_statement.netIncome == 120.0
-    assert out.revenue_growth == pytest.approx(15.0)
-    assert out.earnings_growth == pytest.approx(-8.0)
-    assert out.growth_metrics.revenueGrowth == pytest.approx(15.0)
-
-
-@pytest.mark.asyncio
-async def test_income_statement_block_leaves_yoy_alone_when_already_percent():
-    """abs >= 10 is treated as already a percent (e.g. 25.0 stays 25.0)."""
-    is_df = pd.DataFrame({
-        "Revenue (Bn. VND)": [1000.0],
-        "Revenue YoY (%)": [25.0],  # already a percent
-    })
-    fake_stock = _build_fake_stock(is_df=is_df)
-    svc = _make_service()
-    with _patch_vnstock(svc, _vnstock_with(fake_stock)):
-        out = await svc.get_company_financials("FPT")
-    assert out.revenue_growth == 25.0
+    assert out.revenue_growth is None
+    assert out.earnings_growth is None
 
 
 @pytest.mark.asyncio
@@ -265,10 +324,11 @@ async def test_income_statement_block_exception_swallowed():
 @pytest.mark.asyncio
 async def test_balance_sheet_derives_liabilities_from_assets_minus_equity():
     """Total liabilities is computed: assets - equity."""
-    bs_df = pd.DataFrame({
-        "TOTAL ASSETS (Bn. VND)": [10_000.0],
-        "Cash and cash equivalents (Bn. VND)": [500.0],
-        "TOTAL EQUITY (Bn. VND)": [4_000.0],   # matches 'equity' + 'total' substrings
+    # No "Liabilities" row, so the code must derive assets - equity.
+    bs_df = _long({
+        "Total Assets": 10_000.0,
+        "Cash and cash equivalents": 500.0,
+        "Total Equity": 4_000.0,
     })
     fake_stock = _build_fake_stock(bs_df=bs_df)
     svc = _make_service()
@@ -283,11 +343,15 @@ async def test_balance_sheet_derives_liabilities_from_assets_minus_equity():
 
 @pytest.mark.asyncio
 async def test_balance_sheet_uses_owner_equity_branch_when_no_total_equity_column():
-    """The fallback branch picks up 'OWNER EQUITY' columns (the bank case)."""
-    bs_df = pd.DataFrame({
-        "TOTAL ASSETS (Bn. VND)": [50_000.0],
-        "Cash and cash equivalents (Bn. VND)": [2_000.0],
-        "OWNER EQUITY (Bn. VND)": [3_500.0],
+    """The fallback picks up "Owner's Equity" (the bank case).
+
+    4.x lists that name FIRST in `_pick`, so this is the common path for banks
+    rather than an exotic fallback.
+    """
+    bs_df = _long({
+        "TOTAL ASSETS": 50_000.0,          # the all-caps variant _pick also accepts
+        "Cash and cash equivalents": 2_000.0,
+        "Owner's Equity": 3_500.0,
     })
     fake_stock = _build_fake_stock(bs_df=bs_df)
     svc = _make_service()
@@ -300,9 +364,9 @@ async def test_balance_sheet_uses_owner_equity_branch_when_no_total_equity_colum
 @pytest.mark.asyncio
 async def test_balance_sheet_leaves_liabilities_none_when_equity_absent():
     """No equity column means no liabilities derivation; assets still set."""
-    bs_df = pd.DataFrame({
-        "TOTAL ASSETS (Bn. VND)": [5_000.0],
-        "Cash and cash equivalents (Bn. VND)": [100.0],
+    bs_df = _long({
+        "Total Assets": 5_000.0,
+        "Cash and cash equivalents": 100.0,
     })
     fake_stock = _build_fake_stock(bs_df=bs_df)
     svc = _make_service()
@@ -331,12 +395,12 @@ async def test_balance_sheet_block_exception_swallowed():
 async def test_cash_flow_block_derives_free_cash_flow():
     """Free CF = operating + capex; capex is reported negative so the
     addition is the right operation."""
-    cf_df = pd.DataFrame({
-        "Net Cash Flows from Operating Activities before BIT": [800.0],
-        "Net Cash Flows from Investing Activities": [-200.0],
-        "Cash flows from financial activities": [-100.0],
-        "Net increase/decrease in cash and cash equivalents": [500.0],
-        "Purchase of fixed assets": [-150.0],  # negative outflow
+    cf_df = _long({
+        "Net cash inflows/(outflows) from operating activities": 800.0,
+        "Net cash inflows/(outflows) from investing activities": -200.0,
+        "Net cash inflows/(outflows) from financing activities": -100.0,
+        "Net increase/decrease in cash and cash equivalents": 500.0,
+        "Purchases of fixed assets and other long term assets": -150.0,  # outflow
     })
     fake_stock = _build_fake_stock(cf_df=cf_df)
     svc = _make_service()
@@ -352,8 +416,8 @@ async def test_cash_flow_block_derives_free_cash_flow():
 
 @pytest.mark.asyncio
 async def test_cash_flow_block_skips_free_cash_flow_when_capex_missing():
-    cf_df = pd.DataFrame({
-        "Net Cash Flows from Operating Activities before BIT": [800.0],
+    cf_df = _long({
+        "Net cash inflows/(outflows) from operating activities": 800.0,
     })
     fake_stock = _build_fake_stock(cf_df=cf_df)
     svc = _make_service()
@@ -382,22 +446,26 @@ async def test_full_happy_path_returns_all_sections():
     """All four DataFrames populated → flat fields + four nested sections set."""
     symbols_df = pd.DataFrame({"symbol": ["VNM"], "organ_name": ["Vinamilk"]})
     ratio_df = _ratio_df_basic()
-    is_df = pd.DataFrame({
-        "Revenue (Bn. VND)": [60_000.0],
-        "Attribute to parent company (Bn. VND)": [8_000.0],
-        "Revenue YoY (%)": [12.0],
+    is_df = _long(
+        {
+            "Net sales": 60_000.0,
+            "Attributable to parent company": 8_000.0,
+            "EPS basic (VND)": 3_500.0,
+        },
+        # A prior-year column so growth is exercised on the happy path too.
+        prior={"Net sales": 53_571.43, "Attributable to parent company": 7_000.0},
+    )
+    bs_df = _long({
+        "Total Assets": 80_000.0,
+        "Cash and cash equivalents": 5_000.0,
+        "Total Equity": 40_000.0,
     })
-    bs_df = pd.DataFrame({
-        "TOTAL ASSETS (Bn. VND)": [80_000.0],
-        "Cash and cash equivalents (Bn. VND)": [5_000.0],
-        "TOTAL EQUITY (Bn. VND)": [40_000.0],
-    })
-    cf_df = pd.DataFrame({
-        "Net Cash Flows from Operating Activities before BIT": [9_000.0],
-        "Net Cash Flows from Investing Activities": [-2_000.0],
-        "Cash flows from financial activities": [-1_000.0],
-        "Net increase/decrease in cash and cash equivalents": [6_000.0],
-        "Purchase of fixed assets": [-1_500.0],
+    cf_df = _long({
+        "Net cash inflows/(outflows) from operating activities": 9_000.0,
+        "Net cash inflows/(outflows) from investing activities": -2_000.0,
+        "Net cash inflows/(outflows) from financing activities": -1_000.0,
+        "Net increase/decrease in cash and cash equivalents": 6_000.0,
+        "Purchases of fixed assets and other long term assets": -1_500.0,
     })
 
     fake_stock = _build_fake_stock(
@@ -418,7 +486,8 @@ async def test_full_happy_path_returns_all_sections():
     # Income
     assert out.income_statement.revenue == 60_000.0
     assert out.income_statement.netIncome == 8_000.0
-    assert out.revenue_growth == 12.0
+    assert out.eps == 3_500.0
+    assert out.revenue_growth == pytest.approx(12.0, abs=0.01)   # derived
     # Balance sheet derived liabilities
     assert out.balance_sheet.totalLiabilities == 40_000.0
     # Cash flow derived free CF
@@ -440,3 +509,74 @@ async def test_all_empty_dataframes_still_returns_valid_response():
     assert out.financial_ratios is not None
     assert out.balance_sheet.totalAssets is None
     assert out.cash_flow.operatingCashFlow is None
+
+
+# ---------------------------------------------------------------------------
+# Fields the 4.x adaptation stopped populating (Backlog #76)
+# ---------------------------------------------------------------------------
+
+class TestFieldsTheFourXAdaptationDropped:
+    """Three response fields are never set by the 4.x code path.
+
+    Found while migrating these fixtures: because all eleven tests in this
+    module were red from 567cd1bc onward, the one test that asserted
+    `book_value_per_share` was red too — so the field going away was invisible.
+    That is the cost of a red suite, concretely.
+
+    Confirmed against the live service on 2026-10-13 over FPT, TCB and VNM:
+    `book_value_per_share`, `debt_to_assets` and `enterprise_value` come back
+    `None` for every symbol, while fifteen sibling fields are populated.
+
+    `book_value_per_share` is a REGRESSION: pre-567cd1bc the method assigned it
+    (`financials.book_value_per_share = bvps`); the 4.x rewrite assigns it
+    nowhere. The other two are derivable from values already in hand —
+    `debt_to_assets` from liabilities/assets, `enterprise_value` from
+    market cap + debt − cash — so they are gaps rather than data limits.
+
+    These are `xfail(strict=True)`: they fail today for the stated reason, and
+    the moment someone restores a field its test passes, `strict` turns that
+    into a failure, and the marker must come off. The debt cannot be forgotten.
+
+    `revenue_growth` / `earnings_growth` are deliberately NOT here. They are
+    also always `None` live, but for a legitimate reason — the vendor response
+    carries no same-quarter-prior-year column, so growth is genuinely unknown.
+    `test_no_prior_year_column_means_no_growth_rather_than_a_wrong_one` asserts
+    that correct behaviour instead.
+    """
+
+    @staticmethod
+    def _full_fixture():
+        return _build_fake_stock(
+            ratio_df=_ratio_df_basic(),
+            is_df=_long({"Net sales": 60_000.0, "EPS basic (VND)": 3_500.0}),
+            bs_df=_long({
+                "Total Assets": 80_000.0,
+                "Cash and cash equivalents": 5_000.0,
+                "Total Equity": 40_000.0,
+                "Long-term liabilities": 12_000.0,
+            }),
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.xfail(strict=True, reason="Backlog #76: regression — 4.x rewrite stopped setting it")
+    async def test_book_value_per_share_is_populated(self):
+        svc = _make_service()
+        with _patch_vnstock(svc, _vnstock_with(self._full_fixture())):
+            out = await svc.get_company_financials("FPT")
+        assert out.book_value_per_share is not None
+
+    @pytest.mark.asyncio
+    @pytest.mark.xfail(strict=True, reason="Backlog #76: derivable from liabilities/assets, never set")
+    async def test_debt_to_assets_is_populated(self):
+        svc = _make_service()
+        with _patch_vnstock(svc, _vnstock_with(self._full_fixture())):
+            out = await svc.get_company_financials("FPT")
+        assert out.debt_to_assets is not None
+
+    @pytest.mark.asyncio
+    @pytest.mark.xfail(strict=True, reason="Backlog #76: derivable from market cap + debt - cash, never set")
+    async def test_enterprise_value_is_populated(self):
+        svc = _make_service()
+        with _patch_vnstock(svc, _vnstock_with(self._full_fixture())):
+            out = await svc.get_company_financials("FPT")
+        assert out.enterprise_value is not None
