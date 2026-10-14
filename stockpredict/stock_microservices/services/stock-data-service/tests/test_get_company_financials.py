@@ -632,3 +632,105 @@ class TestFieldsTheFourXAdaptationDropped:
         with _patch_vnstock(svc, _vnstock_with(self._full_fixture())):
             out = await svc.get_company_financials("FPT")
         assert out.book_value_per_share is not None
+
+
+# ---------------------------------------------------------------------------
+# Bank balance sheets (Backlog #77)
+# ---------------------------------------------------------------------------
+
+#: TCB's real ``item_en`` labels, read from
+#: GET /companies/TCB/financials/balance-sheet on 2026-10-14 (86 rows), not
+#: invented. The contrast with FPT's 122-row sheet is the whole bug: the same
+#: lines differ in CASE, so exact dict lookup matched only 'TOTAL ASSETS'.
+TCB_BANK_LABELS = {
+    "TOTAL ASSETS": 1_273_076_923_000_000.0,
+    "TOTAL LIABILITIES": 1_084_079_773_000_000.0,
+    "OWNER'S EQUITY": 188_997_150_000_000.0,
+    "Cash and precious metals": 3_909_425_000_000.0,
+    "Deposits from customers": 662_447_730_000_000.0,
+}
+
+FPT_NONBANK_LABELS = {
+    "Total Assets": 73_563_105_859_500.0,
+    "Liabilities": 32_567_425_051_243.0,
+    "Owner's Equity": 40_995_680_808_257.0,
+    "Cash and cash equivalents": 8_843_161_132_730.0,
+    "Long-term liabilities": 3_373_093_991_200.0,
+}
+
+
+class TestBankBalanceSheets:
+    """A bank's balance sheet must populate, not come back ~80% empty."""
+
+    @pytest.mark.asyncio
+    async def test_bank_labels_populate_every_balance_sheet_field(self):
+        """Before #77 only totalAssets survived — the other four were None
+        purely because TCB shouts its line names and FPT does not."""
+        svc = _make_service()
+        fake = _build_fake_stock(ratio_df=_ratio_df_basic(), bs_df=_long(TCB_BANK_LABELS))
+        with _patch_vnstock(svc, _vnstock_with(fake)):
+            out = await svc.get_company_financials("TCB")
+        bs = out.balance_sheet
+        assert bs.totalAssets == TCB_BANK_LABELS["TOTAL ASSETS"]
+        assert bs.totalLiabilities == TCB_BANK_LABELS["TOTAL LIABILITIES"]
+        assert bs.totalEquity == TCB_BANK_LABELS["OWNER'S EQUITY"]
+        assert bs.cash == TCB_BANK_LABELS["Cash and precious metals"]
+
+    @pytest.mark.asyncio
+    async def test_non_bank_labels_still_work(self):
+        """Case-folding must not cost the title-case spellings."""
+        svc = _make_service()
+        fake = _build_fake_stock(ratio_df=_ratio_df_basic(), bs_df=_long(FPT_NONBANK_LABELS))
+        with _patch_vnstock(svc, _vnstock_with(fake)):
+            out = await svc.get_company_financials("FPT")
+        bs = out.balance_sheet
+        assert bs.totalAssets == FPT_NONBANK_LABELS["Total Assets"]
+        assert bs.totalLiabilities == FPT_NONBANK_LABELS["Liabilities"]
+        assert bs.totalEquity == FPT_NONBANK_LABELS["Owner's Equity"]
+        assert bs.cash == FPT_NONBANK_LABELS["Cash and cash equivalents"]
+        assert bs.longTermDebt == FPT_NONBANK_LABELS["Long-term liabilities"]
+
+    @pytest.mark.asyncio
+    async def test_debt_to_assets_now_works_for_a_bank(self):
+        svc = _make_service()
+        fake = _build_fake_stock(ratio_df=_ratio_df_basic(), bs_df=_long(TCB_BANK_LABELS))
+        with _patch_vnstock(svc, _vnstock_with(fake)):
+            out = await svc.get_company_financials("TCB")
+        expected = (TCB_BANK_LABELS["TOTAL LIABILITIES"]
+                    / TCB_BANK_LABELS["TOTAL ASSETS"])
+        assert out.debt_to_assets == pytest.approx(expected)
+        assert out.debt_to_assets == pytest.approx(0.8515, abs=1e-4)  # a bank is leveraged
+
+    @pytest.mark.asyncio
+    async def test_enterprise_value_is_declined_for_a_bank_rather_than_faked(self):
+        """Banks report no long-term-liabilities line — their funding is
+        customer deposits — so EV has no debt term.
+
+        Defaulting the missing term to zero would publish "market cap - cash"
+        under the name enterprise value for every bank. EV is not a
+        conventional measure for a bank anyway, so None is the correct answer.
+        Deposits are deliberately NOT treated as debt: TCB's are 662 trillion
+        VND and would swamp the figure into meaninglessness.
+        """
+        svc = _make_service()
+        fake = _build_fake_stock(ratio_df=_ratio_df_basic(), bs_df=_long(TCB_BANK_LABELS))
+        with _patch_vnstock(svc, _vnstock_with(fake)):
+            out = await svc.get_company_financials("TCB")
+        assert out.balance_sheet.longTermDebt is None
+        assert out.enterprise_value is None
+
+    @pytest.mark.asyncio
+    async def test_case_folding_cannot_let_one_metric_shadow_another(self):
+        """The safety property behind making `_pick` case-insensitive.
+
+        It was verified across FPT's 122 and TCB's 86 real rows that no two
+        differently-spelled labels collapse to the same lowercase. This pins
+        the consequence: when a sheet does contain both spellings, the
+        exact-case match wins, so behaviour is never ambiguous.
+        """
+        svc = _make_service()
+        both = _long({"Total Assets": 111.0, "TOTAL ASSETS": 222.0})
+        fake = _build_fake_stock(bs_df=both)
+        with _patch_vnstock(svc, _vnstock_with(fake)):
+            out = await svc.get_company_financials("X")
+        assert out.balance_sheet.totalAssets == 111.0  # the exact-case name _pick asks for first

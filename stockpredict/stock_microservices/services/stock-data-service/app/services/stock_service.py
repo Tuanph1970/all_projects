@@ -2237,7 +2237,10 @@ class StockService:
 
                 if latest_bs:
                     total_assets = self._pick(latest_bs, 'Total Assets', 'TOTAL ASSETS')
-                    cash = self._pick(latest_bs, 'Cash and cash equivalents')
+                    # 'Cash and precious metals' is the bank spelling (TCB).
+                    cash = self._pick(
+                        latest_bs, 'Cash and cash equivalents', 'Cash and precious metals',
+                    )
                     total_equity = self._pick(latest_bs, "Owner's Equity", 'Total Equity')
                     total_liabilities = self._pick(latest_bs, 'Liabilities', 'Total Liabilities')
                     long_term_debt = self._pick(latest_bs, 'Long-term liabilities', 'Long-term borrowings')
@@ -2270,9 +2273,18 @@ class StockService:
                     # unit error. CAVEAT: only long-term liabilities are
                     # available here, so short-term borrowings are omitted and
                     # this is a LOWER BOUND on EV.
-                    if financials.market_cap and cash is not None:
+                    #
+                    # A real debt figure is REQUIRED rather than defaulted to
+                    # zero (tightened at #77). Banks report no "long-term
+                    # liabilities" line at all — their funding is customer
+                    # deposits — so defaulting would have published
+                    # "market cap - cash" and labelled it enterprise value for
+                    # every bank. EV is not a conventional measure for banks
+                    # anyway, so declining to compute it is the right answer,
+                    # not a gap.
+                    if financials.market_cap and cash is not None and long_term_debt is not None:
                         financials.enterprise_value = (
-                            financials.market_cap + (long_term_debt or 0.0) - cash
+                            financials.market_cap + long_term_debt - cash
                         )
 
                     logger.info(f"Fetched balance sheet for {symbol}: Assets={total_assets}, Cash={cash}")
@@ -2362,11 +2374,28 @@ class StockService:
 
     @staticmethod
     def _pick(metrics: dict, *names: str) -> Optional[float]:
-        """Return the first available numeric value among the given metric names."""
+        """Return the first available numeric value among the given metric names.
+
+        Matching is CASE-INSENSITIVE (Backlog #77). Banks and non-banks spell
+        the same line differently in case alone: FPT reports ``Liabilities``
+        and ``Owner's Equity`` where TCB reports ``TOTAL LIABILITIES`` and
+        ``OWNER'S EQUITY``. Exact dict lookup therefore left bank balance
+        sheets ~80% empty — only ``TOTAL ASSETS`` matched, because that
+        spelling happened to be listed explicitly.
+
+        Verified safe before relaxing it: across FPT's 122 rows and TCB's 86,
+        no two differently-spelled labels collapse to the same lowercase, so
+        case-folding cannot make one metric shadow another.
+        """
+        folded = {}
+        for key, value in metrics.items():
+            folded.setdefault(str(key).strip().lower(), value)
         for name in names:
-            if name in metrics:
+            for candidate in (metrics.get(name), folded.get(str(name).strip().lower())):
+                if candidate is None:
+                    continue
                 try:
-                    value = float(metrics[name])
+                    value = float(candidate)
                     if pd.notna(value):
                         return value
                 except (ValueError, TypeError):
