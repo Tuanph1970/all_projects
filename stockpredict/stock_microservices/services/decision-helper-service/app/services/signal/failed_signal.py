@@ -47,6 +47,21 @@ _PATTERN_NAME_TO_TYPE = {
 
 _FLAG_BY_DIRECTION = {"bullish": "FLAG_BULL", "bearish": "FLAG_BEAR"}
 
+#: How recently a formation must have completed for its failure to be worth
+#: reporting (Backlog #78). ai-insights returns every pattern it finds across
+#: the lookback window, so without this the detectors judged formations a
+#: median of 86 bars old for the head-and-shoulders — roughly four months.
+#: "An H&S from last April has failed" is history, not a signal about today,
+#: and it is why the detectors fired on 100% of symbols.
+#:
+#: SWEPT over 20 real symbols (docs/dh78_failed_signal_calibration.md). Any of
+#: the detectors firing, by age limit:
+#:     3 -> 5%   5 -> 25%   10 -> 30%   15 -> 65%   20 -> 70%   60+ -> 100%
+#: 10 bars is two trading weeks — recent enough to be about a live situation —
+#: and sits at the knee: 10 -> 15 more than doubles the rate (30% -> 65%) as
+#: stale formations flood back in.
+MAX_PATTERN_AGE_BARS = 10
+
 #: Exactly the keys the five pattern detectors read. The adapter emits NOTHING
 #: else, and that is deliberate: `confidence` is excluded so decision-helper
 #: still cannot see EM-1's composite confidence. S1
@@ -64,6 +79,8 @@ _ADAPTED_KEYS = (
 def adapt_ai_insights_patterns(
     payload: Optional[Dict[str, Any]],
     last_close: Optional[float] = None,
+    bar_index: Optional[int] = None,
+    max_age_bars: int = MAX_PATTERN_AGE_BARS,
 ) -> Optional[Dict[str, Any]]:
     """Translate an ai-insights pattern payload into the detector vocabulary.
 
@@ -81,16 +98,34 @@ def adapt_ai_insights_patterns(
     * ``confirmation_level`` and ``breakout_level`` both come from
       ``neckline``, which is the level each detector is actually comparing
       price against.
-    * ``break_direction`` is taken from EM-1's ``volume_evidence`` when it has
-      located a penetration, and otherwise inferred from the last close
-      against the neckline. It stays absent when neither is available, rather
-      than being guessed.
+    * ``break_direction`` is set ONLY when EM-1's ``volume_evidence`` has
+      actually located a penetration. It is deliberately NOT inferred from the
+      last close against the neckline: for a bull flag whose price sits below
+      its breakout level that would read as "broke downward" when the truth is
+      "has not broken at all", and `_counter_anticipated_flag` would then call
+      every unresolved flag a failure. (That inference was in the first
+      version of this adapter and is the bug Backlog #78 removed.)
+
+    * Formations older than ``max_age_bars`` are dropped. Without it the
+      detectors judged patterns a median of 86 bars old and fired on every
+      symbol; see the module constant.
 
     Patterns with no counterpart are dropped rather than coerced. Nothing maps
     onto ``ROUNDING_TOP``/``ROUNDING_BOTTOM`` because ai-insights has no
     rounding detector, and nothing supplies ``reliability_score`` — so
     `_rounding_break` and `_future_reliability` remain unreachable by
     construction, which is asserted in the tests instead of left implicit.
+
+    `_counter_anticipated_flag` is a THIRD unreachable one, and the reason is
+    worth stating because the first version of this adapter appeared to revive
+    it. `FlagDetector` reports flags that are still forming: across 14 real
+    flags the last key bar was the final bar of the scan every single time
+    (age 0/14). So within one scan the flag has not broken yet, and a
+    counter-break is unobservable no matter what the age limit is. The earlier
+    firings came from inferring `break_direction` from price-against-neckline,
+    which labelled every unresolved bull flag a downward break — a false
+    positive, now removed. Detecting a real counter-break needs the flag's
+    lower boundary or a later bar, neither of which this payload carries.
     """
     if not payload:
         return None
@@ -99,6 +134,23 @@ def adapt_ai_insights_patterns(
     for raw in payload.get("patterns", []):
         if not raw.get("found", True):
             continue
+
+        # Recency, measured INSIDE ai-insights' own frame.
+        #
+        # `key_bars` are positions in the frame ai-insights scanned, which is
+        # `lookback_bars` long and ends at the bar being judged. Using
+        # decision-helper's own `idx` would be wrong whenever the two services
+        # hold different amounts of history — with 500 local bars against a
+        # 250-bar scan every pattern would look 250 bars old and be dropped.
+        key_bars = raw.get("key_bars") or []
+        last_index = payload.get("lookback_bars")
+        if last_index is None:
+            last_index = bar_index if bar_index is not None else None
+        else:
+            last_index = int(last_index) - 1
+        if last_index is not None and key_bars:
+            if last_index - int(key_bars[-1]) > max_age_bars:
+                continue
         name = str(raw.get("pattern_name") or "").strip().lower()
         direction = str(raw.get("pattern_type") or "").strip().lower()
 
@@ -118,12 +170,13 @@ def adapt_ai_insights_patterns(
             "breakout_level": neckline,
         }
 
+        # Only a LOCATED penetration counts as a break. See the docstring:
+        # inferring it from price-vs-neckline turns "has not broken out yet"
+        # into "broke the wrong way".
         evidence = raw.get("volume_evidence") or {}
         component = (evidence.get("components") or {}).get("breakout volume") or {}
         if component.get("breakout_bar") is not None and evidence.get("direction"):
             out["break_direction"] = "UP" if evidence["direction"] == "bullish" else "DOWN"
-        elif neckline is not None and last_close is not None:
-            out["break_direction"] = "UP" if float(last_close) > float(neckline) else "DOWN"
 
         adapted.append({k: v for k, v in out.items() if k in _ADAPTED_KEYS})
 
@@ -157,7 +210,9 @@ def detect_failed_signals(
 
     # Backlog #73: the payload arrives in ai-insights' vocabulary and has to
     # be translated before these five can match on anything.
-    adapted = adapt_ai_insights_patterns(patterns, last_close=bars[idx].close)
+    adapted = adapt_ai_insights_patterns(
+        patterns, last_close=bars[idx].close, bar_index=idx,
+    )
     if adapted:
         for fn2 in (
             _counter_anticipated_flag,
