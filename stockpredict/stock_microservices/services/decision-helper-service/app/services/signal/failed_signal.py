@@ -31,6 +31,105 @@ class FailedSignalResult:
     evidence: Dict[str, Any] = field(default_factory=dict)
 
 
+# ---------------------------------------------------------------------------
+# ai-insights -> detector vocabulary (Backlog #73)
+# ---------------------------------------------------------------------------
+
+#: `pattern_name` as ai-insights reports it -> the SCREAMING_SNAKE
+#: `pattern_type` the pattern detectors below match on. Direction-dependent
+#: names (the flag) resolve through `_FLAG_BY_DIRECTION`.
+_PATTERN_NAME_TO_TYPE = {
+    "head and shoulders": "HEAD_AND_SHOULDERS",
+    "inverse head and shoulders": "INV_HEAD_AND_SHOULDERS",
+    "double top": "DOUBLE_TOP",
+    "double bottom": "DOUBLE_BOTTOM",
+}
+
+_FLAG_BY_DIRECTION = {"bullish": "FLAG_BULL", "bearish": "FLAG_BEAR"}
+
+#: Exactly the keys the five pattern detectors read. The adapter emits NOTHING
+#: else, and that is deliberate: `confidence` is excluded so decision-helper
+#: still cannot see EM-1's composite confidence. S1
+#: (docs/em1_s1_downstream_comparison.md) concluded the volume layer does not
+#: reach this service; a whitelist keeps that STRUCTURALLY true rather than
+#: true by accident, so wiring these detectors up does not quietly invalidate
+#: that finding.
+_ADAPTED_KEYS = (
+    "pattern_type", "status", "break_direction",
+    "measured_move_target", "neckline",
+    "confirmation_level", "breakout_level",
+)
+
+
+def adapt_ai_insights_patterns(
+    payload: Optional[Dict[str, Any]],
+    last_close: Optional[float] = None,
+) -> Optional[Dict[str, Any]]:
+    """Translate an ai-insights pattern payload into the detector vocabulary.
+
+    The five pattern detectors in this module had never fired once. They match
+    `pattern_type` against names like ``FLAG_BULL`` and ``DOUBLE_TOP`` and
+    require ``status == "ACTIVE"``, but ai-insights sends ``pattern_type`` as
+    ``"bullish"``/``"bearish"``/``"neutral"`` with the shape in
+    ``pattern_name``, and sends no ``status`` field at all — so all three
+    guards failed independently (Backlog #73).
+
+    The translation is faithful rather than generous:
+
+    * ``status`` becomes ``"ACTIVE"`` because ai-insights only returns patterns
+      it found inside the lookback window; that is what active means here.
+    * ``confirmation_level`` and ``breakout_level`` both come from
+      ``neckline``, which is the level each detector is actually comparing
+      price against.
+    * ``break_direction`` is taken from EM-1's ``volume_evidence`` when it has
+      located a penetration, and otherwise inferred from the last close
+      against the neckline. It stays absent when neither is available, rather
+      than being guessed.
+
+    Patterns with no counterpart are dropped rather than coerced. Nothing maps
+    onto ``ROUNDING_TOP``/``ROUNDING_BOTTOM`` because ai-insights has no
+    rounding detector, and nothing supplies ``reliability_score`` — so
+    `_rounding_break` and `_future_reliability` remain unreachable by
+    construction, which is asserted in the tests instead of left implicit.
+    """
+    if not payload:
+        return None
+
+    adapted = []
+    for raw in payload.get("patterns", []):
+        if not raw.get("found", True):
+            continue
+        name = str(raw.get("pattern_name") or "").strip().lower()
+        direction = str(raw.get("pattern_type") or "").strip().lower()
+
+        kind = _PATTERN_NAME_TO_TYPE.get(name)
+        if kind is None and name == "flag":
+            kind = _FLAG_BY_DIRECTION.get(direction)
+        if kind is None:
+            continue
+
+        neckline = raw.get("neckline")
+        out: Dict[str, Any] = {
+            "pattern_type": kind,
+            "status": "ACTIVE",
+            "measured_move_target": raw.get("measured_move_target"),
+            "neckline": neckline,
+            "confirmation_level": neckline,
+            "breakout_level": neckline,
+        }
+
+        evidence = raw.get("volume_evidence") or {}
+        component = (evidence.get("components") or {}).get("breakout volume") or {}
+        if component.get("breakout_bar") is not None and evidence.get("direction"):
+            out["break_direction"] = "UP" if evidence["direction"] == "bullish" else "DOWN"
+        elif neckline is not None and last_close is not None:
+            out["break_direction"] = "UP" if float(last_close) > float(neckline) else "DOWN"
+
+        adapted.append({k: v for k, v in out.items() if k in _ADAPTED_KEYS})
+
+    return {"patterns": adapted} if adapted else None
+
+
 def detect_failed_signals(
     bars: List[OHLCVBar],
     bar_date: date,
@@ -56,7 +155,10 @@ def detect_failed_signals(
         if r:
             results.append(r)
 
-    if patterns:
+    # Backlog #73: the payload arrives in ai-insights' vocabulary and has to
+    # be translated before these five can match on anything.
+    adapted = adapt_ai_insights_patterns(patterns, last_close=bars[idx].close)
+    if adapted:
         for fn2 in (
             _counter_anticipated_flag,
             _hs_target_failure,
@@ -64,7 +166,7 @@ def detect_failed_signals(
             _rounding_break,
             _future_reliability,
         ):
-            r = fn2(bars, idx, patterns)
+            r = fn2(bars, idx, adapted)
             if r:
                 results.append(r)
 

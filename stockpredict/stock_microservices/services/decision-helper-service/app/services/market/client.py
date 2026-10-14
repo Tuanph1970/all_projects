@@ -152,14 +152,34 @@ class MarketClient:
     # AI-insights patterns (needed by failed_signal detectors)
     # ------------------------------------------------------------------
 
-    async def fetch_patterns(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Return ai-insights /ai/insight/{symbol} dict or None on error.
+    #: Bars of history the pattern scan runs over. The detectors need enough
+    #: room for a formation plus the breakout that follows it; ai-insights
+    #: caps the window itself.
+    PATTERNS_LOOKBACK_BARS = 250
 
-        Best-effort: failed_signal detectors degrade gracefully if absent.
+    async def fetch_patterns(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """Return the ai-insights chart-pattern scan, or None on error.
+
+        Best-effort: the failed_signal detectors degrade gracefully if absent.
+
+        Backlog #73 — THE URL WAS WRONG. This used to call
+        ``/ai/insight/{symbol}``, which is a different endpoint: an LLM
+        narrative returning ``{symbol, insight_type, content, summary,
+        key_points, sentiment, confidence, sources, generated_at}``. It answers
+        200, so nothing failed and nothing was logged — but it carries no
+        ``patterns`` key, so ``patterns.get("patterns", [])`` was always empty
+        and all five pattern-based failed-signal detectors had nothing to
+        iterate. That is the first of the two reasons they had never fired; the
+        second was the vocabulary mismatch handled in
+        ``failed_signal.adapt_ai_insights_patterns``.
+
+        The scan lives at ``/ai/insights/patterns/{symbol}`` — plural, and
+        under ``/patterns/``.
         """
         try:
             resp = await self._insights.get(
-                f"/stock_helper/api/v2/ai/insight/{symbol}"
+                f"/stock_helper/api/v2/ai/insights/patterns/{symbol}",
+                params={"lookback_bars": self.PATTERNS_LOOKBACK_BARS},
             )
             resp.raise_for_status()
             return resp.json()

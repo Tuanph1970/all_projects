@@ -169,6 +169,32 @@ async def test_fetch_patterns_returns_payload(client: MarketClient):
 
 
 @pytest.mark.asyncio
+async def test_fetch_patterns_requests_the_pattern_scan_not_the_narrative(
+    client: MarketClient,
+):
+    """Backlog #73 — the URL, which nothing used to assert.
+
+    This called ``/ai/insight/{symbol}`` for months: a different endpoint that
+    returns an LLM narrative (content / summary / sentiment) and answers 200,
+    so nothing failed and nothing was logged. It carries no ``patterns`` key,
+    so all five pattern-based failed-signal detectors iterated an empty list
+    and had never once fired.
+
+    The test above passed throughout, because it mocks ``get`` and checks the
+    payload that comes back rather than the address asked for. Asserting the
+    URL is what was missing.
+    """
+    client._insights.get.return_value = _resp(200, {"patterns": []})
+    await client.fetch_patterns("VCB")
+
+    url = client._insights.get.await_args.args[0]
+    assert url == "/stock_helper/api/v2/ai/insights/patterns/VCB"
+    assert "/ai/insight/" not in url, "that is the narrative endpoint, not the scan"
+    # And a window wide enough for a formation plus its breakout.
+    assert client._insights.get.await_args.kwargs["params"]["lookback_bars"] >= 120
+
+
+@pytest.mark.asyncio
 async def test_fetch_patterns_returns_none_on_error(client: MarketClient):
     """Patterns are best-effort — error degrades to None, no log noise required."""
     client._insights.get.side_effect = httpx.ConnectError("down")
