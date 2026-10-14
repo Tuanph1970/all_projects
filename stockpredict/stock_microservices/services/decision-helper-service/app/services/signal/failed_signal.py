@@ -22,6 +22,29 @@ WRD_RANGE_MULTIPLE = 2.0
 TL_MA_PERIOD = 50
 OVERRIDE_THRESHOLD = 0.5
 
+#: Severity for the two reachable pattern-failure detectors, deliberately
+#: BELOW `OVERRIDE_THRESHOLD` so neither can override a confirmed signal's
+#: direction (Backlog #79).
+#:
+#: They used to sit at 0.60/0.65 and therefore drove REVERSE recommendations.
+#: An outcome study over 6,797 CAUSAL scans — each seeing only bars up to its
+#: own date — measured forward returns against the no-verdict baseline on the
+#: same bars, with non-overlapping windows:
+#:
+#:   DOUBLE_TOP_BREAK   / SHORT  t = -0.81   (10 bars)  -> indistinguishable
+#:   DOUBLE_TOP_BREAK   / LONG   t = +0.65              -> indistinguishable
+#:   HS_TARGET_FAILURE  / LONG   t = -1.08              -> indistinguishable
+#:   HS_TARGET_FAILURE  / SHORT  t = +2.34              -> BACKWARDS
+#:
+#: The last one is the reason this is a change and not a note: it implies SHORT
+#: and the stock then OUTPERFORMS the baseline by 1.4% over ten bars, across 30
+#: symbols. Nothing here beats the benchmark, and one is significantly wrong,
+#: so by the same C4 rule EM-1 holds its own rules to, neither gets decision
+#: authority. They remain in `failed_results` as evidence.
+#:
+#: Evidence: docs/dh79_failed_signal_outcome_study.md.
+PATTERN_FAILURE_SEVERITY = 0.35
+
 
 @dataclass
 class FailedSignalResult:
@@ -622,7 +645,7 @@ def _hs_target_failure(
             return FailedSignalResult(
                 kind="HS_TARGET_FAILURE",
                 direction="LONG",
-                severity=0.60,
+                severity=PATTERN_FAILURE_SEVERITY,
                 evidence={
                     "pattern_type": p["pattern_type"],
                     "measured_target": round(float(target), 4),
@@ -632,7 +655,7 @@ def _hs_target_failure(
             return FailedSignalResult(
                 kind="HS_TARGET_FAILURE",
                 direction="SHORT",
-                severity=0.60,
+                severity=PATTERN_FAILURE_SEVERITY,
                 evidence={
                     "pattern_type": p["pattern_type"],
                     "measured_target": round(float(target), 4),
@@ -662,7 +685,7 @@ def _double_top_break(
             return FailedSignalResult(
                 kind="DOUBLE_TOP_BREAK",
                 direction="LONG",
-                severity=0.60,
+                severity=PATTERN_FAILURE_SEVERITY,
                 evidence={
                     "pattern_type": p["pattern_type"],
                     "confirmation_level": round(conf_price, 4),
@@ -672,7 +695,7 @@ def _double_top_break(
             return FailedSignalResult(
                 kind="DOUBLE_TOP_BREAK",
                 direction="SHORT",
-                severity=0.60,
+                severity=PATTERN_FAILURE_SEVERITY,
                 evidence={
                     "pattern_type": p["pattern_type"],
                     "confirmation_level": round(conf_price, 4),

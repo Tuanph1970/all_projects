@@ -278,3 +278,51 @@ class TestDetectorsStillUnreachable:
         one."""
         out = adapt_ai_insights_patterns(_ai_pattern())["patterns"][0]
         assert "reliability_score" not in out
+
+
+# ---------------------------------------------------------------------------
+# Backlog #79 — no demonstrated edge, no decision authority
+# ---------------------------------------------------------------------------
+
+class TestPatternFailuresCannotOverrideADirection:
+    """The outcome study's consequence, pinned.
+
+    Over 6,797 causal scans, neither reachable detector beat the no-verdict
+    baseline, and `HS_TARGET_FAILURE / SHORT` was significantly BACKWARDS
+    (t = +2.34 at ten bars across 30 symbols: it implies SHORT and the stock
+    then outperforms). So their severity sits below `OVERRIDE_THRESHOLD` and
+    they can no longer flip a confirmed signal's direction — the same rule
+    EM-1's C4 benchmark applies to its own rules.
+
+    Evidence: docs/dh79_failed_signal_outcome_study.md.
+    """
+
+    def test_severity_is_below_the_override_threshold(self):
+        from app.services.signal.failed_signal import (
+            OVERRIDE_THRESHOLD, PATTERN_FAILURE_SEVERITY,
+        )
+        assert PATTERN_FAILURE_SEVERITY < OVERRIDE_THRESHOLD
+
+    def test_a_firing_detector_reports_but_does_not_override(self):
+        from app.services.signal.failed_signal import OVERRIDE_THRESHOLD
+        bars = _bars([100.0] * 40 + [101.0])
+        results = detect_failed_signals(
+            bars, bars[-1].date, patterns=_ai_pattern(neckline=99.5)
+        )
+        hits = [r for r in results if r.kind == "HS_TARGET_FAILURE"]
+        assert hits, "it must still fire and be reported"
+        for r in hits:
+            assert r.severity < OVERRIDE_THRESHOLD, (
+                "a verdict with no demonstrated edge must not flip a direction"
+            )
+
+    def test_the_sr_based_detectors_keep_their_authority(self):
+        """Only the two pattern-failure detectors were demoted. The seven
+        S/R-based ones were never part of this study and are untouched."""
+        from app.services.signal.failed_signal import OVERRIDE_THRESHOLD
+        bars = _bars([100.0] * 38 + [101.5, 99.5])
+        sr = {"levels": [{"price": 101.0, "kind": "RESISTANCE"}]}
+        results = detect_failed_signals(bars, bars[-1].date, sr_data=sr)
+        for r in results:
+            if r.kind in ("BULL_TRAP", "BEAR_TRAP"):
+                assert r.severity >= OVERRIDE_THRESHOLD
