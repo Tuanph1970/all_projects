@@ -515,27 +515,95 @@ async def test_all_empty_dataframes_still_returns_valid_response():
 # Fields the 4.x adaptation stopped populating (Backlog #76)
 # ---------------------------------------------------------------------------
 
+class TestFieldsRestoredFromBacklog76:
+    """`debt_to_assets` and `enterprise_value`, restored 2026-10-14.
+
+    Both were derivable from values already in hand, so the 4.x rewrite had
+    simply stopped assigning them. They were `xfail(strict=True)` until the
+    derivations landed, at which point the markers had to come off — which is
+    what strict xfail is for.
+    """
+
+    @staticmethod
+    def _fixture(**over):
+        bs = {
+            "Total Assets": 80_000.0,
+            "Cash and cash equivalents": 5_000.0,
+            "Total Equity": 40_000.0,
+            "Liabilities": 35_000.0,
+            "Long-term liabilities": 12_000.0,
+        }
+        bs.update(over.pop("bs", {}))
+        return _build_fake_stock(ratio_df=_ratio_df_basic(), bs_df=_long(bs), **over)
+
+    @pytest.mark.asyncio
+    async def test_debt_to_assets_is_a_ratio_derived_from_the_balance_sheet(self):
+        svc = _make_service()
+        with _patch_vnstock(svc, _vnstock_with(self._fixture())):
+            out = await svc.get_company_financials("FPT")
+        # 35,000 / 80,000. A ratio, matching debt_to_equity's units rather than
+        # a percentage.
+        assert out.debt_to_assets == pytest.approx(0.4375)
+
+    @pytest.mark.asyncio
+    async def test_enterprise_value_is_market_cap_plus_debt_less_cash(self):
+        svc = _make_service()
+        with _patch_vnstock(svc, _vnstock_with(self._fixture())):
+            out = await svc.get_company_financials("FPT")
+        # 200,000 + 12,000 - 5,000. Only LONG-TERM liabilities are available,
+        # so this is a lower bound on EV — stated in the code comment too.
+        assert out.enterprise_value == pytest.approx(207_000.0)
+
+    @pytest.mark.asyncio
+    async def test_neither_is_fabricated_when_the_balance_sheet_is_thin(self):
+        """The bank case, and the reason it matters.
+
+        Live, TCB returns a balance sheet with `totalAssets` only — equity,
+        cash, liabilities and long-term debt are all None, because bank line
+        names differ from the ones `_pick` knows (Backlog #77). Both
+        derivations must then yield None rather than treating a missing term as
+        zero, which would report an enterprise value equal to market cap and a
+        debt ratio of zero for every bank.
+        """
+        svc = _make_service()
+        thin = _build_fake_stock(
+            ratio_df=_ratio_df_basic(),
+            bs_df=_long({"Total Assets": 1_273_076.0}),
+        )
+        with _patch_vnstock(svc, _vnstock_with(thin)):
+            out = await svc.get_company_financials("TCB")
+        assert out.balance_sheet.totalAssets == 1_273_076.0
+        assert out.debt_to_assets is None
+        assert out.enterprise_value is None
+
+
 class TestFieldsTheFourXAdaptationDropped:
-    """Three response fields are never set by the 4.x code path.
+    """`book_value_per_share` is still never set, and now we know why.
 
     Found while migrating these fixtures: because all eleven tests in this
     module were red from 567cd1bc onward, the one test that asserted
     `book_value_per_share` was red too — so the field going away was invisible.
     That is the cost of a red suite, concretely.
 
-    Confirmed against the live service on 2026-10-13 over FPT, TCB and VNM:
-    `book_value_per_share`, `debt_to_assets` and `enterprise_value` come back
-    `None` for every symbol, while fifteen sibling fields are populated.
+    It is a REGRESSION relative to pre-567cd1bc, which read it straight from
+    the ratio sheet as `BVPS (VND)`. But it cannot be restored the same way:
+    probed live on 2026-10-14 against FPT, VNM and TCB under five candidate
+    names — `BVPS (VND)`, `BVPS`, `Book value per share`,
+    `Book Value Per Share (VND)`, `Book value per share (VND)` — and vnstock
+    4.x supplies none of them.
 
-    `book_value_per_share` is a REGRESSION: pre-567cd1bc the method assigned it
-    (`financials.book_value_per_share = bvps`); the 4.x rewrite assigns it
-    nowhere. The other two are derivable from values already in hand —
-    `debt_to_assets` from liabilities/assets, `enterprise_value` from
-    market cap + debt − cash — so they are gaps rather than data limits.
+    Nor is it safely derivable from what is in hand. `(pe x eps) / pb` is the
+    obvious algebra and is wrong here: `eps` is quarterly while P/E is
+    trailing, so the implied price is out by roughly a factor of four. A wrong
+    book value is worse than an absent one, so this stays unset until there is
+    a shares-outstanding figure or a price feed to divide by.
 
-    These are `xfail(strict=True)`: they fail today for the stated reason, and
-    the moment someone restores a field its test passes, `strict` turns that
-    into a failure, and the marker must come off. The debt cannot be forgotten.
+    Kept as `xfail(strict=True)` so the debt stays visible: the moment a real
+    source appears the test passes, strict turns that into a failure, and the
+    marker must come off.
+
+    `debt_to_assets` and `enterprise_value` WERE here and have been restored —
+    see TestFieldsRestoredFromBacklog76 above.
 
     `revenue_growth` / `earnings_growth` are deliberately NOT here. They are
     also always `None` live, but for a legitimate reason — the vendor response
@@ -558,25 +626,9 @@ class TestFieldsTheFourXAdaptationDropped:
         )
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(strict=True, reason="Backlog #76: regression — 4.x rewrite stopped setting it")
+    @pytest.mark.xfail(strict=True, reason="Backlog #76: vnstock 4.x supplies no BVPS field; needs shares outstanding or a price feed")
     async def test_book_value_per_share_is_populated(self):
         svc = _make_service()
         with _patch_vnstock(svc, _vnstock_with(self._full_fixture())):
             out = await svc.get_company_financials("FPT")
         assert out.book_value_per_share is not None
-
-    @pytest.mark.asyncio
-    @pytest.mark.xfail(strict=True, reason="Backlog #76: derivable from liabilities/assets, never set")
-    async def test_debt_to_assets_is_populated(self):
-        svc = _make_service()
-        with _patch_vnstock(svc, _vnstock_with(self._full_fixture())):
-            out = await svc.get_company_financials("FPT")
-        assert out.debt_to_assets is not None
-
-    @pytest.mark.asyncio
-    @pytest.mark.xfail(strict=True, reason="Backlog #76: derivable from market cap + debt - cash, never set")
-    async def test_enterprise_value_is_populated(self):
-        svc = _make_service()
-        with _patch_vnstock(svc, _vnstock_with(self._full_fixture())):
-            out = await svc.get_company_financials("FPT")
-        assert out.enterprise_value is not None

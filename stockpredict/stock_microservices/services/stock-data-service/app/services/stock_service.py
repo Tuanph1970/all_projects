@@ -2129,6 +2129,27 @@ class StockService:
                     ev_ebitda = self._pick(latest, 'EV/EBITDA')
                     div_yield = self._as_percent(self._pick(latest, 'Dividend Yield (%)'))
                     mcap = self._pick(latest, 'Market Cap')
+                    # Backlog #76 — book value per share. The pre-4.x code read
+                    # this straight from the ratio sheet ('BVPS (VND)'); the 4.x
+                    # rewrite dropped it and nothing noticed for four months
+                    # because its only test was among the eleven that were red.
+                    #
+                    # Restored by asking the vendor again under every name it
+                    # might use, rather than by deriving it. (pe x eps) / pb is
+                    # algebraically tempting and WRONG here: `eps` is quarterly
+                    # while P/E is trailing, so the implied price — and the BVPS
+                    # that falls out of it — would be off by roughly a factor of
+                    # four. A wrong book value is worse than an absent one.
+                    bvps = self._pick(
+                        latest,
+                        'BVPS (VND)', 'BVPS', 'Book value per share',
+                        'Book Value Per Share (VND)', 'Book value per share (VND)',
+                    )
+                    # Vendor-reported debt/assets if offered; otherwise derived
+                    # from the balance sheet further down.
+                    debt_to_assets = self._pick(
+                        latest, 'Debt to Assets', 'Debt/Assets', 'Total Debt/Total Assets',
+                    )
 
                     # Set flat fields
                     financials.pe_ratio = pe
@@ -2145,6 +2166,8 @@ class StockService:
                     financials.ev_ebitda = ev_ebitda
                     financials.dividend_yield = div_yield
                     financials.market_cap = mcap
+                    financials.book_value_per_share = bvps
+                    financials.debt_to_assets = debt_to_assets
 
                     # Set nested financial_ratios
                     financial_ratios.pe = pe
@@ -2228,6 +2251,29 @@ class StockService:
                     balance_sheet.totalEquity = total_equity
                     balance_sheet.cash = cash
                     balance_sheet.longTermDebt = long_term_debt
+
+                    # Backlog #76 — two fields the 4.x rewrite left unset even
+                    # though every input is already in hand.
+                    #
+                    # debt_to_assets: a ratio, matching debt_to_equity's units.
+                    # Both terms come from the SAME balance sheet, so the figure
+                    # is internally consistent — but be aware it will not
+                    # reconcile with the vendor's debt_to_equity, which is
+                    # computed on a different basis (for FPT the vendor reports
+                    # P/B 2.44 where market_cap/equity is 0.75, so the ratio
+                    # sheet and the balance sheet are not the same consolidation).
+                    if financials.debt_to_assets is None and total_liabilities is not None and total_assets:
+                        financials.debt_to_assets = total_liabilities / total_assets
+
+                    # enterprise_value = market cap + debt - cash. Mixing market
+                    # value with balance-sheet debt is inherent to EV, not a
+                    # unit error. CAVEAT: only long-term liabilities are
+                    # available here, so short-term borrowings are omitted and
+                    # this is a LOWER BOUND on EV.
+                    if financials.market_cap and cash is not None:
+                        financials.enterprise_value = (
+                            financials.market_cap + (long_term_debt or 0.0) - cash
+                        )
 
                     logger.info(f"Fetched balance sheet for {symbol}: Assets={total_assets}, Cash={cash}")
 
