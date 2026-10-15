@@ -347,3 +347,177 @@ def relative_level_volume(
         reason="",
         thin_volume=thin,
     )
+
+
+# ===========================================================================
+# S4 — per-touch aggregation
+#
+# `S1` measured that a congestion is local to a VISIT: `_find_sr_levels`
+# clusters every visit to a price across the whole window, so a cluster-wide
+# span is most of the frame and its relative volume collapses towards 1.0
+# (0.61x-1.18x across real levels, against 0.48x-2.44x measured per touch).
+# `MAX_CONGESTION_BARS` makes the cluster-wide call fail loudly; the functions
+# below are the right shape — one span per touch, then an aggregate.
+# ===========================================================================
+
+
+class Aggregation(str, Enum):
+    """How a level's per-visit volume readings combine into one strength.
+
+    ``SUM`` — add the per-visit relative readings. The closer reading of E&M
+    Ch 13's "volume transacted there": a level revisited three times on heavy
+    trade has absorbed more supply than one visited once. It therefore grows
+    with the number of visits, which means it is **partly** a touch count
+    again — the thing `FR-EM-S1` set out to replace.
+
+    ``MAX`` — take the heaviest single visit. Insensitive to how often the
+    level was revisited, so it is a purer volume statement, but it discards
+    the accumulation that E&M's argument rests on.
+
+    Neither is obviously right, so both ship and `H-S1` chooses on evidence
+    rather than on preference (the open question `S4` inherits from `S1`).
+    """
+    SUM = "sum"
+    MAX = "max"
+
+
+DEFAULT_AGGREGATION = Aggregation.SUM
+
+
+def touch_spans(
+    ohlc: Any,
+    touch_bars: Sequence[int],
+    mode: SpanMode = SpanMode.NEIGHBOURHOOD,
+    window: int = DEFAULT_NEIGHBOURHOOD,
+    level_price: Optional[float] = None,
+    tolerance_pct: float = DEFAULT_TOLERANCE_PCT,
+) -> list:
+    """One congestion span per touch, with overlaps merged.
+
+    Merging matters: two touches three bars apart would otherwise contribute
+    the same bars twice, inflating both the summed volume and the centre of
+    gravity. The merge makes the result a function of the bars actually
+    involved rather than of how the pivot detector happened to split them.
+    """
+    spans = []
+    for bar in sorted(set(int(b) for b in touch_bars)):
+        span = congestion_span(
+            ohlc, [bar], mode=mode, window=window,
+            level_price=level_price, tolerance_pct=tolerance_pct,
+        )
+        if span is not None:
+            spans.append(span)
+    if not spans:
+        return []
+
+    merged = [spans[0]]
+    for start, end in spans[1:]:
+        last_start, last_end = merged[-1]
+        if start <= last_end + 1:
+            merged[-1] = (last_start, max(last_end, end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+def aggregate_level_volume(
+    ohlc: Any,
+    touch_bars: Sequence[int],
+    aggregation: Aggregation = DEFAULT_AGGREGATION,
+    mode: SpanMode = SpanMode.NEIGHBOURHOOD,
+    window: int = DEFAULT_NEIGHBOURHOOD,
+    level_price: Optional[float] = None,
+    baseline_window: int = DEFAULT_BASELINE_WINDOW,
+) -> LevelVolume:
+    """`FR-EM-S1` — a level's strength as the volume transacted at it.
+
+    Calls `relative_level_volume` once per merged touch span and combines the
+    readings by ``aggregation`` (see `Aggregation`: SUM adds the visits, MAX
+    takes the heaviest). Always **relative** to the symbol's own trailing
+    volume, never an absolute share count.
+
+    Returns an unknown `LevelVolume` — not a zero — when no span could be
+    measured, so the caller falls back to the touch count rather than reading
+    the absence as "no interest at this level" (`EC-S1`, `EC-S2`).
+    """
+    spans = touch_spans(
+        ohlc, touch_bars, mode=mode, window=window, level_price=level_price,
+    )
+    if not spans:
+        return LevelVolume(None, reason="no_usable_span")
+
+    readings = []
+    totals = 0.0
+    bars_used = 0
+    thin_any = False
+    for start, end in spans:
+        lv = relative_level_volume(ohlc, start, end, baseline_window=baseline_window)
+        thin_any = thin_any or lv.thin_volume
+        if lv.known:
+            readings.append(lv.value)
+            totals += lv.total_volume or 0.0
+            bars_used += lv.bars_used
+
+    if not readings:
+        return LevelVolume(
+            None, reason="no_usable_reading", thin_volume=thin_any,
+        )
+
+    value = sum(readings) if aggregation is Aggregation.SUM else max(readings)
+    return LevelVolume(
+        value=value,
+        total_volume=totals,
+        bars_used=bars_used,
+        reason="",
+        thin_volume=thin_any,
+    )
+
+
+def level_price_cog(
+    ohlc: Any,
+    touch_bars: Sequence[int],
+    mode: SpanMode = SpanMode.NEIGHBOURHOOD,
+    window: int = DEFAULT_NEIGHBOURHOOD,
+    level_price: Optional[float] = None,
+) -> Optional[float]:
+    """`FR-EM-S2` — the level's centre of gravity across all its visits.
+
+    The volume-weighted mean CLOSE over the merged touch spans. Spans are
+    weighted by the volume they actually carry, so a single heavy visit pulls
+    the level towards itself — which is the behaviour E&M describe when they
+    say to average the old congestion's closes.
+
+    **An approximation, by requirement** (`NFR-S2`): daily bars carry no
+    intraday distribution, so this is a volume-weighted close and must never be
+    described as volume at price.
+
+    ``None`` when no span carries usable volume — a dormant level has no centre
+    of gravity, and returning 0.0 would place it at zero.
+    """
+    spans = touch_spans(
+        ohlc, touch_bars, mode=mode, window=window, level_price=level_price,
+    )
+    if not spans:
+        return None
+
+    closes = _column(ohlc, "close")
+    volumes = _column(ohlc, "volume")
+    if not closes or not volumes:
+        return None
+
+    weighted = 0.0
+    weight = 0.0
+    for start, end in spans:
+        for i in range(start, end + 1):
+            if i < 0 or i >= len(closes):
+                continue
+            v = _usable(volumes[i])
+            c = _usable(closes[i])
+            if v is None or c is None or v <= 0:
+                continue
+            weighted += c * v
+            weight += v
+
+    if weight <= 0:
+        return None
+    return weighted / weight

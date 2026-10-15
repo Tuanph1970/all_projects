@@ -271,17 +271,15 @@ def _volume_strengths(frame: pd.DataFrame) -> List[Optional[float]]:
 
 class TestLevelStrengthUnderShuffle:
 
-    def test_volume_strength_does_not_exist_yet(self):
-        """Documents the current state, so the xfail below is red for a known
-        reason rather than an unexplained one."""
-        assert all(v is None for v in _volume_strengths(oscillating_frame()))
+    def test_volume_strength_is_populated(self):
+        """`S4` landed. Until then this test asserted the opposite and the
+        assertion below was a strict xfail; the marker turned `XPASS(strict)`
+        the moment the field appeared, which is what forced both to be
+        updated rather than left stale."""
+        strengths = _volume_strengths(oscillating_frame())
+        assert strengths
+        assert any(v is not None for v in strengths)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="S4 adds SRLevel.volume_strength; H-S2's end-to-end assertion "
-               "cannot pass until it exists, and must not be relaxed to make "
-               "it pass sooner.",
-    )
     def test_level_volume_strength_changes_measurably_under_the_shuffle(self):
         """`H-S2`: strength reads the price-volume relationship.
 

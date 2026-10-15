@@ -24,6 +24,7 @@ from app.models.schemas import (
     SRLevelType, SRTouch, SRLevel, SRResponse,
     Regime, RegimeFeatures, RegimeResponse,
 )
+from app.services.sr_volume import aggregate_level_volume, level_price_cog
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -214,6 +215,19 @@ class AnalysisService:
         (support / resistance / flip on ties), strength (touch count) and
         age_bars (bars since the most recent touch).
 
+        Each level also carries Edwards & Magee's two volume measures
+        (EM-2 `FR-EM-S1`, `FR-EM-S2`): `volume_strength`, the volume transacted
+        at the level relative to the symbol's own trailing volume, and
+        `price_cog`, the volume-weighted centre of gravity of its congestion.
+        Both are computed **per touch and then aggregated**, which `S1`
+        measured to be the only informative shape — a cluster's touches are
+        scattered across the whole window, so a single cluster-wide span is
+        most of the frame and its relative volume collapses towards 1.0.
+
+        `price` and `strength` are deliberately unchanged: three live consumers
+        read them, and moving the level price is gated behind EM-2's `D1`
+        evidence.
+
         Returns `(supports, resistances)` — both lists are sorted by price
         ascending; a FLIP level appears in both.
         """
@@ -245,8 +259,29 @@ class AnalysisService:
                 kind = SRLevelType.SUPPORT
             else:
                 kind = SRLevelType.FLIP
+            level_price = round(sum(prices) / len(prices), 4)
+
+            # EM-2: the volume measures are corroboration, never a
+            # precondition for the level existing. Three consumers depend on
+            # these levels being produced, so a failure anywhere in the volume
+            # layer degrades to "unknown" and the level ships regardless.
+            volume_strength: Optional[float] = None
+            price_cog: Optional[float] = None
+            try:
+                measured = aggregate_level_volume(
+                    ohlc, bars, level_price=level_price,
+                )
+                volume_strength = measured.value
+                price_cog = level_price_cog(ohlc, bars, level_price=level_price)
+            except Exception:  # noqa: BLE001 — a volume bug must not lose levels
+                logger.warning(
+                    "EM-2 volume measures failed for level at %s; "
+                    "falling back to the touch count", level_price,
+                    exc_info=True,
+                )
+
             levels.append(SRLevel(
-                price=round(sum(prices) / len(prices), 4),
+                price=level_price,
                 type=kind,
                 strength=len(cluster),
                 age_bars=last_bar_index - max(bars),
@@ -256,6 +291,8 @@ class AnalysisService:
                         price=p.price, pivot_type=p.type,
                     ) for p in cluster
                 ],
+                volume_strength=volume_strength,
+                price_cog=price_cog,
             ))
 
         supports = [lv for lv in levels if lv.type in (SRLevelType.SUPPORT, SRLevelType.FLIP)]

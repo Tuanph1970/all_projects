@@ -402,12 +402,43 @@ class SRTouch(BaseModel):
 
 
 class SRLevel(BaseModel):
-    """A clustered support/resistance level built from swing pivots (Ch 4)."""
-    price: float                      # cluster mean
+    """A clustered support/resistance level built from swing pivots (Ch 4),
+    with Edwards & Magee's volume measures alongside (EM-2, `FR-EM-S1/S2`).
+
+    `price` and `strength` keep their original meanings. `strength` in
+    particular stays an `int` touch count because `sr_bounce_breakout` does
+    `int(lvl["strength"])` and then caps a confidence at 0.9 — a volume ratio
+    there would be silently truncated and would saturate the cap. The volume
+    measures therefore arrive as new, optional fields.
+    """
+    price: float                      # cluster mean of the touch prices
     type: SRLevelType
     strength: int                     # number of touches
     age_bars: int                     # bars since most recent touch
     touches: List[SRTouch]
+
+    volume_strength: Optional[float] = Field(
+        default=None,
+        description=(
+            "EM-2 FR-EM-S1: the level's strength measured by the volume "
+            "transacted at it, relative to the symbol's own trailing volume "
+            "(never an absolute share count). Aggregated across the level's "
+            "visits, one congestion span per touch. None when volume is "
+            "unavailable or the symbol is dormant — in that case fall back to "
+            "`strength`, and do not read the absence as low interest."
+        ),
+    )
+    price_cog: Optional[float] = Field(
+        default=None,
+        description=(
+            "EM-2 FR-EM-S2: the level's centre of gravity — the "
+            "volume-weighted mean close over the level's congestion bars. An "
+            "approximation by necessity: daily bars carry no intraday "
+            "distribution, so this is a volume-weighted close and is not a "
+            "distribution of volume across prices. Offered alongside `price`, "
+            "which is unchanged."
+        ),
+    )
 
 
 class SRResponse(BaseModel):

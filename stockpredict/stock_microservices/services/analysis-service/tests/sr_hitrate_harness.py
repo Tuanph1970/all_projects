@@ -84,7 +84,7 @@ PENETRATION_PCT = 1.0  # how far through to count as a penetration
 MAX_SYMBOLS = 12       # keeps the suite fast; override with EM2_MAX_SYMBOLS
 SEED = 20261015
 
-ARMS = ("touch_count", "em2_volume", "random_null")
+ARMS = ("touch_count", "touch_count_matched", "em2_volume", "random_null")
 
 _REAL_BARS_DEFAULT = Path("/tmp/all_bars.tsv")
 
@@ -133,6 +133,8 @@ class StudyReport:
     symbols: List[str]
     test_dates: int
     arms: Dict[str, ArmReport] = field(default_factory=dict)
+    aggregation: Optional[str] = None
+    use_cog: bool = True
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -250,26 +252,68 @@ def _shipped_levels(svc: AnalysisService, frame: pd.DataFrame) -> List[SRLevel]:
     return out
 
 
-def _em2_levels(svc: AnalysisService, frame: pd.DataFrame) -> Tuple[List[SRLevel], str]:
-    """The volume-weighted arm.
+def _top_half(levels: Sequence[Any], key) -> List[Any]:
+    """The stronger half of a level set by ``key``, at least one level.
 
-    `S4` adds ``volume_strength`` to `SRLevel` and populates it in
-    `_find_sr_levels`. Until then this arm is deliberately unavailable rather
-    than quietly falling back to the shipped levels — a fallback would make the
-    arm look identical to arm 1 and the comparison vacuous.
+    Selection is where a strength measure earns its keep: a measure that
+    ranks better keeps better levels. Re-*ordering* alone would change
+    nothing, because every level in an arm gets tested — which was the defect
+    in `S2`'s placeholder for this arm.
+    """
+    ranked = sorted(levels, key=key, reverse=True)
+    keep = max(1, len(ranked) // 2)
+    return ranked[:keep]
+
+
+def _em2_levels(
+    svc: AnalysisService,
+    frame: pd.DataFrame,
+    use_cog: bool = True,
+) -> Tuple[List[Tuple[float, SRLevel]], str]:
+    """The volume-weighted arm: EM-2's two claims, both exercised.
+
+    `FR-EM-S1` — **selection**: keep the stronger half of the levels by
+    ``volume_strength`` rather than by touch count.
+    `FR-EM-S2` — **location**: test at ``price_cog``, the volume-weighted
+    centre of gravity, rather than at the arithmetic mean of the pivots.
+
+    Returns ``(price, level)`` pairs so the tested price can differ from
+    ``level.price``. Unavailable — not silently equal to the shipped arm —
+    whenever ``volume_strength`` is absent.
     """
     levels = _shipped_levels(svc, frame)
     if not levels:
         return [], "no_levels"
-    if all(getattr(lvl, "volume_strength", None) is None for lvl in levels):
+    scored = [lvl for lvl in levels if getattr(lvl, "volume_strength", None) is not None]
+    if not scored:
         return [], "volume_strength_absent_until_S4"
-    # Once S4 lands: rank by volume_strength and keep the levels it promotes.
-    ranked = sorted(
-        levels,
-        key=lambda lvl: (getattr(lvl, "volume_strength", None) or 0.0),
-        reverse=True,
-    )
-    return ranked, ""
+
+    kept = _top_half(scored, key=lambda lvl: lvl.volume_strength)
+    out: List[Tuple[float, SRLevel]] = []
+    for lvl in kept:
+        price = lvl.price
+        if use_cog and getattr(lvl, "price_cog", None):
+            price = float(lvl.price_cog)
+        out.append((price, lvl))
+    return out, ""
+
+
+def _matched_levels(svc: AnalysisService, frame: pd.DataFrame) -> List[SRLevel]:
+    """The fairness control the comparison would be confounded without.
+
+    The EM-2 arm keeps half its levels, so it is tested on a *subset*. If the
+    shipped arm is tested on *all* of its levels, any difference could simply
+    be "fewer levels, better average" rather than "better selection". This arm
+    keeps the stronger half **by touch count** — the shipped measure — so EM-2
+    is compared against the best the old model can do at the same selectivity.
+
+    The plan's own W1 warning in general form: an improvement that comes from
+    doing less is not an improvement.
+    """
+    levels = _shipped_levels(svc, frame)
+    if not levels:
+        return []
+    return _top_half(levels, key=lambda lvl: lvl.strength)
 
 
 def _null_levels(
@@ -385,8 +429,17 @@ def run_study(
     max_symbols: Optional[int] = None,
     step: int = STEP,
     window: int = WINDOW,
+    aggregation: Optional[Any] = None,
+    use_cog: bool = True,
 ) -> StudyReport:
-    """Run all three arms over the available bars and report the counts."""
+    """Run every arm over the available bars and report the counts.
+
+    ``aggregation`` selects the EM-2 strength aggregation (`Aggregation.SUM`
+    or `.MAX`) for the duration of the run; ``use_cog`` toggles whether the
+    EM-2 arm is tested at ``price_cog`` or at ``price``. Both exist so the
+    open questions `S4` inherited can be answered by running the study rather
+    than by argument.
+    """
     bars, label = source_bars()
     cap = max_symbols if max_symbols is not None else int(
         os.environ.get("EM2_MAX_SYMBOLS", str(MAX_SYMBOLS))
@@ -395,6 +448,22 @@ def run_study(
 
     svc = AnalysisService(session=MagicMock())
     rng = np.random.default_rng(SEED)
+
+    # The aggregation is read by `_find_sr_levels` through sr_volume's default,
+    # so override it there rather than plumbing a parameter through a shipped
+    # signature for the sake of a study. EM-1 recorded the trap this avoids: a
+    # value bound as a DEFAULT ARGUMENT is fixed at definition time, so
+    # patching the module constant alone would do nothing and the sweep would
+    # come back perfectly flat. `aggregate_level_volume` therefore has its
+    # keyword rebound here, not just the constant.
+    import functools
+    import app.services.analysis_service as _asvc
+
+    original = _asvc.aggregate_level_volume
+    if aggregation is not None:
+        _asvc.aggregate_level_volume = functools.partial(
+            original, aggregation=aggregation
+        )
 
     counts = {
         arm: {"levels": 0, "hit": 0, "miss": 0, "unresolved": 0} for arm in ARMS
@@ -415,17 +484,21 @@ def run_study(
             spot = float(frame["close"].iloc[-1])
 
             shipped = _shipped_levels(svc, frame)
-            em2, reason = _em2_levels(svc, frame)
+            em2, reason = _em2_levels(svc, frame, use_cog=use_cog)
             if reason:
                 em2_reason = reason
             nulls = _null_levels(shipped, spot, rng)
+            matched = _matched_levels(svc, frame)
 
             per_arm: Dict[str, List[Tuple[float, bool]]] = {
                 "touch_count": [
                     (lvl.price, lvl.price > spot) for lvl in shipped
                 ],
+                "touch_count_matched": [
+                    (lvl.price, lvl.price > spot) for lvl in matched
+                ],
                 "em2_volume": [
-                    (lvl.price, lvl.price > spot) for lvl in em2
+                    (price, price > spot) for price, _ in em2
                 ],
                 "random_null": [
                     (n["price"], n["type"] == SRLevelType.RESISTANCE) for n in nulls
@@ -442,6 +515,8 @@ def run_study(
                         counts[arm]["miss"] += 1
                     elif verdict == "unresolved":
                         counts[arm]["unresolved"] += 1
+
+    _asvc.aggregate_level_volume = original
 
     arms: Dict[str, ArmReport] = {}
     for arm in ARMS:
@@ -468,4 +543,6 @@ def run_study(
         symbols=list(bars),
         test_dates=test_dates,
         arms=arms,
+        aggregation=None if aggregation is None else str(getattr(aggregation, "value", aggregation)),
+        use_cog=use_cog,
     )

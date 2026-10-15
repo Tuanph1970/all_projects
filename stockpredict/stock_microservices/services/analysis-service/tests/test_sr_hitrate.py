@@ -387,36 +387,74 @@ class TestTouchCountBaseline:
 # The EM-2 arm — awaiting S4
 # ---------------------------------------------------------------------------
 
+def _z(a, b) -> float:
+    """Two-proportion z for the difference between two arms' hit rates."""
+    p1, n1 = a.hit_rate, a.hits + a.misses
+    p2, n2 = b.hit_rate, b.hits + b.misses
+    se = math.sqrt(p1 * (1 - p1) / n1 + p2 * (1 - p2) / n2)
+    return (p1 - p2) / se if se else 0.0
+
+
 class TestEM2Arm:
 
-    def test_the_em2_arm_is_unavailable_and_says_why(self):
-        """Until `S4`, the arm must be *absent*, not silently equal to the
-        shipped arm. A fallback to the shipped levels would make the
-        comparison vacuous while looking like it passed."""
-        report = _study()
-        arm = report.arms["em2_volume"]
-        assert not arm.available
-        assert arm.reason == "volume_strength_absent_until_S4"
+    def test_the_em2_arm_now_runs(self):
+        """`S4` landed, so the arm must actually produce levels. Before it, the
+        arm reported unavailable on purpose — a fallback to the shipped levels
+        would have made the comparison vacuous while looking like it passed."""
+        arm = _study().arms["em2_volume"]
+        assert arm.available, arm.reason
+        assert arm.levels_tested > 0
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="S4 adds volume_strength; until then the EM-2 arm cannot run. "
-               "This is the C4 claim, and it must stay red until there is "
-               "evidence for it.",
-    )
-    def test_em2_levels_beat_both_the_shipped_arm_and_the_null(self):
-        """`H-S1`'s acceptance test: a method improves only if it beats BOTH.
-
-        The before-numbers make the bar explicit, and it is not where one
-        might assume: on the committed sample the random null scores *at least
-        as well as* the shipped touch-count levels, so "better than shipped"
-        is not sufficient evidence of anything. EM-2 has to clear the null.
-        """
+    def test_the_em2_arm_differs_from_the_shipped_arm(self):
+        """Guards against the arm quietly collapsing back into arm 1 — which
+        is what happens if it only re-*orders* levels, since every level in an
+        arm gets tested either way."""
         report = _study()
         em2 = report.arms["em2_volume"]
         shipped = report.arms["touch_count"]
+        assert em2.levels_tested != shipped.levels_tested
+
+    def test_the_matched_selectivity_control_is_reported(self):
+        """The EM-2 arm keeps the stronger half of its levels, so it is scored
+        on a subset. Without an arm that keeps the stronger half *by touch
+        count*, any difference could be "fewer levels, better average" rather
+        than "better selection" — the plan's W1 warning in general form."""
+        arm = _study().arms["touch_count_matched"]
+        assert arm.available
+        assert arm.levels_tested < _study().arms["touch_count"].levels_tested
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "MEASURED AT S4, AT TWO SAMPLE SIZES, AND NOT PROVEN. At the "
+            "committed 12-symbol config the EM-2 arm looked promising: 56.3% "
+            "vs the null's 55.4% (+0.88pp) and +2.26pp over the "
+            "matched-selectivity control. Re-run at 32 symbols / step 5 — "
+            "5.4x the sample — it inverts: 54.9% vs the null's 54.4% "
+            "(+0.54pp, z=+0.97) and 0.84pp BELOW the matched control "
+            "(z=-1.34). The small-sample edge was noise. Nothing here is "
+            "significant in either direction, and CLAUDE.md's C4 admits an "
+            "improvement only on significance, so this stays red. S5-S7 add "
+            "role reversal, attack count and decay; if one clears the bar "
+            "this turns XPASS(strict) and forces the marker off. Do NOT relax "
+            "the threshold, and do not quote the 12-symbol numbers as "
+            "evidence."
+        ),
+    )
+    def test_em2_levels_beat_both_the_shipped_arm_and_the_null_with_significance(self):
+        """`H-S1`'s acceptance test: a method improves only if it beats BOTH,
+        and only if the margin is real.
+
+        The before-numbers made the bar explicit and it was not where one
+        might assume — the random null scores at least as well as the shipped
+        touch-count levels, so "better than shipped" is evidence of nothing.
+        EM-2 has to clear the null, with significance.
+        """
+        report = _study()
+        em2 = report.arms["em2_volume"]
         null = report.arms["random_null"]
+        matched = report.arms["touch_count_matched"]
 
         assert em2.available, em2.reason
-        assert em2.hit_rate > shipped.hit_rate
-        assert em2.hit_rate > null.hit_rate
+        assert _z(em2, null) > 1.96, f"vs null: z={_z(em2, null):+.2f}"
+        assert _z(em2, matched) > 1.96, f"vs matched: z={_z(em2, matched):+.2f}"

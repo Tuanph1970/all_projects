@@ -119,6 +119,17 @@ enumerating `S0`–`W2`. No code.
 - **Done when:** the harness runs, the shipped and null arms have committed
   numbers, and the EM-2 arm is a failing `xfail(strict=True)` awaiting `S4`.
 
+#### ⚠️ CORRECTED AT `S4` — read the `S4` section below before using any number here
+
+The conclusion in this `S2` section is **wrong**, and the reason is sample
+size. At the committed 12-symbol configuration the random null appeared to
+match the shipped levels; at 32 symbols and step 5 — 5.4× the sample — the
+shipped touch-count levels beat the null by **+1.10 pp at z = +2.35, which is
+significant**. The "shipped levels add nothing" reading below was a power
+artifact. The numbers in the table are reproducible at their own
+configuration, so they stand as the committed regression baseline; the
+*interpretation* does not.
+
 #### MEASURED AT `S2` — the bar is not where the plan assumed
 
 The before-numbers are in `tests/baselines/em2_hitrate_touchcount.json`, and
@@ -190,6 +201,74 @@ now pins that property.
   come off, and the existing analysis-service suite is unchanged.
 - **Decide here:** whether `price` itself should later become `price_cog`
   (a `W1` sweep question), and record it.
+
+#### MEASURED AT `S4` — the fields work; the claim they were built for does not
+
+Both fields are implemented, causal, shuffle-responsive and tested (27 tests).
+`S3` went green: `volume_strength` moves when volume is permuted while level
+prices stay bit-identical, so the measure demonstrably reads the price-volume
+relationship. **`H-S1` is a different question, and the answer is no.**
+
+Run at two sample sizes, because the first answer looked too good:
+
+| arm | 12 symbols, step 10 | **32 symbols, step 5** |
+|---|---|---|
+| `touch_count` (shipped) | 54.59 % | **55.46 %** |
+| `touch_count_matched` (same selectivity) | 54.05 % | **55.74 %** |
+| `em2_volume`, SUM + `price_cog` | 56.31 % | **54.90 %** |
+| `em2_volume`, SUM + `price` | 54.40 % | **55.66 %** |
+| `em2_volume`, MAX + `price_cog` | 54.99 % | **55.16 %** |
+| `random_null` | 55.43 % | **54.36 %** |
+| resolved approaches (shipped arm) | 4,180 | **22,470** |
+
+| comparison | 12 symbols | 32 symbols |
+|---|---|---|
+| shipped vs null | −0.84 pp, z = −0.78 | **+1.10 pp, z = +2.35 → significant** |
+| matched vs null | −1.38 pp, z = −1.08 | **+1.38 pp, z = +2.51 → significant** |
+| EM-2 vs null | +0.88 pp, z = +0.70 | +0.54 pp, z = +0.97 |
+| EM-2 vs matched | +2.26 pp, z = +1.57 | **−0.84 pp, z = −1.34** |
+
+**Two findings, and the first one corrects `S2`.**
+
+1. **The shipped touch-count levels do carry real information** — +1.10 pp over
+   a matched-distance random null at z = +2.35. `S2` concluded the opposite,
+   and `S2` was underpowered. The ⚠️ note above now flags that.
+2. **The volume measures do not improve on them.** At the larger sample EM-2's
+   best configuration sits *below* the matched-selectivity control. Decomposed:
+   `volume_strength` as a **selector** is a wash against touch count (55.66 vs
+   55.74), and `price_cog` as a **location** is slightly *worse* than `price`
+   (54.90 vs 55.66). Nothing is significant in either direction.
+
+So the `H-S1` xfail **stays red**, with the measurement in its reason. `C4`
+admits an improvement only on significance, and there is none — this is the
+`S6`-style negative result arriving early, and it is not a reason to tune.
+
+**Decisions this settles:**
+
+- **`price` must NOT become `price_cog`.** The plan listed that as a `W1`
+  question and the SRS's "not in this plan" list flagged it as the larger
+  behaviour change. The evidence now says it would make the level *worse*. It
+  is off the table unless a later task produces contrary evidence, and `D1`
+  should not spend a session evaluating it.
+- **`SUM` is the default aggregation**, on evidence rather than preference
+  (55.66 vs 54.90 at the larger sample with `price_cog`; the ordering is
+  consistent but not significant, and SUM is also the closer reading of Ch 13).
+  The open question `S4` inherited from `S1` is answered.
+- **A matched-selectivity arm is mandatory** in any further comparison. EM-2
+  scores a subset, and against the *full* shipped arm it would have looked
+  better than it is — the plan's `W1` warning ("an improvement that comes from
+  doing less is not an improvement") in its general form.
+- **12 symbols at step 10 is too small for comparisons.** It is retained as the
+  committed regression baseline, which is what the guard protects, but any
+  comparative claim SHALL be run at 32 symbols / step 5 (≈3 min). `W1` should
+  set the standard sample.
+
+**What `S5`–`S7` now have to do.** They are no longer refinements to a measure
+that is already winning; they are the remaining chances for EM-2 to beat a
+benchmark that has turned out to be stronger than it looked. If role reversal,
+attack count and decay also fail to clear it, the honest outcome for this
+workstream is a documented negative result — E&M's Ch 13 claim not reproducing
+on VN daily bars — and `S9`'s consumer switch should not ship.
 
 ### S5 — Role reversal and break history
 - **Satisfies:** `FR-EM-S3`, `EC-S4`.
