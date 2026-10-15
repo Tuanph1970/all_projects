@@ -1,0 +1,106 @@
+{
+  "_comment": "EM-2 H-S1 before-numbers: the forward hit rate of the SHIPPED touch-count S/R levels and of the matched-distance random null, captured at task S2, before task S4 adds volume_strength. Do not edit by hand; regenerate with EM2_REGEN_BASELINE=1 pytest tests/test_sr_hitrate.py and say in the commit message why the numbers moved.",
+  "params": {
+    "horizon": 10,
+    "max_symbols": 12,
+    "proximity_pct": 1.0,
+    "step": 10,
+    "window": 250
+  },
+  "sources": {
+    "real:all_bars.tsv": {
+      "arms": {
+        "em2_volume": {
+          "approaches": 0,
+          "arm": "em2_volume",
+          "hit_rate": null,
+          "hits": 0,
+          "levels_tested": 0,
+          "misses": 0,
+          "reason": "volume_strength_absent_until_S4",
+          "unresolved": 0
+        },
+        "random_null": {
+          "approaches": 4291,
+          "arm": "random_null",
+          "hit_rate": 0.5543,
+          "hits": 2364,
+          "levels_tested": 15668,
+          "misses": 1901,
+          "reason": "",
+          "unresolved": 26
+        },
+        "touch_count": {
+          "approaches": 4205,
+          "arm": "touch_count",
+          "hit_rate": 0.5459,
+          "hits": 2282,
+          "levels_tested": 15777,
+          "misses": 1898,
+          "reason": "",
+          "unresolved": 25
+        }
+      },
+      "source_label": "real:all_bars.tsv",
+      "symbols": [
+        "ACB",
+        "BCM",
+        "BID",
+        "BVH",
+        "CTG",
+        "DPG",
+        "FPT",
+        "GAS",
+        "GVR",
+        "HDB",
+        "HPG",
+        "MBB"
+      ],
+      "test_dates": 1282
+    },
+    "synthetic-v1": {
+      "arms": {
+        "em2_volume": {
+          "approaches": 0,
+          "arm": "em2_volume",
+          "hit_rate": null,
+          "hits": 0,
+          "levels_tested": 0,
+          "misses": 0,
+          "reason": "volume_strength_absent_until_S4",
+          "unresolved": 0
+        },
+        "random_null": {
+          "approaches": 693,
+          "arm": "random_null",
+          "hit_rate": 0.487,
+          "hits": 336,
+          "levels_tested": 2038,
+          "misses": 354,
+          "reason": "",
+          "unresolved": 3
+        },
+        "touch_count": {
+          "approaches": 641,
+          "arm": "touch_count",
+          "hit_rate": 0.468,
+          "hits": 300,
+          "levels_tested": 2038,
+          "misses": 341,
+          "reason": "",
+          "unresolved": 0
+        }
+      },
+      "source_label": "synthetic-v1",
+      "symbols": [
+        "SYN0",
+        "SYN1",
+        "SYN2",
+        "SYN3",
+        "SYN4",
+        "SYN5"
+      ],
+      "test_dates": 204
+    }
+  }
+}

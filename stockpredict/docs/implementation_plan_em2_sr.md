@@ -119,6 +119,49 @@ enumerating `S0`–`W2`. No code.
 - **Done when:** the harness runs, the shipped and null arms have committed
   numbers, and the EM-2 arm is a failing `xfail(strict=True)` awaiting `S4`.
 
+#### MEASURED AT `S2` — the bar is not where the plan assumed
+
+The before-numbers are in `tests/baselines/em2_hitrate_touchcount.json`, and
+they change what `S4` has to clear:
+
+| arm | real VN bars, 12 symbols | synthetic random walks |
+|---|---|---|
+| shipped touch-count levels | **54.6 %** | 46.8 % |
+| matched-distance random null | **55.4 %** | 48.7 % |
+
+*(4,180 and 4,265 resolved approaches respectively; a proportion near 0.5 at
+that sample has a standard error of ±0.77 pp.)*
+
+**The shipped touch-count levels do not beat a random price at matched
+distance from spot.** The null's point estimate is in fact 0.8 pp *higher*,
+which is inside noise — the honest statement is that the two are
+indistinguishable, not that the null is better. Either way the shipped
+level-selection adds nothing measurable over "a price this far from spot".
+
+Three consequences, none of them optional:
+
+1. **"Better than the shipped arm" is not evidence of anything.** `H-S1`
+   already demanded EM-2 beat both arms; this says why that clause was load
+   bearing. If the acceptance test had been written against the shipped arm
+   alone, EM-2 could clear it by accident.
+2. **Both real-data arms sit ~6 pp above both synthetic arms** (≈55 % vs ≈48 %).
+   So real VN prices *do* mean-revert at these levels and horizons more than a
+   random walk does — there is structure in the data; the touch-count model
+   simply is not the thing that locates it. That is an encouraging result for
+   EM-2 rather than a discouraging one.
+3. **`S4`'s SUM-vs-MAX question** (inherited from `S1`'s per-touch finding) now
+   has an evidence vehicle: run `H-S1` with each aggregation and let the hit
+   rate decide, as the plan requires — on evidence, not preference.
+
+A harness defect found and fixed in the same task, recorded because it would
+have invalidated everything above: the first outcome rule counted an approach
+whenever a bar's *high* reached the level, with the close anywhere below it.
+That left the reversal threshold up to **19×** closer than the penetration
+threshold, and every arm read in the 70s. The fix requires the *close* to sit
+within the proximity band, and the null arm is what exposed it — a structureless
+series must score a coin flip, and 73 % is not one. `test_the_rule_is_not_biased_towards_hits`
+now pins that property.
+
 ### S3 — The `H-S2` volume-shuffle harness ⚠️ test-first ∥ (with S2)
 - **Satisfies:** `H-S2`.
 - **Do:** permute `volume` against price; assert `volume_strength` changes
