@@ -30,11 +30,37 @@ is updated **in the same slice** (task `S9`) to prefer `volume_strength` when
 present, so nothing keeps reading the weaker measure once the better one
 exists — which was the objection to a new field.
 
-### 2. How wide is a "congestion"? — **decide in `S1`, by measurement**
+### 2. How wide is a "congestion"? — **ANSWERED at `S1`, and not as expected**
 
-Three candidates in the SRS. `S1` implements the contiguous-run definition
-(closest to E&M's "congestion area") *and* the cheap pivot±N, and picks on
-`H-S1` separation. Not guessed here.
+Both candidate definitions were implemented, then measured against real levels.
+**Neither works when applied to a whole cluster**, because `_find_sr_levels`
+groups every visit to a price across the entire window, so a cluster's touches
+are scattered: FPT's strongest level spanned bars 114–220, TCB's spanned
+21–243 — 226 of 250 bars. "The congestion is most of the year" is not a
+congestion, and the strength that falls out of it carries no information:
+
+| span basis | relative-volume readings | spread |
+|---|---|---|
+| per cluster (first→last touch) | 0.61× – 1.18× | 0.57 |
+| **per touch** (one localised span per visit) | **0.48× – 2.44×** | **1.96** |
+
+Per-touch is **3.4× more discriminating**. So a congestion is local to a visit,
+and a level's strength is an **aggregate over its visits**.
+
+`sr_volume.py` now encodes this: `MAX_CONGESTION_BARS = 30` makes a
+cluster-wide call return `None` rather than a meaningless number — on the same
+three symbols, 19 such calls are now refused while 123 per-touch readings
+remain, spanning 0.48×–4.00×.
+
+**`S4` must therefore call the primitives once per touch and aggregate.** How to
+aggregate is now the open question `S4` inherits: sum of volume across visits
+(E&M's "volume transacted there") or max of the per-visit readings (the
+heaviest single visit). Sum is the closer reading of Ch 13; decide on `H-S1`.
+
+A second distinction the measurement forced, now in the code: a scattered
+*pivot spread* is refused, but a long contiguous *run* is **truncated, not
+refused** — a wide sideways area is a strong level in E&M's terms, so declining
+to measure it would discard exactly the information the slice is after.
 
 ### 3. Does the third-attack rule survive VN data? — **`S6` answers it**
 
