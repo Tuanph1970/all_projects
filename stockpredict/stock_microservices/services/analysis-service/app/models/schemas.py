@@ -476,6 +476,17 @@ class SRLevel(BaseModel):
             "supports/resistances lists the level appears in."
         ),
     )
+    attacks: int = Field(
+        default=0,
+        description=(
+            "EM-2 FR-EM-S4: approaches that came close to this level and were "
+            "turned away without breaking through. E&M Ch 13 hold that each "
+            "repelled attack consumes some of a level's power — the opposite "
+            "direction to `strength`, which counts touches. Carried as "
+            "evidence; whether it should weight strength is decided by the "
+            "H-S3 study, not assumed."
+        ),
+    )
     role_reversed: bool = Field(
         default=False,
         description=(

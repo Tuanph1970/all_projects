@@ -737,3 +737,152 @@ def effective_level_type(declared: Any, breaks: Sequence[Any]) -> Any:
     if direction == "up":
         return SRLevelType.SUPPORT
     return declared
+
+
+# ===========================================================================
+# S6 — attack count (`FR-EM-S4`)
+#
+# E&M Ch 13: each repelled attack consumes some of a level's power, and "it is
+# an odds-on assumption that a third attack at a Resistance Level will succeed
+# in penetrating it."
+#
+# This section implements the COUNT only. Whether strength should decrease
+# with it is E&M's prediction, not a parameter, and `H-S3` measures it before
+# any weighting is allowed to ship.
+# ===========================================================================
+
+#: How close a close must come to count as an approach, in ATR multiples.
+#: Wider than `BREAK_ATR_MULTIPLE` so that "near the level" and "through the
+#: level" are distinct regions. `FR-EM-S10` sweeps it at `W1`.
+ATTACK_PROXIMITY_ATR = 0.75
+
+
+@dataclass(frozen=True)
+class LevelAttack:
+    """One approach to a level, and how it ended.
+
+    ``penetrated`` separates E&M's two outcomes: an attack proper is an
+    approach that was *repelled*, while one that succeeded is a penetration
+    and belongs to the break history. Keeping both on the record — rather
+    than only the repulsions — is what lets `H-S3` compute a penetration rate
+    by attempt ordinal.
+    """
+    bar_index: int
+    penetrated: bool
+
+
+def detect_attacks(
+    ohlc: Any,
+    level_price: float,
+    first_bar: int = 0,
+    declared_type: Any = None,
+    proximity_atr: float = ATTACK_PROXIMITY_ATR,
+    atr_multiple: float = BREAK_ATR_MULTIPLE,
+    period: int = ATR_PERIOD,
+    atr: Any = None,
+) -> list:
+    """`FR-EM-S4` — every approach to ``level_price``, in order, with its outcome.
+
+    An **approach** opens when a close comes within ``proximity_atr`` x ATR of
+    the level. It resolves as whichever happens first:
+
+    * **penetration** — a close beyond the level by ``atr_multiple`` x ATR in
+      the direction that counts for the level's current role; or
+    * **repulsion** — a close back on the defending side, at least the
+      proximity distance away from the level.
+
+    Those two regions are disjoint, so an approach is never both. One entry
+    per approach, not per bar: a level price loiters near for twenty bars has
+    been attacked once, and counting bars would make the figure a function of
+    how long price happened to dawdle.
+
+    The role alternates on a penetration, exactly as in `detect_breaks` — a
+    support can only be attacked from above until it has been broken.
+
+    Returns an empty list rather than raising when there is no usable ATR.
+    """
+    import numpy as _np
+
+    from app.models.schemas import SRLevelType
+
+    closes = _column(ohlc, "close")
+    if not closes or level_price <= 0:
+        return []
+
+    if atr is None:
+        atr = trailing_atr(ohlc, period=period)
+
+    try:
+        close_arr = ohlc["close"].to_numpy(dtype=float, copy=False)
+    except (AttributeError, KeyError, TypeError, ValueError):
+        close_arr = _np.asarray(
+            [c if isinstance(c, (int, float)) else _np.nan for c in closes],
+            dtype=float,
+        )
+    try:
+        atr_arr = _np.asarray(atr, dtype=float)
+    except (TypeError, ValueError):
+        return []
+    if atr_arr.shape[0] != close_arr.shape[0]:
+        return []
+
+    start = max(0, int(first_bar))
+
+    if declared_type == SRLevelType.SUPPORT:
+        wanted = -1
+    elif declared_type == SRLevelType.RESISTANCE:
+        wanted = 1
+    else:
+        wanted = -1
+        for i in range(start, len(close_arr)):
+            if _np.isfinite(close_arr[i]):
+                wanted = -1 if close_arr[i] >= level_price else 1
+                break
+
+    out = []
+    open_at = None  # bar index where the current approach began
+    for i in range(start, len(close_arr)):
+        close = close_arr[i]
+        band = atr_arr[i] if i < atr_arr.shape[0] else float("nan")
+        if not _np.isfinite(close) or not _np.isfinite(band) or band <= 0:
+            continue
+
+        near_band = float(band) * proximity_atr
+        break_band = float(band) * atr_multiple
+        distance = float(close) - level_price
+
+        beyond = distance >= break_band if wanted > 0 else distance <= -break_band
+        # "Retreated" means back on the side the level is defending, far
+        # enough away that the approach is plainly over.
+        retreated = -distance >= near_band if wanted > 0 else distance >= near_band
+
+        if open_at is None:
+            if abs(distance) <= near_band:
+                open_at = i
+                # An approach already through the level on the bar it opens
+                # resolves immediately.
+                if beyond:
+                    out.append(LevelAttack(bar_index=open_at, penetrated=True))
+                    open_at = None
+                    wanted = -wanted
+            continue
+
+        if beyond:
+            out.append(LevelAttack(bar_index=open_at, penetrated=True))
+            open_at = None
+            wanted = -wanted
+        elif retreated:
+            out.append(LevelAttack(bar_index=open_at, penetrated=False))
+            open_at = None
+
+    return out
+
+
+def repelled_attacks(attacks: Sequence[Any]) -> int:
+    """`FR-EM-S4`'s `attacks` field: approaches that were turned away.
+
+    A penetration is not an attack in E&M's sense — it is the thing the
+    attacks were failing to do — and it is already on the break history, so
+    counting it here would double-count one event.
+    """
+    return sum(1 for a in attacks if not getattr(a, "penetrated", False))

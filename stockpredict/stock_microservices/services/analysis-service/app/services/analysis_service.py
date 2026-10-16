@@ -26,9 +26,11 @@ from app.models.schemas import (
 )
 from app.services.sr_volume import (
     aggregate_level_volume,
+    detect_attacks,
     detect_breaks,
     effective_level_type,
     level_price_cog,
+    repelled_attacks,
     trailing_atr,
 )
 
@@ -300,12 +302,17 @@ class AnalysisService:
             # the level is not a penetration of it.
             breaks: List[SRBreak] = []
             effective_type = kind
+            attacks = 0
             try:
                 breaks = detect_breaks(
                     ohlc, level_price, first_bar=min(bars), declared_type=kind,
                     atr=level_atr,
                 )
                 effective_type = effective_level_type(kind, breaks)
+                attacks = repelled_attacks(detect_attacks(
+                    ohlc, level_price, first_bar=min(bars), declared_type=kind,
+                    atr=level_atr,
+                ))
             except Exception:  # noqa: BLE001 — same rule as above
                 logger.warning(
                     "EM-2 break detection failed for level at %s; "
@@ -314,6 +321,7 @@ class AnalysisService:
                 )
                 breaks = []
                 effective_type = kind
+                attacks = 0
 
             levels.append(SRLevel(
                 price=level_price,
@@ -331,6 +339,7 @@ class AnalysisService:
                 breaks=breaks,
                 effective_type=effective_type,
                 role_reversed=effective_type != kind,
+                attacks=attacks,
             ))
 
         supports = [lv for lv in levels if lv.type in (SRLevelType.SUPPORT, SRLevelType.FLIP)]

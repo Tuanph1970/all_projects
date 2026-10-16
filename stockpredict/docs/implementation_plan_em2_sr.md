@@ -355,6 +355,52 @@ a unit test and should not be governed by a unit test's budget.
     odds-on, the weighting does not ship** and the count stays as evidence.
     Report the number either way.
 
+#### MEASURED AT `S6` — E&M's third-attack rule does NOT hold, and the weighting does not ship
+
+`attacks` is implemented, causal and tested (17 tests). `H-S3` then measured
+E&M's prediction on 43,316 levels and ~262,000 approaches of real VN daily bars
+(`tests/sr_attack_study.py`):
+
+| approach | n | penetrated | rate | vs 50% |
+|---|---|---|---|---|
+| 1st | 38,852 | 10,250 | **26.4 %** | z = −93.1 |
+| 2nd | 33,205 | 13,347 | **40.2 %** | z = −35.7 |
+| 3rd | 29,045 | 12,272 | **42.3 %** | z = −26.4 |
+| 4th or later | 161,672 | 63,930 | **39.5 %** | z = −84.1 |
+
+E&M: *"it is an odds-on assumption that a third attack at a Resistance Level
+will succeed in penetrating it."* Odds-on means above 50 %. **The third attack
+penetrates 42.3 % of the time — significantly *below* a coin flip.** The claim
+as stated does not reproduce.
+
+**So the weighting does not ship.** `FR-EM-S4` and this plan both
+pre-registered that consequence, and it is honoured: `attacks` is carried as
+evidence on the payload, nothing reads it, and `strength` and `volume_strength`
+are provably unadjusted by it (three tests pin that).
+
+**The tempting mistake, named so it is not made later.** The first three
+ordinals are strongly monotone — 26.4 % → 40.2 % → 42.3 % — which looks like
+support for E&M's *reasoning* ("each repelled attack consumes some of a level's
+power") even as it refutes their *number*. It would be easy to decide after the
+fact that the direction was the real claim and ship a weighting on that basis.
+That is choosing the criterion after seeing the data, which is exactly what the
+pre-registration existed to prevent. If the directional effect is worth
+exploiting it needs its own candidate, its own pre-registered criterion and its
+own out-of-sample test — not a reinterpretation of this one.
+
+**A confound that must travel with these numbers.** The scan starts at the
+level's first touch, so the pivots that *defined* the level sit inside the
+scanned range — and a pivot is by construction a place price reversed. Early
+approaches are therefore more likely to be the level's own defining touches,
+which inflates the repulsion rate at low ordinals. The gradient above is, if
+anything, **overstated**: removing the circularity would raise the penetration
+rate at ordinals 1–2 and flatten it. The headline verdict is robust to this,
+since the confound pushes the early ordinals down rather than pushing the third
+one up, and the third would have to climb from 42.3 % to above 50 %. A clean
+version would scan only after the last defining touch, which usually leaves no
+third attack inside a 250-bar window — that limitation is why it was not done
+here, and it should be stated wherever these numbers are quoted.
+
 ### S7 — Age decay and distance-away
 - **Satisfies:** `FR-EM-S5`, `FR-EM-S6`.
 - **Do:** decay with a **floor** — E&M are explicit that an old level "does not
