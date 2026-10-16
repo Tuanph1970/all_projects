@@ -84,7 +84,8 @@ PENETRATION_PCT = 1.0  # how far through to count as a penetration
 MAX_SYMBOLS = 12       # keeps the suite fast; override with EM2_MAX_SYMBOLS
 SEED = 20261015
 
-ARMS = ("touch_count", "touch_count_matched", "em2_volume", "random_null")
+ARMS = ("touch_count", "touch_count_matched", "em2_volume", "em2_role",
+        "random_null")
 
 _REAL_BARS_DEFAULT = Path("/tmp/all_bars.tsv")
 
@@ -298,6 +299,39 @@ def _em2_levels(
     return out, ""
 
 
+def _role_coherent_levels(
+    svc: AnalysisService, frame: pd.DataFrame, spot: float
+) -> List[SRLevel]:
+    """S5's arm: keep levels whose break history AGREES with where they sit.
+
+    `FR-EM-S3`'s claim is that a penetrated level is not spent — it changes
+    sides. The testable consequence is that a level is credible when the role
+    its history implies matches the role its position demands: a level above
+    spot can only resist, one below can only support.
+
+    So an unbroken support sitting below spot is coherent; so is a support
+    that was broken downward and now sits above spot acting as resistance.
+    What is dropped is the incoherent case — a level whose history says
+    "support" while it sits above price, which E&M would say has already been
+    overcome and not yet re-earned its role.
+
+    This is a *separate* arm from `em2_volume` on purpose. Conflating the two
+    would make it impossible to tell which of `FR-EM-S1` and `FR-EM-S3` was
+    responsible for any difference — the mistake the matched-selectivity arm
+    exists to avoid in the other direction.
+    """
+    out: List[SRLevel] = []
+    for lvl in _shipped_levels(svc, frame):
+        role = getattr(lvl, "effective_type", None) or lvl.type
+        if role == SRLevelType.FLIP:
+            out.append(lvl)
+        elif lvl.price > spot and role == SRLevelType.RESISTANCE:
+            out.append(lvl)
+        elif lvl.price <= spot and role == SRLevelType.SUPPORT:
+            out.append(lvl)
+    return out
+
+
 def _matched_levels(svc: AnalysisService, frame: pd.DataFrame) -> List[SRLevel]:
     """The fairness control the comparison would be confounded without.
 
@@ -489,6 +523,7 @@ def run_study(
                 em2_reason = reason
             nulls = _null_levels(shipped, spot, rng)
             matched = _matched_levels(svc, frame)
+            role_coherent = _role_coherent_levels(svc, frame, spot)
 
             per_arm: Dict[str, List[Tuple[float, bool]]] = {
                 "touch_count": [
@@ -499,6 +534,9 @@ def run_study(
                 ],
                 "em2_volume": [
                     (price, price > spot) for price, _ in em2
+                ],
+                "em2_role": [
+                    (lvl.price, lvl.price > spot) for lvl in role_coherent
                 ],
                 "random_null": [
                     (n["price"], n["type"] == SRLevelType.RESISTANCE) for n in nulls

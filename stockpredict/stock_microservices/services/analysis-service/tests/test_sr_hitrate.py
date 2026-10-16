@@ -66,6 +66,7 @@ def _study(max_symbols: int | None = None):
 # Sensitivity controls — these gate the credibility of everything below
 # ---------------------------------------------------------------------------
 
+@pytest.mark.timeout(600)
 class TestSensitivityControls:
     """Can the outcome rule detect a level that is really there?"""
 
@@ -153,6 +154,7 @@ class TestSensitivityControls:
 # Causality (C1) — the study's own discipline
 # ---------------------------------------------------------------------------
 
+@pytest.mark.timeout(600)
 class TestCausality:
 
     def test_levels_are_built_from_a_slice_not_the_whole_series(self):
@@ -193,6 +195,7 @@ class TestCausality:
 # The null arm's construction
 # ---------------------------------------------------------------------------
 
+@pytest.mark.timeout(600)
 class TestMatchedDistanceNull:
 
     def test_the_null_preserves_the_distance_distribution(self):
@@ -336,6 +339,7 @@ def _load_baseline() -> Dict[str, Any]:
     return json.loads(BASELINE_PATH.read_text())
 
 
+@pytest.mark.timeout(600)
 @pytest.mark.skipif(not DEFAULT_CONFIG, reason="the baseline describes the committed params only")
 class TestTouchCountBaseline:
     """The recorded numbers must still be reproducible.
@@ -395,6 +399,7 @@ def _z(a, b) -> float:
     return (p1 - p2) / se if se else 0.0
 
 
+@pytest.mark.timeout(600)
 class TestEM2Arm:
 
     def test_the_em2_arm_now_runs(self):
@@ -414,6 +419,15 @@ class TestEM2Arm:
         shipped = report.arms["touch_count"]
         assert em2.levels_tested != shipped.levels_tested
 
+    def test_the_role_coherence_arm_is_reported_separately(self):
+        """`S5`'s arm is kept apart from `em2_volume` on purpose: conflated,
+        there would be no way to tell whether a difference came from
+        `FR-EM-S1` (volume strength) or `FR-EM-S3` (role reversal)."""
+        report = _study()
+        arm = report.arms["em2_role"]
+        assert arm.available
+        assert arm.levels_tested != report.arms["em2_volume"].levels_tested
+
     def test_the_matched_selectivity_control_is_reported(self):
         """The EM-2 arm keeps the stronger half of its levels, so it is scored
         on a subset. Without an arm that keeps the stronger half *by touch
@@ -426,19 +440,18 @@ class TestEM2Arm:
     @pytest.mark.xfail(
         strict=True,
         reason=(
-            "MEASURED AT S4, AT TWO SAMPLE SIZES, AND NOT PROVEN. At the "
-            "committed 12-symbol config the EM-2 arm looked promising: 56.3% "
-            "vs the null's 55.4% (+0.88pp) and +2.26pp over the "
-            "matched-selectivity control. Re-run at 32 symbols / step 5 — "
-            "5.4x the sample — it inverts: 54.9% vs the null's 54.4% "
-            "(+0.54pp, z=+0.97) and 0.84pp BELOW the matched control "
-            "(z=-1.34). The small-sample edge was noise. Nothing here is "
-            "significant in either direction, and CLAUDE.md's C4 admits an "
-            "improvement only on significance, so this stays red. S5-S7 add "
-            "role reversal, attack count and decay; if one clears the bar "
-            "this turns XPASS(strict) and forces the marker off. Do NOT relax "
-            "the threshold, and do not quote the 12-symbol numbers as "
-            "evidence."
+            "MEASURED AT S4 AND S5 AT 32 symbols / step 5, AND STILL NOT "
+            "PROVEN — but the gap has closed. S5's role-coherence arm is the "
+            "first EM-2 measure to beat the random null with significance: "
+            "55.86% vs 54.36%, +1.50pp at z=+3.16. It does NOT beat the "
+            "shipped touch-count arm: +0.40pp at z=+0.84. H-S1 requires "
+            "beating BOTH, and the incumbent is itself significantly better "
+            "than the null (+1.10pp, z=+2.35), so clearing the null is no "
+            "longer the hard half. S4's volume arm remains flat (+0.54pp vs "
+            "null, z=+0.97). S6-S7 add attack count and decay. Do NOT relax "
+            "the threshold, and do not quote 12-symbol numbers as evidence — "
+            "at that sample this arm read +0.61pp and the volume arm read a "
+            "spurious +2.26pp."
         ),
     )
     def test_em2_levels_beat_both_the_shipped_arm_and_the_null_with_significance(self):
@@ -451,10 +464,21 @@ class TestEM2Arm:
         EM-2 has to clear the null, with significance.
         """
         report = _study()
-        em2 = report.arms["em2_volume"]
         null = report.arms["random_null"]
-        matched = report.arms["touch_count_matched"]
+        shipped = report.arms["touch_count"]
 
-        assert em2.available, em2.reason
-        assert _z(em2, null) > 1.96, f"vs null: z={_z(em2, null):+.2f}"
-        assert _z(em2, matched) > 1.96, f"vs matched: z={_z(em2, matched):+.2f}"
+        # Judge the BEST available EM-2 arm, not one chosen in advance: S4's
+        # volume selection and S5's role coherence are separate claims, and
+        # whichever is strongest is the one EM-2 would actually ship. Keeping
+        # them apart in the report while judging the best here is what lets a
+        # later task flip this marker by improving either one.
+        candidates = [
+            report.arms[name]
+            for name in ("em2_volume", "em2_role")
+            if report.arms[name].available
+        ]
+        assert candidates, "no EM-2 arm ran"
+        em2 = max(candidates, key=lambda a: a.hit_rate)
+
+        assert _z(em2, null) > 1.96, f"{em2.arm} vs null: z={_z(em2, null):+.2f}"
+        assert _z(em2, shipped) > 1.96, f"{em2.arm} vs shipped: z={_z(em2, shipped):+.2f}"

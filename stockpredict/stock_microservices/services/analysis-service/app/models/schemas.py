@@ -401,6 +401,23 @@ class SRTouch(BaseModel):
     pivot_type: SwingType
 
 
+class SRBreak(BaseModel):
+    """One decisive penetration of a level (EM-2 `FR-EM-S3`, E&M Ch 13).
+
+    Size is carried in ATR multiples as well as percent because the decision
+    is made in ATR multiples: EM-9 measured that a single percentage is
+    structurally wrong across kinds (median penetration 0.56%–4.47%), and the
+    same objection holds across symbols — 2% through a level is decisive on a
+    quiet large cap and is daily noise on a volatile one. `penetration_pct` is
+    for human legibility, not for thresholding.
+    """
+    direction: str                    # "up" | "down"
+    bar_index: int
+    date: str
+    penetration_atr: float            # how far beyond, in ATR multiples
+    penetration_pct: float            # the same distance as a percentage
+
+
 class SRLevel(BaseModel):
     """A clustered support/resistance level built from swing pivots (Ch 4),
     with Edwards & Magee's volume measures alongside (EM-2, `FR-EM-S1/S2`).
@@ -437,6 +454,35 @@ class SRLevel(BaseModel):
             "distribution, so this is a volume-weighted close and is not a "
             "distribution of volume across prices. Offered alongside `price`, "
             "which is unchanged."
+        ),
+    )
+    breaks: List[SRBreak] = Field(
+        default_factory=list,
+        description=(
+            "EM-2 FR-EM-S3: every decisive penetration of this level since it "
+            "formed, oldest first. A list rather than a flag because a level "
+            "can be broken more than once and in both directions (EC-S4), and "
+            "the history is part of the level's character."
+        ),
+    )
+    effective_type: Optional[SRLevelType] = Field(
+        default=None,
+        description=(
+            "EM-2 FR-EM-S3: the type implied by the break history — E&M Ch 13, "
+            "'a former Top, once surpassed, becomes a Bottom zone'. The most "
+            "recent penetration decides. Equals `type` when the level has "
+            "never been broken. Offered alongside `type`, which still answers "
+            "the pivot-composition question and still decides which of the "
+            "supports/resistances lists the level appears in."
+        ),
+    )
+    role_reversed: bool = Field(
+        default=False,
+        description=(
+            "EM-2 FR-EM-S3: true when a penetration has reversed this level's "
+            "role. Distinct from `type == FLIP`, which is a tie in pivot "
+            "composition and not a reversal at all — the SRS requires the two "
+            "be tellable apart."
         ),
     )
 

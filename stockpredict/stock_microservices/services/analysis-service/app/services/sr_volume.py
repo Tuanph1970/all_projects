@@ -521,3 +521,219 @@ def level_price_cog(
     if weight <= 0:
         return None
     return weighted / weight
+
+
+# ===========================================================================
+# S5 — role reversal and break history (`FR-EM-S3`, `EC-S4`)
+#
+# E&M Ch 13, the half they say casual chart readers never grasp: "a former
+# Top, once surpassed, becomes a Bottom zone; an old Bottom, once penetrated,
+# becomes a Top zone." A penetrated level is not spent — it changes sides.
+# ===========================================================================
+
+#: How far beyond a level a close must sit to count as a decisive penetration,
+#: in multiples of the symbol's own trailing ATR.
+#:
+#: ATR multiples rather than a percentage, by requirement. `FR-EM-S3` forbids
+#: inventing a number and points at EM-9, which measured that one percentage
+#: is structurally wrong across kinds: median penetration ran from 0.56%
+#: (SR_BOUNCE) to 4.47% (SR_BREAKOUT), an eightfold spread, so the book's 3%
+#: is "nearly inert for one and nearly total for the other"
+#: (docs/em9_penetration_filter_sweep.md). The same objection applies across
+#: symbols: 2% through a level is decisive on a quiet large cap and is daily
+#: noise on a volatile small cap. `FR-EM-S10` sweeps this at `W1`.
+BREAK_ATR_MULTIPLE = 0.5
+
+#: Wilder's period, matching `analysis_service._calculate_atr` so the two
+#: never disagree about what a symbol's volatility is.
+ATR_PERIOD = 14
+
+
+def trailing_atr(ohlc: Any, period: int = ATR_PERIOD):
+    """Wilder's ATR, aligned to the frame.
+
+    Deliberately the same formulation as `AnalysisService._calculate_atr` —
+    EM-1's `S1` note applies here too: do not invent a second vocabulary for
+    an idea the codebase already has. It is reimplemented rather than imported
+    only because importing the service into this module would make a cycle.
+
+    Causal by construction: `ewm` reads each bar and its predecessors, never
+    its successors, and `min_periods` keeps the warm-up NaN rather than
+    back-filling it from the future.
+    """
+    import pandas as pd
+
+    if not isinstance(ohlc, pd.DataFrame) or len(ohlc) == 0:
+        return pd.Series(dtype=float)
+    for col in ("high", "low", "close"):
+        if col not in ohlc.columns:
+            return pd.Series([float("nan")] * len(ohlc))
+
+    high = ohlc["high"].astype(float)
+    low = ohlc["low"].astype(float)
+    close = ohlc["close"].astype(float)
+    prev_close = close.shift(1)
+    tr = pd.concat(
+        [(high - low), (high - prev_close).abs(), (low - prev_close).abs()],
+        axis=1,
+    ).max(axis=1)
+    return tr.ewm(alpha=1.0 / period, adjust=False, min_periods=period).mean()
+
+
+def detect_breaks(
+    ohlc: Any,
+    level_price: float,
+    first_bar: int = 0,
+    declared_type: Any = None,
+    atr_multiple: float = BREAK_ATR_MULTIPLE,
+    period: int = ATR_PERIOD,
+    atr: Any = None,
+) -> list:
+    """`FR-EM-S3` — every decisive penetration of ``level_price``, in order.
+
+    A penetration is **against the level's current role**, and the role
+    alternates as the level is broken. That asymmetry is the whole of E&M's
+    Ch 13 mechanic and it is not optional: a *support* is penetrated when
+    price closes decisively **below** it — price being above a support is
+    simply where price lives, not a break. Once that support has been
+    penetrated it becomes resistance, and the next thing that counts is a
+    decisive close back **above**.
+
+    Without the alternation this function reports a support as "broken
+    upward" on every ordinary rally, which is both meaningless and enough to
+    swamp the real breaks. A quiet-fixture test caught exactly that.
+
+    The starting role is ``declared_type`` when given; otherwise it is
+    inferred from which side of the level price sits on at ``first_bar``,
+    deterministically.
+
+    Staying beyond records **one** break, not one per bar: a level penetrated
+    once and left behind has been broken once, and counting every subsequent
+    bar would make the history a function of how long the frame happens to be.
+
+    Scanning starts at ``first_bar`` — normally the level's first touch —
+    because a crossing that predates the level is not a penetration of it.
+
+    Returns an empty list rather than raising when the frame is too short to
+    form an ATR. That matters: a zero or NaN ATR would otherwise make every
+    crossing look infinitely decisive.
+
+    ``atr`` lets a caller pass a precomputed series. `_find_sr_levels` does,
+    because the ATR is a property of the frame and not of the level: computing
+    it per level turned a 12-second test suite into a two-minute one.
+    """
+    import math as _math
+
+    from app.models.schemas import SRBreak
+
+    closes = _column(ohlc, "close")
+    if not closes or level_price <= 0:
+        return []
+
+    if atr is None:
+        atr = trailing_atr(ohlc, period=period)
+    dates = None
+    try:
+        if hasattr(ohlc, "columns") and "date" in ohlc.columns:
+            dates = ohlc["date"].astype(str).tolist()
+    except Exception:  # noqa: BLE001 — a malformed date column must not break levels
+        dates = None
+
+    from app.models.schemas import SRLevelType
+
+    start = max(0, int(first_bar))
+
+    # Which way a penetration has to go to count. +1 means "a decisive close
+    # ABOVE is the break" (the level is acting as resistance); -1 means a
+    # decisive close BELOW is the break (acting as support).
+    if declared_type == SRLevelType.SUPPORT:
+        wanted = -1
+    elif declared_type == SRLevelType.RESISTANCE:
+        wanted = 1
+    else:
+        # FLIP, or unspecified: infer from the side price is on when the scan
+        # begins. Above the level it is acting as support, below it as
+        # resistance. Deterministic, and it matches what the chart shows.
+        wanted = -1
+        for i in range(start, len(closes)):
+            c = _usable(closes[i])
+            if c is None:
+                continue
+            wanted = -1 if c >= level_price else 1
+            break
+
+    # Vectorised candidate search. The role alternation below is inherently
+    # sequential, but deciding *which bars are beyond the band at all* is not,
+    # and doing that per bar in Python cost 30s on the H-S1 harness — over
+    # pytest.ini's own 30s timeout. Only the candidate bars are then walked.
+    import numpy as _np
+
+    # Take the column straight from the frame where we can: the list
+    # round-trip in `_column` is two O(n) conversions per level, and
+    # `_find_sr_levels` calls this once per level.
+    try:
+        close_arr = ohlc["close"].to_numpy(dtype=float, copy=False)
+    except (AttributeError, KeyError, TypeError, ValueError):
+        close_arr = _np.asarray(
+            [c if isinstance(c, (int, float)) else _np.nan for c in closes],
+            dtype=float,
+        )
+    try:
+        band_arr = _np.asarray(atr, dtype=float) * atr_multiple
+    except (TypeError, ValueError):
+        return []
+    if band_arr.shape[0] != close_arr.shape[0]:
+        return []
+
+    valid = _np.isfinite(close_arr) & _np.isfinite(band_arr) & (band_arr > 0)
+    above = valid & (close_arr >= level_price + band_arr)
+    below = valid & (close_arr <= level_price - band_arr)
+    candidates = _np.flatnonzero((above | below))
+    candidates = candidates[candidates >= start]
+
+    out = []
+    for i in candidates:
+        i = int(i)
+        beyond = above[i] if wanted > 0 else below[i]
+        if not beyond:
+            continue
+        close = float(close_arr[i])
+        band = float(band_arr[i])
+
+        out.append(SRBreak(
+            direction="up" if wanted > 0 else "down",
+            bar_index=i,
+            date=dates[i] if dates and i < len(dates) else str(i),
+            penetration_atr=round(abs(close - level_price) / (band / atr_multiple), 4),
+            penetration_pct=round(abs(close - level_price) / level_price * 100.0, 4),
+        ))
+        # The role has now flipped, so the next thing that counts is a
+        # penetration back the other way (`EC-S4`).
+        wanted = -wanted
+
+    return out
+
+
+def effective_level_type(declared: Any, breaks: Sequence[Any]) -> Any:
+    """`FR-EM-S3` + `EC-S4` — the type the break history implies.
+
+    The **most recent** penetration decides: broken downward, the level now
+    sits above price and acts as resistance; broken upward, it acts as
+    support. With no breaks the declared pivot-composition type stands.
+
+    `FLIP` is left alone. It is a tie in pivot composition, not a reversal,
+    and the SRS is explicit that the two concepts must stay distinguishable —
+    which is why this returns a *separate* answer rather than overwriting the
+    declared type.
+    """
+    from app.models.schemas import SRLevelType
+
+    if not breaks:
+        return declared
+    last = breaks[-1]
+    direction = getattr(last, "direction", None)
+    if direction == "down":
+        return SRLevelType.RESISTANCE
+    if direction == "up":
+        return SRLevelType.SUPPORT
+    return declared

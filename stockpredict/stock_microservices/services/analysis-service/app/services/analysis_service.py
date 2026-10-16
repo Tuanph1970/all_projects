@@ -21,10 +21,16 @@ from app.models.schemas import (
     CompanyInfo, ValuationSummary, ValuationFactor, FinancialRatios,
     GrowthMetrics, IncomeStatement, BalanceSheet, CashFlow,
     AtrPoint, AtrResponse, SwingType, SwingPivot, SwingsResponse,
-    SRLevelType, SRTouch, SRLevel, SRResponse,
+    SRLevelType, SRTouch, SRLevel, SRBreak, SRResponse,
     Regime, RegimeFeatures, RegimeResponse,
 )
-from app.services.sr_volume import aggregate_level_volume, level_price_cog
+from app.services.sr_volume import (
+    aggregate_level_volume,
+    detect_breaks,
+    effective_level_type,
+    level_price_cog,
+    trailing_atr,
+)
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -247,6 +253,15 @@ class AnalysisService:
             else:
                 clusters.append([p])
 
+        # Computed once for the frame, not once per level: the ATR is a
+        # property of the symbol's volatility, and recomputing it inside the
+        # loop is a measurable regression on callers that build levels in bulk
+        # (the H-S1 harness builds them thousands of times).
+        try:
+            level_atr = trailing_atr(ohlc)
+        except Exception:  # noqa: BLE001
+            level_atr = None
+
         levels: List[SRLevel] = []
         for cluster in clusters:
             prices = [p.price for p in cluster]
@@ -280,6 +295,26 @@ class AnalysisService:
                     exc_info=True,
                 )
 
+            # FR-EM-S3: the level's break history, and the type it implies.
+            # Scanned from the level's FIRST touch — a crossing that predates
+            # the level is not a penetration of it.
+            breaks: List[SRBreak] = []
+            effective_type = kind
+            try:
+                breaks = detect_breaks(
+                    ohlc, level_price, first_bar=min(bars), declared_type=kind,
+                    atr=level_atr,
+                )
+                effective_type = effective_level_type(kind, breaks)
+            except Exception:  # noqa: BLE001 — same rule as above
+                logger.warning(
+                    "EM-2 break detection failed for level at %s; "
+                    "reporting no break history", level_price,
+                    exc_info=True,
+                )
+                breaks = []
+                effective_type = kind
+
             levels.append(SRLevel(
                 price=level_price,
                 type=kind,
@@ -293,6 +328,9 @@ class AnalysisService:
                 ],
                 volume_strength=volume_strength,
                 price_cog=price_cog,
+                breaks=breaks,
+                effective_type=effective_type,
+                role_reversed=effective_type != kind,
             ))
 
         supports = [lv for lv in levels if lv.type in (SRLevelType.SUPPORT, SRLevelType.FLIP)]

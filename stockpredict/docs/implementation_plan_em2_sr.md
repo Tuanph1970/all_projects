@@ -282,6 +282,65 @@ on VN daily bars — and `S9`'s consumer switch should not ship.
 - **Tests:** a level broken then re-approached from the other side reverses; a
   level broken twice in opposite directions resolves by recency (`EC-S4`).
 
+#### MEASURED AT `S5` — the first EM-2 measure to beat the null
+
+Break history, role alternation and `effective_type` are implemented, causal
+and tested (21 tests). Measured at 32 symbols / step 5, as `S4` made mandatory:
+
+| arm | hit rate | vs null | vs shipped |
+|---|---|---|---|
+| `random_null` | 54.36 % | — | — |
+| `touch_count` (shipped) | 55.46 % | **+1.10 pp, z = +2.35** | — |
+| `touch_count_matched` | 55.74 % | +1.38 pp, z = +2.51 | — |
+| `em2_volume` (S4) | 54.90 % | +0.54 pp, z = +0.97 | −0.56 pp |
+| **`em2_role` (S5)** | **55.86 %** | **+1.50 pp, z = +3.16** | +0.40 pp, z = +0.84 |
+
+**`em2_role` is the first EM-2 measure to beat the random null with
+significance.** It is also the first evidence in this workstream that an E&M
+idea reproduces on VN daily bars at all.
+
+It still does **not** clear `H-S1`, which requires beating *both* arms. Against
+the shipped touch-count levels it is +0.40 pp at z = +0.84 — not significant.
+And since the incumbent itself beats the null significantly, clearing the null
+is no longer the hard half of the test. The xfail stays red, with both
+measurements in its reason.
+
+**The arm, and why it is kept separate.** `em2_role` keeps levels whose break
+history *agrees with where they sit*: a level above spot must be acting as
+resistance, one below must be acting as support. An unbroken support below
+spot qualifies; so does a support broken downward that now sits above spot
+acting as resistance — E&M's Ch 13 mechanic exactly. What it drops is the
+incoherent case. It is a light filter, discarding ~5 % of observations. It is
+reported **separately** from `em2_volume` so that a difference can be
+attributed to `FR-EM-S3` or to `FR-EM-S1`, never to an unidentifiable mixture.
+
+**A design flaw the tests caught.** The first implementation recorded a
+penetration in either direction, which reported a *support* as "broken upward"
+on every ordinary rally — price being above a support is where price lives,
+not a break. Meaningless entries, and enough of them to swamp the real ones.
+The fix is role **alternation**: a penetration counts only against the level's
+current role, and the role flips when it happens. That is both the correct
+reading of Ch 13 and what makes `EC-S4`'s "both directions" coherent — a
+support can only be broken upward *after* it has become resistance. A
+quiet-fixture test (one whose routine swing stays inside the ATR band)
+surfaced it.
+
+**Deliberate deviation from this plan's wording.** The plan said "the most
+recent penetration decides the current type". `type` is left alone and the
+answer surfaces as `effective_type` + `role_reversed` alongside it, because
+`type` decides which of the supports/resistances lists a level lands in and
+three live consumers read those lists. Switching them on a model that has not
+yet cleared `H-S1` is the mistake this plan keeps avoiding; `S9`/`D1` can make
+the switch with evidence. `FR-EM-S3`'s own requirement — that a reversed level
+be distinguishable from a `FLIP` — needs the extra field either way.
+
+**A performance regression, found and fixed.** Scoring breaks per level turned
+the study from 3 s into 32 s, over `pytest.ini`'s own 30 s timeout. Two causes:
+ATR recomputed per level when it is a property of the frame, and a per-bar
+Python loop where a vectorised candidate search does. Both fixed (21 s), and
+the study classes now carry an explicit `timeout(600)` because a study is not
+a unit test and should not be governed by a unit test's budget.
+
 ### S6 — Attack count, and the third-attack study
 - **Satisfies:** `FR-EM-S4`, `H-S3`.
 - **Do:** `attacks: int` — approaches within proximity that reversed without
