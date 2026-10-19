@@ -525,6 +525,85 @@ windows, which is its own slice.
   in a total that comes from *doing less* is not an improvement — EM-9's net
   P&L rose 37% purely on 35% fewer trades.
 
+#### MEASURED AT `W1` — the verdict survives tuning, and it is now settled
+
+Full report: **`docs/em2_s_sweep.md`**. Harness: `tests/sr_sweep.py`, with
+`tests/test_sr_sweep_mechanism.py` as its anti-trap guard.
+
+`W1` had two jobs. The sweep `FR-EM-S10` always required, and the objection
+`S7` raised: that a badly chosen threshold might be understating EM-2 across
+the board. **The objection is answered and the verdict stands.**
+
+Every point-estimate-best setting, stacked, at 32 symbols / step 5:
+
+| arm | rate | vs shipped | vs matched | vs null |
+|---|---|---|---|---|
+| `random_null` | 54.36 % | — | — | — |
+| `touch_count` | 55.46 % | — | — | — |
+| `touch_count_matched` | 55.74 % | — | — | — |
+| `em2_volume` | 55.80 % | z = +0.61 | z = +0.10 | z = +2.59 ✓ |
+| `em2_role` | 55.84 % | z = +0.77 | z = +0.18 | z = +3.03 ✓ |
+| `em2_adjusted` | **55.89 %** | z = +0.76 | z = +0.24 | z = +2.72 ✓ |
+
+The tuning **does** help EM-2 internally — `em2_volume` rises 54.90 % → 55.80 %
+once the congestion neighbourhood is widened, so the default genuinely was
+understating it, which is precisely the risk `W1` existed to find. And it
+changes nothing: the highest `z` against `touch_count` anywhere in 24 grid runs
+plus the stacked run is **+0.97**.
+
+**Defaults retained.** `C4` admits an improvement only on significance and the
+best point estimate is under 1 σ; adopting it would be tuning to noise. Five of
+the seven defaults were already the point-estimate best, which is the useful
+half of the answer — the thresholds were not badly chosen, so EM-2's parity
+with touch count is not a tuning artifact.
+
+Three things worth carrying forward:
+
+* **`BREAK_ATR_MULTIPLE` has the sweep's only monotone gradient**, favouring a
+  *stricter* penetration test (0.25 → 2.0 rises throughout). If any EM-2
+  measure is ever revisited, this is the one with real signal behind it. E&M's
+  own 3 %-of-price filter is nearer 2 ATR than 0.5 for a typical VN name.
+* **Age and distance are effectively inert** — every setting inside 0.4 pp,
+  under one standard error. For age that is `S7`'s window limitation (E&M speak
+  in years; 250 bars is one). For distance it is a result: E&M's 10 % is as
+  good as anything and the effect is tiny.
+* **Two thresholds cannot move `H-S1` at all** and are documented as inert
+  rather than swept to a flat row, since flat is the harness's bug signal:
+  `MAX_CONGESTION_BARS` (a misuse guard `S4` never triggers, still verified
+  functional) and `ATTACK_PROXIMITY_ATR` (nothing consumes `attacks` after
+  `S6` refused the weighting).
+
+**One defect found and fixed.** `DEFAULT_NEIGHBOURHOOD = 1` silently disables
+the whole volume path — a 2-bar span falls below `MIN_CONGESTION_BARS`, so
+every `congestion_span` call returns `None` and `volume_strength`, `price_cog`
+and `adjusted_strength` are all `None` for every level, with no error raised.
+`sr_volume` now asserts the relationship at import. Only the sweep's
+small-sample flag noticed.
+
+**A harness correction worth recording**, because it is the kind of thing that
+discredits a study: the flatness check must ask about the arm each parameter
+*feeds*. `BREAK_ATR_MULTIPLE` moves `em2_role` and leaves `em2_adjusted`
+bit-identical, so the first run flagged it `FLAT - SUSPECT` — a false alarm
+that would have cast doubt on the real ones. `ARM_OF_EFFECT` fixes it, and a
+test keeps the map complete.
+
+### EM-2 is now decided
+
+`W1` was the last thing that could have overturned `S7`, so the pre-registered
+conclusion is final:
+
+* E&M's Ch 13 levels are **real** — every arm at every setting beats a
+  matched-distance random null significantly, and so does the shipped model.
+* Three criteria reproduce **directionally**; one quantitative claim is
+  **refuted** (the third attack, z = −26.4).
+* **No EM-2 measure beats counting touches**, at any threshold, stacked, at
+  full sample.
+
+So **`S9` does not ship**, `S8` is moot (it would add levels carrying no volume
+strength to a ranking nothing consumes), and `D1` has nothing to compare. The
+remaining work is `W2`: write it up as a documented negative result. The fields
+stay on the payload as evidence and as the basis for any future candidate.
+
 ### W2 — User guide
 - Bilingual VI/EN section in
   `docs/USER_GUIDE_chart_decomp_and_decision_tools.md`, matching that file's

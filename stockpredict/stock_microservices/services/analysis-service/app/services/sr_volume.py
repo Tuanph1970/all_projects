@@ -87,6 +87,23 @@ MAX_CONGESTION_BARS = 30
 DEFAULT_NEIGHBOURHOOD = 3       # pivot +/- this, in NEIGHBOURHOOD mode
 DEFAULT_TOLERANCE_PCT = 2.0     # matches _find_sr_levels' own cluster tolerance
 
+# A per-touch NEIGHBOURHOOD span runs from `pivot - window` to the pivot
+# itself, so it is `window + 1` bars long. If that falls below
+# MIN_CONGESTION_BARS, `congestion_span` refuses every touch and the whole
+# volume path goes quietly dark: volume_strength, price_cog and
+# adjusted_strength all come back None for every level, with no error raised
+# anywhere and the EM-2 arms simply absent from any study.
+#
+# Found at `W1` with DEFAULT_NEIGHBOURHOOD=1, where the sweep's small-sample
+# flag was the only thing that noticed (docs/em2_s_sweep.md). Guarded at
+# import so a future edit to either constant fails loudly instead.
+assert DEFAULT_NEIGHBOURHOOD + 1 >= MIN_CONGESTION_BARS, (
+    f"DEFAULT_NEIGHBOURHOOD={DEFAULT_NEIGHBOURHOOD} yields a "
+    f"{DEFAULT_NEIGHBOURHOOD + 1}-bar per-touch span, below "
+    f"MIN_CONGESTION_BARS={MIN_CONGESTION_BARS}. Every congestion_span() call "
+    f"would return None and the entire volume path would silently disable."
+)
+
 #: A span whose bars are this fraction zero-volume or fewer is still usable;
 #: above it the level is reported thin (`EC-S2`).
 MAX_DORMANT_FRACTION = 0.5
