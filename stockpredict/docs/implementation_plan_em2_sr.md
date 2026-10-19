@@ -604,11 +604,37 @@ strength to a ranking nothing consumes), and `D1` has nothing to compare. The
 remaining work is `W2`: write it up as a documented negative result. The fields
 stay on the payload as evidence and as the basis for any future candidate.
 
-### W2 — User guide
+### W2 — User guide ✅ DONE
 - Bilingual VI/EN section in
   `docs/USER_GUIDE_chart_decomp_and_decision_tools.md`, matching that file's
   convention, explaining what a volume-weighted level means to a trader and
   that level strength no longer counts touches.
+
+#### WRITTEN AT `W2` — and the task's own brief had to be corrected
+
+Shipped as **§2.2.2**, placed beside EM-1's §2.2.1 since they are the same
+family, with a TOC entry nested under the Decision Console.
+
+**The brief above is wrong and was not followed.** It says the section should
+explain "that level strength no longer counts touches" — written before any
+measurement, when the switch was still expected to ship. `S4`–`S7` and `W1`
+then established the opposite: `strength` **does** still count touches,
+because the volume-weighted measures never beat it. Writing the plan's
+sentence would have told users a falsehood about their own levels.
+
+So the section says the true thing instead, and leads with it: **nothing
+changed, and that is the conclusion rather than unfinished work.** It carries
+the three-row reversal-rate table (random 54.4 % · touch count 55.5 % · E&M
+55.8 %), the two findings that sit together — support and resistance are
+*real*, and E&M's method does not beat the incumbent — the refuted
+third-attack prediction with its 26.4 → 40.2 → 42.3 % progression, a field
+guide for API users, and the one-year-window caveat that bounds the age
+result.
+
+This is the second deliverable in EM-2 where the plan's pre-registered wording
+had to yield to the measurement (the first was `S5`'s `type` switch). Both are
+recorded rather than quietly reworded, because a plan that silently rewrites
+itself to match its results is worth nothing as a pre-registration.
 
 ---
 

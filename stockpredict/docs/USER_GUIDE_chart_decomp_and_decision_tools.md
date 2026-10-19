@@ -23,6 +23,7 @@
 - [2.1 Tổng quan / General View](#21--tổng-quan--general-view)
 - [2.2 Màn hình quyết định / Decision Console](#22--màn-hình-quyết-định--decision-console)
   - [2.2.1 — Xác nhận bằng khối lượng / Volume validation](#221--xác-nhận-bằng-khối-lượng--volume-validation-edwards--magee)
+  - [2.2.2 — Vùng hỗ trợ/kháng cự / Support & resistance](#222--vùng-hỗ-trợkháng-cự-điều-đã-đo-và-điều-không-đổi--support--resistance-what-was-measured-and-what-did-not-change-edwards--magee)
 - [2.3 Bảng quyết định Watchlist / Watchlist Board](#23--bảng-quyết-định-watchlist--watchlist-board)
 - [2.4 Phòng thử nghiệm Backtest / Backtest Studio](#24--phòng-thử-nghiệm-backtest--backtest-studio)
 - [2.5 Kỷ luật giao dịch / Discipline Dashboard](#25--kỷ-luật-giao-dịch--discipline-dashboard)
@@ -299,6 +300,58 @@ This menu has 12 sub-items forming an end-to-end trading workflow: **understand 
 **🔧 Thông số / Parameters**
 - **VI:** Cửa sổ so sánh khối lượng mặc định là **100 phiên** (hiển thị trong phản hồi API là `baseline_window`); "cao trào" dùng cửa sổ dài **120 phiên**. Các giá trị này được **đo và chọn bằng dữ liệu**, không phải lấy từ sách — xem `docs/em1_s2_parameter_sweep.md`.
 - **EN:** The volume comparison window defaults to **100 bars** (reported as `baseline_window` in the API response); the climax check uses a longer **120-bar** window. These values were **measured and chosen from data**, not taken from the book — see `docs/em1_s2_parameter_sweep.md`.
+
+---
+
+## 2.2.2 — Vùng hỗ trợ/kháng cự: điều đã đo và điều không đổi / Support & resistance: what was measured, and what did not change (Edwards & Magee)
+
+**🎯 Lợi ích / Benefit**
+- **VI:** Edwards & Magee dành cả chương 13 để lập luận rằng sức mạnh của một **vùng hỗ trợ/kháng cự** không nằm ở việc giá **chạm vào đó bao nhiêu lần**, mà ở **khối lượng đã sang tay tại đó** — cộng với tuổi của vùng và việc giá đã đi xa khỏi nó đến đâu. Chúng tôi đã xây dựng đúng các thước đo đó và **đo xem chúng có thật sự tốt hơn không**. Mục này cho bạn biết kết quả — và vì sao **màn hình của bạn không thay đổi gì cả**.
+- **EN:** Edwards & Magee spend all of Chapter 13 arguing that a **support/resistance level**'s strength lies not in **how many times price touched it** but in **the volume that changed hands there** — plus the level's age and how far price later travelled away from it. We built exactly those measures and **tested whether they are actually better**. This section tells you the answer — and why **nothing on your screen changed**.
+
+**⚠️ Điều quan trọng nhất / The one thing to know**
+- **VI:** **Không có gì thay đổi về hành vi.** Vùng hỗ trợ/kháng cự bạn thấy hôm nay được tính **y hệt như trước**: `strength` vẫn là **số lần chạm**. Điểm dừng lỗ theo biểu đồ, mục tiêu giá, và tín hiệu bật/phá vùng — cả ba đều **không bị đụng tới**. Lý do rất đơn giản: chúng tôi đã đo, và thước đo mới **không tốt hơn**. Giữ nguyên là kết luận, không phải là việc còn dang dở.
+- **EN:** **No behaviour changed.** The levels you see today are computed **exactly as before**: `strength` is still a **touch count**. The chart stop, the price target and the bounce/breakout signals are all **untouched**. The reason is simple: we measured, and the new measures are **not better**. Leaving it alone is the conclusion, not unfinished work.
+
+**📊 Kết quả đo / What the measurement found**
+- **VI:** Phép thử: với mỗi vùng, giá có **bật lại** tại đó hay **xuyên qua** nó? Đo trên **32 mã VN thật**, chỉ dùng dữ liệu có trước ngày thử (không nhìn trước tương lai), và so với một **vùng giả đặt ngẫu nhiên ở cùng khoảng cách** so với giá hiện tại.
+
+  | Cách chọn vùng | Tỷ lệ bật lại |
+  |---|---|
+  | Vùng giả ngẫu nhiên (mốc so sánh) | 54,4 % |
+  | **Đếm số lần chạm (đang dùng)** | **55,5 %** |
+  | Theo khối lượng + tuổi + khoảng cách (E&M) | 55,8 % |
+
+  Hai điều cùng đúng: (1) **vùng hỗ trợ/kháng cự là có thật** — mọi cách chọn đều thắng vùng giả ngẫu nhiên một cách **có ý nghĩa thống kê**; (2) **cách của E&M không thắng được cách đang dùng** — chênh lệch 0,3 điểm phần trăm nằm trong sai số. Chúng tôi còn thử **mọi tổ hợp tham số tốt nhất cùng lúc**, kết quả vẫn vậy.
+- **EN:** The test: for each level, did price **reverse** there or **penetrate** it? Measured on **32 real VN symbols**, using only data available before the test date (no look-ahead), against a **random level placed at the same distance** from spot.
+
+  | How the level was chosen | Reversal rate |
+  |---|---|
+  | Random level (the benchmark) | 54.4 % |
+  | **Touch count (what ships)** | **55.5 %** |
+  | Volume + age + distance (E&M) | 55.8 % |
+
+  Two things are true at once: (1) **support and resistance are real** — every method beats a random price **significantly**; (2) **E&M's method does not beat the one already shipping** — the 0.3-point gap is inside the margin of error. We also tried **every best parameter setting stacked together**, and the answer did not move.
+
+**🔎 Một dự đoán của sách đã bị bác bỏ / One of the book's predictions was refuted**
+- **VI:** E&M viết: *"gần như chắc chắn rằng lần tấn công thứ ba vào một vùng kháng cự sẽ xuyên thủng được nó."* Trên dữ liệu VN, tỷ lệ xuyên thủng theo lần tiếp cận là **26,4 % → 40,2 % → 42,3 %**. Xu hướng *đúng* chiều (mỗi lần bị đẩy lui làm vùng yếu đi một chút), nhưng lần thứ ba **chỉ 42,3 %** — tức là **vẫn nghiêng về bật lại**, không phải xuyên thủng. Vì vậy chúng tôi **không** dùng số lần tấn công để giảm điểm một vùng. Con số `attacks` vẫn được ghi lại để bạn tham khảo.
+- **EN:** E&M write: *"it is an odds-on assumption that a third attack at a Resistance Level will succeed in penetrating it."* On VN data the penetration rate by approach is **26.4 % → 40.2 % → 42.3 %**. The *direction* is right — each repelled attack does weaken the level a little — but the third attack is **only 42.3 %**, so it still **favours a reversal**, not a break. We therefore **do not** use the attack count to discount a level. The `attacks` figure is still recorded for your reference.
+
+**🛠️ Nếu bạn dùng API / If you use the API**
+- **VI:** Các thước đo mới **có mặt trong phản hồi** của `GET /analysis/sr/{mã}`, dưới dạng **bằng chứng** — không có thước đo nào ảnh hưởng tới khuyến nghị:
+  - `volume_strength` — khối lượng đã sang tay tại vùng, **so với chính mã đó** (không bao giờ là số cổ phiếu tuyệt đối).
+  - `price_cog` — "trọng tâm" của vùng: giá đóng cửa **bình quân gia quyền theo khối lượng**. Lưu ý đây là một **xấp xỉ**: dữ liệu ngày không có phân bố khối lượng trong phiên.
+  - `breaks`, `effective_type`, `role_reversed` — lịch sử bị xuyên thủng và vai trò mà lịch sử đó hàm ý. E&M: *"một Đỉnh cũ, khi đã bị vượt qua, trở thành vùng Đáy."* `type` **vẫn giữ nghĩa cũ**.
+  - `attacks`, `age_decay`, `excursion_pct`, `adjusted_strength` — số lần bị đẩy lui, hệ số suy giảm theo tuổi, khoảng cách xa nhất giá từng đi khỏi vùng, và điểm tổng hợp.
+- **EN:** The new measures **are present in the response** of `GET /analysis/sr/{symbol}`, as **evidence** — none of them affects any recommendation:
+  - `volume_strength` — the volume that changed hands at the level, **relative to that symbol itself** (never an absolute share count).
+  - `price_cog` — the level's "centre of gravity": the **volume-weighted** mean close. Note this is an **approximation**: daily bars carry no intraday volume distribution.
+  - `breaks`, `effective_type`, `role_reversed` — the penetration history and the role it implies. E&M: *"a former Top, once surpassed, becomes a Bottom zone."* `type` **keeps its original meaning**.
+  - `attacks`, `age_decay`, `excursion_pct`, `adjusted_strength` — repelled approaches, the age multiplier, the furthest price ever travelled from the level, and the composite score.
+
+**🔧 Thông số / Parameters**
+- **VI:** Mọi ngưỡng đều **giữ nguyên mặc định**, và đó là một kết luận có bằng chứng: 5 trong 7 ngưỡng đã sẵn là giá trị tốt nhất đo được. Chi tiết toàn bộ phép quét: `docs/em2_s_sweep.md`. Một lưu ý của sách **không** tái lập được ở đây: E&M nói vùng 1–2 năm tuổi mạnh hơn vùng 4–5 năm, nhưng cửa sổ phân tích của chúng ta chỉ khoảng **1 năm**, nên hiệu ứng tuổi gần như không có chỗ để thể hiện.
+- **EN:** Every threshold **keeps its default**, and that is an evidence-backed conclusion: 5 of the 7 were already the best-measured value. Full sweep: `docs/em2_s_sweep.md`. One caveat the book's claim could **not** be tested here: E&M say a one-to-two-year-old level beats a four-to-five-year-old one, but our analysis window is about **one year**, so the age effect has almost no room to show itself.
 
 ---
 
