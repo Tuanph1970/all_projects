@@ -73,6 +73,31 @@ class BacktestConfig:
     # of 150 exits were followed by a new entry on the SAME bar.
     reentry_cooldown_bars: int = 1     # bars that must pass after a close
     failed_signal_grace_bars: int = 2  # failed-signal override is muted this long
+
+    # Backlog #82 — whether the failed-signal override may close a position
+    # at all. It may not, by default, and that is a MEASURED decision:
+    #
+    #   criterion, pre-registered: the override earns its place only if GROSS
+    #   P&L PER TRADE is higher with it on. (Gross and per-trade, because at
+    #   ~3x fees an arm wins on net by trading less, and turning the override
+    #   off reduces turnover by construction — #80's lesson.)
+    #
+    #   measured, 12 real VN symbols:
+    #                       trades  bars/trade  median hold  gross/trade
+    #     override ON         2,581        4.64          2d       -20.46
+    #     override OFF        1,345        8.91          6d       -11.81
+    #                                          Welch t = -0.44 (ns)
+    #
+    # So it is no better and probably worse, while closing 64% of all
+    # positions. The exit mix is the clinching secondary reading: with the
+    # override off, 78% of positions end at their STOP and 22% at their
+    # TARGET, so the ATR stop each trade was *sized* for finally decides the
+    # outcome instead of being pre-empted.
+    #
+    # Only the BACKTEST default changes. The live recommendation path
+    # (`decision/orchestrator.py`) still consults these verdicts; changing
+    # that is user-visible and needs its own decision — see Backlog #83.
+    failed_signal_enabled: bool = False
     allow_pyramiding: bool = False         # F-043 — opt-in; default off keeps replay unchanged
     max_pyramid_fraction: float = 0.5
 
@@ -223,7 +248,7 @@ def run_backtest_on_bars(
             pos.entry_index is not None
             and (idx - pos.entry_index) < max(0, config.failed_signal_grace_bars)
         )
-        if pos.state != "FLAT" and not in_grace:
+        if config.failed_signal_enabled and pos.state != "FLAT" and not in_grace:
             failed = detect_failed_signals(bars_so_far, bar.date, sr_data, None)
             top = highest_severity(failed)
             if top and top.severity >= OVERRIDE_THRESHOLD:
@@ -360,6 +385,7 @@ def run_backtest_on_bars(
             "sell_tax_pct": config.sell_tax_pct,
             "reentry_cooldown_bars": config.reentry_cooldown_bars,
             "failed_signal_grace_bars": config.failed_signal_grace_bars,
+            "failed_signal_enabled": config.failed_signal_enabled,
             "allow_pyramiding": config.allow_pyramiding,
             "max_pyramid_fraction": config.max_pyramid_fraction,
         },

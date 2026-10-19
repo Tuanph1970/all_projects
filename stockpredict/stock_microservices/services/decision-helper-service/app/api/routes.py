@@ -443,6 +443,7 @@ async def run_backtest(
         sell_tax_pct=req.sell_tax_pct,
         reentry_cooldown_bars=req.reentry_cooldown_bars,
         failed_signal_grace_bars=req.failed_signal_grace_bars,
+        failed_signal_enabled=req.failed_signal_enabled,
     )
 
     result = run_backtest_on_bars(config, bars)

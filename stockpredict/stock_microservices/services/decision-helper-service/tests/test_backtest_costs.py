@@ -69,7 +69,16 @@ def _run(bars: List[OHLCVBar], **kw):
 LEGACY = dict(
     commission=10.0, commission_pct=0.0, sell_tax_pct=0.0,
     reentry_cooldown_bars=0, failed_signal_grace_bars=0,
+    # The override was ON before #80; #82 later turned it off by DEFAULT, so
+    # it has to be named explicitly here or "legacy" would quietly mean
+    # "legacy costs with #82's exit behaviour".
+    failed_signal_enabled=True,
 )
+
+#: The churn-guard arm: #80's guards with the override still ON, so those
+#: tests isolate the COOLDOWN and GRACE WINDOW rather than mixing in #82's
+#: decision to drop the override entirely. One test, one variable.
+GUARDS_ONLY = dict(failed_signal_enabled=True)
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +225,7 @@ class TestChurnGuards:
         confirmation layer approved an entry on bar N and the failed-signal
         detector declared it failed on bar N+1. Backlog #79 separately found
         those verdicts predict nothing."""
-        _, res = _run(_bars(), failed_signal_grace_bars=3)
+        _, res = _run(_bars(), failed_signal_enabled=True, failed_signal_grace_bars=3)
         for t in res.trade_ledger:
             if t.exit_reason == "FAILED_SIGNAL" and t.exit_date:
                 held = (t.exit_date - t.entry_date).days
@@ -227,7 +236,7 @@ class TestChurnGuards:
         its own cost model is the dominant term."""
         bars = _bars()
         _, legacy = _run(bars, **LEGACY)
-        _, now = _run(bars)
+        _, now = _run(bars, **GUARDS_ONLY)
         assert now.stats.num_trades < legacy.stats.num_trades * 0.75, (
             f"turnover barely moved: {legacy.stats.num_trades} -> "
             f"{now.stats.num_trades}"
@@ -251,7 +260,7 @@ class TestChurnGuards:
         """
         bars = _bars()
         _, legacy = _run(bars, **LEGACY)
-        _, now = _run(bars)
+        _, now = _run(bars, **GUARDS_ONLY)
 
         legacy_n = Counter(t.exit_reason for t in legacy.trade_ledger)["FAILED_SIGNAL"]
         now_n = Counter(t.exit_reason for t in now.trade_ledger)["FAILED_SIGNAL"]
@@ -271,7 +280,7 @@ class TestChurnGuards:
             return holds[len(holds) // 2]
 
         _, legacy = _run(bars, **LEGACY)
-        _, now = _run(bars)
+        _, now = _run(bars, **GUARDS_ONLY)
         assert median_hold(now) > median_hold(legacy)
 
 
@@ -297,3 +306,62 @@ class TestTheHarnessCanArbitrateAnAB:
             assert res.stats.total_net_pnl == pytest.approx(
                 res.stats.total_gross_pnl - res.stats.total_commission, abs=0.05
             )
+
+
+# ---------------------------------------------------------------------------
+# Backlog #82 — the failed-signal override, measured and dropped
+# ---------------------------------------------------------------------------
+
+class TestFailedSignalOverrideIsOffByDefault:
+    """#80 found this override closing 66% of trades at a median hold of one
+    day. #82 then measured whether it earns that, against a criterion fixed
+    before the run: *gross P&L per trade must be higher with it on*.
+
+    It is not — −20.46 with it on against −11.81 with it off over 12 real VN
+    symbols, Welch t = −0.44, so no better and probably worse while ending
+    almost two thirds of every position. The study is
+    `tests/failed_signal_override_study.py` and the write-up is
+    `docs/backlog82_failed_signal_override.md`.
+
+    Gross and per-trade for the reason #80 established: at ~3x fees an arm
+    wins on net purely by trading less, and switching the override off reduces
+    turnover by construction, so net and totals would both have flattered the
+    answer automatically.
+    """
+
+    def test_the_backtest_default_is_off(self):
+        assert BacktestConfig(
+            ticker="X", start_date=date(2021, 1, 1), end_date=date(2021, 12, 31),
+        ).failed_signal_enabled is False
+
+    def test_no_trade_is_closed_by_the_override_under_the_default(self):
+        _, res = _run(_bars())
+        assert res.trade_ledger
+        assert not [t for t in res.trade_ledger if t.exit_reason == "FAILED_SIGNAL"]
+
+    def test_it_can_still_be_switched_on(self):
+        """The finding is a default, not a deletion — the override is still
+        reachable, so the measurement can be repeated and a different market
+        or signal set can reach a different answer."""
+        _, res = _run(_bars(), failed_signal_enabled=True, failed_signal_grace_bars=0)
+        assert [t for t in res.trade_ledger if t.exit_reason == "FAILED_SIGNAL"]
+
+    def test_positions_now_end_where_their_sizing_assumed(self):
+        """The clinching secondary reading. A trade sized for an ATR stop
+        should be decided by that stop, not pre-empted by another component."""
+        _, res = _run(_bars())
+        reasons = Counter(t.exit_reason for t in res.trade_ledger)
+        decided_by_plan = reasons["STOP_HIT"] + reasons["TARGET_HIT"]
+        assert decided_by_plan / sum(reasons.values()) > 0.9
+
+    def test_the_live_recommendation_path_is_untouched(self):
+        """#82 is scoped to the harness. The live orchestrator still consults
+        these verdicts; changing user-visible recommendations needs its own
+        decision (Backlog #83)."""
+        import inspect
+
+        from app.services.decision import orchestrator
+
+        src = inspect.getsource(orchestrator)
+        assert "detect_failed_signals" in src
+        assert "failed_signal_enabled" not in src

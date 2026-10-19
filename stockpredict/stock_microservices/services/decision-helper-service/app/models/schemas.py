@@ -278,6 +278,17 @@ class BacktestRequest(BaseModel):
             "were followed by a new entry on the same bar."
         ),
     )
+    failed_signal_enabled: bool = Field(
+        default=False,
+        description=(
+            "Backlog #82: whether the failed-signal override may close a "
+            "position. Off by default, measured: on 12 VN symbols it made "
+            "gross P&L per trade worse (-20.46 against -11.81) while closing "
+            "64% of all positions. With it off, 78% of positions end at their "
+            "stop and 22% at their target. Still switchable for study. The "
+            "live recommendation path is unaffected."
+        ),
+    )
     failed_signal_grace_bars: int = Field(
         default=2, ge=0,
         description=(

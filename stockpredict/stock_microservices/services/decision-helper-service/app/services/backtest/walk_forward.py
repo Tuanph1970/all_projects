@@ -89,6 +89,7 @@ def run_walk_forward(
             sell_tax_pct=base_config.sell_tax_pct,
             reentry_cooldown_bars=base_config.reentry_cooldown_bars,
             failed_signal_grace_bars=base_config.failed_signal_grace_bars,
+            failed_signal_enabled=base_config.failed_signal_enabled,
         )
 
         window_result: BacktestResult = run_backtest_on_bars(window_config, bars)
