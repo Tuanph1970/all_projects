@@ -25,7 +25,7 @@ from app.services.backtest.market_features import (
     compute_sr_levels,
     compute_swings,
 )
-from app.services.backtest.slippage import apply_slippage
+from app.services.backtest.slippage import apply_slippage, trade_cost
 from app.services.confirmation.layer import ConfirmationResult, confirm
 from app.services.risk.pyramiding import evaluate_pyramid
 from app.services.risk.sizing_module import compute_size
@@ -55,7 +55,24 @@ class BacktestConfig:
     breakout_n: int = 20
     k_delay: int = 1
     slippage_bps: float = 5.0
-    commission: float = 10.0
+
+    # Backlog #80 — transaction costs are PROPORTIONAL to turnover.
+    #
+    # `commission` was a flat fee per trade defaulting to 10.0, and on the
+    # harness's own defaults that came to 1.8x the gross result it was meant
+    # to measure: any A/B run through here was arbitrated by the cost model,
+    # not by the thing under test. It is kept as a per-side flat fee so the
+    # old model stays expressible, but it now defaults to zero.
+    commission: float = 0.0            # flat fee per SIDE (was per trade)
+    commission_pct: float = 0.15       # brokerage, % of turnover per side
+    sell_tax_pct: float = 0.10         # VN transfer tax, % of proceeds, sells only
+
+    # Backlog #80 — the churn guards. Measured on the default config before
+    # these existed: the harness turned over a trade every 2.5 bars, 66% of
+    # exits were FAILED_SIGNAL at a median holding period of ONE day, and 103
+    # of 150 exits were followed by a new entry on the SAME bar.
+    reentry_cooldown_bars: int = 1     # bars that must pass after a close
+    failed_signal_grace_bars: int = 2  # failed-signal override is muted this long
     allow_pyramiding: bool = False         # F-043 — opt-in; default off keeps replay unchanged
     max_pyramid_fraction: float = 0.5
 
@@ -118,6 +135,8 @@ class BacktestResult:
 @dataclass
 class _Position:
     state: str = "FLAT"                 # FLAT | LONG | SHORT
+    entry_cost: float = 0.0             # money paid to open (Backlog #80)
+    entry_index: Optional[int] = None   # bar index of entry, for the grace window
     direction: Optional[str] = None    # LONG | SHORT
     entry_date: Optional[date] = None
     entry_price: Optional[float] = None
@@ -147,6 +166,7 @@ def run_backtest_on_bars(
     equity = config.initial_equity
     peak_equity = equity
     pos = _Position()
+    last_exit_index: Optional[int] = None
 
     for idx, bar in enumerate(bars):
         if bar.date < config.start_date:
@@ -180,14 +200,30 @@ def run_backtest_on_bars(
                 "SELL" if pos.direction == "LONG" else "COVER",
                 config.slippage_bps,
             )
+            exit_cost = _side_cost(fill, pos.shares, "SELL" if pos.direction == "LONG" else "COVER", config)
             trade_ledger.append(
-                _close_trade(pos, config.ticker, bar.date, fill, exit_reason, config.commission)
+                _close_trade(pos, config.ticker, bar.date, fill, exit_reason, exit_cost)
             )
-            equity += trade_ledger[-1].net_pnl or 0.0
+            # The entry cost was already taken out of equity when the position
+            # opened, so only the exit leg is charged here.
+            equity += (trade_ledger[-1].gross_pnl or 0.0) - exit_cost
+            last_exit_index = idx
             pos = _Position()
 
         # ── 3. Failed-signal check (overrides when position is open) ─────
-        if pos.state != "FLAT":
+        #
+        # Backlog #80's grace window. This override closed 66% of all trades
+        # at a MEDIAN HOLDING PERIOD OF ONE DAY — the confirmation layer
+        # approved an entry on bar N and the failed-signal detector declared
+        # it failed on bar N+1, which is not two components disagreeing about
+        # the market so much as about each other. (Backlog #79 separately
+        # found these verdicts predict nothing.) Muting it for the first few
+        # bars lets the trade's own stop do the job it was sized for.
+        in_grace = (
+            pos.entry_index is not None
+            and (idx - pos.entry_index) < max(0, config.failed_signal_grace_bars)
+        )
+        if pos.state != "FLAT" and not in_grace:
             failed = detect_failed_signals(bars_so_far, bar.date, sr_data, None)
             top = highest_severity(failed)
             if top and top.severity >= OVERRIDE_THRESHOLD:
@@ -196,10 +232,12 @@ def run_backtest_on_bars(
                     "SELL" if pos.direction == "LONG" else "COVER",
                     config.slippage_bps,
                 )
+                exit_cost = _side_cost(fill, pos.shares, "SELL" if pos.direction == "LONG" else "COVER", config)
                 trade_ledger.append(
-                    _close_trade(pos, config.ticker, bar.date, fill, "FAILED_SIGNAL", config.commission)
+                    _close_trade(pos, config.ticker, bar.date, fill, "FAILED_SIGNAL", exit_cost)
                 )
-                equity += trade_ledger[-1].net_pnl or 0.0
+                equity += (trade_ledger[-1].gross_pnl or 0.0) - exit_cost
+                last_exit_index = idx
                 pos = _Position()
 
         # ── 3b. Pyramiding (F-043, opt-in) — add to a winning position ───
@@ -209,7 +247,18 @@ def run_backtest_on_bars(
             )
 
         # ── 4. Entry signals (only when FLAT and before end_date) ────────
-        if pos.state == "FLAT" and bar.date <= config.end_date:
+        #
+        # Backlog #80's cooldown. Without it, 103 of 150 exits were followed
+        # by a new entry on the SAME bar: the position closes in step 2 or 3,
+        # `pos` goes FLAT, and this block re-opens it immediately because the
+        # signal that justified the first entry is level-triggered and still
+        # true. That is the churn engine, and it is what made the cost model
+        # the dominant term in every result.
+        cooling = (
+            last_exit_index is not None
+            and (idx - last_exit_index) < max(0, config.reentry_cooldown_bars)
+        )
+        if pos.state == "FLAT" and not cooling and bar.date <= config.end_date:
             signals = _run_signals(regime, bars_so_far, bar.date, config)
             best = _best_confirmed(signals, bars_so_far, regime, rsi, config.k_delay)
 
@@ -242,8 +291,11 @@ def run_backtest_on_bars(
                     loss_streak_size_cut=0.5,
                 )
                 if size_res.shares > 0:
-                    equity -= config.commission
+                    entry_cost = _side_cost(entry_fill, size_res.shares, direction, config)
+                    equity -= entry_cost
                     pos = _Position(
+                        entry_cost=entry_cost,
+                        entry_index=idx,
                         state=direction,
                         direction=direction,
                         entry_date=bar.date,
@@ -277,10 +329,17 @@ def run_backtest_on_bars(
             "SELL" if pos.direction == "LONG" else "COVER",
             config.slippage_bps,
         )
-        trade_ledger.append(
-            _close_trade(pos, config.ticker, last_bar.date, fill, "END_OF_PERIOD", config.commission)
+        exit_cost = _side_cost(
+            fill, pos.shares, "SELL" if pos.direction == "LONG" else "COVER", config,
         )
-        equity += trade_ledger[-1].net_pnl or 0.0
+        trade_ledger.append(
+            _close_trade(pos, config.ticker, last_bar.date, fill, "END_OF_PERIOD", exit_cost)
+        )
+        # Only the exit leg: the entry leg left equity when the position
+        # opened. Adding `net_pnl` here would charge it twice — which it did
+        # until Backlog #80, and it is why the equity curve and the headline
+        # net never reconciled.
+        equity += (trade_ledger[-1].gross_pnl or 0.0) - exit_cost
 
     stats = _compute_stats(trade_ledger, equity_curve)
 
@@ -297,6 +356,10 @@ def run_backtest_on_bars(
             "k_delay": config.k_delay,
             "slippage_bps": config.slippage_bps,
             "commission": config.commission,
+            "commission_pct": config.commission_pct,
+            "sell_tax_pct": config.sell_tax_pct,
+            "reentry_cooldown_bars": config.reentry_cooldown_bars,
+            "failed_signal_grace_bars": config.failed_signal_grace_bars,
             "allow_pyramiding": config.allow_pyramiding,
             "max_pyramid_fraction": config.max_pyramid_fraction,
         },
@@ -413,7 +476,12 @@ def _maybe_pyramid(
     pos.pyramided_shares += decision.add_shares
     if decision.new_stop is not None:
         pos.stop = decision.new_stop
-    return -config.commission
+
+    # Backlog #80: the add pays the proportional cost too, and it joins the
+    # position's entry cost so the round trip stays reconciled.
+    add_cost = _side_cost(entry_fill, decision.add_shares, pos.direction, config)
+    pos.entry_cost += add_cost
+    return -add_cost
 
 
 def _check_exit(
@@ -439,19 +507,38 @@ def _check_exit(
     return False, None, ""
 
 
+def _side_cost(price: float, shares: int, side: str, config: "BacktestConfig") -> float:
+    """Money cost of one side, from the config's proportional model."""
+    return trade_cost(
+        notional=price * shares,
+        side=side,
+        commission_pct=config.commission_pct,
+        sell_tax_pct=config.sell_tax_pct,
+        flat_fee=config.commission,
+    )
+
+
 def _close_trade(
     pos: _Position,
     ticker: str,
     exit_date: date,
     exit_price: float,
     exit_reason: str,
-    commission: float,
+    exit_cost: float,
 ) -> TradeRecord:
     assert pos.entry_price is not None
     if pos.direction == "LONG":
         gross_pnl = (exit_price - pos.entry_price) * pos.shares
     else:
         gross_pnl = (pos.entry_price - exit_price) * pos.shares
+    # Backlog #80: the ledger's `commission` is the ROUND TRIP cost.
+    #
+    # It used to be the exit leg only, while equity was separately charged
+    # the entry leg — so `total_commission` reported half the fees actually
+    # paid and `total_net_pnl` was overstated by one leg per trade. On the
+    # default config that was a 1,490 gap between the equity curve and the
+    # headline net on a 151-trade replay. The two now reconcile exactly.
+    commission = pos.entry_cost + exit_cost
     net_pnl = gross_pnl - commission
     return TradeRecord(
         ticker=ticker,

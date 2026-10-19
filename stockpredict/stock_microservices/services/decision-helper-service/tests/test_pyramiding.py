@@ -190,7 +190,31 @@ def test_maybe_pyramid_adds_to_winner(monkeypatch):
     assert pos.pyramided_shares <= 0.5 * pos.initial_shares  # 50% cap respected
     assert pos.stop == 104.0                 # tightened up toward price
     assert 100.0 < pos.entry_price < 110.0   # blended entry between old and add fill
-    assert delta == -_cfg().commission
+    # Backlog #80: the add pays the PROPORTIONAL cost of the shares it
+    # actually buys, not a flat fee. This used to assert the flat
+    # `config.commission`; stated as a property instead, so it survives a
+    # change of rate.
+    assert delta < 0, "a pyramid add must cost something"
+    assert pos.entry_cost == pytest.approx(abs(delta)), (
+        "the add's cost must be carried on the position, or the round trip "
+        "will not reconcile at close"
+    )
+
+
+def test_maybe_pyramid_cost_scales_with_the_add(monkeypatch):
+    """Backlog #80, the other half: a bigger add costs more. A flat fee
+    charged the same whether the add was 10 shares or 1,000."""
+    costs = {}
+    for add_shares in (20, 60):
+        _stub_signal_layer(monkeypatch, add_stop=104.0, add_shares=add_shares)
+        pos = _winning_long_pos()
+        bar = OHLCVBar(date=date(2023, 6, 1), open=110, high=112, low=109,
+                       close=110, volume=1_000_000)
+        costs[add_shares] = abs(_maybe_pyramid(
+            pos, [bar], bar, "TREND_UP", atr=2.0, swings=None, sr_data=None,
+            rsi=60.0, equity=100_000.0, config=_cfg(),
+        ))
+    assert costs[60] > costs[20] * 2
 
 
 def test_maybe_pyramid_respects_cap(monkeypatch):

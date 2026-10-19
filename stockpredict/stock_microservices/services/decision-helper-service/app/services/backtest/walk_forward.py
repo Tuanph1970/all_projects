@@ -85,6 +85,10 @@ def run_walk_forward(
             k_delay=base_config.k_delay,
             slippage_bps=base_config.slippage_bps,
             commission=base_config.commission,
+            commission_pct=base_config.commission_pct,
+            sell_tax_pct=base_config.sell_tax_pct,
+            reentry_cooldown_bars=base_config.reentry_cooldown_bars,
+            failed_signal_grace_bars=base_config.failed_signal_grace_bars,
         )
 
         window_result: BacktestResult = run_backtest_on_bars(window_config, bars)

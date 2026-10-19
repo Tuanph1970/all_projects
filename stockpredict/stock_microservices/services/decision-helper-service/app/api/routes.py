@@ -439,6 +439,10 @@ async def run_backtest(
         k_delay=req.k_delay,
         slippage_bps=req.slippage_bps,
         commission=req.commission,
+        commission_pct=req.commission_pct,
+        sell_tax_pct=req.sell_tax_pct,
+        reentry_cooldown_bars=req.reentry_cooldown_bars,
+        failed_signal_grace_bars=req.failed_signal_grace_bars,
     )
 
     result = run_backtest_on_bars(config, bars)

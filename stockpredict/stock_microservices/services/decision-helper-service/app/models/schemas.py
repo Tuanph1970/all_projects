@@ -252,7 +252,40 @@ class BacktestRequest(BaseModel):
     breakout_n: int = Field(default=20, ge=5, le=100)
     k_delay: int = Field(default=1, ge=1, le=5)
     slippage_bps: float = Field(default=5.0, ge=0.0, le=100.0)
-    commission: float = Field(default=10.0, ge=0.0)
+    commission: float = Field(
+        default=0.0, ge=0.0,
+        description=(
+            "Backlog #80: a flat fee per SIDE, not per trade, and it now "
+            "defaults to 0. It used to default to 10 per trade, which on the "
+            "harness's own settings came to 1.8x the gross result it was "
+            "measuring. Costs are proportional by default; set this only for "
+            "a broker that genuinely charges a fixed fee."
+        ),
+    )
+    commission_pct: float = Field(
+        default=0.15, ge=0.0,
+        description="Brokerage as a percent of turnover, per side (VN: 0.15-0.35).",
+    )
+    sell_tax_pct: float = Field(
+        default=0.10, ge=0.0,
+        description="Transfer tax as a percent of proceeds, charged on disposals only (VN: 0.1).",
+    )
+    reentry_cooldown_bars: int = Field(
+        default=1, ge=0,
+        description=(
+            "Bars that must pass after a position closes before a new one may "
+            "open. 0 restores the pre-#80 behaviour, where 103 of 150 exits "
+            "were followed by a new entry on the same bar."
+        ),
+    )
+    failed_signal_grace_bars: int = Field(
+        default=2, ge=0,
+        description=(
+            "Bars during which the failed-signal override may not close a "
+            "fresh position. It used to close 66% of trades at a median "
+            "holding period of one day."
+        ),
+    )
     walk_forward: bool = False
     wf_window_days: int = Field(default=90, ge=10, le=365)
     sensitivity: bool = False                       # F-053 — run neighbouring param sets
