@@ -1,6 +1,7 @@
 """Prediction Service - ML Business Logic"""
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
+import math
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
@@ -308,6 +309,11 @@ class PredictionService:
             if df is None:
                 return None
 
+            # Keep the raw OHLCV frame: Backlog #52's recursive forecast rolls
+            # *it* forward and re-derives the features each step, rather than
+            # trying to patch a feature row in place.
+            raw_df = df.copy()
+
             # Prepare features
             df = self._prepare_features(df, with_target=False)
             feature_cols = model.feature_columns or self._get_feature_columns(df)
@@ -322,21 +328,80 @@ class PredictionService:
             if not current_price:
                 current_price = df["close"].iloc[-1]
 
-            # Generate predictions
+            # Generate predictions — RECURSIVE (iterated) forecast.
+            #
+            # Backlog #52. This loop used to build `last_row` once, before the
+            # loop, and feed that same row to the model for every one of the N
+            # days, so day 1..N came back identical and the 5-day table on
+            # screen showed one number five times.
+            #
+            # The model is trained ONE STEP AHEAD — `_prepare_features` sets
+            # `target = close.shift(-1)` — so the right extension is to roll
+            # the series forward: append each day's predicted close, recompute
+            # the features from it, and predict the next day from those. Every
+            # feature the model reads derives from `close` except the two
+            # volume ones, so almost all of them genuinely update.
             predictions = []
-            last_row = df[feature_cols].iloc[-1:].copy()
+            base_volatility = (
+                float(df["volatility_20"].iloc[-1])
+                if "volatility_20" in df.columns and pd.notna(df["volatility_20"].iloc[-1])
+                else 0.02
+            )
+            # The raw OHLCV frame is what gets rolled; features are derived
+            # from it each step rather than patched in place.
+            work = raw_df.copy()
+            last_volume = (
+                float(work["volume"].iloc[-1]) if "volume" in work.columns else None
+            )
+            last_date = (
+                pd.to_datetime(work["date"].iloc[-1])
+                if "date" in work.columns else pd.Timestamp(datetime.now())
+            )
 
             for day in range(1, days + 1):
-                pred_price = ml_model.predict(last_row)[0]
+                step_features = self._prepare_features(work, with_target=False)
+                if step_features.empty:
+                    break
+                step_row = step_features[feature_cols].iloc[-1:].copy()
+                pred_price = float(ml_model.predict(step_row)[0])
                 change_pct = ((pred_price - current_price) / current_price) * 100
 
-                # Calculate confidence based on volatility
-                volatility = df["volatility_20"].iloc[-1] if "volatility_20" in df.columns else 0.02
-                confidence = max(0.5, min(0.95, 1 - volatility * 10))
+                # Uncertainty GROWS with the horizon. A recursive forecast
+                # feeds its own output back in, so day 5's error compounds
+                # day 1's — and before #52 the 5-day band was exactly as tight
+                # as the 1-day band, which was a second misleading defect on
+                # the same screen. Random-walk scaling: sigma grows with the
+                # square root of the horizon.
+                horizon_scale = math.sqrt(day)
+                volatility = base_volatility * horizon_scale
+                confidence = max(0.05, min(0.95, 1 - volatility * 10))
 
                 # Prediction range
                 price_low = pred_price * (1 - volatility)
                 price_high = pred_price * (1 + volatility)
+
+                # Roll the series forward with the prediction. open/high/low
+                # are filled with the predicted close rather than left NaN:
+                # `_prepare_features` ends in a row-wise dropna(), so a
+                # synthetic bar with a hole in any raw column would be
+                # silently discarded and the forecast would stop advancing
+                # while still reporting N days. Volume is carried forward
+                # because a future day's volume is not knowable — which makes
+                # `volume_ratio` drift towards 1 over the horizon, an
+                # assumption rather than a signal.
+                last_date = last_date + timedelta(days=1)
+                next_bar = {
+                    "date": last_date,
+                    "open": pred_price,
+                    "high": pred_price,
+                    "low": pred_price,
+                    "close": pred_price,
+                }
+                if last_volume is not None:
+                    next_bar["volume"] = last_volume
+                work = pd.concat(
+                    [work, pd.DataFrame([next_bar])], ignore_index=True
+                )
 
                 direction = "up" if pred_price > current_price else ("down" if pred_price < current_price else "neutral")
 
@@ -366,8 +431,15 @@ class PredictionService:
                     price_high=round(price_high, 2)
                 ))
 
-                # Update features for next prediction (simplified)
-                current_price = pred_price
+                # NOTE (Backlog #52): this used to re-point `current_price`
+                # at the day's own prediction, so day 2 onwards quoted their
+                # change against the PREVIOUS DAY'S FORECAST while day 1
+                # quoted against today — one column silently carrying two
+                # different meanings. Every horizon is now measured against
+                # today's price, so the column reads as the cumulative
+                # expected change that a user takes it for. The feature
+                # roll-forward that the old comment gestured at ("update
+                # features for next prediction") is done properly above.
 
             return PredictionResponse(
                 symbol=symbol.upper(),
