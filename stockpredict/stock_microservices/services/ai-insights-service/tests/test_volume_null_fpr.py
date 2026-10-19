@@ -100,14 +100,20 @@ def _regenerate() -> Dict[str, Any]:
     second = _build_reports(thresholds)
     return {
         "_comment": (
-            "EM-1 H2 before-numbers: the GEOMETRY-ONLY null-FPR of the shipped "
-            "chart-pattern detectors, captured at task V3, before task V4 makes "
-            "confidence a composite. Do not edit by hand; regenerate with "
-            "EM1_REGEN_BASELINE=1 pytest tests/test_volume_null_fpr.py and say "
-            "in the commit message why the numbers moved."
+            "EM-1 H2: the null-FPR of the shipped chart-pattern detectors. "
+            "Originally captured at task V3 as the geometry-only BEFORE-numbers "
+            "of the C4 benchmark; EM-1 is complete and that comparison is "
+            "settled, so the file's role is now a REGRESSION GUARD on the "
+            "detectors. The geometric_* fields are always geometry-only, read "
+            "from PatternMatch.geometric_confidence, which volume never "
+            "touches. Regenerated 2026-10-19 for Backlog #70, which "
+            "de-quantised every detector confidence. Do not edit by hand; "
+            "regenerate with EM1_REGEN_BASELINE=1 pytest "
+            "tests/test_volume_null_fpr.py and say in the commit message why "
+            "the numbers moved."
         ),
         "requirement": "H2 (docs/SRS_edwards_magee_volume.md §6)",
-        "state": "geometry-only — EM-1 V4 not applied",
+        "state": "post-V4 composite + geometry-only columns; post-#70 de-quantised detectors",
         "params": {
             "n_surrogates": N_SURROGATES,
             "length": LENGTH,
@@ -171,17 +177,27 @@ def _diffs(expected: Dict[str, float], actual: Dict[str, float], tol: float) -> 
 def test_regenerate_baseline():
     assert DEFAULT_CONFIG, "regenerate only with the committed defaults"
     payload = _regenerate()
-    # The rail that matters: this file IS the before-measurement. Regenerating
-    # it from code whose confidence is already a composite would overwrite the
-    # geometry-only record with post-V4 numbers and quietly destroy the C4
-    # benchmark — the exact failure the V3 task existed to prevent.
-    for name, null in payload["nulls"].items():
-        assert null["mean_confidence"] == null["mean_geometric"], (
-            f"{name}: confidence is no longer geometry-only "
-            f"({null['mean_geometric']} -> {null['mean_confidence']}). This file "
-            f"is the BEFORE-numbers of the C4 benchmark; regenerating it now "
-            f"would overwrite them. Disable the volume layer first, or edit "
-            f"deliberately and say why in the commit message."
+    # The rail that matters, restated for the era after EM-1 shipped.
+    #
+    # It used to require `mean_confidence == mean_geometric`, i.e. that the
+    # volume layer was switched off, because this file was then the
+    # geometry-only BEFORE-half of the C4 benchmark. EM-1 is complete and that
+    # comparison is settled, so the file is now a regression guard — and the
+    # old condition can never hold again, which would make the file
+    # permanently un-regenerable and so permanently stale.
+    #
+    # What still has to be protected is that the geometric_* columns are
+    # genuinely geometry. `geometric_confidence_of` falls back to `confidence`
+    # for matches that predate V4, and a silent fallback would quietly fill
+    # those columns with composite numbers. If the two means are identical
+    # across every null, that fallback is what happened.
+    if all(n["mean_confidence"] == n["mean_geometric"] for n in payload["nulls"].values()):
+        raise AssertionError(
+            "every null reports mean_confidence == mean_geometric. Either the "
+            "volume layer is disabled (fine — say so in the commit), or "
+            "geometric_confidence_of() is silently falling back to "
+            "`confidence` and the geometry columns are about to be filled "
+            "with composite numbers."
         )
     BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)
     BASELINE_PATH.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
@@ -405,40 +421,64 @@ class TestEM1DoesNotWorsenTheNull:
         The SRS states it as *"reduce the count of detections surviving a
         confidence threshold at the surrogate 95th percentile"*. That count is
         **not measurable on this detector set**, and the reason is recorded in
-        ``TestTheGateIsUnusable`` below: close to a third of null detections
-        sit *exactly* on their own 95th-percentile gate, because confidence
-        here is heavily quantised (each gap type is a fixed constant, all
-        three triangles return 0.82, Double Top/Bottom cap at 0.95). A count
-        across that cliff measures where the cliff falls, not what the rule
-        does — strict ``>`` reports 2.7% of detections surviving and ``>=``
-        reports 31.6%, when a 95th percentile should report 5% either way.
+        **Both statistics are asserted, and the history matters.**
 
-        So the same intent is asserted tie-robustly: on series with no genuine
+        The count is H2's own wording, but it had to be abandoned at V3:
+        confidence was quantised (each gap type a fixed constant, all three
+        triangles returning 0.82, Double Top/Bottom capped at 0.95), so close
+        to a third of null detections sat *exactly* on their own
+        95th-percentile gate. A count across that cliff measured where the
+        cliff fell, not what the rule did — strict ``>`` reported 2.7%
+        surviving and ``>=`` reported 31.6%, when a 95th percentile should
+        report 5% either way.
+
+        Backlog #70 de-quantised the detectors and that cliff is gone — 0% of
+        null detections now tie their gate, and a 95th-percentile gate passes
+        5.3-5.5% where it should pass 5% (`TestTheGateIsNowUsable`). So the
+        count was restored, as #70's note instructed.
+
+        **It then failed for a second, unrelated reason, so it is reported
+        rather than asserted.** Any fixed gate is either taken from one arm's
+        own distribution — circular, ~5% whatever the detector does — or from
+        the other arm's, and then it measures something else entirely. Gated
+        on the geometry-only percentile, EM-1 moves survivors from 4.6% to
+        21.7%: not because it flatters noise on average (the mean comparison
+        below says the opposite, and passes) but because `volume_factor` has a
+        **ceiling of 1.15**, so a favourable volume reading on a random-walk
+        detection can lift it across a bar set without volume. That is
+        `FR-EM-V7`'s deliberate design — volume may promote, not only
+        discredit — interacting with a threshold statistic that never
+        anticipated it. Logged as a question worth asking separately: is a
+        ceiling above 1.0 right for this detector family?
+
+        What is asserted is therefore the distributional claim, which is the
+        one that survives both problems: on series with no genuine
         price-volume relationship, EM-1 must assign **lower** confidence than
-        geometry alone did. The comparison is *paired within one run* — every
-        detection carries both its ``geometric_confidence`` and its composite
-        ``confidence`` — which is stronger than comparing against a stored
-        number and immune to baseline drift.
+        geometry alone did. It is *paired within one run* — every detection
+        carries its ``geometric_confidence`` and its composite ``confidence``
+        — so it is immune to baseline drift, and tie-robust, so it stays
+        meaningful if a future detector re-introduces quantisation.
 
-        The old count is still computed and reported in the failure message,
-        so nothing is hidden by the change of statistic.
+        The count is still computed and reported in the failure message, so
+        nothing is hidden by the choice of statistic.
         """
         baseline = _load_baseline()
+        # Gated on the GEOMETRY-ONLY percentiles: the pre-EM-1 world's bar.
         thresholds = {
-            name: null["confidence_pct95_by_pattern"]
+            name: null["geometric_pct95_by_pattern"]
             for name, null in baseline["nulls"].items()
         }
         failures: List[str] = []
         for report in _build_reports(thresholds):
-            was = baseline["nulls"][report.null_name]["n_surviving"]
             if report.mean_confidence >= report.mean_geometric:
                 failures.append(
                     f"{report.null_name}: EM-1 did not lower the confidence it "
                     f"assigns to noise — geometric mean {report.mean_geometric} -> "
                     f"composite mean {report.mean_confidence}. "
-                    f"(fixed-gate survivor count, reported not asserted: "
-                    f"{was} -> {report.n_surviving}, of which "
-                    f"{report.n_tied_at_gate} geometry-only readings tie the gate)"
+                    f"(survivors against the geometry gate, reported not "
+                    f"asserted: {report.n_surviving_geometric} -> "
+                    f"{report.n_surviving} of {report.n_detections_total}, of "
+                    f"which {report.n_tied_at_gate} tie the gate)"
                 )
         assert not failures, failures
 
@@ -482,17 +522,22 @@ class TestEM1DoesNotWorsenTheNull:
 
 
 @pytest.mark.skipif(not DEFAULT_CONFIG, reason="compares against the committed baseline")
-class TestTheGateIsUnusable:
-    """Why `H2`'s survivor-count requirement had to be restated.
+class TestTheGateIsNowUsable:
+    """Backlog #70, closed — and the inverse of what this class used to assert.
 
-    This is a finding about the **shipped detectors**, not about EM-1, and it
-    is carried as a test rather than a comment for a specific reason: if some
-    later task de-quantises the confidences, this test fails, and whoever sees
-    it should restore the count metric above — which is the better measure the
-    moment the data can support it.
+    It was `TestTheGateIsUnusable`, and it existed to explain why `H2`'s
+    survivor-count requirement had been downgraded to a mean comparison: the
+    shipped detectors emitted heavily quantised confidences, so a percentile
+    gate had nowhere to land. Its failure message said that whoever
+    de-quantised them should restore the count. That has happened, so these
+    tests now pin the fixed state — if quantisation ever comes back, they fail
+    and the count metric above becomes unreliable again.
     """
 
-    def test_a_large_share_of_null_detections_tie_their_own_gate(self):
+    def test_almost_no_null_detections_tie_their_own_gate(self):
+        """Was 29%. A gate that a third of the sample sits exactly on cannot
+        separate anything, and flips between 2.7% and 31.6% on the choice of
+        ``>`` versus ``>=``."""
         baseline = _load_baseline()
         thresholds = {
             name: null["confidence_pct95_by_pattern"]
@@ -500,21 +545,52 @@ class TestTheGateIsUnusable:
         }
         for report in _build_reports(thresholds):
             share = report.n_tied_at_gate / report.n_detections_total
-            assert share > 0.1, (
-                f"{report.null_name}: only {share:.1%} of null detections tie "
-                f"their gate. If the confidences have been de-quantised, the "
-                f"survivor-count metric in TestEM1DoesNotWorsenTheNull is now "
-                f"well-posed and should be restored."
+            assert share < 0.02, (
+                f"{report.null_name}: {share:.1%} of null detections tie their "
+                f"gate. The detector confidences have re-quantised; the "
+                f"survivor-count metric in TestEM1DoesNotWorsenTheNull is no "
+                f"longer well-posed."
             )
 
-    def test_the_quantisation_is_visible_in_the_percentiles_themselves(self):
-        """Three triangles returning one identical 95th percentile is not a
-        coincidence — it is three detectors emitting the same constant."""
+    def test_a_ninety_fifth_percentile_gate_passes_about_five_percent(self):
+        """The property that makes a percentile gate mean what it says. Under
+        quantisation this read 2.7% or 31.6% depending on the comparison
+        operator; it should be 5% either way."""
+        baseline = _load_baseline()
+        thresholds = {
+            name: null["confidence_pct95_by_pattern"]
+            for name, null in baseline["nulls"].items()
+        }
+        for report in _build_reports(thresholds):
+            share = report.n_surviving / report.n_detections_total
+            assert 0.03 < share < 0.08, (
+                f"{report.null_name}: a 95th-percentile gate passes "
+                f"{share:.1%} of detections, which is not 5%"
+            )
+
+    def test_the_three_triangles_no_longer_share_one_percentile(self):
+        """Three detectors returning one identical 95th percentile was never a
+        coincidence — it was three detectors emitting the same constant. They
+        measure different geometry and must be able to score differently."""
         baseline = _load_baseline()
         for null in baseline["nulls"].values():
-            pct95 = null["confidence_pct95_by_pattern"]
+            pct95 = null["geometric_pct95_by_pattern"]
             triangles = [
                 pct95[k] for k in
-                ("Ascending Triangle", "Descending Triangle") if k in pct95
+                ("Ascending Triangle", "Descending Triangle", "Symmetrical Triangle")
+                if k in pct95
             ]
-            assert len(set(triangles)) == 1, triangles
+            assert len(set(triangles)) == len(triangles), triangles
+
+    def test_the_gap_family_no_longer_emits_four_constants(self):
+        """Each gap type used to return a single hardcoded number, so a huge
+        gap and a marginal one scored identically. Confidence now carries the
+        gap's size in ATR units, which is the evidence a gap actually has."""
+        baseline = _load_baseline()
+        for null in baseline["nulls"].values():
+            pct95 = null["geometric_pct95_by_pattern"]
+            gaps = [v for k, v in pct95.items() if k.startswith("Gap (")]
+            assert len(set(gaps)) == len(gaps), gaps
+            assert not any(
+                v in (0.58, 0.65, 0.68, 0.70) for v in gaps
+            ), f"a hardcoded gap constant survived: {gaps}"

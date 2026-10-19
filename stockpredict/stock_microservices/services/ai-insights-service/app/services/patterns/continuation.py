@@ -20,7 +20,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from app.services.patterns.base import PatternDetector, PatternMatch
+from app.services.patterns.base import PatternDetector, PatternMatch, soft_cap, soft_unit
 
 
 # ---------------------------------------------------------------------------
@@ -163,7 +163,7 @@ class FlagDetector(PatternDetector):
                     1.0, retrace / max(self.flag_max_retrace_pct * pole_height, 1e-8)
                 )
                 pole_quality = min(1.0, pole_height / (ra * 4))
-                confidence = round(min(0.88, 0.42 + 0.28 * tightness + 0.18 * pole_quality), 3)
+                confidence = round(soft_cap(0.42 + 0.28 * tightness + 0.18 * pole_quality, 0.88), 4)
 
                 return PatternMatch(
                     pattern_name="Flag",
@@ -277,7 +277,7 @@ class PennantDetector(PatternDetector):
                 width_last = breakout_h - breakout_l
                 convergence = 1.0 - min(1.0, width_last / max(width_first, 1e-8))
                 pole_quality = min(1.0, pole_height / (ra * 4))
-                confidence = round(min(0.88, 0.42 + 0.28 * convergence + 0.18 * pole_quality), 3)
+                confidence = round(soft_cap(0.42 + 0.28 * convergence + 0.18 * pole_quality, 0.88), 4)
 
                 return PatternMatch(
                     pattern_name="Pennant",
@@ -399,7 +399,10 @@ class SymmetricalTriangleDetector(PatternDetector):
 
         sym = 1.0 - abs(abs(norm_h) - abs(norm_l)) / max(abs(norm_h), abs(norm_l))
         confidence = round(
-            min(0.82, 0.38 + 0.30 * sym + 0.14 * min(1.0, height / avg_price / 0.05)), 3
+            soft_cap(
+                0.38 + 0.30 * sym + 0.14 * soft_unit(height / avg_price, 0.05),
+                0.82,
+            ), 4
         )
 
         return PatternMatch(
@@ -477,7 +480,11 @@ class AscendingTriangleDetector(PatternDetector):
         target = resistance + height
 
         confidence = round(
-            min(0.82, 0.45 + 0.25 * min(1.0, norm_l / 0.002) + 0.12 * min(1.0, height / avg_price / 0.05)),
+            soft_cap(
+                0.45 + 0.25 * soft_unit(norm_l, 0.002)
+                + 0.12 * soft_unit(height / avg_price, 0.05),
+                0.82,
+            ),
             3,
         )
 
@@ -555,7 +562,11 @@ class DescendingTriangleDetector(PatternDetector):
         target = support - height
 
         confidence = round(
-            min(0.82, 0.45 + 0.25 * min(1.0, abs(norm_h) / 0.002) + 0.12 * min(1.0, height / avg_price / 0.05)),
+            soft_cap(
+                0.45 + 0.25 * soft_unit(abs(norm_h), 0.002)
+                + 0.12 * soft_unit(height / avg_price, 0.05),
+                0.82,
+            ),
             3,
         )
 
@@ -651,19 +662,35 @@ class GapDetector(PatternDetector):
             if filled and in_trend_direction and trend_atr_units > self.exhaustion_move_atr:
                 gap_type = "exhaustion"
                 gap_subtype = "bearish" if gap_up else "bullish"
-                confidence = 0.65
+                base = 0.55
             elif filled:
                 gap_type = "common"
                 gap_subtype = "neutral"
-                confidence = 0.58
+                base = 0.48
             elif in_trend_direction:
                 gap_type = "runaway"
                 gap_subtype = "bullish" if gap_up else "bearish"
-                confidence = 0.68
+                base = 0.58
             else:
                 gap_type = "breakaway"
                 gap_subtype = "bullish" if gap_up else "bearish"
-                confidence = 0.70
+                base = 0.60
+
+            # Backlog #70. These four used to BE the confidence — four
+            # hardcoded constants, so every gap of a given type scored
+            # identically no matter how large it was. That is the single worst
+            # quantiser in the catalogue, and it is also a waste of the one
+            # piece of evidence a gap actually carries: its size.
+            #
+            # E&M read a gap's weight from how far it jumped (Ch 12), and the
+            # detector already measures that. `ra` is the reference ATR, so
+            # `gap_size / ra` is the jump in units of the symbol's own daily
+            # range — comparable across symbols, for the reason EM-9
+            # established and EM-2 S5/S6 reuse. The type still sets the base,
+            # because a breakaway and a common gap are different evidence, not
+            # merely different sizes.
+            gap_atr = gap_size / ra if ra > 0 else 0.0
+            confidence = soft_cap(base + 0.22 * soft_unit(gap_atr, 2.0), 0.80)
 
             neckline = float(low[i]) if gap_up else float(high[i])
             target = neckline + gap_size if gap_up else neckline - gap_size
@@ -672,7 +699,7 @@ class GapDetector(PatternDetector):
                 pattern_name=f"Gap ({gap_type})",
                 pattern_type=gap_subtype,
                 found=True,
-                confidence=float(round(confidence, 3)),
+                confidence=float(round(confidence, 4)),
                 key_bars=[i - 1, i],
                 measured_move_target=float(round(target, 4)),
                 neckline=float(round(neckline, 4)),
@@ -743,7 +770,7 @@ class WideRangingDayDetector(PatternDetector):
             target = (close[i] + bar_range) if bullish_wrd else (close[i] - bar_range)
             strength = min(1.0, bar_range / (atr[i] * self.atr_multiple * 1.5))
             conviction = abs(close_pct - 0.5) * 2
-            confidence = round(min(0.85, 0.45 + 0.25 * strength + 0.15 * conviction), 3)
+            confidence = round(soft_cap(0.45 + 0.25 * strength + 0.15 * conviction, 0.85), 4)
 
             return PatternMatch(
                 pattern_name=self.pattern_name,

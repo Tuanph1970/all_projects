@@ -21,6 +21,49 @@ from app.services.patterns.volume import (
 )
 
 
+def soft_cap(value: float, cap: float, knee: float = 0.85) -> float:
+    """Map a raw evidence score into ``[0, cap)`` without a flat top.
+
+    Backlog #70. Every detector used to end with ``min(cap, linear_score)``,
+    and that hard ``min`` is a quantiser: every detection whose evidence
+    exceeds the cap collapses onto the *same* number. EM-1's null harness
+    measured the damage — 29% of detections on a random-walk null sat
+    **exactly** on their own 95th-percentile confidence, so a percentile gate
+    reported 2.7% surviving under strict ``>`` and 31.6% under ``>=``, where a
+    95th percentile must report 5% either way. A gate that cannot be placed is
+    not a gate.
+
+    This is identity below ``knee * cap``, so the common range keeps its
+    existing calibration and nothing shifts for ordinary detections. Above the
+    knee it bends over and approaches ``cap`` asymptotically, so stronger
+    evidence always scores strictly higher than weaker evidence and no two
+    detections tie unless their evidence genuinely matches.
+
+    Continuous and differentiable at the knee (both value and slope match), so
+    there is no visible step where the behaviour changes.
+    """
+    if value <= 0.0:
+        return 0.0
+    k = cap * knee
+    if value <= k:
+        return value
+    span = cap - k
+    return cap - span * span / (value - k + span)
+
+
+def soft_unit(value: float, scale: float) -> float:
+    """``min(1.0, value / scale)`` without the flat top — the same fix applied
+    to the inner terms.
+
+    Several detectors squash a measured quantity into ``[0, 1]`` with
+    ``min(1.0, x / scale)``, which saturates just as hard as the outer cap:
+    any triangle at least 5% of price tall scored an identical height term.
+    """
+    if scale <= 0:
+        return 0.0
+    return soft_cap(max(0.0, value) / scale, 1.0)
+
+
 @dataclass
 class PatternMatch:
     """Uniform detector result.
@@ -86,7 +129,12 @@ def apply_volume_evidence(
     match.volume_score = verdict.score
     match.volume_factor = verdict.factor
     match.volume_evidence = verdict.evidence
-    match.confidence = float(round(min(1.0, max(0.0, geometric * verdict.factor)), 3))
+    # 4dp, not 3dp. Backlog #70: rounding to three places is itself a
+    # quantiser — a thousand buckets across [0,1] puts enough detections on
+    # each value to blunt a percentile gate, which defeats the point of
+    # de-quantising the detectors that feed this. The detectors now emit 4dp
+    # for the same reason, so the composite must not throw that away.
+    match.confidence = float(round(min(1.0, max(0.0, geometric * verdict.factor)), 4))
 
     # FR-EM-V5 row 10: the gap family is the one place volume changes a
     # pattern's LABEL and not just its score (Ch 12's exhaustion gap, which

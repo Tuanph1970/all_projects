@@ -1034,6 +1034,7 @@ class NullReport:
     geometric_pct95_by_pattern: Dict[str, float] = field(default_factory=dict)
     n_detections_total: int = 0
     n_surviving: Optional[int] = None
+    n_surviving_geometric: Optional[int] = None
     mean_confidence: float = 0.0
     mean_geometric: float = 0.0
     n_tied_at_gate: Optional[int] = None
@@ -1093,6 +1094,7 @@ def run_null(
     all_geom: List[float] = []
     total = 0
     surviving = 0
+    surviving_geometric = 0
     tied = 0
 
     for _ in range(n_surrogates):
@@ -1107,6 +1109,13 @@ def run_null(
                 gate = thresholds.get(match.pattern_name)
                 if gate is None or float(match.confidence) > gate:
                     surviving += 1
+                # The same count under geometry alone, so H2's survivor
+                # requirement can be a PAIRED comparison inside one run rather
+                # than a comparison against a stored number from another.
+                # Restored at Backlog #70, which de-quantised the detectors
+                # and made the count well-posed again.
+                if gate is None or geometric_confidence_of(match) > gate:
+                    surviving_geometric += 1
                 if gate is not None and abs(geometric_confidence_of(match) - gate) < 1e-9:
                     tied += 1
             per_pattern_counts[match.pattern_name] = per_pattern_counts.get(match.pattern_name, 0) + 1
@@ -1135,6 +1144,7 @@ def run_null(
         },
         n_detections_total=total,
         n_surviving=None if thresholds is None else surviving,
+        n_surviving_geometric=None if thresholds is None else surviving_geometric,
         mean_confidence=round(float(np.mean(all_conf)) if all_conf else 0.0, 6),
         mean_geometric=round(float(np.mean(all_geom)) if all_geom else 0.0, 6),
         n_tied_at_gate=None if thresholds is None else tied,

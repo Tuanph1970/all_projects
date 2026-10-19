@@ -141,16 +141,41 @@ class TestFRV7Composition:
             # abs=1e-3 because `confidence` is rounded to 3dp, as it always has been.
             assert match.confidence == pytest.approx(expected, abs=1e-3)
 
-    def test_geometric_confidence_preserves_the_pre_volume_value(self):
+    def test_geometric_confidence_is_untouched_by_volume(self):
         """The geometric reading must survive intact — it is what `H1`'s
-        invariance test and the UI's "volume moved the number" both read."""
+        invariance test and the UI's "volume moved the number" both read.
+
+        Stated as the property rather than as two frozen numbers. It used to
+        assert the literals 0.917 and 0.95 "recorded by V2's baseline run",
+        and Backlog #70 showed why that was the wrong shape twice over: it
+        pinned the geometry *formula* when the thing under test is the volume
+        layer's non-interference, and 0.95 was **exactly the old hard cap** —
+        the test had frozen a saturated value, which is the very defect #70
+        removed.
+        """
+        for planted, name in ((mirrored_pair()[0], BEARISH_PATTERN),
+                              (mirrored_pair()[1], BULLISH_PATTERN)):
+            frame = planted.frame
+            quiet = frame.copy()
+            quiet["volume"] = frame["volume"] * 0.1
+            loud = frame.copy()
+            loud["volume"] = frame["volume"] * 9.0
+
+            a = single_match(quiet, name)
+            b = single_match(loud, name)
+            assert a.geometric_confidence == pytest.approx(b.geometric_confidence), (
+                "geometry moved when only volume changed"
+            )
+            assert 0.0 < a.geometric_confidence < 1.0
+
+    def test_geometric_confidence_no_longer_saturates(self):
+        """Backlog #70. A detection's geometry must sit strictly below its
+        detector's ceiling, so two patterns with different evidence cannot
+        collapse onto one number and a percentile gate has somewhere to go."""
         bearish, bullish = mirrored_pair()
-        for planted, name, expected in (
-            (bearish, BEARISH_PATTERN, 0.917),
-            (bullish, BULLISH_PATTERN, 0.95),
-        ):
-            # The pre-V4 geometric values, recorded by V2's baseline run.
-            assert single_match(planted.frame, name).geometric_confidence == pytest.approx(expected)
+        for planted, name in ((bearish, BEARISH_PATTERN), (bullish, BULLISH_PATTERN)):
+            geom = single_match(planted.frame, name).geometric_confidence
+            assert geom < 0.95, f"{name} is still pinned at the old cap: {geom}"
 
     def test_factor_is_bounded_however_extreme_the_score(self):
         """Volume is corroboration, not the finding: no verdict may erase a

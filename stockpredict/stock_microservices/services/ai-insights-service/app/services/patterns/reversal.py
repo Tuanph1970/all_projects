@@ -19,7 +19,7 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
-from app.services.patterns.base import PatternDetector, PatternMatch
+from app.services.patterns.base import PatternDetector, PatternMatch, soft_cap
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +100,7 @@ class HeadAndShouldersDetector(PatternDetector):
             # 0..1 contributions, weighted equally.
             symmetry = 1.0 - abs(ls_h - rs_h) / max(ls_h, rs_h)
             prominence = min(1.0, (head_h - shoulder_max) / shoulder_max / 0.1)
-            confidence = round(min(0.95, 0.4 + 0.3 * symmetry + 0.3 * prominence), 3)
+            confidence = round(soft_cap(0.4 + 0.3 * symmetry + 0.3 * prominence, 0.95), 4)
 
             return PatternMatch(
                 pattern_name=self.pattern_name,
@@ -180,7 +180,7 @@ class InverseHeadAndShouldersDetector(PatternDetector):
 
             symmetry = 1.0 - abs(ls_l - rs_l) / max(ls_l, rs_l)
             prominence = min(1.0, (shoulder_min - head_l) / shoulder_min / 0.1)
-            confidence = round(min(0.95, 0.4 + 0.3 * symmetry + 0.3 * prominence), 3)
+            confidence = round(soft_cap(0.4 + 0.3 * symmetry + 0.3 * prominence, 0.95), 4)
 
             return PatternMatch(
                 pattern_name=self.pattern_name,
@@ -265,7 +265,7 @@ class DoubleTopDetector(PatternDetector):
 
             similarity = 1.0 - abs(p1_h - p2_h) / max(p1_h, p2_h)
             depth_score = min(1.0, depth / 0.10)
-            confidence = round(min(0.95, 0.45 + 0.3 * similarity + 0.25 * depth_score), 3)
+            confidence = round(soft_cap(0.45 + 0.3 * similarity + 0.25 * depth_score, 0.95), 4)
 
             return PatternMatch(
                 pattern_name=self.pattern_name,
@@ -343,7 +343,7 @@ class DoubleBottomDetector(PatternDetector):
 
             similarity = 1.0 - abs(t1_l - t2_l) / max(t1_l, t2_l)
             height_score = min(1.0, height_pct / 0.10)
-            confidence = round(min(0.95, 0.45 + 0.3 * similarity + 0.25 * height_score), 3)
+            confidence = round(soft_cap(0.45 + 0.3 * similarity + 0.25 * height_score, 0.95), 4)
 
             return PatternMatch(
                 pattern_name=self.pattern_name,

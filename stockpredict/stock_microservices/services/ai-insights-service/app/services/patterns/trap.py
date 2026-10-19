@@ -28,7 +28,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from app.services.patterns.base import PatternDetector, PatternMatch
+from app.services.patterns.base import PatternDetector, PatternMatch, soft_cap
 from app.services.patterns.continuation import _rolling_atr, _linreg
 
 
@@ -137,7 +137,7 @@ class TrapDetector(PatternDetector):
                     if close[j] < res_level:
                         severity = min(1.0, penetration / ra)
                         target = res_level - (close[i] - res_level)  # measured move down
-                        confidence = round(min(0.88, 0.50 + 0.30 * severity), 3)
+                        confidence = round(soft_cap(0.50 + 0.30 * severity, 0.88), 4)
                         match = PatternMatch(
                             pattern_name="Bull Trap",
                             pattern_type="bearish",
@@ -171,7 +171,7 @@ class TrapDetector(PatternDetector):
                     if close[j] > sup_level:
                         severity = min(1.0, penetration / ra)
                         target = sup_level + (sup_level - close[i])
-                        confidence = round(min(0.88, 0.50 + 0.30 * severity), 3)
+                        confidence = round(soft_cap(0.50 + 0.30 * severity, 0.88), 4)
                         match = PatternMatch(
                             pattern_name="Bear Trap",
                             pattern_type="bullish",
