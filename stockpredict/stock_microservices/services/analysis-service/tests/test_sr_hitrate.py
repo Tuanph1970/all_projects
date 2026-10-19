@@ -440,18 +440,22 @@ class TestEM2Arm:
     @pytest.mark.xfail(
         strict=True,
         reason=(
-            "MEASURED AT S4 AND S5 AT 32 symbols / step 5, AND STILL NOT "
-            "PROVEN — but the gap has closed. S5's role-coherence arm is the "
-            "first EM-2 measure to beat the random null with significance: "
-            "55.86% vs 54.36%, +1.50pp at z=+3.16. It does NOT beat the "
-            "shipped touch-count arm: +0.40pp at z=+0.84. H-S1 requires "
-            "beating BOTH, and the incumbent is itself significantly better "
-            "than the null (+1.10pp, z=+2.35), so clearing the null is no "
-            "longer the hard half. S4's volume arm remains flat (+0.54pp vs "
-            "null, z=+0.97). S6-S7 add attack count and decay. Do NOT relax "
-            "the threshold, and do not quote 12-symbol numbers as evidence — "
-            "at that sample this arm read +0.61pp and the volume arm read a "
-            "spurious +2.26pp."
+            "MEASURED AT S4, S5 AND S7 at 32 symbols / step 5, AND NOT "
+            "PROVEN. Best EM-2 arms: em2_role 55.86%, em2_adjusted 55.84%, "
+            "against the shipped touch_count 55.46% and the matched-"
+            "selectivity control 55.74%, with the random null at 54.36%. "
+            "Both EM-2 arms clear the null significantly (+1.50pp z=+3.16 and "
+            "+1.48pp z=+2.66) and neither clears the incumbent (+0.40pp "
+            "z=+0.84 and +0.38pp z=+0.68). At matched selectivity "
+            "em2_adjusted is +0.10pp at z=+0.16 — parity, not improvement. "
+            "H-S1 requires beating BOTH. S7 did lift the volume arm from "
+            "54.90% to 55.84% (+0.94pp, z=+1.49), so age decay and distance "
+            "suppression help EM-2's internal ranking; they just do not carry "
+            "it past touch count. Track S is now complete bar the gated S8, "
+            "which means this is the decision point the plan pre-registered: "
+            "if nothing clears the bar, the outcome is a documented negative "
+            "result and S9's consumer switch does not ship. Do NOT relax the "
+            "threshold, and do not quote 12-symbol numbers as evidence."
         ),
     )
     def test_em2_levels_beat_both_the_shipped_arm_and_the_null_with_significance(self):

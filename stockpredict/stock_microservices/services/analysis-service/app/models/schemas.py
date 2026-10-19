@@ -476,6 +476,45 @@ class SRLevel(BaseModel):
             "supports/resistances lists the level appears in."
         ),
     )
+    age_decay: Optional[float] = Field(
+        default=None,
+        description=(
+            "EM-2 FR-EM-S5: the age multiplier applied to this level, in "
+            "[floor, 1]. E&M Ch 13 — a one-to-two-year-old level beats a "
+            "four-to-five-year-old one, 'but the latter does not lose all of "
+            "its potency by any means', so the decay has a floor and never "
+            "reaches zero."
+        ),
+    )
+    excursion_pct: Optional[float] = Field(
+        default=None,
+        description=(
+            "EM-2 FR-EM-S6: the furthest price has travelled away from this "
+            "level since it formed, as a percentage of the level. E&M expect "
+            "little real supply from a level price never left — the holders "
+            "who transacted there are only trapped once the move went far "
+            "enough against them. The maximum, not the current distance."
+        ),
+    )
+    distance_suppressed: bool = Field(
+        default=False,
+        description=(
+            "EM-2 FR-EM-S6: true when `excursion_pct` falls short of the "
+            "distance-away threshold, so the level is suppressed. Suppressed, "
+            "not dropped: no trapped interest is weak evidence, not absent "
+            "evidence."
+        ),
+    )
+    adjusted_strength: Optional[float] = Field(
+        default=None,
+        description=(
+            "EM-2: `volume_strength` after the FR-EM-S5 age decay and the "
+            "FR-EM-S6 distance suppression. Carried separately so that "
+            "`volume_strength` stays a raw volume measurement — the rule S6 "
+            "established when E&M's third-attack weighting turned out not to "
+            "hold on VN data."
+        ),
+    )
     attacks: int = Field(
         default=0,
         description=(

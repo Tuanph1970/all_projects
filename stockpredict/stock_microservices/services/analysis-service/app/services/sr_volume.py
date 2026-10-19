@@ -886,3 +886,128 @@ def repelled_attacks(attacks: Sequence[Any]) -> int:
     counting it here would double-count one event.
     """
     return sum(1 for a in attacks if not getattr(a, "penetrated", False))
+
+
+# ===========================================================================
+# S7 — age decay (`FR-EM-S5`) and distance-away (`FR-EM-S6`)
+#
+# The second and third of E&M's three criteria for a level's potential
+# (Ch 13); volume was the first, at `S4`.
+# ===========================================================================
+
+#: Bars over which half the decayable strength is lost.
+#:
+#: E&M speak in years — "one or two years old is more effective than four or
+#: five" — and a year is ~250 trading sessions. A 250-bar scan window
+#: therefore cannot see the distinction they are drawing: `age_bars` spans at
+#: most one year inside a single window, so this decay is a weak effect by
+#: construction and the figure below is a scale, not a reproduction of the
+#: book's claim. `FR-EM-S10` sweeps it at `W1`, and the limitation is recorded
+#: in the plan rather than hidden here.
+AGE_HALFLIFE_BARS = 120
+
+#: The floor, which `FR-EM-S5` makes binding: E&M are explicit that an old
+#: level "does not lose all of its potency by any means", so the decay
+#: approaches this and stops. A decay to zero would misread the book.
+AGE_DECAY_FLOOR = 0.4
+
+#: E&M's distance-away rule: little real supply from a bottom unless price
+#: later fell more than this far under it. Their figure, for 1950s NYSE
+#: issues, and a default rather than a trusted constant (`FR-EM-S10`).
+DISTANCE_AWAY_PCT = 10.0
+
+#: What a level without that excursion is multiplied by. `FR-EM-S6` says
+#: suppress, not drop: a level with no trapped interest behind it is weak
+#: evidence, not absent evidence.
+DISTANCE_SUPPRESSION = 0.5
+
+
+def age_decay(age_bars: Any, halflife: int = AGE_HALFLIFE_BARS,
+              floor: float = AGE_DECAY_FLOOR) -> float:
+    """`FR-EM-S5` — the age multiplier, in ``[floor, 1]``.
+
+    Exponential decay from 1 towards ``floor``, halving the *decayable* part
+    every ``halflife`` bars, so a very old level keeps exactly ``floor`` of
+    its strength rather than losing all of it.
+    """
+    try:
+        age = float(age_bars)
+    except (TypeError, ValueError):
+        return 1.0
+    if not (age > 0) or math.isnan(age):
+        return 1.0
+    if halflife <= 0:
+        return floor
+
+    span = 1.0 - floor
+    value = floor + span * (0.5 ** (age / float(halflife)))
+    # Pin the asymptote so a very old level reports the floor exactly rather
+    # than a number indistinguishable from it — the test asserts equality.
+    if value - floor < 1e-9:
+        return floor
+    return value
+
+
+def level_excursion_pct(
+    ohlc: Any,
+    level_price: float,
+    first_bar: int = 0,
+) -> Optional[float]:
+    """`FR-EM-S6` — how far price has travelled away from the level since it
+    formed, as a percentage of the level, taking the **maximum**.
+
+    The maximum rather than the current distance, because the mechanism is
+    about holders who are already trapped: a level price once sat 20% away
+    from retains the owners that move created, even if price has since come
+    back to within 2%.
+
+    Scanning starts at ``first_bar`` — normally the level's first touch —
+    because a holder is trapped by what happened *after* he transacted there,
+    not before.
+    """
+    closes = _column(ohlc, "close")
+    if not closes or level_price <= 0:
+        return None
+    start = max(0, int(first_bar))
+    if start >= len(closes):
+        return None
+
+    worst = 0.0
+    seen = False
+    for i in range(start, len(closes)):
+        c = _usable(closes[i])
+        if c is None:
+            continue
+        seen = True
+        worst = max(worst, abs(c - level_price) / level_price * 100.0)
+    return worst if seen else None
+
+
+def adjusted_level_strength(
+    volume_strength: Optional[float],
+    age_bars: Any,
+    excursion_pct: Optional[float],
+    distance_pct: float = DISTANCE_AWAY_PCT,
+    suppression: float = DISTANCE_SUPPRESSION,
+    halflife: int = AGE_HALFLIFE_BARS,
+    floor: float = AGE_DECAY_FLOOR,
+) -> Optional[float]:
+    """The EM-2 composite: volume strength, aged and distance-suppressed.
+
+    Deliberately a **separate** figure from ``volume_strength``, which stays
+    raw. `S6` established that rule: a measure E&M predicted (the
+    third-attack weighting) turned out not to hold, and folding modifiers into
+    the raw measurement would have made that impossible to see. `H-S1` decides
+    whether anything should read this.
+
+    ``None`` when there is no volume strength to adjust — the caller falls
+    back to the touch count, as everywhere else in EM-2. An **unknown**
+    excursion does not suppress: unknown is not "no excursion".
+    """
+    if volume_strength is None:
+        return None
+
+    out = float(volume_strength) * age_decay(age_bars, halflife=halflife, floor=floor)
+    if excursion_pct is not None and float(excursion_pct) < distance_pct:
+        out *= suppression
+    return out

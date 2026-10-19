@@ -85,7 +85,7 @@ MAX_SYMBOLS = 12       # keeps the suite fast; override with EM2_MAX_SYMBOLS
 SEED = 20261015
 
 ARMS = ("touch_count", "touch_count_matched", "em2_volume", "em2_role",
-        "random_null")
+        "em2_adjusted", "random_null")
 
 _REAL_BARS_DEFAULT = Path("/tmp/all_bars.tsv")
 
@@ -332,6 +332,23 @@ def _role_coherent_levels(
     return out
 
 
+def _adjusted_levels(svc: AnalysisService, frame: pd.DataFrame) -> List[SRLevel]:
+    """S7's arm: select by `adjusted_strength` — volume strength after the
+    FR-EM-S5 age decay and the FR-EM-S6 distance suppression.
+
+    Separate from `em2_volume` so the two can be compared directly: the only
+    difference between the arms is whether age and distance were applied, so
+    any gap is attributable to S7 alone.
+    """
+    scored = [
+        lvl for lvl in _shipped_levels(svc, frame)
+        if getattr(lvl, "adjusted_strength", None) is not None
+    ]
+    if not scored:
+        return []
+    return _top_half(scored, key=lambda lvl: lvl.adjusted_strength)
+
+
 def _matched_levels(svc: AnalysisService, frame: pd.DataFrame) -> List[SRLevel]:
     """The fairness control the comparison would be confounded without.
 
@@ -524,6 +541,7 @@ def run_study(
             nulls = _null_levels(shipped, spot, rng)
             matched = _matched_levels(svc, frame)
             role_coherent = _role_coherent_levels(svc, frame, spot)
+            adjusted = _adjusted_levels(svc, frame)
 
             per_arm: Dict[str, List[Tuple[float, bool]]] = {
                 "touch_count": [
@@ -537,6 +555,9 @@ def run_study(
                 ],
                 "em2_role": [
                     (lvl.price, lvl.price > spot) for lvl in role_coherent
+                ],
+                "em2_adjusted": [
+                    (lvl.price, lvl.price > spot) for lvl in adjusted
                 ],
                 "random_null": [
                     (n["price"], n["type"] == SRLevelType.RESISTANCE) for n in nulls

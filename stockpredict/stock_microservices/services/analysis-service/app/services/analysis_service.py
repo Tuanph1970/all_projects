@@ -25,10 +25,14 @@ from app.models.schemas import (
     Regime, RegimeFeatures, RegimeResponse,
 )
 from app.services.sr_volume import (
+    adjusted_level_strength,
+    age_decay,
     aggregate_level_volume,
     detect_attacks,
     detect_breaks,
     effective_level_type,
+    DISTANCE_AWAY_PCT,
+    level_excursion_pct,
     level_price_cog,
     repelled_attacks,
     trailing_atr,
@@ -323,6 +327,27 @@ class AnalysisService:
                 effective_type = kind
                 attacks = 0
 
+            # FR-EM-S5 / FR-EM-S6. The first consumer of `age_bars`, which
+            # has been computed here and never read since the field existed.
+            level_age = last_bar_index - max(bars)
+            decay: Optional[float] = None
+            excursion: Optional[float] = None
+            adjusted: Optional[float] = None
+            try:
+                decay = age_decay(level_age)
+                excursion = level_excursion_pct(
+                    ohlc, level_price, first_bar=min(bars),
+                )
+                adjusted = adjusted_level_strength(
+                    volume_strength, level_age, excursion,
+                )
+            except Exception:  # noqa: BLE001 — same rule as the measures above
+                logger.warning(
+                    "EM-2 age/distance measures failed for level at %s",
+                    level_price, exc_info=True,
+                )
+                decay = excursion = adjusted = None
+
             levels.append(SRLevel(
                 price=level_price,
                 type=kind,
@@ -340,6 +365,12 @@ class AnalysisService:
                 effective_type=effective_type,
                 role_reversed=effective_type != kind,
                 attacks=attacks,
+                age_decay=decay,
+                excursion_pct=None if excursion is None else round(excursion, 4),
+                distance_suppressed=(
+                    excursion is not None and excursion < DISTANCE_AWAY_PCT
+                ),
+                adjusted_strength=None if adjusted is None else round(adjusted, 6),
             ))
 
         supports = [lv for lv in levels if lv.type in (SRLevelType.SUPPORT, SRLevelType.FLIP)]

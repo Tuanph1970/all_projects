@@ -410,6 +410,69 @@ here, and it should be stated wherever these numbers are quoted.
 - **Both thresholds swept at `W1`**, not trusted. The 10% is a 1950s NYSE
   figure.
 
+#### MEASURED AT `S7` — parity with touch count, and Track S's verdict
+
+Age decay (with the floor `FR-EM-S5` makes binding) and distance-away
+suppression are implemented, causal and tested (25 tests). `age_bars` — computed
+by `_find_sr_levels` since the field existed and never read — finally has a
+consumer.
+
+At 32 symbols / step 5:
+
+| arm | hit rate | vs null | vs shipped | vs matched |
+|---|---|---|---|---|
+| `random_null` | 54.36 % | — | — | — |
+| `touch_count` (shipped) | 55.46 % | +1.10 pp, z = +2.35 | — | — |
+| `touch_count_matched` | 55.74 % | +1.38 pp, z = +2.51 | — | — |
+| `em2_volume` (S4) | 54.90 % | +0.54 pp, z = +0.97 | −0.56 pp | — |
+| `em2_role` (S5) | **55.86 %** | +1.50 pp, z = +3.16 | +0.40 pp, z = +0.84 | — |
+| **`em2_adjusted` (S7)** | **55.84 %** | +1.48 pp, z = +2.66 | +0.38 pp, z = +0.68 | **+0.10 pp, z = +0.16** |
+
+**S7 works, within EM-2.** It lifts the volume arm from 54.90 % to 55.84 %
+(+0.94 pp, z = +1.49) on essentially the same number of observations — 12,322
+against 12,405 — so the adjustment changed *which* levels rank top-half, not
+how many. That is age and distance doing real work on EM-2's internal ranking,
+and it is enough to carry the volume arm past the null significantly, which on
+its own it never managed.
+
+**S7 does not work against the incumbent.** The number that matters is the last
+column: at matched selectivity, `em2_adjusted` and plain touch count differ by
+**+0.10 pp at z = +0.16**. That is parity, not improvement. The whole EM-2
+apparatus — volume-weighted strength, a centre of gravity, role reversal, age
+decay, distance suppression — lands on the same accuracy as counting touches.
+
+**Track S is now complete bar the gated `S8`, so this is the decision point the
+plan pre-registered.** Recorded plainly:
+
+* Three of E&M's Ch 13 criteria reproduce *directionally* — role coherence,
+  age, distance — and one of their quantitative claims does not (the
+  third-attack rule, `S6`, refuted at z = −26.4).
+* Every EM-2 arm beats a matched-distance random null significantly, which
+  says the levels are real.
+* **No EM-2 arm beats the shipped touch-count model significantly**, which says
+  the replacement is not justified.
+
+So on the evidence, **`S9`'s consumer switch should not ship.** Three live
+consumers read `strength`, and swapping them onto a measure that is at best at
+parity would spend behaviour-change risk for no measured return. The fields
+stay on the payload as evidence and as the basis for any future candidate; the
+consumers keep reading touch count.
+
+`S8` (round figures) was always gated and may be dropped; `D1`'s before/after
+has nothing to compare if no consumer changes. The useful remaining work is
+`W1`'s sweep — every threshold in EM-2 is still a default, and the plan requires
+them swept — and that sweep is now the thing that could overturn this verdict,
+since a badly-chosen `MAX_CONGESTION_BARS`, `BREAK_ATR_MULTIPLE`,
+`AGE_HALFLIFE_BARS` or `DISTANCE_AWAY_PCT` would understate EM-2 across the
+board.
+
+**A limitation that bounds the age result specifically.** E&M's age claim is
+about *years* — one-to-two versus four-to-five — and a 250-bar window spans
+about one. `age_bars` can therefore only range over a fraction of the span the
+book is describing, so the decay measured here is a weak version of the effect
+E&M assert, not a test of it. Testing their actual claim needs multi-year
+windows, which is its own slice.
+
 ### S8 — Round-figure levels ⚠️ may end in "not shipped"
 - **Satisfies:** `FR-EM-S7`, open question 4.
 - **Do:** measure whether a round-figure level ever outranks a congestion level
