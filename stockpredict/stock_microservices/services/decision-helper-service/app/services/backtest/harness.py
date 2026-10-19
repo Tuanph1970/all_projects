@@ -29,6 +29,7 @@ from app.services.backtest.slippage import apply_slippage, trade_cost
 from app.services.confirmation.layer import ConfirmationResult, confirm
 from app.services.risk.pyramiding import evaluate_pyramid
 from app.services.risk.sizing_module import compute_size
+from app.services.risk.basing_point import BasingPointTracker
 from app.services.risk.stop_module import compute_initial_stop, update_trailing_stop
 from app.services.risk.target_module import compute_target
 from app.services.signal.base import OHLCVBar, RawSignal
@@ -98,6 +99,15 @@ class BacktestConfig:
     # (`decision/orchestrator.py`) still consults these verdicts; changing
     # that is user-visible and needs its own decision — see Backlog #83.
     failed_signal_enabled: bool = False
+
+    # EM-3 — which trailing-stop rule the replay uses.
+    #   "ATR"          the shipped 2xATR trail
+    #   "BASING_POINT" E&M Ch 28: three days clear of a reaction low, then a
+    #                  filter below it, never lowered
+    # The A/B this exists for is the candidate's mandatory C4 benchmark.
+    trailing_stop_mode: str = "ATR"
+    basing_point_filter_pct: float = 6.0
+    basing_point_new_high_rule: bool = False
     allow_pyramiding: bool = False         # F-043 — opt-in; default off keeps replay unchanged
     max_pyramid_fraction: float = 0.5
 
@@ -192,6 +202,7 @@ def run_backtest_on_bars(
     peak_equity = equity
     pos = _Position()
     last_exit_index: Optional[int] = None
+    basing: Optional[BasingPointTracker] = None
 
     for idx, bar in enumerate(bars):
         if bar.date < config.start_date:
@@ -207,15 +218,26 @@ def run_backtest_on_bars(
         rsi = compute_rsi(bars_so_far)
 
         # ── 1. Update trailing stop ──────────────────────────────────────
-        if pos.state != "FLAT" and pos.stop is not None and atr:
-            new_stop = update_trailing_stop(
-                direction=pos.direction,  # type: ignore[arg-type]
-                current_stop=pos.stop,
-                current_close=bar.close,
-                atr=atr,
-            )
-            if new_stop is not None:
-                pos.stop = new_stop
+        if pos.state != "FLAT" and pos.stop is not None:
+            if config.trailing_stop_mode == "BASING_POINT" and basing is not None:
+                # EM-3. The tracker is fed this bar and only this bar, so the
+                # rule cannot see ahead; it returns None until three days have
+                # cleared a reaction low, and the entry stop stands until then.
+                candidate = basing.update(bar.high, bar.low, bar.close)
+                if candidate is not None:
+                    if pos.direction == "LONG" and candidate > pos.stop:
+                        pos.stop = candidate
+                    elif pos.direction == "SHORT" and candidate < pos.stop:
+                        pos.stop = candidate
+            elif atr:
+                new_stop = update_trailing_stop(
+                    direction=pos.direction,  # type: ignore[arg-type]
+                    current_stop=pos.stop,
+                    current_close=bar.close,
+                    atr=atr,
+                )
+                if new_stop is not None:
+                    pos.stop = new_stop
 
         # ── 2. Check intrabar stop / target hits ─────────────────────────
         exited, exit_price, exit_reason = _check_exit(bar, pos)
@@ -316,6 +338,11 @@ def run_backtest_on_bars(
                     loss_streak_size_cut=0.5,
                 )
                 if size_res.shares > 0:
+                    basing = BasingPointTracker(
+                        direction=direction,
+                        filter_pct=config.basing_point_filter_pct,
+                        use_new_high_rule=config.basing_point_new_high_rule,
+                    )
                     entry_cost = _side_cost(entry_fill, size_res.shares, direction, config)
                     equity -= entry_cost
                     pos = _Position(
@@ -386,6 +413,9 @@ def run_backtest_on_bars(
             "reentry_cooldown_bars": config.reentry_cooldown_bars,
             "failed_signal_grace_bars": config.failed_signal_grace_bars,
             "failed_signal_enabled": config.failed_signal_enabled,
+            "trailing_stop_mode": config.trailing_stop_mode,
+            "basing_point_filter_pct": config.basing_point_filter_pct,
+            "basing_point_new_high_rule": config.basing_point_new_high_rule,
             "allow_pyramiding": config.allow_pyramiding,
             "max_pyramid_fraction": config.max_pyramid_fraction,
         },
