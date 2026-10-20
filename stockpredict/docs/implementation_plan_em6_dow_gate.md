@@ -193,7 +193,7 @@ guard itself is caught.
    > years, or holds one state for more than ~5 years, is **degenerate** and
    > does not ship whatever its P&L. Reported, not silently dropped.
 
-### D3 — GATE 1: does the confirmed trend predict anything at all? *(S)*
+### D3 — GATE 1: does the confirmed trend predict anything at all? *(S)* — **DONE 2026-10-20: FAILED, work stopped**
 The cheapest decisive test, and it runs **before** any pipeline work, because
 it can kill EM-6 for a fraction of the cost. No `confirm()` changes, no
 backtest: index and symbol bars only.
@@ -211,7 +211,12 @@ Sampling follows `#87`'s correction: **every qualifying day with greedy
 within-arm non-overlap**, never a fixed stride — the defect that produced
 n = 0 on more data.
 
-### D4 — Market-context provider with the shared cache *(S)*
+> **D4–D8 WERE NEVER STARTED.** GATE 1 failed at 0 of 3 horizons under all
+> six arms, and the pre-registered consequence was to stop. The gate being
+> front-loaded is the reason this cost three sessions instead of nine. See
+> `docs/em6_dow_gate.md`.
+
+### D4 — Market-context provider with the shared cache *(S)* — not started
 `FR-EM-D7`. One reading per `(date, index)`, reused across the universe.
 
 Tests first: evaluating M symbols issues **exactly 3 index fetches, not 3M** —
