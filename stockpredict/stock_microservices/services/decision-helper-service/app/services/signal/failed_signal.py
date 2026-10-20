@@ -297,6 +297,78 @@ def detect_failed_signals(
 #: They are still *returned*, because "a recent formation failed" is a
 #: legitimate reason to look. What they may no longer do is change a
 #: recommendation on their own.
+#: Every verdict kind this module defines. Backlog #89 — declared rather than
+#: discovered by grepping for `kind=`, because an honest count of "how many
+#: verdicts drive behaviour" is not the number of detector functions.
+ALL_KINDS: frozenset = frozenset({
+    "BULL_TRAP", "BEAR_TRAP", "FALSE_TL_BREAK", "FILLED_GAP",
+    "OPPOSITE_BREAKOUT", "RETURN_TO_SPIKE", "WRD_RETURN",
+    "DOUBLE_TOP_BREAK", "HS_TARGET_FAILURE",
+    "COUNTER_ANTICIPATED_FLAG", "ROUNDING_BREAK", "FUTURE_RELIABILITY",
+})
+
+#: Kinds that CANNOT fire, with the upstream reason. Established by Backlog
+#: #73 and #78 and asserted in `TestDetectorsStillUnreachable`; collected here
+#: at #89 so the fact is machine-readable instead of living in a docstring.
+#:
+#: That distinction is not pedantic. #82 and #83 both described "ten verdict
+#: kinds driving live recommendations" — a number reached by counting detector
+#: functions. The real figure is NINE reachable, and #83 then recorded these
+#: three as "unmeasured, pending a two-phase cross-service scan", which was
+#: wrong: no scan can reach them. `reachable_kinds()` exists so the next
+#: count reads this instead of counting functions.
+UNREACHABLE: dict = {
+    "ROUNDING_BREAK": (
+        "needs pattern_type ROUNDING_TOP/ROUNDING_BOTTOM, and ai-insights has "
+        "no rounding detector, so nothing maps onto it (Backlog #73)."
+    ),
+    "FUTURE_RELIABILITY": (
+        "reads `reliability_score`, which the ai-insights payload does not "
+        "carry and which is not derivable from it, so the adapter does not "
+        "invent one (Backlog #73)."
+    ),
+    "COUNTER_ANTICIPATED_FLAG": (
+        "needs a flag that has already broken counter to its direction, but "
+        "FlagDetector reports flags that are STILL FORMING — across 14 real "
+        "flags the last key bar was the final bar of the scan every time — so "
+        "a counter-break is unobservable within one scan. Inferring it from "
+        "price against the neckline labelled every unresolved bull flag a "
+        "downward break, which is the false positive Backlog #78 removed."
+    ),
+}
+
+
+def reachable_kinds() -> frozenset:
+    """The kinds that can actually fire — nine of the twelve defined.
+
+    Use this for any statement about how many verdicts influence behaviour.
+    Counting detector functions overstates it by three, which is a mistake
+    `#82` and `#83` both made.
+    """
+    return frozenset(ALL_KINDS - set(UNREACHABLE))
+
+
+#: The nine reachable kinds, and where each was measured. All nine now have
+#: outcome evidence, and none of them predicts anything:
+#:
+#:   7 pattern-independent  -> Backlog #83, per kind and per direction.
+#:                             None validated; OPPOSITE_BREAKOUT/LONG
+#:                             significantly BACKWARDS and suppressed.
+#:   2 pattern-dependent    -> Backlog #79, 6,797 causal scans.
+#:                             Neither predicts anything;
+#:                             HS_TARGET_FAILURE/SHORT backwards. Both demoted.
+#:
+#: So the catalogue is fully measured and the answer is uniform. That is worth
+#: stating plainly because the shape of the work invited the opposite
+#: conclusion three times: each study found "nothing here", and each time the
+#: unmeasured remainder looked like the place the signal might be hiding.
+MEASURED_BY = {
+    "BULL_TRAP": "#83", "BEAR_TRAP": "#83", "FALSE_TL_BREAK": "#83",
+    "FILLED_GAP": "#83", "OPPOSITE_BREAKOUT": "#83",
+    "RETURN_TO_SPIKE": "#83", "WRD_RETURN": "#83",
+    "DOUBLE_TOP_BREAK": "#79", "HS_TARGET_FAILURE": "#79",
+}
+
 UNVALIDATED_SEVERITY_CAP = 0.45
 
 #: Suppressed outright, not merely capped. It is the one verdict with evidence

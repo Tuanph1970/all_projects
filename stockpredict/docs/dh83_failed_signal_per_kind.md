@@ -75,12 +75,21 @@ decided afterwards.
 
 ### Completeness
 
+> **⚠️ CORRECTED AT #89.** The paragraph below said three kinds were "still
+> unmeasured, because reaching them needs the two-phase cross-service scan
+> #79 used". That is wrong: they are **unreachable by construction** — no
+> scan can reach them — and `#73`/`#78` had already established it, with
+> `TestDetectorsStillUnreachable` asserting it. The same error made this
+> report (and `#82`) describe "ten verdict kinds"; the real figure is **nine
+> reachable**, and all nine are now measured. See
+> `docs/dh89_verdict_catalogue.md`.
+
 Seven kinds are pattern-independent and all fired; their twelve
 (kind, direction) pairs are the table above. **Five kinds are
 pattern-dependent** and cannot fire without the ai-insights pattern payload:
 `DOUBLE_TOP_BREAK` and `HS_TARGET_FAILURE` (both already measured and demoted
 by `#79`), plus `COUNTER_ANTICIPATED_FLAG`, `ROUNDING_BREAK` and
-`FUTURE_RELIABILITY` — **still unmeasured**, because reaching them needs the
+`FUTURE_RELIABILITY` — still unmeasured, because reaching them needs the
 two-phase cross-service scan `#79` used. Logged as **#89**.
 
 ---
