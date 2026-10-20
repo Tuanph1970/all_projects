@@ -90,7 +90,36 @@ MIN_TREND_BARS = 4             # below this a direction verdict is meaningless
 # a guess. Evidence: docs/em1_s2_parameter_sweep.md.
 NEUTRAL_FACTOR = 1.0
 FACTOR_FLOOR = 0.5
-FACTOR_CEILING = 1.15
+
+#: Volume can only DISCREDIT a pattern, never promote one — the ceiling sits
+#: exactly at neutral. Backlog #81, and it is a measured decision that
+#: overrides `FR-EM-V7`'s original 1.15.
+#:
+#: The SRS chose asymmetric bounds [0.5, 1.15] on the reasoning that E&M's
+#: volume evidence "discredits better than it promotes", so 1.15 was already
+#: the smaller half. `#70` then made the significance gate well-posed and the
+#: tail cost became visible: against a bar set at the geometry-only 95th
+#: percentile, a lucky volume reading lifted null survivors from 4.6% to
+#: 21.7%.
+#:
+#: Measured as detection power at a FIXED 5% false-positive rate — the gate
+#: re-derived from each configuration's own null, so the comparison is one
+#: point on a ROC curve rather than a contest between inflated numbers:
+#:
+#:   ceiling   1.00    1.05    1.15    1.30    1.60
+#:   TPR      69.2%   69.2%   61.5%   61.5%   30.8%
+#:
+#: Power never rises and eventually collapses. The mechanism is in the same
+#: table: the ceiling lifts noise and signal alike, but noise is far more
+#: numerous (~1,400 null detections against 13 planted), so the gate climbs
+#: faster than a planted pattern's confidence does and patterns that used to
+#: clear it stop clearing it.
+#:
+#: Caveat kept with the number: only 13 planted patterns are tested, so TPR
+#: moves in steps of 7.7% and 69.2% vs 61.5% is one pattern. What carries the
+#: decision is that the direction is monotone across five settings and no
+#: setting above 1.0 improves anything.
+FACTOR_CEILING = 1.0
 
 
 # --- Result types -----------------------------------------------------------

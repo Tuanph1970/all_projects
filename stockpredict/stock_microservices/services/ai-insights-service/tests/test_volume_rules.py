@@ -360,8 +360,19 @@ class TestFactorBounds:
     """Volume is corroboration, not the finding: it can neither erase a
     geometrically excellent pattern nor manufacture a poor one."""
 
-    def test_bounds_bracket_neutral(self):
-        assert FACTOR_FLOOR < NEUTRAL_FACTOR < FACTOR_CEILING
+    def test_volume_can_only_discredit(self):
+        """Backlog #81. The ceiling sits exactly at neutral, measured: a
+        ceiling above it never raised detection power at a fixed
+        false-positive rate (TPR 69.2% at 1.00, 61.5% at the shipped 1.15,
+        30.8% at 1.60) because it lifts the far more numerous noise detections
+        along with the signal, so the gate climbs faster than a planted
+        pattern's confidence does.
+
+        This replaces an assertion that the bounds *bracket* neutral, which
+        was true of `FR-EM-V7`'s original 1.15 and is now deliberately false.
+        """
+        assert FACTOR_FLOOR < NEUTRAL_FACTOR
+        assert FACTOR_CEILING == pytest.approx(NEUTRAL_FACTOR)
 
     def test_bounds_are_deliberately_asymmetric(self):
         """SRS §8 q2: E&M's volume evidence discredits better than it promotes,

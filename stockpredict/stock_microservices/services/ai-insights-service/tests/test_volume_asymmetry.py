@@ -95,16 +95,33 @@ class TestH3Asymmetry:
         _, (_, bullish) = _pair()
         assert bullish.volume_factor < NEUTRAL_FACTOR
 
-    def test_a_bullish_break_on_expanding_volume_is_rewarded(self):
-        """The other half of "required": present expansion must help, or the
-        rule would only ever be a penalty and `H1` would be satisfiable by a
-        constant."""
+    def test_a_bullish_break_on_expanding_volume_scores_above_one_without(self):
+        """The other half of "required", restated as the RELATIVE claim after
+        Backlog #81 set the factor ceiling to neutral.
+
+        It used to assert `volume_factor > NEUTRAL_FACTOR`, reasoning that
+        "present expansion must help, or the rule would only ever be a penalty
+        and `H1` would be satisfiable by a constant". #81 measured that a
+        ceiling above neutral never improves detection power at a fixed
+        false-positive rate, so volume now only discredits — and the reasoning
+        does not survive the change: discrimination is intact either way,
+        because a break WITH expansion sits at neutral while one WITHOUT is
+        penalised below it. `H1` reads `volume_score`, which the factor bounds
+        never touched, so it was never satisfiable by a constant.
+
+        So the claim asserted is the one that matters — good volume must score
+        better than bad — which is strictly stronger than an offset.
+        """
         frame, match = _pair()[1]
         bar = breakout_bar(match, frame)
         assert bar is not None, "fixture precondition: the upside break must be locatable"
         boosted = single_match(with_burst_at(frame, bar, 4.0), BULLISH_PATTERN)
-        assert boosted.volume_factor > NEUTRAL_FACTOR
+
         assert boosted.volume_score > match.volume_score
+        assert boosted.volume_factor >= match.volume_factor
+        assert boosted.volume_factor == pytest.approx(NEUTRAL_FACTOR), (
+            "#81: the best volume can do is withhold its penalty"
+        )
 
     def test_expansion_corroborates_a_bearish_break_more_weakly_than_a_bullish_one(self):
         """Corroboration is worth less than required evidence being met. Same

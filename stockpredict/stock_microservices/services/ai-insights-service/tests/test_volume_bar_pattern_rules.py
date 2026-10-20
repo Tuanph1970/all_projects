@@ -213,9 +213,14 @@ class TestOneDayReversalLongBaseline:
 
 class TestTrapVolumeInverts:
     def test_a_pierce_with_no_follow_through_volume_confirms_the_trap(self):
+        """Backlog #81 set the factor ceiling to neutral, so a confirming
+        verdict now withholds a penalty rather than granting a bonus. The
+        verdict itself is unchanged, and the discrimination is asserted by
+        `test_heavy_follow_through_volume_argues_against_the_trap` below —
+        which is where it belongs."""
         textbook = _match("bull_trap", "Bull Trap")
         assert textbook.volume_evidence["verdict"] == "confirms"
-        assert textbook.volume_factor > NEUTRAL_FACTOR
+        assert textbook.volume_factor == pytest.approx(NEUTRAL_FACTOR)
 
     def test_heavy_follow_through_volume_argues_against_the_trap(self):
         """The inversion, stated as the thing it inverts: everywhere else in
