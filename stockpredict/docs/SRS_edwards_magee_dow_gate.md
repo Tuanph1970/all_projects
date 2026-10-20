@@ -172,6 +172,15 @@ the symbol's own exchange (VNINDEX for the HOSE universe). Witnesses =
 in §3 recorded in the code beside the constant, so the next reader does not
 re-litigate it.
 
+> **⚠️ D4 and D5 COMPOSED AT PHASE 2.** As written below, `FR-EM-D4`
+> confirms a *turn* (an event) while `FR-EM-D5` checks a *state* — two
+> mechanisms, with no statement of how they relate. The plan resolves it into
+> one: **the witness governs how a lead turn is *adopted*; the gate then
+> checks a signal against the adopted trend**, and an unconfirmed turn leaves
+> the previous trend standing, which is tenet 12 rather than a special case.
+> `confirmed_primary_trend(lead, witnesses, k)` is the single primitive. See
+> `docs/implementation_plan_em6_dow_gate.md` §1.
+
 **FR-EM-D4 — Confirmation with a lag window.** A lead trend change at day *t*
 is *confirmed* if a witness holds the same state at any day in `[t, t+k]`.
 `k` is a parameter (default provisional, §9). This implements *"they need not
@@ -278,6 +287,15 @@ and a null on it is a publishable result for this project. It is **not** worth
 pre-committing to.
 
 ## 10. Open questions for the Phase-2 plan
+
+> **All four were settled in `docs/implementation_plan_em6_dow_gate.md`:** (1)
+> `k` is swept at D6; (2) both trend rules are built behind a `trend_rule`
+> parameter and measurement decides; (3) the modes are made **mutually
+> exclusive**, so the penalty and the gate cannot hide each other; (4) the
+> swing threshold is swept on `{3, 5, 8}%` reading sign robustness, not the
+> peak. The plan also adds a trap the SRS missed — a market-wide gate is **one
+> treatment on shared dates**, so significance must cluster by **date**, not
+> by symbol as `#84` correctly did for a per-symbol rule.
 
 1. **`k`, the lag window.** §3.1 makes this the parameter that *is* the design.
    Sweep it; expect the familiar shape where the sign is robust and
