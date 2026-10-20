@@ -91,10 +91,23 @@ prices only, 5% reversal threshold):
 
 | witness vs VNINDEX | corr | disagree (MA / Dow) | median episode | verdict |
 |---|---|---|---|---|
-| **VN30** | **0.965** | 14.4% / 13.2% | 2 / 15 | **unusable — W1 fails** |
-| **HNXINDEX** | 0.469 | 27.5% / 36.3% | 5 / 34 | **usable** |
-| HNX30 | 0.772 | 32.5% / 40.2% | 5 / 45 | usable |
+| **VN30** | **0.965** | 14.4% / 11.1% | 2 / 12 | **unusable — W1 fails** |
+| **HNXINDEX** | 0.469 | 27.5% / 34.5% | 5 / 33 | **usable** |
+| HNX30 | 0.772 | 32.5% / 40.0% | 5 / 45 | usable |
 | **UPCOMINDEX** | 0.451 | 46.8% / 37.5% | 12 / 42 | **usable** |
+
+> **Figures corrected at D1.** The Dow-rule column was first produced by a
+> copy of the swing rule living inside the study script, and that copy was
+> wrong: while the leg direction was still unknown it reset the running
+> extreme to the current close every bar instead of tracking a maximum, so the
+> first pivot needed a single-bar 5% drop rather than a 5% reaction from the
+> peak. It declared VNINDEX's trend late on **906 of 5,672 bars (16%)**;
+> HNXINDEX and UPCOMINDEX were unaffected. The duplicate is now deleted and
+> the study delegates to the tested module. **No verdict changed** — W1 rests
+> on correlation, which is definition-free — and the one materially moved
+> number *strengthens* the finding: VN30's "never confirms within 120 bars"
+> fell from 33% to **7%**, i.e. it confirms even more reliably than first
+> reported.
 
 **The register's fear was exactly right about VN30 and wrong about the rest.**
 VN30 is 0.965-correlated with VNINDEX — the same instrument wearing a second

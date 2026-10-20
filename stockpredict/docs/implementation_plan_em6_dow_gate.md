@@ -49,7 +49,7 @@ primitive, and the gate is a comparison against its output.
 **Q2 — which trend definition ships.** Neither is chosen on fidelity. Both are
 built behind a `trend_rule` parameter and swept in D6, because the SRS's own
 argument cuts both ways: the Dow swing rule is the book's rule but yields only
-**15–29 state changes in 20 years** on VNINDEX, while the MA proxy is not
+**15–33 state changes in 20 years** on VNINDEX, while the MA proxy is not
 E&M's rule but is the shipped, tested instrument EM-4 already used. Measurement
 decides. `FR-EM-D10` already made every default provisional.
 
@@ -103,7 +103,7 @@ Required instead, fixed now:
 ### D0 — Roadmap rows and requirement wiring *(XS)*
 `#66` to In Progress with the phase, `FR-EM-D*` IDs recorded. No code.
 
-### D1 — The Dow swing-trend primitive *(S)*
+### D1 — The Dow swing-trend primitive *(S)* — **DONE 2026-10-20**
 `app/services/market_context/dow.py`: `swing_trend_series(bars, pct)` →
 `List[str]`, closes only, causal, incremental. Ported from the study script
 into production shape, which means the study's version stops being the
@@ -120,6 +120,22 @@ Tests first:
 * **tenet 11** — intraday extremes do not participate: perturbing highs/lows
   while holding closes fixed changes nothing.
 * **H-D5** the bound-default guard, mutation-checked as `#87` did.
+
+**Outcome:** `app/services/market_context/dow.py` +
+`tests/test_dow_trend.py` (20 tests, green). Two things worth recording:
+
+1. **My first version of the "declared at the right bar" test had look-ahead
+   in it.** It asserted the trend appears at the bar the fourth pivot *formed*
+   on; it can only appear at the later bar that *confirmed* it. `Pivot` carries
+   both `index` and `confirmed_index` precisely to keep those apart, and the
+   test read the wrong one. Corrected, with the reason recorded in the test.
+2. **The study script's copy of the rule was buggy**, and porting it exposed
+   that: while the leg direction was unknown it reset the running extreme to
+   the current close each bar rather than tracking a maximum, declaring
+   VNINDEX's trend late on 906 of 5,672 bars. The duplicate is deleted, the
+   study now delegates to the tested module, and the SRS §3 Dow-rule figures
+   are corrected. **No verdict changed** — and VN30's "never confirms" fell
+   from 33% to 7%, strengthening its exclusion.
 
 ### D2 — `confirmed_primary_trend` *(S)*
 The §1 composition: lead turns adopted only on witness confirmation within

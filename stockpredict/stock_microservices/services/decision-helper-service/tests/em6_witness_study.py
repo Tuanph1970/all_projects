@@ -73,6 +73,7 @@ from typing import Dict, List, Sequence, Tuple
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.services.backtest.market_features import compute_regime  # noqa: E402
+from app.services.market_context.dow import swing_trend_series  # noqa: E402
 from app.services.signal.base import OHLCVBar  # noqa: E402
 
 FAST, SLOW = 20, 50          # passed explicitly: they are bound defaults
@@ -120,47 +121,22 @@ def regime_series(bars: Sequence[OHLCVBar]) -> List[str]:
     return out
 
 
-def dow_series(bars: Sequence[OHLCVBar], pct: float = SWING_PCT) -> List[str]:
-    """Dow's primary trend from successive confirmed swing highs and lows.
+def dow_series(bars: Sequence[OHLCVBar]) -> List[str]:
+    """Dow's primary trend -- now delegated to the production module.
 
-    Closing prices only (tenet 11). A swing is confirmed once price reverses
-    `pct` from the running extreme; the trend turns UP only when the newest
-    confirmed high *and* low both exceed their predecessors, and DOWN only
-    when both fall below -- which is the two-condition rule, not a single
-    higher high.
+    This function used to carry its own copy of the rule, and that copy was
+    WRONG: while the leg direction was still unknown it reset the running
+    extreme to the current close on every bar instead of tracking a maximum,
+    so the first pivot was only confirmed by a single-bar 5% drop rather than
+    a 5% reaction from the peak. The effect was to declare VNINDEX's trend
+    late on 906 of 5,672 bars (16%); HNXINDEX and UPCOMINDEX were unaffected.
+
+    `D1` ported the rule into `app/services/market_context/dow.py` with tests,
+    and that module is now the single reference. The duplicate is gone rather
+    than fixed in place, because two implementations of one rule is how they
+    drift apart.
     """
-    out: List[str] = []
-    highs: List[float] = []
-    lows: List[float] = []
-    direction = 0               # +1 rising leg, -1 falling leg, 0 unknown
-    extreme = bars[0].close if bars else 0.0
-    trend = "UNDEFINED"
-
-    for b in bars:
-        c = b.close
-        if direction >= 0:
-            if c > extreme:
-                extreme = c
-            elif c <= extreme * (1 - pct):
-                highs.append(extreme)          # the leg's top is confirmed
-                direction, extreme = -1, c
-        if direction <= 0:
-            if c < extreme or direction == 0:
-                extreme = min(extreme, c)
-            if c >= extreme * (1 + pct):
-                lows.append(extreme)           # the leg's bottom is confirmed
-                direction, extreme = 1, c
-
-        if len(highs) >= 2 and len(lows) >= 2:
-            up = highs[-1] > highs[-2] and lows[-1] > lows[-2]
-            down = highs[-1] < highs[-2] and lows[-1] < lows[-2]
-            if up:
-                trend = "TREND_UP"
-            elif down:
-                trend = "TREND_DOWN"
-            # neither: the trend stands until reversal is signalled (tenet 12)
-        out.append(trend)
-    return out
+    return swing_trend_series(bars, pct=SWING_PCT)
 
 
 def _self_check(bars: Sequence[OHLCVBar]) -> None:
