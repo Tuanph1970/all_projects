@@ -137,7 +137,7 @@ Tests first:
    are corrected. **No verdict changed** — and VN30's "never confirms" fell
    from 33% to 7%, strengthening its exclusion.
 
-### D2 — `confirmed_primary_trend` *(S)*
+### D2 — `confirmed_primary_trend` *(S)* — **DONE 2026-10-20**
 The §1 composition: lead turns adopted only on witness confirmation within
 `k`, otherwise the prior state stands.
 
@@ -151,6 +151,47 @@ Tests first:
   beyond a staleness bound is treated as unavailable (⇒ EC-D1).
 * **EC-D5** — indices addressed from the allow-list constant, never a string
   heuristic.
+
+**Outcome:** `app/services/market_context/dow_context.py` (`adopt_turns`,
+`market_context_series`, `MarketContext`, the witness allow-list with its
+exclusion reasons) + `tests/test_dow_context.py`, 30 tests, green. Split into
+two layers so the confirmation rule is tested on literal trend sequences
+rather than through bar fixtures. Four mutation checks run; the one that
+survived turned out to be an equivalent mutation (clearing `pending` after
+expiry is bookkeeping — the deadline guard does the work), and removing the
+guard itself is caught.
+
+**Two measured facts that change D6, found here rather than there:**
+
+1. **`k` has no resolution below ~10 bars on this data.** The lag from a
+   VNINDEX turn to its first witness agreement is strongly bimodal: **25 of 35
+   turns confirm on day 0**, and the remainder at 6, 7, 13, 17, 20, 20, 30, 91
+   bars or never (2). **No turn confirms in bars 1–5**, so `k ∈ [0, 5]` is
+   literally one gate. A sweep over `{0, 1, 3, 5}` would read *flat — k does
+   not matter*, which is the false-flatness shape this project keeps meeting.
+   **D6 sweeps `k ∈ {0, 10, 20, 60}`.**
+
+2. **Strictness is stickiness, not bearishness — and the strict/short corner
+   is degenerate.** Adoption blocks *turns*, so a rejected DOWN turn leaves
+   the previous UP standing. On the real series:
+
+   | mode | k | adopted turns (20 yrs) | longest single state |
+   |---|---|---|---|
+   | ungated lead | – | 35 | – |
+   | `CONFIRM_2` | 0–5 | 21 | 1,051 bars |
+   | `CONFIRM_2` | 20–60 | 31–33 | 782 bars |
+   | `UNANIMOUS_3` | 0–5 | **5** | **3,911 bars (~15 yrs)** |
+   | `UNANIMOUS_3` | 20–60 | 17–19 | 1,422 bars |
+
+   `UNANIMOUS_3` at `k ≤ 5` holds one reading for fifteen years. That is not a
+   strict context, it is a **constant**, and a constant is as useless as an
+   inert gate while looking like the opposite in a backtest — it produced
+   *more* long exposure than no gate at all. So **D6 gains a degeneracy
+   criterion** beside `H-D3`'s vacuity guard:
+
+   > A configuration whose adopted trend changes fewer than ~10 times in 20
+   > years, or holds one state for more than ~5 years, is **degenerate** and
+   > does not ship whatever its P&L. Reported, not silently dropped.
 
 ### D3 — GATE 1: does the confirmed trend predict anything at all? *(S)*
 The cheapest decisive test, and it runs **before** any pipeline work, because
@@ -192,8 +233,9 @@ Tests first:
   bug `walk_forward.py` already shipped once, dropping five fields.
 
 ### D6 — GATE 2: the in-sample A/B sweep *(M)*
-Modes × `k` × `trend_rule` × `swing_pct`, same universe and window, through
-`backtest/harness.py`. Reports gross and net P&L per trade, hit rate, trade
+Modes × `k ∈ {0, 10, 20, 60}` (per D2's finding — a finer grid has no
+resolution) × `trend_rule` × `swing_pct ∈ {3, 5, 8}%`, same universe and
+window, through `backtest/harness.py`. Reports gross and net P&L per trade, hit rate, trade
 count, **and the suppressed-signal count** — a gate that lifts hit rate by
 discarding most trades has not helped.
 
@@ -231,6 +273,7 @@ ships — no UI for an unshipped mechanism.
 | 2 | D6 | a mode improves net P&L/trade vs `OFF`, date-clustered, with total net P&L not falling | stop; gate stays `OFF` |
 | 3 | D7 | the D6 winner holds out of sample, date-clustered, episode count reported | gate stays `OFF`; record as EM-3-shaped (magnitude without consistency) |
 | — | D6 | any mode changing < 5% of decisions is reported **inert** | that mode does not ship regardless of P&L |
+| — | D6 | any config adopting < ~10 turns in 20 years, or holding one state > ~5 years, is **degenerate** (D2) | that config does not ship regardless of P&L |
 
 ## 6. Sequencing and effort
 
