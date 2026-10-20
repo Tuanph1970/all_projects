@@ -211,8 +211,21 @@ def detect_failed_signals(
     bar_date: date,
     sr_data: Optional[Dict[str, Any]] = None,
     patterns: Optional[Dict[str, Any]] = None,
+    apply_validation_policy: bool = True,
 ) -> List[FailedSignalResult]:
-    """Run all 12 detectors; return results sorted by severity descending."""
+    """Run all 12 detectors; return results sorted by severity descending.
+
+    ``apply_validation_policy`` applies Backlog #83's findings — suppressing
+    the one verdict that measured backwards and capping the rest below
+    `OVERRIDE_THRESHOLD`. It defaults to **on**, because the live
+    recommendation path is where an unvalidated verdict does damage.
+
+    A study may pass ``False`` to see the verdicts as they were before #83.
+    The backtest does exactly that when its override is explicitly enabled:
+    the point of that flag is to re-measure the override, and a flag that
+    silently did nothing would be the no-op trap this codebase keeps paying
+    for.
+    """
     idx = next((i for i, b in enumerate(bars) if b.date == bar_date), None)
     if idx is None or idx < 2:
         return []
@@ -248,8 +261,75 @@ def detect_failed_signals(
             if r:
                 results.append(r)
 
+    if apply_validation_policy:
+        results = _apply_validation_policy(results)
     results.sort(key=lambda x: x.severity, reverse=True)
     return results
+
+
+#: Backlog #83. Every pattern-independent verdict kind was measured per kind
+#: and per direction, on #79's method — causal scans, non-overlapping forward
+#: windows, against the no-verdict baseline on the same bars — and **not one
+#: was validated**:
+#:
+#:   kind / direction            edge@10   edge@20   edge@60   verdict
+#:   BEAR_TRAP / LONG             +0.55     -0.55     -2.61    unvalidated
+#:   BULL_TRAP / SHORT            +0.21     +1.54     +3.06    unvalidated
+#:   FALSE_TL_BREAK / LONG        -0.46     -1.68     -2.65    unvalidated
+#:   FALSE_TL_BREAK / SHORT       +0.17     +2.09     -1.28    unvalidated
+#:   FILLED_GAP / LONG            +0.52     -0.36     +0.06    unvalidated
+#:   FILLED_GAP / SHORT           -0.09     +0.03     +1.72    unvalidated
+#:   OPPOSITE_BREAKOUT / LONG     -0.38     -1.81*    -4.46*   BACKWARDS
+#:   OPPOSITE_BREAKOUT / SHORT    -0.53     -0.08     +0.73    unvalidated
+#:   RETURN_TO_SPIKE / LONG       +0.84     -0.68    +25.47    unvalidated (n=5)
+#:   RETURN_TO_SPIKE / SHORT      -0.78     -1.16     +7.01    unvalidated (n=5)
+#:   WRD_RETURN / LONG            +2.12     +0.71     -7.65    unvalidated
+#:   WRD_RETURN / SHORT           +0.21     -2.42     +4.90    unvalidated
+#:
+#:   (* significant at t < -1.96. "edge" is signed by the verdict's own
+#:    claim, so positive means it added value in the direction it implied.)
+#:
+#: So no unvalidated verdict may override a confirmed signal's direction. The
+#: cap sits below `OVERRIDE_THRESHOLD`, which is exactly what `#79` did to the
+#: two pattern kinds it measured — this extends the same policy to the rest
+#: rather than inventing a new one.
+#:
+#: They are still *returned*, because "a recent formation failed" is a
+#: legitimate reason to look. What they may no longer do is change a
+#: recommendation on their own.
+UNVALIDATED_SEVERITY_CAP = 0.45
+
+#: Suppressed outright, not merely capped. It is the one verdict with evidence
+#: of being **wrong**: significantly negative at two horizons (t = -2.12 at 20
+#: sessions, -2.06 at 60), meaning it implied LONG and price then
+#: underperformed the no-verdict baseline. A capped-but-visible verdict still
+#: tells a user something, and this one tells them something false.
+#:
+#: Not inverted, which was the tempting alternative: inverting a signal
+#: because it measured backwards on one 32-symbol sample is fitting to the
+#: sample. Suppression asserts only what the measurement supports — that
+#: showing it is worse than showing nothing.
+SUPPRESSED: frozenset = frozenset({("OPPOSITE_BREAKOUT", "LONG")})
+
+
+def _apply_validation_policy(
+    results: List[FailedSignalResult],
+) -> List[FailedSignalResult]:
+    """Backlog #83 — drop what measured backwards, cap what is unvalidated."""
+    out: List[FailedSignalResult] = []
+    for r in results:
+        if (r.kind, r.direction) in SUPPRESSED:
+            continue
+        if r.severity > UNVALIDATED_SEVERITY_CAP:
+            r = FailedSignalResult(
+                kind=r.kind,
+                direction=r.direction,
+                severity=UNVALIDATED_SEVERITY_CAP,
+                evidence={**r.evidence, "severity_capped": True,
+                          "capped_reason": "unvalidated (Backlog #83)"},
+            )
+        out.append(r)
+    return out
 
 
 def highest_severity(results: List[FailedSignalResult]) -> Optional[FailedSignalResult]:

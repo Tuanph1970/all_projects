@@ -278,7 +278,14 @@ def run_backtest_on_bars(
             and (idx - pos.entry_index) < max(0, config.failed_signal_grace_bars)
         )
         if config.failed_signal_enabled and pos.state != "FLAT" and not in_grace:
-            failed = detect_failed_signals(bars_so_far, bar.date, sr_data, None)
+            # Backlog #83 caps unvalidated verdicts below the override
+            # threshold to protect the LIVE path. Enabling the override here
+            # is an explicit request to study it as it was, so the cap is
+            # bypassed — otherwise the flag would be a silent no-op.
+            failed = detect_failed_signals(
+                bars_so_far, bar.date, sr_data, None,
+                apply_validation_policy=False,
+            )
             top = highest_severity(failed)
             if top and top.severity >= OVERRIDE_THRESHOLD:
                 fill = apply_slippage(
