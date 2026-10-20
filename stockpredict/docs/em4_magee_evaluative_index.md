@@ -7,6 +7,15 @@
 on this data, and the exposure governor the register proposed is weakly
 contra-indicated — it points the wrong way.**
 
+> **⚠️ AMENDED AT #87**, which obtained 19.7 years and the real VNINDEX. Both
+> halves of that verdict changed: the bottoms claim became **testable and
+> directionally supported** (+2.46/+2.95/+12.57% at t = 1.6–1.9, still 0 of 3
+> significant), and the contra-indication **was overturned** — the quintile
+> sign flipped and went flat. The governor is **unsupported, not
+> contra-indicated**. Section (3) below is superseded; see
+> `docs/backlog87_deep_history.md`. Everything in sections (1) and (2) is
+> as-measured on 5.3 years and is left standing as the record.
+
 ---
 
 ## What was built
@@ -70,6 +79,16 @@ genuine major bottom to test against. Non-overlapping sampling then leaves 2
 to 11 observations in the tail. The claim cannot be settled here either way,
 and a longer history is the only thing that would settle it.
 
+> **⚠️ OVERTURNED AT #87.** The quintile finding below — monotone decreasing,
+> top-vs-bottom −14.99% at t = −2.08 — was measured on 17 observations with
+> **n = 3 per bucket**. Re-run on 19.7 years with the real cap-weighted
+> VNINDEX, **the sign flips and the monotonicity disappears**: +0.95%
+> (t = +0.59) at 20 sessions and +2.53% (t = +0.68) at 60. It was noise, as
+> this section itself predicted. The pro-cyclical governor is therefore
+> **unsupported, not contra-indicated** — the conclusion drawn below is
+> withdrawn. The *bottoms* claim, by contrast, strengthened. See
+> `docs/backlog87_deep_history.md`.
+
 ## (3) The better-powered question, and the finding that matters
 
 An exposure governor scales commitments *with the reading*, so what it needs
@@ -122,23 +141,30 @@ t, exactly the shape that does not survive more data.
 | | |
 |---|---|
 | the measure | **built, causal, tested** (13 tests), ships as evidence |
-| E&M's bottoms claim | **untestable** here — one bear market, 2–11 tail observations |
-| the measure's behaviour | **consistent** with the claim descriptively, 0% through the 2022 decline |
-| breadth → forward returns | **contrarian and monotone at 60 sessions**, marginal (t = −2.08, n = 3/bucket); noise at 20 |
-| the register's exposure governor | **not built** — the proposed direction is contra-indicated |
+| E&M's bottoms claim | ~~untestable~~ → **#87: testable, directionally supported, 0/3 significant** |
+| the measure's behaviour | **consistent** with the claim descriptively, 0% through the 2022 decline — and **0.0% at the 2009 GFC bottom** (#87) |
+| breadth → forward returns | ~~contrarian and monotone~~ → **#87: nothing, in either direction** |
+| the register's exposure governor | **not built** — ~~contra-indicated~~ → **unsupported** (#87) |
 
 Nothing consumes the MEI. It is a measurement, available on the payload of
 whatever surfaces it next, and the first breadth measure the system has.
 
 ## What would change the answer
 
-1. **More history.** The binding constraint on every number above. E&M spoke
-   of 20 years; a VN series back to 2012 would give several bear markets
+1. ~~**More history.**~~ **Delivered by #87** — 19.7 years, four bear markets
    instead of one.
-2. **The real VN-Index**, cap-weighted, instead of an equal-weighted basket of
-   the same 32 symbols the MEI is built from — the proxy and the measure are
-   not independent, so this is currently a test of internal consistency, the
-   weaker form of the claim.
-3. **A wider universe.** Magee kept ~100 charts; 32 VN30 names in a market
-   dominated by a few large caps is a thin reading of "the market", and the
-   register flagged this risk before the work started.
+2. ~~**The real VN-Index.**~~ **Delivered by #87** — VNINDEX back to 2008, so
+   the test is no longer one of internal consistency.
+3. ~~**A wider universe.**~~ **Delivered by #87** — 92 symbols, close to
+   Magee's ~100.
+
+All three were obtained, and the answers moved: one claim strengthened, one
+was overturned. What remains binding is **n in the tail** — 19.7 years of VN
+data still holds only three or four genuine major bottoms, and non-overlapping
+sampling leaves 11 observations at the 60-session horizon. That is a property
+of the market's history, not of our ingest, and no further data engineering
+will fix it.
+
+A new caveat replaces the three: the **early universe is thin**. Only 11 of
+the 92 symbols had listed by 2007–09, so the GFC-era readings are off 11
+charts, not 92.

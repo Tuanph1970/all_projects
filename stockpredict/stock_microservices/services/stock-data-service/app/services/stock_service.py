@@ -1063,9 +1063,11 @@ class StockService:
                 logger.error(f"Failed to create company record for {symbol}: {e}")
                 raise
 
-        # Sync 5 years of historical data (matching monolith DEFAULT_YEARS_HISTORY = 5)
+        # Backlog #87: depth comes from config, not from a literal. The vendor
+        # carries ~17 years; 5 was the monolith's DEFAULT_YEARS_HISTORY and the
+        # reason EM-4 could not test E&M's bottoms claim.
         end_date = date.today()
-        start_date = end_date - timedelta(days=365 * 5)
+        start_date = end_date - timedelta(days=365 * settings.HISTORY_YEARS)
 
         try:
             count = await self.fetch_and_save_historical_data(

@@ -45,16 +45,61 @@ from __future__ import annotations
 
 import math
 from statistics import mean
+import os
+from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from app.services.breadth.mei import MeiPoint, compute_mei_series
 from app.services.signal.base import OHLCVBar
 
-from tests.failed_signal_override_study import load_bars
+from tests.failed_signal_override_study import load_bars as load_shallow_bars
 
 HORIZONS = (10, 20, 60)
+
+#: Backlog #87. When the deep dump exists, the study uses ~18 years of VN100
+#: and the REAL cap-weighted VNINDEX instead of 5.3 years of VN30 and an
+#: equal-weighted basket of the same symbols the MEI is built from. Both are
+#: reported in the header, because every EM-4 conclusion depends on which was
+#: used and a study that silently swapped its inputs would be worthless.
+DEEP_BARS = os.environ.get("EM4_BARS", "/tmp/deep_bars.tsv")
+DEEP_INDEX = os.environ.get("EM4_INDEX", "/tmp/deep_index.tsv")
 DECILE = 10.0        # "extremely low" = bottom decile of the trailing history
 WARMUP_POINTS = 250  # readings before a percentile is trusted
+
+
+def load_bars() -> Tuple[Dict[str, List[OHLCVBar]], str]:
+    """The deep VN100 dump when it exists, the shallow VN30 one otherwise."""
+    if Path(DEEP_BARS).exists():
+        from tests.failed_signal_override_study import load_bars as _loader
+
+        return _loader(DEEP_BARS), f"deep:{Path(DEEP_BARS).name}"
+    return load_shallow_bars(), "shallow:all_bars.tsv"
+
+
+def load_index() -> Tuple[Optional[Dict[object, float]], str]:
+    """The real cap-weighted VNINDEX, if the dump is present.
+
+    This is what `#87` was raised to supply. Before it, the market was proxied
+    by an equal-weighted basket of the **same symbols the MEI is built from**,
+    so breadth was being tested against a basket it partly defined — internal
+    consistency, not E&M's claim.
+    """
+    path = Path(DEEP_INDEX)
+    if not path.exists():
+        return None, "equal-weighted basket (proxy)"
+    out: Dict[object, float] = {}
+    from datetime import datetime as _dt
+
+    with path.open() as fh:
+        for line in fh:
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) != 7:
+                continue
+            try:
+                out[_dt.strptime(parts[1], "%Y-%m-%d").date()] = float(parts[5])
+            except ValueError:
+                continue
+    return (out, "VNINDEX (real, cap-weighted)") if out else (None, "basket")
 
 
 def market_proxy(bars_by_symbol: Dict[str, Sequence[OHLCVBar]]) -> Dict[object, float]:
@@ -85,36 +130,64 @@ def forward_returns(
     proxy: Dict[object, float],
     horizon: int,
 ) -> Tuple[List[float], List[float], int]:
-    """(low-MEI forward returns, all forward returns, n low) — non-overlapping."""
+    """(low-MEI forward returns, baseline forward returns, n low).
+
+    Both arms are sampled so that no two observations within an arm share a
+    forward bar — overlapping windows inflate significance, the trap `#79`
+    documented.
+
+    **How, and why not the obvious way.** The first version of this walked a
+    fixed stride (`range(warmup, n, horizon)`) and tested whichever days it
+    landed on. That is a *systematic* sample, and low-MEI episodes are short
+    and clustered in time — a handful of bear markets — so a stride can step
+    straight over all of them. It did: on 19.7 years at the 60-session horizon
+    it found **zero** low-MEI observations, fewer than the 5.3-year data had
+    found, which is impossible for a real sampler and was the clue.
+
+    So every qualifying day is considered, and non-overlap is enforced
+    *within* each arm by taking the earliest and skipping forward by
+    `horizon`. That uses every available episode instead of whichever happened
+    to fall on a stride.
+    """
     days = [p.day for p in series]
-    low: List[float] = []
-    every: List[float] = []
+    low_idx: List[int] = []
+    other_idx: List[int] = []
 
-    for i in range(WARMUP_POINTS, len(series) - horizon, horizon):
-        d0, d1 = days[i], days[i + horizon]
-        if d0 not in proxy or d1 not in proxy or proxy[d0] <= 0:
-            continue
-        fwd = (proxy[d1] / proxy[d0] - 1.0) * 100.0
-        every.append(fwd)
-
+    for i in range(WARMUP_POINTS, len(series) - horizon):
         # "Extremely low" against the reading's OWN trailing history, so the
         # threshold is never set with hindsight.
         past = [p.mei for p in series[:i]]
         if not past:
             continue
         cutoff = sorted(past)[max(0, int(len(past) * DECILE / 100.0) - 1)]
-        if series[i].mei <= cutoff:
-            low.append(fwd)
+        (low_idx if series[i].mei <= cutoff else other_idx).append(i)
 
-    return low, every, len(low)
+    def harvest(indices: List[int]) -> List[float]:
+        out: List[float] = []
+        last = -10**9
+        for i in indices:
+            if i - last < horizon:
+                continue
+            d0, d1 = days[i], days[i + horizon]
+            if d0 not in proxy or d1 not in proxy or proxy[d0] <= 0:
+                continue
+            out.append((proxy[d1] / proxy[d0] - 1.0) * 100.0)
+            last = i
+        return out
+
+    low = harvest(low_idx)
+    base = harvest(other_idx)
+    return low, base, len(low)
 
 
 if __name__ == "__main__":
-    bars = load_bars()
-    print(f"universe = {len(bars)} symbols\n")
+    bars, bars_label = load_bars()
+    index, index_label = load_index()
+    print(f"universe = {len(bars)} symbols  ({bars_label})")
+    print(f"market   = {index_label}\n")
 
     series = compute_mei_series(bars)
-    proxy = market_proxy(bars)
+    proxy = index if index is not None else market_proxy(bars)
     print(f"MEI series: {len(series)} readings, {series[0].day} -> {series[-1].day}")
     values = [p.mei for p in series]
     print(f"   range {min(values):.1f}% - {max(values):.1f}%   "
@@ -122,7 +195,7 @@ if __name__ == "__main__":
 
     print("E&M: extremely low MEI marks a bottom. Forward proxy returns, "
           "non-overlapping:\n")
-    print(f"{'horizon':>8}{'n low':>7}{'after low MEI':>15}{'unconditional':>15}"
+    print(f"{'horizon':>8}{'n low':>7}{'after low MEI':>15}{'after others':>15}"
           f"{'edge':>9}{'Welch t':>10}")
     passes = 0
     for h in HORIZONS:

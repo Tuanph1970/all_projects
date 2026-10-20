@@ -4,7 +4,8 @@ Covers the four methods that pull data from vnstock and persist it to
 the local DB cache:
 - sync_company_profile: overview + trading_stats + shareholders → upsert
 - sync_company_financials: 4 statement types → bulk upsert each
-- ensure_company_and_sync: create-company-if-missing + 5-year history sync
+- ensure_company_and_sync: create-company-if-missing + history sync whose
+  depth is settings.HISTORY_YEARS (Backlog #87)
 - sync_all_company_data: VN30 orchestration (rate-limited)
 
 asyncio.sleep is patched inside sync_all_company_data so the 2-second
@@ -254,6 +255,58 @@ async def test_ensure_company_and_sync_syncs_when_stale():
         out = await svc.ensure_company_and_sync("FPT")
     assert out == {"created": False, "synced": 1250, "skipped": False}
     fetch_mock.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("years", [1, 5, 20])
+async def test_the_history_window_follows_the_configured_depth(years):
+    """Backlog #87: the sync window is settings.HISTORY_YEARS deep, not a
+    literal.
+
+    Asserted as a property rather than a date, so it holds whatever today is:
+    the requested span must be the configured number of years wide (to within
+    a leap day), and must end today.
+    """
+    company = _company(last_synced_at=datetime.utcnow() - timedelta(hours=30))
+    repo = MagicMock()
+    repo.get_company_by_symbol = AsyncMock(return_value=company)
+    svc = _make_service(repo)
+
+    with patch.object(svc_mod.settings, "HISTORY_YEARS", years), \
+         patch.object(svc, "fetch_and_save_historical_data", AsyncMock(return_value=1)) as fetch_mock:
+        await svc.ensure_company_and_sync("FPT")
+
+    kwargs = fetch_mock.await_args.kwargs
+    assert kwargs["end_date"] == date.today()
+    span_days = (kwargs["end_date"] - kwargs["start_date"]).days
+    assert span_days == 365 * years
+
+
+@pytest.mark.asyncio
+async def test_the_depth_is_read_at_call_time_not_frozen_at_import():
+    """The guard that makes the test above meaningful.
+
+    A setting captured in a default argument is bound once at def time, so
+    patching it is a silent no-op - the trap paid for at EM-1 S2, #78, W1 and
+    #84. Here the two patched depths must produce two different spans; if the
+    value were frozen, both calls would request the same window and this
+    fails.
+    """
+    company = _company(last_synced_at=datetime.utcnow() - timedelta(hours=30))
+    repo = MagicMock()
+    repo.get_company_by_symbol = AsyncMock(return_value=company)
+    svc = _make_service(repo)
+
+    spans = []
+    for years in (2, 17):
+        with patch.object(svc_mod.settings, "HISTORY_YEARS", years), \
+             patch.object(svc, "fetch_and_save_historical_data", AsyncMock(return_value=1)) as fetch_mock:
+            await svc.ensure_company_and_sync("FPT")
+        kw = fetch_mock.await_args.kwargs
+        spans.append((kw["end_date"] - kw["start_date"]).days)
+
+    assert spans[0] != spans[1], "HISTORY_YEARS is not being read at call time"
+    assert spans == [365 * 2, 365 * 17]
 
 
 @pytest.mark.asyncio

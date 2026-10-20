@@ -17,6 +17,19 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     API_PREFIX: str = "stock_helper"
 
+    # Backlog #87 — how much history an ingest pulls.
+    #
+    # This was hardcoded at 5 years, inherited from the monolith's
+    # DEFAULT_YEARS_HISTORY, and the vendor is not the constraint: VCI returns
+    # FPT from 2009-03-27 (4,380 bars) and VNINDEX from 2008-02-18 (4,641).
+    #
+    # The depth matters beyond tidiness. EM-4's test of E&M's claim that
+    # "all major stock market Bottoms have corresponded with extremely low MEI
+    # readings" came back n=2 at the 60-session horizon, because 5.3 years of
+    # VN data contains exactly ONE bear market where E&M spoke of 20 years.
+    # The claim was untestable for want of history, not refuted.
+    HISTORY_YEARS: int = 5
+
     # Server
     HOST: str = "0.0.0.0"
     PORT: int = 8001
