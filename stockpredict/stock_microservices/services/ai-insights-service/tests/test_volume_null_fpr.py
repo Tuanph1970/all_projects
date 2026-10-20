@@ -44,6 +44,8 @@ import pytest
 
 from tests.volume_harness import (
     block_bootstrap_volume,
+    detect_all,
+    random_walk_ohlcv,
     run_null,
     source_volume_series,
     synthetic_volume,
@@ -59,6 +61,12 @@ LENGTH = 250
 VOLATILITY = 0.015
 SEED = 20261012
 BLOCK_BARS = 10
+
+#: Backlog #88. The share of the pre-EM-1 survivor count that may remain above
+#: the geometry-only gate once volume is applied. Measured at ~0.50 on both
+#: nulls (64 -> 34 and 68 -> 33), so 0.80 leaves real headroom while still
+#: failing an inert volume layer, which would leave the counts EQUAL.
+MAX_SURVIVOR_SHARE = 0.80
 
 #: True when the harness is running with its committed defaults, which is the
 #: only configuration the committed baseline describes.
@@ -434,33 +442,35 @@ class TestEM1DoesNotWorsenTheNull:
 
         Backlog #70 de-quantised the detectors and that cliff is gone — 0% of
         null detections now tie their gate, and a 95th-percentile gate passes
-        5.3-5.5% where it should pass 5% (`TestTheGateIsNowUsable`). So the
-        count was restored, as #70's note instructed.
+        about 5% where it should (`TestTheGateIsNowUsable`). So the count was
+        restored, as #70's note instructed.
 
-        **It then failed for a second, unrelated reason, so it is reported
-        rather than asserted.** Any fixed gate is either taken from one arm's
-        own distribution — circular, ~5% whatever the detector does — or from
-        the other arm's, and then it measures something else entirely. Gated
-        on the geometry-only percentile, EM-1 moves survivors from 4.6% to
-        21.7%: not because it flatters noise on average (the mean comparison
-        below says the opposite, and passes) but because `volume_factor` has a
-        **ceiling of 1.15**, so a favourable volume reading on a random-walk
-        detection can lift it across a bar set without volume. That is
-        `FR-EM-V7`'s deliberate design — volume may promote, not only
-        discredit — interacting with a threshold statistic that never
-        anticipated it. Logged as a question worth asking separately: is a
-        ceiling above 1.0 right for this detector family?
+        **It then failed for a second, unrelated reason.** Gated on the
+        geometry-only percentile, EM-1 moved survivors from 4.6% *up* to
+        21.7% — not because it flattered noise on average, but because
+        `volume_factor` had a **ceiling of 1.15**, so a lucky volume reading
+        on a random walk could be lifted across a bar set without volume.
+        `FR-EM-V7`'s deliberate "volume may promote" meeting a threshold
+        statistic that never anticipated it. The count was therefore reported
+        rather than asserted, and the ceiling logged as Backlog #81.
 
-        What is asserted is therefore the distributional claim, which is the
-        one that survives both problems: on series with no genuine
-        price-volume relationship, EM-1 must assign **lower** confidence than
-        geometry alone did. It is *paired within one run* — every detection
-        carries its ``geometric_confidence`` and its composite ``confidence``
-        — so it is immune to baseline drift, and tie-robust, so it stays
-        meaningful if a future detector re-introduces quantisation.
+        **#81 measured it and set the ceiling to neutral**, so volume can only
+        discredit: `confidence <= geometric_confidence` for every detection,
+        by construction, which `TestTheCeilingMakesTheCountWellPosed` asserts.
+        Promotion is now impossible and the count is monotone in the one
+        direction that matters, so Backlog #88 restores it here.
 
-        The count is still computed and reported in the failure message, so
-        nothing is hidden by the choice of statistic.
+        **What the count asserts, and what it cannot.** That direction being
+        guaranteed by the bounds makes `<=` a tautology, so it is not what is
+        tested. The behavioural claim is a *material* reduction: if the volume
+        layer were inert on noise — every factor exactly 1.0 — the two counts
+        would be **equal**. Measured, EM-1 roughly halves them (64 -> 34 and
+        68 -> 33), so the assertion is a stated margin well below that and far
+        above "one detection".
+
+        The tie-robust mean comparison is kept alongside. It reads the whole
+        distribution rather than one threshold, and it stays meaningful if a
+        future detector re-introduces quantisation.
         """
         baseline = _load_baseline()
         # Gated on the GEOMETRY-ONLY percentiles: the pre-EM-1 world's bar.
@@ -470,15 +480,28 @@ class TestEM1DoesNotWorsenTheNull:
         }
         failures: List[str] = []
         for report in _build_reports(thresholds):
+            # H2's own wording, restored at #88: EM-1 must REDUCE the count of
+            # detections surviving the pre-EM-1 bar. A material reduction, for
+            # the reason in the docstring — `<=` is arithmetic, `much fewer` is
+            # behaviour.
+            if report.n_surviving > report.n_surviving_geometric * MAX_SURVIVOR_SHARE:
+                failures.append(
+                    f"{report.null_name}: EM-1 barely thinned the noise above "
+                    f"the geometry-only gate — {report.n_surviving_geometric} "
+                    f"-> {report.n_surviving} of {report.n_detections_total}, "
+                    f"where at most "
+                    f"{report.n_surviving_geometric * MAX_SURVIVOR_SHARE:.0f} "
+                    f"was required. An inert volume layer would leave the two "
+                    f"counts equal."
+                )
             if report.mean_confidence >= report.mean_geometric:
                 failures.append(
                     f"{report.null_name}: EM-1 did not lower the confidence it "
                     f"assigns to noise — geometric mean {report.mean_geometric} -> "
                     f"composite mean {report.mean_confidence}. "
-                    f"(survivors against the geometry gate, reported not "
-                    f"asserted: {report.n_surviving_geometric} -> "
-                    f"{report.n_surviving} of {report.n_detections_total}, of "
-                    f"which {report.n_tied_at_gate} tie the gate)"
+                    f"(survivors {report.n_surviving_geometric} -> "
+                    f"{report.n_surviving}, of which {report.n_tied_at_gate} "
+                    f"tie the gate)"
                 )
         assert not failures, failures
 
@@ -594,3 +617,40 @@ class TestTheGateIsNowUsable:
             assert not any(
                 v in (0.58, 0.65, 0.68, 0.70) for v in gaps
             ), f"a hardcoded gap constant survived: {gaps}"
+
+
+class TestTheCeilingMakesTheCountWellPosed:
+    """Backlog #88 — why the survivor count above is interpretable at all.
+
+    `#81` measured that a `volume_factor` ceiling above neutral never raises
+    detection power at a fixed false-positive rate, and set it to 1.0. The
+    consequence is this invariant: volume can only *discredit*, so a detection
+    can never be lifted across a bar that was set without volume.
+
+    That is what makes H2's survivor count monotone in the direction it
+    claims. If someone raises the ceiling again, this fails first and names
+    the reason — rather than the count silently going back to measuring the
+    factor's asymmetry, which is what #70 found and had to work around.
+    """
+
+    def test_volume_never_raises_a_detections_confidence(self):
+        from app.services.patterns.volume import FACTOR_CEILING, NEUTRAL_FACTOR
+        from tests.volume_harness import geometric_confidence_of
+
+        assert FACTOR_CEILING <= NEUTRAL_FACTOR, (
+            "the ceiling is above neutral again, so volume can promote a "
+            "detection and the survivor-count assertion is no longer sound"
+        )
+
+        rng = np.random.default_rng(SEED)
+        checked = 0
+        for _ in range(40):
+            volume = synthetic_volume(LENGTH, rng)
+            frame = random_walk_ohlcv(LENGTH, VOLATILITY, volume, rng)
+            for match in detect_all(frame):
+                checked += 1
+                assert float(match.confidence) <= geometric_confidence_of(match) + 1e-9, (
+                    f"{match.pattern_name}: volume raised confidence from "
+                    f"{geometric_confidence_of(match)} to {match.confidence}"
+                )
+        assert checked > 50, "too few detections to be a meaningful check"
