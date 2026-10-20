@@ -129,6 +129,12 @@ class TradeRecord:
     commission: float
     net_pnl: Optional[float]
     exit_reason: str    # STOP_HIT | TARGET_HIT | FAILED_SIGNAL | END_OF_PERIOD | SIGNAL
+    # Backlog #85: the regime at ENTRY, which the replay already computes on
+    # every bar. Recorded so a result can be read conditionally — #84 found
+    # EM-3's edge is magnitude-driven, and the open question is whether that
+    # magnitude concentrates in trending markets. Causal by construction:
+    # `compute_regime` reads only bars up to the entry bar.
+    entry_regime: str = "UNDEFINED"
 
 
 @dataclass
@@ -170,6 +176,7 @@ class BacktestResult:
 @dataclass
 class _Position:
     state: str = "FLAT"                 # FLAT | LONG | SHORT
+    entry_regime: str = "UNDEFINED"     # regime at entry (Backlog #85)
     entry_cost: float = 0.0             # money paid to open (Backlog #80)
     entry_index: Optional[int] = None   # bar index of entry, for the grace window
     direction: Optional[str] = None    # LONG | SHORT
@@ -346,6 +353,7 @@ def run_backtest_on_bars(
                     entry_cost = _side_cost(entry_fill, size_res.shares, direction, config)
                     equity -= entry_cost
                     pos = _Position(
+                        entry_regime=regime,
                         entry_cost=entry_cost,
                         entry_index=idx,
                         state=direction,
@@ -608,6 +616,7 @@ def _close_trade(
         commission=commission,
         net_pnl=round(net_pnl, 2),
         exit_reason=exit_reason,
+        entry_regime=pos.entry_regime,
     )
 
 
