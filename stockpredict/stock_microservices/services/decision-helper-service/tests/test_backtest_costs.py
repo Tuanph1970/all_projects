@@ -365,3 +365,76 @@ class TestFailedSignalOverrideIsOffByDefault:
         src = inspect.getsource(orchestrator)
         assert "detect_failed_signals" in src
         assert "failed_signal_enabled" not in src
+
+
+# ---------------------------------------------------------------------------
+# Backlog #84 — the walk-forward must carry the whole config
+# ---------------------------------------------------------------------------
+
+class TestWalkForwardForwardsEveryConfigField:
+    """A silent no-op class of bug, caught at #84.
+
+    `run_walk_forward` used to copy `BacktestConfig` field by field, and had
+    fallen **five fields behind**: EM-3's `trailing_stop_mode`,
+    `basing_point_filter_pct` and `basing_point_new_high_rule`, plus F-043's
+    `allow_pyramiding` and `max_pyramid_fraction`, which predate it.
+
+    A walk-forward comparing two stop rules would therefore have run the
+    DEFAULT rule in both arms and reported no difference — the same shape of
+    failure as a sweep that patches a bound default argument, and it would
+    have read as "the rule does not work out of sample" rather than "the
+    harness never applied it".
+    """
+
+    def test_no_field_is_dropped(self):
+        import dataclasses
+
+        from app.services.backtest.walk_forward import (
+            WalkForwardConfig,
+            run_walk_forward,
+        )
+
+        bars = _bars()
+        base = BacktestConfig(
+            ticker="SYN",
+            start_date=bars[330].date,
+            end_date=bars[-1].date,
+            # deliberately non-default on every field a window could drop
+            trailing_stop_mode="BASING_POINT",
+            basing_point_filter_pct=9.5,
+            basing_point_new_high_rule=True,
+            allow_pyramiding=True,
+            max_pyramid_fraction=0.25,
+            commission_pct=0.33,
+            sell_tax_pct=0.05,
+            reentry_cooldown_bars=4,
+            failed_signal_grace_bars=7,
+            failed_signal_enabled=True,
+        )
+
+        seen: list = []
+        import app.services.backtest.walk_forward as wf
+
+        original = wf.run_backtest_on_bars
+
+        def spy(config, bars_arg):
+            seen.append(config)
+            return original(config, bars_arg)
+
+        wf.run_backtest_on_bars = spy
+        try:
+            run_walk_forward(base, bars, WalkForwardConfig(wf_window_days=90))
+        finally:
+            wf.run_backtest_on_bars = original
+
+        assert seen, "no window ran"
+        skip = {"start_date", "end_date"}
+        for window_config in seen:
+            for f in dataclasses.fields(BacktestConfig):
+                if f.name in skip:
+                    continue
+                assert getattr(window_config, f.name) == getattr(base, f.name), (
+                    f"walk-forward dropped {f.name}: window has "
+                    f"{getattr(window_config, f.name)!r}, base has "
+                    f"{getattr(base, f.name)!r}"
+                )

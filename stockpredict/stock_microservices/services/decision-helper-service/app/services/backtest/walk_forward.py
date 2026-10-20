@@ -14,6 +14,7 @@ the backtest on [start, start + wf_window_days] and advances by that amount.
 """
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
@@ -73,23 +74,22 @@ def run_walk_forward(
         if (window_end - window_start).days < 5:
             break
 
-        window_config = BacktestConfig(
-            ticker=base_config.ticker,
+        # Backlog #84. This used to copy BacktestConfig field by field, and
+        # it had silently fallen five fields behind: trailing_stop_mode,
+        # basing_point_filter_pct, basing_point_new_high_rule (EM-3) and
+        # allow_pyramiding, max_pyramid_fraction (F-043, which predates it).
+        #
+        # So a walk-forward comparing two stop rules would have run the
+        # DEFAULT rule in both arms and reported no difference — the same
+        # class of silent no-op as a sweep that patches a bound default
+        # argument, and it would have read as "the rule does not work".
+        #
+        # `replace()` forwards every field by construction, so the copy cannot
+        # fall behind again. A test asserts it against the dataclass fields.
+        window_config = dataclasses.replace(
+            base_config,
             start_date=window_start,
             end_date=window_end,
-            initial_equity=base_config.initial_equity,
-            risk_per_trade_pct=base_config.risk_per_trade_pct,
-            fast_ma=base_config.fast_ma,
-            slow_ma=base_config.slow_ma,
-            breakout_n=base_config.breakout_n,
-            k_delay=base_config.k_delay,
-            slippage_bps=base_config.slippage_bps,
-            commission=base_config.commission,
-            commission_pct=base_config.commission_pct,
-            sell_tax_pct=base_config.sell_tax_pct,
-            reentry_cooldown_bars=base_config.reentry_cooldown_bars,
-            failed_signal_grace_bars=base_config.failed_signal_grace_bars,
-            failed_signal_enabled=base_config.failed_signal_enabled,
         )
 
         window_result: BacktestResult = run_backtest_on_bars(window_config, bars)
