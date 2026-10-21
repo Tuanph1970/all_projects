@@ -32,6 +32,9 @@ from app.services.risk.sizing_module import compute_size
 from app.services.risk.basing_point import BasingPointTracker
 from app.services.risk.stop_module import compute_initial_stop, update_trailing_stop
 from app.services.risk.target_module import compute_target
+
+#: EM-8 M3. See `BacktestConfig.target_mode`.
+TARGET_MODES = frozenset({"TARGETS_ON", "TRAILING_ONLY"})
 from app.services.signal.base import OHLCVBar, RawSignal
 from app.services.signal.failed_signal import OVERRIDE_THRESHOLD, detect_failed_signals, highest_severity
 from app.services.signal.range.sr_bounce_breakout import detect_sr_signal
@@ -106,6 +109,23 @@ class BacktestConfig:
     #                  filter below it, never lowered
     # The A/B this exists for is the candidate's mandatory C4 benchmark.
     trailing_stop_mode: str = "ATR"
+    # EM-8 M3. The plan asked for three arms (MEASURED_FIRST / NO_MEASURED /
+    # TRAILING_ONLY) to answer "should a measured objective be a target at
+    # all". Two of them turned out to be the same run: MEASURED_MOVE has
+    # never fired, because no shipped signal detector puts
+    # `measured_move_target` in evidence and the orchestrator routes
+    # ai-insights patterns to the failed-signal detectors instead
+    # (orchestrator.py:118-179). Measured: 4,193 of 4,193 target computations
+    # over 12 symbols and 11 years carried no such key, and MEASURED_MOVE was
+    # 0% of chosen targets. tests/test_target_mode.py keeps that dead path
+    # dead-by-record rather than dead-by-accident.
+    #
+    # What remains is the measurable half, and it is E&M's actual Ch 32
+    # claim -- the book "prefers nearby progressive stops for taking profits
+    # over limit orders", and targets do fire here via S/R and fixed R:R.
+    #   TARGETS_ON      today's behaviour: compute_target as shipped
+    #   TRAILING_ONLY   no profit target; exit on the stop alone
+    target_mode: str = "TARGETS_ON"
     basing_point_filter_pct: float = 6.0
     basing_point_new_high_rule: bool = False
     allow_pyramiding: bool = False         # F-043 — opt-in; default off keeps replay unchanged
@@ -202,6 +222,11 @@ def run_backtest_on_bars(
     ``bars`` must be sorted oldest → newest and should include warm-up bars
     (300 + bars) before config.start_date so that MAs and ATR are primed.
     """
+    if config.target_mode not in TARGET_MODES:
+        raise ValueError(
+            f"target_mode {config.target_mode!r} is not one of {sorted(TARGET_MODES)}"
+        )
+
     trade_ledger: List[TradeRecord] = []
     equity_curve: List[EquityPoint] = []
 
@@ -341,6 +366,8 @@ def run_backtest_on_bars(
                     signal_evidence=best.signal.evidence,
                     sr_levels=sr_data,
                 )
+                target_price = (None if config.target_mode == "TRAILING_ONLY"
+                                else tgt_res.target_price)
                 size_res = compute_size(
                     entry_price=entry_fill,
                     stop_price=stop_res.stop_price,
@@ -368,7 +395,7 @@ def run_backtest_on_bars(
                         entry_date=bar.date,
                         entry_price=entry_fill,
                         stop=stop_res.stop_price,
-                        target=tgt_res.target_price,
+                        target=target_price,
                         shares=size_res.shares,
                         initial_shares=size_res.shares,
                     )
@@ -429,6 +456,7 @@ def run_backtest_on_bars(
             "failed_signal_grace_bars": config.failed_signal_grace_bars,
             "failed_signal_enabled": config.failed_signal_enabled,
             "trailing_stop_mode": config.trailing_stop_mode,
+            "target_mode": config.target_mode,
             "basing_point_filter_pct": config.basing_point_filter_pct,
             "basing_point_new_high_rule": config.basing_point_new_high_rule,
             "allow_pyramiding": config.allow_pyramiding,
