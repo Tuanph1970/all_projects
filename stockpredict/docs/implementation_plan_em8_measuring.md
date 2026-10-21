@@ -136,7 +136,7 @@ within `N` sessions. Matching on distance is essential: a nearer objective
 completes more often, so an unmatched null would measure the targets'
 *nearness* rather than the patterns' *information*.
 
-### M3 — GATE: should a measured objective be a target at all? *(M)*
+### M3 — GATE: should a measured objective be a target at all? *(M)* — **DONE 2026-10-21: re-scoped, then FAILED**
 Question (c), and the only hard gate. Needs no new measurement machinery —
 `trailing_stop_mode` and EM-3's basing-point stop are already built and
 measured (`#84`, `#85`) — just a `BacktestConfig` switch over the target path:
@@ -151,7 +151,21 @@ measured (`#84`, `#85`) — just a `BacktestConfig` switch over the target path:
 > **On failure:** `MEASURED_MOVE` is demoted or removed, **M4 and M5 are not
 > built**, and EM-8 ends at M6 with a retirement rather than a feature.
 
-### M4 — The "something to reverse" cap *(M)* — only if M3 passed
+> **M3's outcome, and the gate's consequence.** The planned arms could not
+> differ: `MEASURED_MOVE` is dead code in both paths (4,193 of 4,193 target
+> computations carried no such key; 0% of chosen targets). Re-scoped to the
+> measurable half — targets as a class versus a pure trailing stop, which is
+> E&M's actual Ch 32 position — and **`TARGETS_ON` lost**: −16.97 per trade,
+> paired t = −2.27 across 92 symbols, with the trailing stop losing about half
+> as much in total on 25% fewer trades.
+>
+> **So M4 and M5 were NOT built**, for the stronger of the two available
+> reasons: the cap applies in `target_module` to a field that never arrives.
+> The default nonetheless stays `TARGETS_ON`, because consistency failed
+> (49% of symbols, sign test p = 0.92) and EM-3 was held to exactly that
+> standard. See `docs/em8_measuring.md`.
+
+### M4 — The "something to reverse" cap *(M)* — **not built; see above**
 `FR-EM-M3`. Two services, in this order:
 
 1. **ai-insights** — the four reversal detectors emit the preceding move's
@@ -167,7 +181,7 @@ today, demonstrated by the existing suite passing unchanged), `EC-M5`,
 `EC-M6` (a cap landing behind entry is **not** a target — fall through rather
 than emit an inverted one), **H-M6** bound-default, mutation-checked.
 
-### M5 — GATE: does the cap help? *(S)* — only if M4 was built
+### M5 — GATE: does the cap help? *(S)* — **not built; M4 was not built**
 > **Criterion, pre-registered.** The cap must improve **expectancy**, not
 > completion rate.
 >
@@ -176,7 +190,7 @@ than emit an inverted one), **H-M6** bound-default, mutation-checked.
 > completion, since a nearer objective is easier to reach, so a higher rate is
 > evidence of *nothing*. Only what the position earns can judge it.
 
-### M6 — Decision and write-up *(S)*
+### M6 — Decision and write-up *(S)* — **DONE 2026-10-21** (`docs/em8_measuring.md`)
 `docs/em8_measuring.md`: the criteria, what happened, what ships. Register,
 roadmap and `USER_GUIDE` updated. Frontend only if something shipped.
 
