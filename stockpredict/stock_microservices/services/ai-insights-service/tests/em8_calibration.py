@@ -381,7 +381,12 @@ def main() -> None:
                 enough = len(diffs) >= MIN_SYMBOLS
                 if enough and t is not None and t > 0 and p <= 0.05:
                     passes[fam] += 1
-                if enough:
+                # One-sided, deliberately: the criterion is that completion
+                # must EXCEED the null. Feeding a negative cell's p-value into
+                # Holm would let a family that is significantly WORSE than
+                # chance print "survives" -- which is exactly what the first
+                # full run did for Double, Flag/Pennant and H&S.
+                if enough and t is not None and t > 0:
                     best_p = min(best_p, p)
                 ex = excursions[fam][h]
                 ex_s = f"{statistics.median(ex):.2f}x" if ex else "n/a"

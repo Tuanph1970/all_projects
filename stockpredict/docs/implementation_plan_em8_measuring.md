@@ -85,7 +85,7 @@ every unit test because each half was correct on its own.
 > reason, and a test pins that two different definitions do not silently
 > coexist.
 
-### M2 — The calibration harness, and question (a) *(M)*
+### M2 — The calibration harness, and question (a) *(M)* — **DONE 2026-10-21: criterion FAILS for all five E&M families**
 `FR-EM-M1`, `M4`, `M5`, `M6`. In **ai-insights-service**, over the `#87` deep
 history (92 symbols, 320,237 bars, 19.7 years).
 
@@ -113,6 +113,20 @@ outcome windows per symbol taken greedily over every qualifying day.
 >
 > **This is not a stop.** Either result is reported and the work continues to
 > M3.
+
+**Outcome:** `docs/em8_calibration.md`. **0 of 3 horizons for every E&M
+family**, and three of the five are **significantly worse than chance** —
+Flag/Pennant at −9.0% against the null, `t = −18.80` on 22,615 observations.
+The only objective that passes is the **bull/bear trap**, which E&M never
+sanctioned (+9 to +10 points at all three horizons, survives Holm) — visible
+only because `FR-EM-M4` kept the two sets in separate tables. Median overrun
+1.4–3.9× supports "a minimum" descriptively, with no null behind it.
+
+Two self-corrections recorded there: the harness fed Holm the smallest p-value
+**regardless of sign**, so three families that were reliably *worse* than
+chance printed as "survives" (fixed, one-sided now, with a test); and my
+runtime estimate was wrong by 6× (~30 min predicted, 2h53m actual) because it
+excluded the null draws and outcome scoring.
 
 **The null, specified now** (EM-2's matched-distance construction, which is
 why it is reused rather than invented): for each real observation — symbol,

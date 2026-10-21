@@ -202,3 +202,17 @@ class TestHolm:
 
     def test_the_minimum_cluster_guard_is_set(self):
         assert MIN_SYMBOLS >= 10
+
+    def test_a_result_worse_than_chance_cannot_survive(self):
+        """The criterion is ONE-SIDED: completion must EXCEED the null.
+
+        The first full run printed "survives" for three E&M families whose
+        significant cells were significantly NEGATIVE -- the p-value was tiny
+        because they were *worse* than chance. Holm is fed only cells with
+        t > 0 now, so a family can no longer pass by being reliably wrong.
+        This test pins the direction rule at the level Holm sees it.
+        """
+        # A family whose only significant cell was negative arrives at p = 1.0
+        assert holm({"worse-than-chance": 1.0, "other": 1.0}) == {
+            "worse-than-chance": False, "other": False,
+        }
