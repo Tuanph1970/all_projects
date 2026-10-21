@@ -344,7 +344,13 @@ def run_backtest_on_bars(
             last_exit_index is not None
             and (idx - last_exit_index) < max(0, config.reentry_cooldown_bars)
         )
-        if pos.state == "FLAT" and not cooling and bar.date <= config.end_date:
+        # Backlog #93: a non-positive close is not a price, so there is no
+        # entry to make, no stop to size against and no risk fraction to
+        # compute. Declining the bar is the honest handling of bad vendor
+        # data; the alternative is a position opened at zero, which is where
+        # the M3 study's ZeroDivisionError actually came from.
+        tradeable = bar.close > 0
+        if pos.state == "FLAT" and tradeable and not cooling and bar.date <= config.end_date:
             signals = _run_signals(regime, bars_so_far, bar.date, config)
             best = _best_confirmed(signals, bars_so_far, regime, rsi, config.k_delay)
 

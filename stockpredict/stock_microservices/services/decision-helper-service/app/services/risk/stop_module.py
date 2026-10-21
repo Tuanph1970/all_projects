@@ -144,6 +144,15 @@ def _chart_stop(
         nearest = min(candidates, key=lambda l: float(l["price"]))
         stop_price = float(nearest["price"]) * (1.0 + STOP_BUFFER_PCT)
 
+    # Backlog #93. A risk FRACTION of the entry price does not exist when the
+    # entry price is not a price. The vendor serves 13 zero/negative bars in
+    # 320,237 (VGC, GEX, NT2 x8, SCS, HHV x2), and `compute_sr_levels` derives
+    # levels from those same bars -- so the candidate filter passes and this
+    # line divided by zero, taking down a 92-symbol run 21 symbols in. This
+    # stop kind abstains rather than inventing a number; the caller falls
+    # through to ATR, and the harness declines the entry outright.
+    if entry_price <= 0:
+        return None
     risk = abs(entry_price - stop_price) / entry_price
     if risk > max_risk_pct:
         return None
@@ -187,6 +196,15 @@ def _swing_stop(
         nearest = min(candidates, key=lambda s: float(s["price"]))
         stop_price = float(nearest["price"]) * (1.0 + STOP_BUFFER_PCT)
 
+    # Backlog #93. A risk FRACTION of the entry price does not exist when the
+    # entry price is not a price. The vendor serves 13 zero/negative bars in
+    # 320,237 (VGC, GEX, NT2 x8, SCS, HHV x2), and `compute_sr_levels` derives
+    # levels from those same bars -- so the candidate filter passes and this
+    # line divided by zero, taking down a 92-symbol run 21 symbols in. This
+    # stop kind abstains rather than inventing a number; the caller falls
+    # through to ATR, and the harness declines the entry outright.
+    if entry_price <= 0:
+        return None
     risk = abs(entry_price - stop_price) / entry_price
     if risk > max_risk_pct:
         return None
