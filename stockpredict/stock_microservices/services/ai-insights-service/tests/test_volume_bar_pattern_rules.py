@@ -103,6 +103,29 @@ class TestGapReclassification:
         assert evidence["reclassified_to"] == "Gap (exhaustion)"
         assert match.details["gap_type_before_volume"] == "runaway"
 
+    def test_relabelling_to_exhaustion_withdraws_the_runaway_objective(self):
+        """EM-8 M1 / Backlog #92, second site.
+
+        `continuation.py` emits a measured objective for the **runaway**
+        subtype only, because E&M give the halfway rule to that gap alone.
+        But this volume rule can turn a runaway into an **exhaustion** gap
+        afterwards -- and an exhaustion gap is "a wide gap at the very END of
+        a move", so the objective it inherited points the way the move is
+        finishing.
+
+        Found by counting subtypes over the deep history: 61 of 488
+        exhaustion gaps still carried a target, which is impossible from the
+        detector alone. The scope rule has to hold after re-labelling, not
+        only at detection.
+        """
+        match = _match("exhaustion_gap", "Gap")
+        assert match.details["gap_type"] == "exhaustion"
+        assert match.details["gap_type_before_volume"] == "runaway"
+
+        assert match.measured_move_target is None
+        assert match.details["measuring_rule"] == "none"
+        assert match.details["measuring_rule_before_volume"] == "runaway_halfway"
+
     def test_a_genuine_runaway_gap_is_left_alone(self):
         """Same gap, ordinary volume, price carrying on. Re-classification must
         be the exception, not the default."""

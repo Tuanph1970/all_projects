@@ -356,6 +356,14 @@ class PatternMatch(BaseModel):
     above. The decision-helper-service consumes this directly into its
     target_module (Ch 10) and failed-signal detector (Ch 11).
 
+    **It may be `None` on a found pattern** (EM-8 `FR-EM-M2`, Backlog #92).
+    E&M give a measuring rule to the **runaway** gap only — a breakaway gap
+    has *"no measuring implication"*, a common gap none, and an exhaustion
+    gap marks the *end* of a move, so a target in the trend direction there
+    points the way the move is finishing. Those three subtypes now emit no
+    objective rather than a wrong one, and `details["measuring_rule"]` says
+    which rule was applied (`"runaway_halfway"` or `"none"`).
+
     EM-1 (`FR-EM-V7`) adds the volume fields. All are `Optional` with
     defaults, so the change is **additive** and an existing client that does
     not know about them is unaffected (`EC-V3`, `FR-EM-V8`). `confidence` is

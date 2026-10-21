@@ -38,7 +38,7 @@ measurement. It goes last.
 
 ## 2. Tasks
 
-### M1 — Fix the gap target (`#92`) *(S)*
+### M1 — Fix the gap target (`#92`) *(S)* — **DONE 2026-10-21**
 Unconditional, and first: it is a **correctness** fix against the source, not
 a bet on a statistic, so it is worth doing whatever the rest of EM-8
 concludes. `FR-EM-M2`.
@@ -52,6 +52,28 @@ concludes. `FR-EM-M2`.
 Tests first: **H-M5** (scope — no objective for the three subtypes that have
 no rule; and the halfway construction recovered exactly on a planted move),
 plus the existing gap tests must still pass or be restated with a reason.
+
+**Outcome:** `tests/test_gap_measuring.py` (17 tests) + the fix in
+`continuation.py`, **and a second site the plan had not anticipated**.
+
+On the deep history, gap objectives fall from **3,229 to 979 (30.3%
+retained)** across 20 symbols — the other 70% were projections the book does
+not sanction. Four mutation checks all caught, including one that only became
+detectable after tightening a tolerance that could not otherwise tell `low`
+from `close`.
+
+**The second site.** Counting subtypes over the deep history showed **61 of
+488 exhaustion gaps still carrying a target**, which the detector alone cannot
+produce. EM-1's volume layer (`FR-EM-V5` row 10) applies Ch 12's exhaustion
+test and can relabel a **runaway** gap as an **exhaustion** gap *after*
+detection — and it left the runaway objective attached, now pointing the way
+the move is finishing. Fixed in `base.py` at the relabel site, which withdraws
+the objective with the label and records `measuring_rule_before_volume` for
+the same reason the previous label is kept: a value that vanished with no
+record of why would be indistinguishable from a bug.
+
+That is the same defect as `#92` in a second place, and it was invisible to
+every unit test because each half was correct on its own.
 
 > **The one open question M1 must settle: what is "the start of the move"?**
 > E&M say it by eye. Mechanically it needs to be deterministic and causal.

@@ -143,13 +143,35 @@ def apply_volume_evidence(
     # PatternPanel.js renders and a label that moved with no record of what it
     # was would be indistinguishable from a detector bug.
     if verdict.reclassify_to:
+        new_type = verdict.reclassify_to.removeprefix("Gap (").removesuffix(")")
         match.details = {
             **match.details,
             "gap_type_before_volume": match.details.get("gap_type"),
-            "gap_type": verdict.reclassify_to.removeprefix("Gap (").removesuffix(")"),
+            "gap_type": new_type,
             "reclassified_by": "volume",
         }
         match.pattern_name = verdict.reclassify_to
+
+        # EM-8 M1 / Backlog #92, second site. `continuation.py` emits a
+        # measured objective for the RUNAWAY subtype only, because E&M give
+        # the halfway rule to that gap alone. The re-label above can turn a
+        # runaway into an EXHAUSTION gap -- "a wide gap at the very end of a
+        # move" -- and the objective it was carrying then points the way the
+        # move is FINISHING. So the objective is withdrawn with the label.
+        #
+        # Found by counting subtypes over the deep history: 61 of 488
+        # exhaustion gaps still carried a target, which the detector alone
+        # cannot produce. Scope has to hold after re-labelling, not only at
+        # detection. The previous rule is kept beside the previous label, for
+        # the same reason: a value that vanished with no record of why would
+        # be indistinguishable from a bug.
+        if new_type != "runaway" and match.measured_move_target is not None:
+            match.details = {
+                **match.details,
+                "measuring_rule_before_volume": match.details.get("measuring_rule"),
+                "measuring_rule": "none",
+            }
+            match.measured_move_target = None
     return match
 
 

@@ -612,11 +612,48 @@ class GapDetector(PatternDetector):
         fill_bars: int = 3,
         trend_lookback: int = 20,
         exhaustion_move_atr: float = 5.0,
+        swing_window: int = 3,
     ):
         self.min_gap_atr_fraction = min_gap_atr_fraction
         self.fill_bars = fill_bars
         self.trend_lookback = trend_lookback
         self.exhaustion_move_atr = exhaustion_move_atr
+        self.swing_window = swing_window
+
+    def _move_start(self, high: np.ndarray, low: np.ndarray, i: int,
+                    pre_start: int, gap_up: bool) -> Tuple[float, str]:
+        """Where the move into the gap began, for E&M's halfway rule.
+
+        The book identifies "the start of the move" by eye. Mechanically it
+        has to be deterministic and causal, and two definitions must not
+        silently coexist -- so one is the default, the other a declared
+        fallback, and `details["move_start_source"]` always says which was
+        used (EM-8 M1; the calibration splits on it rather than pooling two
+        different measurements).
+
+        * **`"pivot"` (default)** -- the most recent confirmed swing low
+          before the gap for an up move, swing high for a down move. Closest
+          to "the move" as E&M draw it, and it reuses the same fractal pivots
+          the rest of the catalogue is built on.
+        * **`"window"` (fallback)** -- the extreme of the pre-gap trend
+          window, used when no pivot is confirmed before the gap. A pivot
+          needs `swing_window` bars of confirmation on each side, so a move
+          that runs straight off the start of the series has none.
+
+        Read on `low`/`high` rather than `close` because E&M measure the move
+        "vertically on the chart", and the chart shows the extremes.
+        """
+        prices = low if gap_up else high
+        pre = prices[:i]
+        pivots = (self._find_swing_lows(pre, self.swing_window) if gap_up
+                  else self._find_swing_highs(pre, self.swing_window))
+        if pivots:
+            return float(prices[pivots[-1]]), "pivot"
+
+        window = prices[pre_start:i]
+        if window.size == 0:
+            return float(prices[max(i - 1, 0)]), "window"
+        return (float(window.min()) if gap_up else float(window.max())), "window"
 
     def detect(self, ohlc: pd.DataFrame) -> Optional[PatternMatch]:
         ok, _ = self._validate_ohlc(ohlc, min_bars=self.trend_lookback + 5)
@@ -693,7 +730,64 @@ class GapDetector(PatternDetector):
             confidence = soft_cap(base + 0.22 * soft_unit(gap_atr, 2.0), 0.80)
 
             neckline = float(low[i]) if gap_up else float(high[i])
-            target = neckline + gap_size if gap_up else neckline - gap_size
+
+            # Backlog #92 / EM-8 FR-EM-M2. This used to be
+            # `neckline +/- gap_size` for EVERY gap subtype, which was wrong
+            # in two independent ways.
+            #
+            # (1) WRONG QUANTITY. E&M's rule (Ch 12) is that a runaway gap
+            #     falls at "approximately the halfway point" of the move, so
+            #     "prices will travel as far beyond the gap as they already
+            #     have from the start of the move to the gap." The old code
+            #     projected the GAP'S OWN HEIGHT, which is a different
+            #     measurement and usually a small fraction of it -- a gap is
+            #     one day's jump, the move may be weeks. `gap_size` is the
+            #     right input for *confidence* (#70) and the wrong one for a
+            #     price projection.
+            # (2) WRONG SCOPE. Only the runaway/continuation gap has a
+            #     measuring rule. A breakaway gap has "no measuring
+            #     implication", a common gap none, and an exhaustion gap
+            #     marks the END of a move -- so projecting a target in the
+            #     trend direction there pointed the way the move was
+            #     finishing.
+            #
+            # E&M also caution that on arithmetic scale one should "bank on
+            # something short of the goal", and that successive gaps bring
+            # the move nearer exhaustion. No fudge factor is applied for
+            # either: they are judgment, and EM-8's calibration measures the
+            # unadjusted rule rather than a tuned one.
+            target: Optional[float] = None
+            rule = "none"
+            move_start: Optional[float] = None
+            move_start_source: Optional[str] = None
+
+            if gap_type == "runaway":
+                move_start, move_start_source = self._move_start(
+                    high, low, i, pre_start, gap_up
+                )
+                near_edge = float(high[i - 1]) if gap_up else float(low[i - 1])
+                travelled = (near_edge - move_start) if gap_up else (move_start - near_edge)
+                if travelled > 0:
+                    # The gap itself sits between the two halves: `travelled`
+                    # before its near edge, the same again beyond its far one.
+                    target = neckline + travelled if gap_up else neckline - travelled
+                    rule = "runaway_halfway"
+                else:
+                    # No measurable move into the gap, so nothing to halve.
+                    move_start = move_start_source = None
+
+            details = {
+                "gap_type": gap_type,
+                "gap_direction": "up" if gap_up else "down",
+                "gap_size": float(round(gap_size, 4)),
+                "gap_atr_fraction": float(round(gap_size / ra, 3)),
+                "filled": filled,
+                "trend_atr_units": float(round(trend_atr_units, 2)),
+                "measuring_rule": rule,
+            }
+            if move_start is not None:
+                details["move_start"] = float(round(move_start, 4))
+                details["move_start_source"] = move_start_source
 
             return PatternMatch(
                 pattern_name=f"Gap ({gap_type})",
@@ -701,16 +795,10 @@ class GapDetector(PatternDetector):
                 found=True,
                 confidence=float(round(confidence, 4)),
                 key_bars=[i - 1, i],
-                measured_move_target=float(round(target, 4)),
+                measured_move_target=(None if target is None
+                                      else float(round(target, 4))),
                 neckline=float(round(neckline, 4)),
-                details={
-                    "gap_type": gap_type,
-                    "gap_direction": "up" if gap_up else "down",
-                    "gap_size": float(round(gap_size, 4)),
-                    "gap_atr_fraction": float(round(gap_size / ra, 3)),
-                    "filled": filled,
-                    "trend_atr_units": float(round(trend_atr_units, 2)),
-                },
+                details=details,
             )
 
         return None
