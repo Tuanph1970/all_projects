@@ -151,7 +151,7 @@ Tests first: **H-L6** the shakeout fixture, **H-L7** amendment recorded with
 pre- and post-amendment anchors differing, **H-L8** bound-default guard
 mutation-checked (**tenth** instance).
 
-### L3 — GATE A: does the slope earn anything? *(M)*
+### L3 — GATE A: does the slope earn anything? *(M)* — **DONE 2026-10-23: FAIL**
 §2's comparison. No pipeline change, no signal — a study over the `#87` deep
 history, as `T2` and `M2` were.
 
@@ -163,7 +163,23 @@ history, as `T2` and `M2` were.
 > would then be — a re-derivation of EM-2's levels with extra steps. Phase B
 > (fan principle, channel, frontend) is not built either.
 
-### L4 — Authority: contacts, duration, angle *(S)* — only if Gate A passed
+**Outcome: FAIL, 0 of 3 horizons, at all three penetration settings** —
+`docs/em5_gate_a.md`. And not a null: the horizontal through the same anchors
+is **significantly better**. At 3% and h=10, T +0.965% against H +1.437%
+(t = **−7.18**, T wins on 17 of 92 symbols). Consistent in **9 of 9** grid
+cells, on 45,117 trendline events against 23,586 horizontal ones, so not a
+power problem. The robustness arm agrees — H-mid beats T too.
+
+The event counts are a finding in themselves: **trendlines break nearly twice
+as often** as the horizontals through the same anchors, which points at the
+mechanism — a horizontal sits at a *remembered price*, a sloping line at an
+*extrapolation* that drifts from anywhere anyone transacted. Labelled a
+hypothesis, not tested here, per the `#85` → `#86` discipline.
+
+**Applied:** `L4` not built, Phase B not built. Gate A cost four sessions
+against the 12–16 the full scope would have.
+
+### L4 — Authority: contacts, duration, angle *(S)* — **NOT BUILT: Gate A failed**
 `FR-EM-L4`, and the secondary from the SRS: do lines with more contacts give
 better outcomes, and does the effect follow E&M's weighting
 (contacts ≫ duration > angle)? Reported as an **ordering**, with EM-2's prior
