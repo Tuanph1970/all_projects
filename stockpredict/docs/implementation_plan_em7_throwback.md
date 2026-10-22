@@ -111,7 +111,7 @@ the service, while the existing `compute_atr` is a simple average consumed by
 the stop module. Changing that one would alter shipped stop behaviour and
 needs its own measurement, so the two coexist deliberately.
 
-### T2 — GATE 1: is a throwback more than a coincidence? *(M)*
+### T2 — GATE 1: is a throwback more than a coincidence? *(M)* — **DONE 2026-10-22: PASS**
 The cheapest decisive measurement, and it needs no detector and no pipeline
 change — only `T1` and the `#87` deep history.
 
@@ -145,6 +145,26 @@ pre-registered orderings from §1 Q4.
 
 **This task also produces the fill rate** that `T4`'s benchmark needs, which
 is why it comes first for a second reason.
+
+**Outcome:** `docs/em7_gate1.md`. **PASS on both halves in 9 of 9 cells.** At
+the primary setting: return 82.3% vs a matched null of 72.3% (**+10.0pp**,
+t = +22.67), and overshoot **0.23 ATR smaller** (t = −8.29), on 85,623 breaks
+across 92 symbols.
+
+The effect is **small and very consistent**, not large: a `t` of +22 on 92
+clusters comes from low variance across symbols, and the edge is 10 points on
+a **72% base rate** — price returns to a level it sits half an ATR from,
+within 60 bars, nearly three times in four, with no break involved.
+
+Orderings: strength directionally right but a whisper (83.4% vs 81.1%);
+break **direction** larger at +4.5pp (downward 84.7% vs upward 80.2%),
+descriptive only.
+
+**The null was wrong first**, and it passed spectacularly — +75pp at t = +24.7
+— because it matched only a *minimum* distance, so 2010 levels sat hundreds of
+ATRs from 2024 prices and could never return. Now matched on the break's own
+penetration distance. The fill rate `T4` needs is therefore **~82%**, not the
+~100% an unmatched study would have implied.
 
 ### T3 — The throwback detector *(M)* — only if GATE 1 passed
 `FR-EM-T2`, `T3`, `T4`, `T5`, `T8`. A new signal in
