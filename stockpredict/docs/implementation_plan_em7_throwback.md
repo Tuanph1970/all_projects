@@ -62,7 +62,7 @@ Two orderings that *are* available in-process and are pre-registered instead:
 `#67` to In Progress with the phase and `FR-EM-T*` IDs. A Feature Inventory
 row. No code.
 
-### T1 — Break-aware levels, in-process *(S)*
+### T1 — Break-aware levels, in-process *(S)* — **DONE 2026-10-22**
 `FR-EM-T1`. Extend `backtest/market_features.py`'s S/R computation so each
 level carries: the bar it was decisively penetrated, the direction, and its
 **effective type** after the break.
@@ -78,6 +78,38 @@ Tests first:
   Two implementations are tolerated only because the architecture forces it,
   so the agreement is asserted.
 * **H-T7 bound-default guard**, mutation-checked. Eighth instance.
+
+**Outcome:** `market_features.py` gains `BREAK_ATR_MULTIPLE` (0.5, the
+service's value), `BREAK_ATR_PERIOD`, `atr_series` (Wilder, aligned, causal),
+`detect_level_breaks` and `effective_level_type`; `compute_sr_levels` now
+attaches `breaks`, `effective_type`, `broken_at` and `break_direction` to each
+level, additively. `tests/test_level_breaks.py`, **29 tests**, and
+`tests/em7_reference_breaks.py` as a subprocess helper.
+
+**H-T8 actually ran, and the two implementations agree exactly** on all five
+fixtures — including the quiet one, where both say zero. It runs in a
+**subprocess** because both services define a top-level `app` package, so
+putting analysis-service on `sys.path` inside the session would shadow
+decision-helper's own and corrupt every later test. The same ATR series is
+handed to both, which isolates the alternation logic from any difference in
+ATR formulation.
+
+Four mutations, all caught: dropping the alternation (9 failures), counting
+penetrations in **either** direction — EM-2 S5's actual shipped bug — (11),
+allowing a zero/NaN band (3), and reading the first break instead of the
+latest (1).
+
+**My quiet fixture was wrong first.** It placed the level at 100 inside an
+oscillation spanning 98.8–102.4, where price genuinely *does* break down
+through it, so the test failed against correct code. A quiet fixture has to be
+quiet **relative to the level**. The level moved to 97, below the whole range,
+and a second test now asserts the fixture still *would* fire a
+both-directions rule 20+ times — so it cannot silently become vacuous.
+
+One scoping note recorded in the code: `atr_series` is Wilder's and matches
+the service, while the existing `compute_atr` is a simple average consumed by
+the stop module. Changing that one would alter shipped stop behaviour and
+needs its own measurement, so the two coexist deliberately.
 
 ### T2 — GATE 1: is a throwback more than a coincidence? *(M)*
 The cheapest decisive measurement, and it needs no detector and no pipeline
