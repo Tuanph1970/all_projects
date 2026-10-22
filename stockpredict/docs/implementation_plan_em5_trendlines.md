@@ -140,7 +140,7 @@ weighting, but as the book's own confirmation rule. §4 moved all of
 Counting contacts is a rule from the book. Ranking by a weighted composite is
 a claim about the world. The first is required; the second stays deferred.
 
-### L2 — Contacts, penetration, the shakeout guard, and amendment *(M)*
+### L2 — Contacts, penetration, the shakeout guard, and amendment *(M)* — **DONE 2026-10-23**
 `FR-EM-L4` (counting only), `L5`, `L6`, `L7`. Contact counting and the
 **confirmed (≥3 contacts) versus provisional (2 anchors)** distinction, per
 L1's correction above — Gate A restricts to confirmed lines. A close beyond by 3% (need not be in one day); a crack
@@ -171,6 +171,51 @@ stated: contacts will probably matter and the composite probably will not.
 
 **H-L3** planted line (three closes exactly on a line give contact count 3;
 a fourth raises it to 4).
+
+---
+
+**L2's outcome:** `market_context/trendline_breaks.py` (`count_contacts`,
+`is_confirmed`, `detect_penetration`, `amend_line`, `Penetration`,
+`Amendment`) + `tests/test_trendline_breaks.py`, **24 tests**. Five mutations,
+**all caught**.
+
+Three decisions worth recording:
+
+* **Contacts are counted beyond the second anchor.** E&M speak of a line
+  *"confirmed by a third or fourth bottom"*, and those arrive *after* the
+  original two — so restricting the count to the anchor segment would make
+  confirmation impossible by construction. The mutation that restricts it
+  fails 7 tests.
+* **The shakeout guard is structural.** Reading closes only (`FR-EM-L3`)
+  already means a bar whose close stayed on the right side is not a
+  penetration, however far its low reached. A fixture proves it anyway,
+  because "it follows from another requirement" is the kind of claim that
+  rots.
+* **A failed break is still a break.** Whether a penetration later fails is
+  only knowable afterwards, so filtering those out would be look-ahead. The
+  recovery is an *outcome*, which is Gate A's subject. Pinned by a test
+  because it cuts against intuition.
+
+And `FR-EM-L2` pays off again: a penetration *cannot* predate the second
+anchor, because the price track never crosses the line between its anchors.
+Asserted on real enumerated lines rather than a constructed one.
+
+### ⚠️ A flaw found in my own mutation-checking method
+
+While restoring a mutation, Python served **stale bytecode**: the mutated
+source (`MIN_CONTACTS_CONFIRMED = 2`) and the restored source (`= 3`) are the
+**same byte size**, and the restore landed within the same filesystem mtime
+second — so the `.pyc` validated and the restore was silently ignored. Two
+tests then failed against source that was already correct.
+
+**The dangerous direction is the mirror image:** a same-size mutation can fail
+to load at all, making it look as though it *survived* — which is how a false
+"equivalent mutation" gets recorded.
+
+Two surviving mutations had already been recorded in this workstream (EM-7
+T3's age guard, EM-5 L1's anchor grouping). Both were **re-verified with the
+bytecode cache cleared** and both genuinely survive, so those conclusions
+stand. **Every mutation check from here clears `__pycache__` between runs.**
 
 ### L5 — Decision and write-up *(S)*
 `docs/em5_trendlines.md`. Register, roadmap, `USER_GUIDE` updated. Phase B is
