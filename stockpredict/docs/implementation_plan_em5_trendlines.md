@@ -80,7 +80,7 @@ arms break on different bars and there is no honest event-level pairing.
 A Feature Inventory row for EM-5 with the Phase A/B split and the anchor
 decision recorded. `FR-EM-L*` IDs wired. No code.
 
-### L1 — The admissible-line enumerator *(S–M)*
+### L1 — The admissible-line enumerator *(S–M)* — **DONE 2026-10-23**
 `FR-EM-L1`, `L2`, `L3`. Lines through pairs of **confirmed** same-side pivots
 (`dow.confirmed_pivots`, which already carries `index` vs `confirmed_index`,
 so no line is anchored on a pivot that was not yet knowable); closes only;
@@ -96,8 +96,54 @@ difference between admissible and not — **H-L5** closes-not-extremes
 real data, which settles Q3 empirically and tells the next task whether the
 enumeration is tractable.
 
-### L2 — Penetration, the shakeout guard, and amendment *(M)*
-`FR-EM-L5`, `L6`, `L7`. A close beyond by 3% (need not be in one day); a crack
+**Outcome:** `market_context/trendline.py` (`Trendline`, `admissible_lines`,
+`candidate_pair_count`) + `tests/test_trendline.py`, **22 tests**. Measured on
+15 symbols, 1,992 (symbol, bar) probes, lookback 250, pivot 2%:
+
+| | median | p90 | p99 | max |
+|---|---|---|---|---|
+| candidate pairs | 526 | 1,023 | 1,395 | 1,904 |
+| **admissible lines** | **89** | 142 | 176 | 216 |
+
+* **The price-track constraint prunes 81.6%** of candidate pairs — so it, not
+  the cap, is what keeps the set finite. `H-L9` demanded that; it is now
+  confirmed on real data rather than on a fixture.
+* **Zero tolerance is viable:** 0 of 1,992 bars had no admissible line, so
+  reading E&M's rule literally does not prune to nothing.
+
+### ⚠️ L1's measurement corrects §4 of this plan
+
+**89 admissible lines per bar is too many for a "break" to mean anything.**
+Gate A would be measuring *"what happens after any of 89 lines is broken"*,
+which is close to measuring nothing — and most of those lines rest on exactly
+two anchors.
+
+E&M already distinguish the two cases, in the amendment rules, and it is a
+**validity threshold rather than a score**:
+
+> If the original line rested on only **two** points and the third contact
+> penetrates it indecisively, redraw… If the line has already been
+> **confirmed** by a third or fourth bottom, disregard the indecisive break.
+
+So a two-anchor line is **provisional**; the third contact **confirms** it.
+That means **contact counting is needed for Gate A after all** — not as a
+weighting, but as the book's own confirmation rule. §4 moved all of
+`FR-EM-L4` behind the gate, and that was half wrong.
+
+**Corrected split:**
+
+* **`L2` gains contact counting** and the confirmed/provisional distinction,
+  because Gate A needs it to have a meaningful event.
+* **`L4` keeps the authority *ordering* test** — does the effect follow
+  contacts ≫ duration > angle? — which remains a hypothesis behind the gate.
+
+Counting contacts is a rule from the book. Ranking by a weighted composite is
+a claim about the world. The first is required; the second stays deferred.
+
+### L2 — Contacts, penetration, the shakeout guard, and amendment *(M)*
+`FR-EM-L4` (counting only), `L5`, `L6`, `L7`. Contact counting and the
+**confirmed (≥3 contacts) versus provisional (2 anchors)** distinction, per
+L1's correction above — Gate A restricts to confirmed lines. A close beyond by 3% (need not be in one day); a crack
 that closes back above is **not** a break; and the amendment rule recorded
 explicitly so an amended line is never silently a different line.
 
