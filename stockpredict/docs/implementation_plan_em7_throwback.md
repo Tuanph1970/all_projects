@@ -166,7 +166,7 @@ ATRs from 2024 prices and could never return. Now matched on the break's own
 penetration distance. The fill rate `T4` needs is therefore **~82%**, not the
 ~100% an unmatched study would have implied.
 
-### T3 — The throwback detector *(M)* — only if GATE 1 passed
+### T3 — The throwback detector *(M)* — **DONE 2026-10-22**
 `FR-EM-T2`, `T3`, `T4`, `T5`, `T8`. A new signal in
 `app/services/signal/trend/`, `OFF` by default, with the four exclusive modes
 from §1.
@@ -176,6 +176,33 @@ there; **H-T3** planted absence fires nothing however long the series runs;
 **H-T5** no double-count with `failed_signal.py` (`EC-T2` — a throwback that
 breaks straight through is a failure, not both); `EC-T3`–`EC-T6`; and the
 no-op proof that with the detector `OFF` the existing suite is unchanged.
+
+**Outcome:** `app/services/signal/trend/throwback.py` + `tests/test_throwback.py`
+(25 tests), wired into `_run_signals` behind `BacktestConfig.throwback_mode`
+(`OFF` by default) so the no-op proof is real and `T4` is purely a
+measurement. Defaults are Gate 1's primary setting — 0.5 ATR, 60 bars — and
+`DEFAULT_RETRACE_PCT = 0.40` is labelled as E&M's 1940s figure, not a measured
+one.
+
+**Confidence is a constant, deliberately**, and the docstring says why: Gate 1
+measured which evidence relates to the return, and the touch count is a
+whisper (+2.3pp) while break direction (+4.5pp) was reported as *descriptive
+only*. Modulating on either would be acting on the data that generated the
+observation. The evidence dict carries the raw facts so a later task can
+measure what should weight them.
+
+**Mutation checks: four of five caught.** The survivor is instructive —
+changing `age <= 0` to `age < 0`, so a break on the current bar would be
+eligible, broke nothing. Age 0 is **unreachable by construction**: a decisive
+break puts the close at least one band beyond the level, so `BAND` cannot also
+be true, and at the break bar the post-break extreme *is* that bar, so nothing
+has been given back and `RETRACE_40` cannot be true. The guard is therefore
+**defensive, not load-bearing**, and the test now asserts those two reasons
+directly rather than pretending to exercise it — the `#89` lesson.
+
+Also fixed before it could cost anything: the first version called
+`compute_sr_levels` twice per bar, once inside the candidate loop. Harmless in
+a unit test, ruinous for `T4`'s 92-symbol replay.
 
 ### T4 — GATE 2: does it beat taking the breakout? *(M)*
 `§6` of the SRS. Three arms on the **same** breakouts: enter at the break

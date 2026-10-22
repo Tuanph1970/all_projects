@@ -36,6 +36,11 @@ from app.services.risk.target_module import compute_target
 #: EM-8 M3. See `BacktestConfig.target_mode`.
 TARGET_MODES = frozenset({"TARGETS_ON", "TRAILING_ONLY"})
 from app.services.signal.base import OHLCVBar, RawSignal
+from app.services.signal.trend.throwback import (
+    MODE_OFF,
+    THROWBACK_MODES,
+    detect_throwback,
+)
 from app.services.signal.failed_signal import OVERRIDE_THRESHOLD, detect_failed_signals, highest_severity
 from app.services.signal.range.sr_bounce_breakout import detect_sr_signal
 from app.services.signal.trend.ma_cross import detect_ma_cross
@@ -126,6 +131,12 @@ class BacktestConfig:
     #   TARGETS_ON      today's behaviour: compute_target as shipped
     #   TRAILING_ONLY   no profit target; exit on the stop alone
     target_mode: str = "TARGETS_ON"
+    # EM-7 `FR-EM-T8`. OFF by default until `T4` measures it: Gate 1 showed
+    # the throwback is real but worth only ten points over a 72% base
+    # (docs/em7_gate1.md), and #82 is why an unmeasured signal does not ship
+    # enabled -- the failed-signal override did, and distorted every exit
+    # statistic computed afterwards.
+    throwback_mode: str = MODE_OFF
     basing_point_filter_pct: float = 6.0
     basing_point_new_high_rule: bool = False
     allow_pyramiding: bool = False         # F-043 — opt-in; default off keeps replay unchanged
@@ -222,6 +233,11 @@ def run_backtest_on_bars(
     ``bars`` must be sorted oldest → newest and should include warm-up bars
     (300 + bars) before config.start_date so that MAs and ATR are primed.
     """
+    if config.throwback_mode not in THROWBACK_MODES:
+        raise ValueError(
+            f"throwback_mode {config.throwback_mode!r} is not one of "
+            f"{sorted(THROWBACK_MODES)}"
+        )
     if config.target_mode not in TARGET_MODES:
         raise ValueError(
             f"target_mode {config.target_mode!r} is not one of {sorted(TARGET_MODES)}"
@@ -506,6 +522,14 @@ def _run_signals(
         ):
             if fn_result:
                 signals.append(fn_result)
+
+    # EM-7. Regime-independent on purpose: a broken boundary is a boundary
+    # whatever the regime classifier thinks, and E&M's second chance follows
+    # the break, not the trend reading. `detect_throwback` returns None
+    # immediately when the mode is OFF, which is the default.
+    tb = detect_throwback(bars, bar_date, mode=config.throwback_mode)
+    if tb:
+        signals.append(tb)
 
     return signals
 
