@@ -299,8 +299,21 @@ From `CLAUDE.md` (the chart-system standing rules), which bind this workstream t
   is missed; there is no second-chance entry, and `failed_signal.py` handles the opposite case
   (the breakout that fails).
 - **Where it lands:** a new detector in `decision-helper/app/services/signal/trend/`, reading the
-  boundary from the pattern evidence that detectors already emit (`neckline`,
-  `measured_move_target`).
+  boundary from ~~the pattern evidence that detectors already emit (`neckline`,
+  `measured_move_target`)~~ — **corrected at Phase 1: from a broken S/R level instead.**
+  Pattern evidence cannot reach the backtest (no per-bar HTTP), which is the dead-path trap
+  EM-8's `M3` found in `MEASURED_MOVE`; and Ch 13 says *"pattern resistance — the mechanism
+  explains the patterns"*, so the level is the cause and the pattern a label on it.
+- **CLOSED 2026-10-22 — `docs/em7_throwback.md`.** Gate 1 **PASS**: both of E&M's claims hold,
+  the pullback is +10.0pp more frequent than a distance-matched null (t = +22.67) and stops
+  0.23 ATR more exactly (t = −8.29), 9/9 grid cells. Gate 2 **FAIL**: −0.375pp per
+  opportunity against simply taking the break (t = −2.86, 30/92 symbols, sign p = 0.001),
+  despite a **2.81% better entry price** on 82% of opportunities. The mechanism is
+  **adverse selection** — the BREAK return on declined opportunities exceeds filled ones by
+  **+14.17pp** (t = +19.09), so the 17.7% that never come back are the ones that ran.
+  *The second chance is offered precisely when the first was not worth taking.* Detector
+  ships `OFF`. **E&M's 40% rule is untested, not refuted**, and the **trendline** throwback —
+  the half E&M rate highest — was never in scope and needs EM-5.
 - **Mandatory benchmark (C4):** entry quality versus taking the breakout itself — better average
   entry price must not be paid for with a materially lower fill rate.
 - **Effort:** S. Depends on nothing; benefits from EM-5 if trendline throwbacks are included.
@@ -353,7 +366,7 @@ From `CLAUDE.md` (the chart-system standing rules), which bind this workstream t
 | EM-4 | Magee Evaluative Index exposure governor | 38, 42 | `decision-helper` regime × universe | vs constant exposure | M |
 | EM-5 | Trendline engine + Three-Fan Principle | 14, 15, 29 | new module + chart overlay | lag-returns + null-FPR | M–L |
 | EM-6 | Dow multi-index confirmation gate | 3, 5.1, 15.1 | `confirmation/layer.py` | gate on vs off | M |
-| EM-7 | Pullback / throwback entry | 6, 13, 14 | `signal/trend/` | vs taking the breakout | S |
+| EM-7 | Pullback / throwback entry | 6, 13, 14 | `signal/trend/` | vs taking the breakout | S — **CLOSED, negative** |
 | EM-8 | Objective-completion calibration + reversal cap | 32 | `target_module.py` + report | the calibration itself | S |
 | EM-9 | Re-calibrate the 3 % penetration filter | 6, 14 | `confirmation/layer.py` | threshold sweep | S |
 

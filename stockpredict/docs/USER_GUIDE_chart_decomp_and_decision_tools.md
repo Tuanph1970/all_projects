@@ -355,6 +355,44 @@ This menu has 12 sub-items forming an end-to-end trading workflow: **understand 
 
 ---
 
+## 2.2.3 — "Cơ hội thứ hai" và mục tiêu giá của khoảng trống / The "second chance", and gap price targets (Edwards & Magee)
+
+**🎯 Câu hỏi / The question**
+- **VI:** Khi giá **xuyên qua** một vùng hỗ trợ/kháng cự rồi **quay lại** chạm vùng đó, sách E&M gọi đây là *"cơ hội thứ hai của người bán khống"* — vào lệnh ở giá tốt hơn. Chúng tôi đã đo xem điều đó có **thật** không, và có **sinh lời** không.
+- **EN:** When price **breaks through** a support/resistance level and then **comes back** to touch it, E&M call this *"the short-seller's second chance"* — a better entry price. We measured whether it is **real**, and whether it **makes money**.
+
+**✅ Điều sách nói đúng / What the book got right**
+- **VI:** Đo trên **92 mã VN, 19,7 năm, 85.623 lần xuyên vùng**, so với **mốc ngẫu nhiên đặt ở cùng khoảng cách**:
+
+  | | Tỷ lệ giá quay lại vùng trong 60 phiên |
+  |---|---|
+  | Mốc ngẫu nhiên cùng khoảng cách | 72,3 % |
+  | **Sau khi vùng bị xuyên thật** | **82,3 %** |
+
+  Và khi quay lại, giá **dừng sát vùng cũ hơn** (vượt qua ít hơn 0,23 ATR). **Cả hai điều sách nói đều đúng.**
+- **EN:** Measured on **92 VN symbols, 19.7 years, 85,623 breaks**, against a **random reference at the same distance**: price returns within 60 sessions **82.3%** of the time after a real break versus **72.3%** for the random reference — and when it returns it **stops closer to the old level** (0.23 ATR less overshoot). **Both of the book's claims are true.**
+
+**❌ Nhưng chờ đợi lại **lỗ** / But waiting LOSES money**
+- **VI:** Trên **85.033 cơ hội**, so sánh ba cách vào lệnh (cùng thời gian giữ, cùng phí 0,40 %):
+
+  | Cách vào lệnh | Lãi/lỗ ròng mỗi cơ hội | Tỷ lệ khớp | Giá vào tốt hơn |
+  |---|---|---|---|
+  | **Vào ngay khi xuyên vùng (đang dùng)** | **+0,710 %** | 100 % | — |
+  | Chờ giá quay lại vùng | +0,335 % | 82,3 % | **+2,81 %** |
+
+  Giá vào **tốt hơn 2,81 %** nhưng tiền kiếm được chỉ còn **một nửa**. **Lý do:** 17,7 % lần xuyên vùng mà giá **không bao giờ quay lại** chính là những lần giá **chạy mạnh nhất** — vào ngay ở những lần đó lãi hơn **14,17 điểm phần trăm**. Nói ngắn gọn: **cơ hội thứ hai chỉ xuất hiện khi cơ hội thứ nhất không đáng lấy.**
+- **EN:** On **85,033 opportunities**, entering at the break earns **+0.710% per opportunity** against **+0.335%** for waiting — a **2.81% better entry price** for **less than half** the money. The reason is **adverse selection**: the 17.7% of breaks that never come back are the ones that **ran**, and entering immediately on those returned **14.17 percentage points more**. In short: **the second chance is offered precisely when the first chance was not worth taking.**
+- **VI:** Vì vậy chúng tôi **không** thêm kiểu vào lệnh này. Nó đã được viết nhưng **tắt mặc định**.
+- **EN:** So we **do not** add this entry. It is built but **off by default**.
+
+**🛠️ Một thay đổi có ảnh hưởng tới API / One change that does affect the API**
+- **VI:** Mẫu hình **Khoảng trống giá (Gap)** trước đây luôn trả về `measured_move_target`. Điều đó **sai so với sách**: E&M chỉ cho công thức đo cho **gap tiếp diễn (runaway)** — gap phá vỡ *"không có hàm ý đo lường"*, và **gap kiệt sức (exhaustion) báo hiệu move đang KẾT THÚC**, nên một mục tiêu theo chiều xu hướng là chỉ **sai hướng**. Ngoài ra công thức cũ chiếu **độ lớn của chính khoảng trống**, trong khi sách chiếu **khoảng cách giá đã đi từ đầu move tới khoảng trống**.
+  - Nay: chỉ **gap runaway** có `measured_move_target`; ba loại còn lại trả về `null`. `details.measuring_rule` cho biết đã dùng quy tắc nào (`"runaway_halfway"` hoặc `"none"`).
+  - Trên dữ liệu thật, số mục tiêu của gap giảm từ **3.229 xuống 979** — khoảng **70 % mục tiêu trước đây không có căn cứ trong sách**.
+- **EN:** The **Gap** pattern used to always return a `measured_move_target`. That was **wrong against the book**: E&M give a measuring rule to the **runaway** gap only — a breakaway gap has *"no measuring implication"*, and an **exhaustion gap marks the END of a move**, so a target in the trend direction pointed the wrong way. The old formula also projected the **gap's own height** instead of **the distance already travelled from the start of the move to the gap**.
+  - Now: only **runaway** gaps carry a `measured_move_target`; the other three return `null`. `details.measuring_rule` says which rule applied (`"runaway_halfway"` or `"none"`).
+  - On real data, gap objectives fell from **3,229 to 979** — about **70% of the previous targets had no basis in the book**.
+
 ## 2.3 — Bảng quyết định Watchlist / Watchlist Board
 
 **🎯 Lợi ích / Benefit**

@@ -238,9 +238,23 @@ trade a bar later — because the move is measured to the extreme *so far*, so
 40% of a tiny move is given back immediately. E&M intend a developed move.
 **Untested, not refuted.**
 
-### T5 — Decision and write-up *(S)*
+### T5 — Decision and write-up *(S)* — **DONE 2026-10-22**
 `docs/em7_throwback.md`. Default stays `OFF` unless both gates passed. Register,
 roadmap, `USER_GUIDE` updated. No frontend unless it ships.
+
+**Outcome:** `docs/em7_throwback.md` written; the register's EM-7 entry closed
+(and its "where it lands" line corrected — it said to read the boundary from
+pattern evidence, which Phase 1 rejected); `#67` → Done. No frontend, because
+nothing shipped enabled.
+
+The `USER_GUIDE` gained **§2.2.3**, bilingual, covering two things: EM-7's
+negative in plain language (82.3% vs 72.3% return, a 2.81% better entry price,
+and half the money, because the 17.7% that never come back are the ones that
+ran), and — the only **API-visible** change in this workstream — `#92`'s gap
+fix: only runaway gaps now carry a `measured_move_target`, the other three
+subtypes return `null`, and `details.measuring_rule` says which rule applied.
+Gap objectives fell 3,229 → 979, so about 70% of the previous targets had no
+basis in the book.
 
 ## 3. Criteria in one place
 
