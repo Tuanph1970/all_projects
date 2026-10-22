@@ -204,7 +204,7 @@ Also fixed before it could cost anything: the first version called
 `compute_sr_levels` twice per bar, once inside the candidate loop. Harmless in
 a unit test, ruinous for `T4`'s 92-symbol replay.
 
-### T4 — GATE 2: does it beat taking the breakout? *(M)*
+### T4 — GATE 2: does it beat taking the breakout? *(M)* — **DONE 2026-10-22: FAIL**
 `§6` of the SRS. Three arms on the **same** breakouts: enter at the break
 (today's `SR_BREAKOUT`), wait for the throwback, wait for the 40% retracement.
 
@@ -217,6 +217,26 @@ a unit test, ruinous for `T4`'s 92-symbol replay.
 > rule that fills only on the best 20% of setups will always show a better
 > average fill while making less money. This is written here because it is the
 > number that will look most persuasive and mean least.
+
+**Outcome:** `docs/em7_gate2.md`. **FAIL** — and the pre-registered metric is
+exactly what caught it. On 85,033 opportunities the throwback gets a **2.81%
+better entry price**, fills **82.3%** of the time (Gate 1 predicted 82.3%),
+and earns **−0.375pp per opportunity** against taking the break, t = −2.86,
+**30 of 92 symbols better**, sign p = 0.001. It fails on magnitude *and*
+consistency.
+
+**The mechanism is adverse selection, and it was measured rather than
+asserted.** The BREAK return on opportunities the throwback *declined* exceeds
+those it *filled* by **+14.17pp** at the 20-session horizon (t = +19.09). The
+17.7% that never come back are the ones that **ran** — so the filter removes
+the best breakouts, and *the second chance is offered precisely when the first
+was not worth taking.*
+
+**One limitation, logged not claimed:** the `RETRACE_40` arm does not
+faithfully test E&M's rule. It fills 98.5% with 0.21% better entry — the same
+trade a bar later — because the move is measured to the extreme *so far*, so
+40% of a tiny move is given back immediately. E&M intend a developed move.
+**Untested, not refuted.**
 
 ### T5 — Decision and write-up *(S)*
 `docs/em7_throwback.md`. Default stays `OFF` unless both gates passed. Register,
