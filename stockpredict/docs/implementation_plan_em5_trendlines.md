@@ -233,7 +233,7 @@ T3's age guard, EM-5 L1's anchor grouping). Both were **re-verified with the
 bytecode cache cleared** and both genuinely survive, so those conclusions
 stand. **Every mutation check from here clears `__pycache__` between runs.**
 
-### L5 — Decision and write-up *(S)*
+### L5 — Decision and write-up *(S)* — **DONE 2026-10-23**
 `docs/em5_trendlines.md`. Register, roadmap, `USER_GUIDE` updated. Phase B is
 recommended **only** if Gate A passed, and the recommendation names which of
 its four pieces the result actually supports.

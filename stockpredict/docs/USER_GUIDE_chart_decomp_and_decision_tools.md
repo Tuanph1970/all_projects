@@ -393,6 +393,34 @@ This menu has 12 sub-items forming an end-to-end trading workflow: **understand 
   - Now: only **runaway** gaps carry a `measured_move_target`; the other three return `null`. `details.measuring_rule` says which rule applied (`"runaway_halfway"` or `"none"`).
   - On real data, gap objectives fell from **3,229 to 979** — about **70% of the previous targets had no basis in the book**.
 
+## 2.2.4 — Đường xu hướng: điều chúng tôi đã đo và không dùng / Trendlines: what we measured, and did not use (Edwards & Magee)
+
+**🎯 Câu hỏi / The question**
+- **VI:** Sách E&M dành hai chương cho **đường xu hướng** (trendline) — vẽ qua các đáy của một đợt tăng, rồi coi việc **xuyên qua** nó là tín hiệu. Chúng tôi đã dựng công cụ vẽ đường xu hướng và đo một câu hỏi duy nhất: **độ dốc có đáng giá không?**
+- **EN:** E&M devote two chapters to **trendlines** — drawn across the bottoms of an advance, with a **break** of the line as the signal. We built the engine and measured one question: **is the slope worth anything?**
+
+**🔬 Cách đo / How it was measured**
+- **VI:** Một đường xu hướng là một **vùng có độ dốc**, vẽ qua đúng những điểm đảo chiều mà vùng hỗ trợ/kháng cự **ngang** cũng dùng. Vậy nên phép so sánh công bằng là: đem việc xuyên **đường dốc** so với việc xuyên **đường ngang đi qua cùng điểm neo** — cùng điểm, cùng phiên, **chỉ khác độ dốc**. Đo trên **92 mã, 45.117 lần xuyên đường**.
+- **EN:** A trendline is a **sloping level** through the very same pivots a **horizontal** support/resistance uses. So the fair test is a break of the **sloping** line against a break of the **horizontal through the same anchors** — same pivots, same bars, **slope the only difference**. Measured on **92 symbols, 45,117 trendline breaks**.
+
+**❌ Kết quả: độ dốc làm **xấu đi**, không chỉ là vô dụng / Result: slope SUBTRACTS, it does not merely fail**
+
+  | Sau khi xuyên (20 phiên) | Lợi nhuận bình quân |
+  |---|---|
+  | **Đường xu hướng (có độ dốc)** | +1,65 % |
+  | **Đường ngang qua cùng điểm neo** | **+2,16 %** |
+
+- **VI:** Đường ngang **thắng** ở cả 3 mốc thời gian và ở cả 3 ngưỡng xuyên phá (3 %, 2 %, 1 ATR) — **9/9 ô** đều cùng chiều. Và đường xu hướng bị xuyên **gần gấp đôi** số lần so với đường ngang qua cùng điểm neo. **Giả thuyết:** đường ngang nằm ở một **giá đã từng khớp lệnh thật**, còn đường dốc nằm ở một **phép ngoại suy** càng chạy càng xa mọi mức giá có người giao dịch — nên bị xuyên nhiều hơn và mỗi lần xuyên có ít ý nghĩa hơn.
+- **EN:** The horizontal **wins** at all three horizons and all three penetration thresholds — **9 of 9** cells in the same direction. And the trendline breaks **nearly twice as often** as the horizontal through its own anchors. **Hypothesis:** a horizontal sits at a **price where trades actually happened**, while a sloping line sits at an **extrapolation** that drifts further from any transacted price the longer it runs — so it is crossed more often and each crossing means less.
+- **VI:** Vì vậy chúng tôi **không** đưa đường xu hướng vào bất kỳ tín hiệu nào, và **không** vẽ nó lên biểu đồ. Công cụ vẫn được giữ lại (46 bài kiểm thử) để đo các ý tưởng khác, nhưng **không có gì sử dụng nó**.
+- **EN:** So trendlines feed **no signal** and are **not drawn** on the charts. The engine is kept (46 tests) as apparatus for measuring other ideas, but **nothing consumes it**.
+
+**📘 Tổng kết cả loạt nghiên cứu Edwards & Magee / The Edwards & Magee programme, closed**
+- **VI:** Đã đo xong **9 đề xuất** từ sách. **Một** được đưa vào dùng (xác nhận bằng khối lượng, mục 2.2.1). Ba lần cho kết quả **âm** (vùng S/R theo khối lượng, cổng xác nhận đa chỉ số, vào lệnh ở vùng đã bị xuyên), và lần này là thứ tư. Điều rút ra, nói thẳng: **cấu trúc mà sách mô tả là có thật trên thị trường VN — nhưng gần như mọi chiến thuật dựng trên nó đều không sinh lời.** Vùng hỗ trợ/kháng cự thắng mốc ngẫu nhiên; nhưng không cách tinh chỉnh nào thắng được việc **đếm số lần chạm**. Giá quay lại vùng đã xuyên nhiều hơn ngẫu nhiên và dừng chính xác hơn; nhưng **chờ** nó thì lỗ. Và vùng **có độ dốc** còn tệ hơn vùng ngang.
+- **EN:** **Nine** of the book's proposals have now been measured. **One** is in use (volume validation, §2.2.1). Three returned **negatives** (volume-weighted S/R, the multi-index confirmation gate, the broken-boundary entry), and this is the fourth. Stated plainly: **the structure the book describes is real on VN data — but almost nothing built on top of it pays.** Levels beat a random benchmark; no refinement beat **counting touches**. Price returns to a broken level more often than chance and stops more exactly; **waiting** for it loses money. And a **sloping** level is worse than a flat one.
+- **VI:** Giá trị lớn nhất của cả loạt nghiên cứu lại nằm ở chỗ khác: nó **phát hiện ra lỗi thật** trong hệ thống đang chạy — mục tiêu giá của mẫu hình Khoảng trống bị sai (≈70 % mục tiêu không có căn cứ trong sách), một mức giá bằng 0 làm sập module đặt cắt lỗ, một tính năng đánh giá AI đã chết âm thầm 5 tháng, và phí giao dịch bị ghi nhận thiếu một nửa.
+- **EN:** The programme's largest return was elsewhere: it **surfaced real bugs** in running code — a wrong Gap price objective (~70% of gap targets had no basis in the book), a zero price crashing the stop module, an AI review feature silently dead for five months, and commission under-reported by half.
+
 ## 2.3 — Bảng quyết định Watchlist / Watchlist Board
 
 **🎯 Lợi ích / Benefit**

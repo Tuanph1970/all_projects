@@ -252,9 +252,24 @@ From `CLAUDE.md` (the chart-system standing rules), which bind this workstream t
 - **Now:** lines are fitted only *inside* detectors (`continuation.py:306` `_triangle_trendlines`,
   `chart-decomp-lib/.../patterns/triangle.py`). There is no standalone trendline object, no
   authority score, no channel, no fan logic, and no trendline overlay on the frontend charts.
-- **Where it lands:** new module — most naturally in `analysis-service` beside the S/R work, since
-  both are "levels and lines" derived from the same pivots, with a signal generator in
-  `decision-helper` and an overlay on the existing chart components.
+- **Where it lands:** ~~new module — most naturally in `analysis-service` beside the S/R work~~ —
+  **corrected at Phase 1: in-process in `decision-helper`.** The harness makes no per-bar HTTP
+  calls, so anything facing a C4 benchmark needs an in-process path (the lesson EM-7's Phase 1 and
+  EM-8's `M3` both taught). An `analysis-service` home and the chart overlay belonged to Phase B,
+  which was not built.
+- **CLOSED 2026-10-23 — `docs/em5_trendlines.md`.** Scoped to **Phase A** (engine + harnesses +
+  one gate) because full scope was 12–16 sessions and the frontend was only worth building if the
+  engine earned it. **Gate A FAILED: 0 of 3 horizons at all three penetration settings**, and not
+  as a null — the **horizontal through the same anchors is significantly better**: at 3% and
+  h=10, trendline +0.965% against horizontal +1.437% (t = **−7.18**, the trendline winning on 17
+  of 92 symbols). Consistent in 9 of 9 grid cells on 45,117 trendline events. **Slope does not
+  fail to help; it subtracts.** Trendlines break nearly **twice as often** as the horizontals
+  through their own anchors, suggesting the mechanism — a horizontal sits at a *remembered price*,
+  a sloping line at an *extrapolation* that drifts from anywhere anyone transacted — which squares
+  with EM-2's finding that **touches** carry the information. Logged as a hypothesis, not tested
+  on the data that suggested it. Phase B (Three-Fan Principle, return line/channel, authority
+  scoring, frontend) **not built**; the engine ships as apparatus with 46 tests, consumed by
+  nothing.
 - **Mandatory benchmark (C4):** the fan rule as a bottom-caller against a lag-returns benchmark
   and a random-walk null-FPR; trendline breaks against the shipped n-day breakout signal.
 - **Effort:** M–L — the largest candidate here, and the only one that needs frontend drawing work.
@@ -413,3 +428,39 @@ re-proposed:
 
 *Phase 0 artifact — candidate register only. Next: pick one or two, then Phase 1 writes
 `docs/SRS_edwards_magee.md` with real `FR-EM-*` requirement IDs.*
+
+---
+
+## The register is closed — 2026-10-23
+
+All nine candidates have been measured to a conclusion.
+
+| | outcome |
+|---|---|
+| **EM-1** volume validation | **shipped** |
+| EM-9 penetration filter | recommended unchanged |
+| EM-2 volume-weighted S/R | negative — levels real, no elaboration beat counting touches |
+| EM-3 basing-point stops | real but tail-driven; default stayed `ATR` |
+| EM-4 Magee Evaluative Index | measure ships; headline overturned by more data (`#87`) |
+| EM-6 Dow multi-index gate | negative — confirmation *removed* what the raw regime had |
+| EM-7 throwback entry | both claims confirmed, **tactic refuted** (adverse selection) |
+| EM-8 measuring implications | two bug fixes, no feature; `MEASURED_MOVE` found dead |
+| **EM-5** trendline engine | negative — **slope is worse than no slope** |
+
+**One of nine shipped a feature**, and that is not the whole return.
+
+EM-2, EM-7 and EM-5 agree on something worth stating as a finding in its own
+right: **the structure E&M describe is real on this market, and almost nothing
+built on top of it pays.** Levels beat a matched-distance null; no elaboration
+of them beat counting touches. The throwback to a level is real and more exact
+than chance; waiting for it loses money to adverse selection. A sloping level
+is *worse* than the level.
+
+And the measurement found defects the features never would have: `#92`,
+`#93`, `#94`, `#80`, `#82`, `#70`, `#52`, `MEASURED_MOVE` as dead code, and —
+while chasing a dashboard of N/A — `#95`. **Measuring the book's claims was
+worth more for the bugs it exposed than for the claims it confirmed.**
+
+Open and pre-registered, neither a feature: `#86` (EM-3's long/short
+hypothesis, to be tested on evidence it did not come from) and `#90` (EM-4's
+history starting four years late).
