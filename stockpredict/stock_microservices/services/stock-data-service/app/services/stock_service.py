@@ -71,6 +71,25 @@ VNSTOCK_PERIODS = {
     "quarter": "quarter",
 }
 
+#: Backlog #95a — per-statement source, because VCI's `ratio()` is corrupted.
+#:
+#: Measured on FPT 2026-10-23:
+#:   VCI ratio          (54, 19)  16 periods ALL labelled 2018, the values
+#:                                being 4 genuine periods repeated 4x
+#:   KBS ratio          (58,  6)  4 clean years, with pe_ratio, roe and
+#:                                book_value_per_share_bvps (closes #76)
+#:   KBS balance_sheet  (0,  0)   EMPTY
+#:
+#: So this is deliberately per-statement rather than a wholesale switch: a
+#: wholesale switch to KBS would silently lose the balance sheet.
+FINANCIAL_SOURCE_OVERRIDES = {"ratio": "KBS"}
+
+#: KBS rejects `lang` outright (`Finance.ratio() got an unexpected keyword
+#: argument 'lang'`), so the keyword set is per-source too. The cost is only
+#: the English `item_en` label; `item_id` is the stable key and the one
+#: consumers read.
+SOURCE_SUPPORTS_LANG = {"VCI": True, "KBS": False}
+
 
 def _is_rate_limit(exc: Exception) -> bool:
     return _VnaiRateLimitExceeded is not None and isinstance(exc, _VnaiRateLimitExceeded)
@@ -666,9 +685,10 @@ class StockService:
             to match the frontend field expectations.
         """
         try:
-            stock = self.vnstock.stock(
-                symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE
+            source = FINANCIAL_SOURCE_OVERRIDES.get(
+                statement_type, settings.VNSTOCK_DATA_SOURCE
             )
+            stock = self.vnstock.stock(symbol=symbol.upper(), source=source)
             method = getattr(stock.finance, statement_type, None)
             if method is None:
                 logger.error(f"Unknown statement type: {statement_type}")
@@ -683,7 +703,10 @@ class StockService:
                 )
                 return []
 
-            df = await vnstock_call(method, period=vnstock_period, lang="en")
+            call_kwargs = {"period": vnstock_period}
+            if SOURCE_SUPPORTS_LANG.get(source, True):
+                call_kwargs["lang"] = "en"
+            df = await vnstock_call(method, **call_kwargs)
 
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
                 return []
@@ -693,8 +716,14 @@ class StockService:
             # A repeated column label is how this whole defect stayed
             # invisible: `to_dict(orient="records")` keeps exactly ONE value
             # per key, so duplicated labels discard data without raising.
-            # Warn loudly and de-duplicate so the values survive, rather than
+            # Warn loudly and RENAME so the values survive, rather than
             # letting a future vendor reshape fail silently again.
+            #
+            # NOTE: deliberately NOT `_dedupe_columns`, which DROPS repeats.
+            # That is right for `overview()`, where a repeated `issue_share`
+            # is the same field four times — but here a repeated label is a
+            # different REPORTING PERIOD, so dropping would be the data loss
+            # this guard exists to prevent. Do not "tidy" these together.
             if isinstance(df, pd.DataFrame) and df.columns.duplicated().any():
                 dups = sorted({str(c) for c in df.columns[df.columns.duplicated()]})
                 logger.warning(
