@@ -122,10 +122,38 @@ def _build_fake_stock(
     return fake_stock
 
 
-def _vnstock_with(fake_stock) -> MagicMock:
+def _vnstock_with(fake_stock, kbs_ratio_df=None) -> MagicMock:
+    """A fake client that is SOURCE-AWARE when a KBS frame is supplied.
+
+    Backlog #76: `book_value_per_share` now comes from a supplementary KBS
+    `ratio` call, so a fixture that returns one frame for every source cannot
+    express the field being available. Passing `kbs_ratio_df` gives the KBS
+    source its own sheet; omitting it keeps the old single-frame behaviour, so
+    every existing test is unaffected.
+    """
     v = MagicMock()
-    v.stock.return_value = fake_stock
+    if kbs_ratio_df is None:
+        v.stock.return_value = fake_stock
+        return v
+
+    kbs_stock = MagicMock()
+    kbs_stock.finance.ratio.return_value = kbs_ratio_df
+
+    def pick(symbol=None, source=None):
+        return kbs_stock if source == "KBS" else fake_stock
+
+    v.stock.side_effect = pick
     return v
+
+
+def _kbs_ratio_with_bvps(bvps: float = 28_450.0) -> pd.DataFrame:
+    """The KBS ratio shape: `item_id` keys, years as columns, no `item_en`."""
+    return pd.DataFrame({
+        "item": ["P/E", "BVPS"],
+        "item_id": ["pe_ratio", "book_value_per_share_bvps"],
+        "2025": [15.91, bvps],
+        "2024": [26.74, bvps - 5_000.0],
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -578,7 +606,11 @@ class TestFieldsRestoredFromBacklog76:
 
 
 class TestFieldsTheFourXAdaptationDropped:
-    """`book_value_per_share` is still never set, and now we know why.
+    """`book_value_per_share` — CLOSED 2026-10-23 via a source change (#95a).
+
+    The history below is kept because the reasoning still governs: the field
+    is READ from KBS, never derived. What follows is why derivation was
+    refused, and it remains the right call.
 
     Found while migrating these fixtures: because all eleven tests in this
     module were red from 567cd1bc onward, the one test that asserted
@@ -626,12 +658,28 @@ class TestFieldsTheFourXAdaptationDropped:
         )
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(strict=True, reason="Backlog #76: vnstock 4.x supplies no BVPS field; needs shares outstanding or a price feed")
     async def test_book_value_per_share_is_populated(self):
+        """**No longer xfail.** Closed 2026-10-23.
+
+        Not by deriving the field — the refusal above still stands — but
+        because the SOURCE changed. `#95a` moved the statement `ratio` call to
+        KBS after VCI's turned out corrupted, and the KBS sheet carries
+        `book_value_per_share_bvps` outright. So it is read, not computed.
+        """
+        svc = _make_service()
+        with _patch_vnstock(svc, _vnstock_with(self._full_fixture(),
+                                               _kbs_ratio_with_bvps())):
+            out = await svc.get_company_financials("FPT")
+        assert out.book_value_per_share == pytest.approx(28_450.0)
+
+    @pytest.mark.asyncio
+    async def test_a_vendor_without_the_field_still_leaves_it_unset(self):
+        """The other half: absent is still the right answer when no source
+        supplies it. A wrong book value is worse than an absent one."""
         svc = _make_service()
         with _patch_vnstock(svc, _vnstock_with(self._full_fixture())):
             out = await svc.get_company_financials("FPT")
-        assert out.book_value_per_share is not None
+        assert out.book_value_per_share is None
 
 
 # ---------------------------------------------------------------------------

@@ -84,6 +84,55 @@ VNSTOCK_PERIODS = {
 #: wholesale switch to KBS would silently lose the balance sheet.
 FINANCIAL_SOURCE_OVERRIDES = {"ratio": "KBS"}
 
+
+def bvps_from_ratio_frame(df) -> Optional[float]:
+    """Book value per share from a KBS ratio frame, or `None`.
+
+    Backlog #76. The field has been absent since the 4.x rewrite, and the
+    earlier investigation was right to leave it absent: it probed VCI under
+    five candidate names and found none, and refused to derive it from
+    `(pe x eps) / pb` because `eps` is quarterly while `P/E` is trailing, so
+    the implied price — and the book value falling out of it — would be wrong
+    by roughly 4x. A wrong book value is worse than an absent one.
+
+    What changed is the SOURCE. `#95a` moved the statement `ratio` call to KBS
+    because VCI's is corrupted, and the KBS sheet carries
+    `book_value_per_share_bvps` outright. So this reads it; it does not
+    compute it.
+
+    Keyed on `item_id`, not on a display label: `item_id` is the stable
+    identifier, and KBS supplies no `item_en` at all (which is why
+    `_latest_metrics` cannot be pointed at a KBS frame as it stands).
+
+    Declines a non-numeric or non-positive value rather than publishing it —
+    the same principle as refusing the derivation.
+    """
+    import pandas as _pd
+
+    if df is None or not isinstance(df, _pd.DataFrame) or df.empty:
+        return None
+    if "item_id" not in df.columns:
+        return None
+
+    periods = [c for c in df.columns if str(c)[:4].isdigit()]
+    if not periods:
+        return None
+    # KBS's annual frame is newest-first; sort defensively so an ordering
+    # change cannot silently hand back an older year.
+    latest = sorted(periods, key=lambda c: str(c), reverse=True)[0]
+
+    for _, row in df.iterrows():
+        if str(row.get("item_id")) != "book_value_per_share_bvps":
+            continue
+        try:
+            value = float(row.get(latest))
+        except (TypeError, ValueError):
+            return None
+        if not (value > 0):
+            return None
+        return value
+    return None
+
 #: KBS rejects `lang` outright (`Finance.ratio() got an unexpected keyword
 #: argument 'lang'`), so the keyword set is per-source too. The cost is only
 #: the English `item_en` label; `item_id` is the stable key and the one
@@ -2234,6 +2283,30 @@ class StockService:
                         'BVPS (VND)', 'BVPS', 'Book value per share',
                         'Book Value Per Share (VND)', 'Book value per share (VND)',
                     )
+                    if bvps is None:
+                        # Backlog #76: VCI supplies it under no name, but the
+                        # KBS ratio sheet carries `book_value_per_share_bvps`
+                        # outright (#95a). Best-effort and deliberately
+                        # separate: BVPS is one field, and losing the vendor
+                        # for it must not take the other fifteen with it.
+                        #
+                        # This costs one extra vnstock call per invocation,
+                        # which matters against the 20 req/min guest quota
+                        # (#49). It is only made when VCI has already failed
+                        # to supply the field, which today is always.
+                        try:
+                            kbs_ratio = await vnstock_call(
+                                self.vnstock.stock(
+                                    symbol=symbol.upper(), source="KBS"
+                                ).finance.ratio,
+                                period="year",
+                            )
+                            bvps = bvps_from_ratio_frame(kbs_ratio)
+                        except Exception as exc:  # noqa: BLE001
+                            logger.warning(
+                                "BVPS lookup via KBS failed for %s: %s: %s",
+                                symbol, type(exc).__name__, exc,
+                            )
                     # Vendor-reported debt/assets if offered; otherwise derived
                     # from the balance sheet further down.
                     debt_to_assets = self._pick(
