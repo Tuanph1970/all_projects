@@ -47,6 +47,30 @@ from app.repositories.stock_repository import StockRepository
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
+#: Our API's period vocabulary -> vnstock's.
+#:
+#: These are NOT the same words, and vnstock does not complain. Handed
+#: `period="annual"` it silently returns QUARTERLY data whose column labels
+#: all collapse to one year:
+#:
+#:     period="annual"  ->  (25, 19), year columns ['2026'] x 16
+#:     period="year"    ->  (25,  7), year columns ['2025','2024','2023','2022']
+#:
+#: `to_dict(orient="records")` then keeps one value per repeated key, so
+#: sixteen quarterly columns became a single '2026' — and for `ratio` every
+#: column was labelled '2018', so the served figures were eight years stale.
+#: Downstream, ai-insights' long-term recommender scores *consecutive years*
+#: of P/E improvement and profit growth; given one year it scored nothing and
+#: returned an empty list, which is why the dashboard showed N/A.
+#:
+#: Nothing raised at any point. An unrecognised period is therefore refused
+#: here rather than forwarded.
+VNSTOCK_PERIODS = {
+    "annual": "year",
+    "year": "year",
+    "quarter": "quarter",
+}
+
 
 def _is_rate_limit(exc: Exception) -> bool:
     return _VnaiRateLimitExceeded is not None and isinstance(exc, _VnaiRateLimitExceeded)
@@ -650,12 +674,46 @@ class StockService:
                 logger.error(f"Unknown statement type: {statement_type}")
                 return []
 
-            df = await vnstock_call(method, period=period, lang="en")
+            vnstock_period = VNSTOCK_PERIODS.get(str(period).lower())
+            if vnstock_period is None:
+                logger.error(
+                    "Unknown period %r for %s %s — refusing to call vnstock, "
+                    "which would silently return quarterly data. Valid: %s",
+                    period, symbol, statement_type, sorted(VNSTOCK_PERIODS),
+                )
+                return []
+
+            df = await vnstock_call(method, period=vnstock_period, lang="en")
 
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
                 return []
             if isinstance(df, pd.Series):
                 df = df.to_frame().T
+
+            # A repeated column label is how this whole defect stayed
+            # invisible: `to_dict(orient="records")` keeps exactly ONE value
+            # per key, so duplicated labels discard data without raising.
+            # Warn loudly and de-duplicate so the values survive, rather than
+            # letting a future vendor reshape fail silently again.
+            if isinstance(df, pd.DataFrame) and df.columns.duplicated().any():
+                dups = sorted({str(c) for c in df.columns[df.columns.duplicated()]})
+                logger.warning(
+                    "%s %s/%s: duplicate column labels %s — vnstock's shape has "
+                    "changed; de-duplicating so values are not silently dropped",
+                    symbol, statement_type, period, dups,
+                )
+                seen: dict = {}
+                renamed = []
+                for c in df.columns:
+                    key = str(c)
+                    if key in seen:
+                        seen[key] += 1
+                        renamed.append(f"{key}__{seen[key]}")
+                    else:
+                        seen[key] = 0
+                        renamed.append(key)
+                df = df.copy()
+                df.columns = renamed
 
             # Apply version-resilient column mapping
             col_map = self.FINANCIAL_STATEMENT_MAPS.get(statement_type, {})

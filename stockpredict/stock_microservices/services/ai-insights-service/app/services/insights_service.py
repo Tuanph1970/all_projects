@@ -86,6 +86,68 @@ def _climax_to_schema(flag: Optional[ClimaxFlag]) -> "Optional[VolumeClimaxSchem
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
+
+def pivot_item_rows(rows):
+    """Turn vnstock's item-rows/year-columns financials into year rows.
+
+    vnstock serves a statement as **one row per line item with years as
+    columns**::
+
+        {"item": "Sales", "item_id": "sales",
+         "2025": ..., "2024": ..., "2023": ...}
+
+    while every consumer here wants **one row per year** keyed by metric::
+
+        {"year": 2025, "sales": ..., "net_profit_loss_after_tax": ...}
+
+    The long-term recommender was reading the second shape out of the first,
+    so it found no `net_profit`, `pe` or `roe` on any row, scored nothing, and
+    returned an empty list — which the dashboard rendered as N/A.
+
+    Passed anything that is not the item-row shape (no `item_id`, or already
+    year-rows) the input is returned unchanged, so an old or future
+    orientation is not mangled.
+
+    Keys like ``2026__1`` are **not** years: `stock-data-service`
+    de-duplicates repeated vendor column labels that way, and treating them as
+    years would invent reporting periods.
+    """
+    if not rows:
+        return []
+    if not isinstance(rows, list) or not any(
+        isinstance(r, dict) and "item_id" in r for r in rows
+    ):
+        return rows
+
+    years = set()
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        for k in r:
+            if isinstance(k, str) and k.isdigit() and len(k) == 4:
+                years.add(int(k))
+    if not years:
+        return rows
+
+    out = []
+    for y in sorted(years, reverse=True):
+        row = {"year": y}
+        for r in rows:
+            if not isinstance(r, dict):
+                continue
+            iid = r.get("item_id")
+            if not iid:
+                continue
+            v = r.get(str(y))
+            if v is None:
+                continue
+            try:
+                row[str(iid)] = float(v)
+            except (TypeError, ValueError):
+                continue
+        out.append(row)
+    return out
+
 # Closed company-news category vocabulary. Kept in sync with news-service's classifier
 # (SRS Appendix A) so the LLM-assigned category and the local keyword fallback agree.
 NEWS_CATEGORIES = (
@@ -1767,6 +1829,11 @@ Maintain current position and monitor for clearer signals before taking action.
                     inc_rows = inc_resp.json() if inc_resp.status_code == 200 else []
                     rat_rows = rat_resp.json() if rat_resp.status_code == 200 else []
 
+                    # vnstock serves item-rows/year-columns; everything below
+                    # wants year-rows keyed by metric.
+                    inc_rows = pivot_item_rows(inc_rows)
+                    rat_rows = pivot_item_rows(rat_rows)
+
                     if not inc_rows and not rat_rows:
                         continue
 
@@ -1784,7 +1851,13 @@ Maintain current position and monitor for clearer signals before taking action.
                     rat_rows = sorted(rat_rows, key=_year, reverse=True)[:5]
 
                     # Extract net profit series (newest first)
-                    profit_keys = ("net_profit", "netProfit", "profit_after_tax",
+                    # `net_profit_loss_after_tax` and `attributable_to_parent_company`
+                    # are vnstock's actual `item_id`s, read off the vendor
+                    # rather than guessed. The older names are kept so a
+                    # different orientation still works.
+                    profit_keys = ("net_profit_loss_after_tax",
+                                   "attributable_to_parent_company",
+                                   "net_profit", "netProfit", "profit_after_tax",
                                    "net_income", "Profit After Tax", "Net Profit")
                     profits = []
                     for row in inc_rows:
@@ -1798,7 +1871,7 @@ Maintain current position and monitor for clearer signals before taking action.
                                 break
 
                     # Extract P/E series (newest first)
-                    pe_keys = ("pe", "pe_ratio", "P/E", "priceToEarning", "price_to_earning")
+                    pe_keys = ("pe_ratio", "pe", "P/E", "priceToEarning", "price_to_earning")
                     pes = []
                     for row in rat_rows:
                         for k in pe_keys:
