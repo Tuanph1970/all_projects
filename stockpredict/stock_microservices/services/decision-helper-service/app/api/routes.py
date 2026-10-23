@@ -355,6 +355,12 @@ async def recommend(
 
         async def _auto_review():
             try:
+                # Backlog #94. This import was missing, so every invocation
+                # raised NameError — the only other users import it locally
+                # too (see :318 inside `_open()`, and :1160). The task is
+                # fire-and-forget, so nothing surfaced the failure.
+                from app.api.dependencies import async_session_factory
+
                 async with async_session_factory() as sess:
                     entry_run = (await sess.execute(
                         _sel2(_DecisionRun)
@@ -387,7 +393,14 @@ async def recommend(
                             entry_run.ai_review = review
                             await sess.commit()
             except Exception as exc:
-                logger.debug("auto_review: failed for %s: %s", ticker, exc)
+                # Backlog #94: this was `logger.debug`, which is why a
+                # NameError on every call went unnoticed for five months. A
+                # background task that discards its exception needs a level
+                # somebody actually reads.
+                logger.warning(
+                    "auto_review: failed for %s: %s: %s",
+                    ticker, type(exc).__name__, exc,
+                )
 
         import asyncio as _aio2
         _aio2.create_task(_auto_review())
