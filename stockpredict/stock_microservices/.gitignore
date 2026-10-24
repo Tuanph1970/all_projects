@@ -205,3 +205,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Backlog #96: `wheels/` above is the stock Python template rule for BUILD
+# OUTPUT. These are the opposite — deliberately committed third-party wheels
+# for packages WITHDRAWN from public PyPI (vnstock, vnai), without which
+# stock-data-service cannot be built from scratch. See vendor/wheels/README.md.
+!vendor/wheels/
+!vendor/wheels/**
