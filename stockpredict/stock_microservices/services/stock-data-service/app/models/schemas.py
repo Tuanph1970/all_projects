@@ -312,6 +312,12 @@ class CompanyFinancialsResponse(BaseModel):
     # Per share data
     eps: Optional[float] = None
     book_value_per_share: Optional[float] = None
+    #: Backlog #97 — the fiscal period the ratio fields describe (e.g. "2025").
+    #: Ratios come from the KBS annual sheet, and its PRICE-BASED ratios
+    #: (P/E, P/B, P/S, EV/EBITDA, dividend yield) are priced at FISCAL YEAR
+    #: END, not today. This travels with them so a consumer is not left to
+    #: assume they are current; `None` means no ratio source was available.
+    ratios_as_of: Optional[str] = None
     dividend_yield: Optional[float] = None
     # Nested structures for frontend compatibility
     financial_ratios: Optional[FinancialRatiosData] = None

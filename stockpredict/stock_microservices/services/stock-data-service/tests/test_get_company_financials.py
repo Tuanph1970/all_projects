@@ -122,6 +122,31 @@ def _build_fake_stock(
     return fake_stock
 
 
+def _kbs_ratio_matching_basic() -> pd.DataFrame:
+    """The KBS annual counterpart of `_ratio_df_basic`.
+
+    Backlog #97: ratio metrics now come from KBS, because VCI's `ratio()` is
+    eight years stale. These carry the SAME logical values as the VCI fixture
+    above but in KBS's convention — percents already scaled (ROE 20.0, not
+    0.20) and `liabilities_to_equity` as a percent (60.0) where the response
+    wants the 0.6 multiple — so the existing assertions keep their meaning and
+    keep testing the conversion rather than being rewritten around it.
+    """
+    rows = [
+        ("pe_ratio", 15.0), ("pb_ratio", 2.3), ("ps_ratio", 1.1),
+        ("roe", 20.0), ("roa", 7.0),
+        ("liabilities_to_equity", 60.0),
+        ("short_term_ratio", 1.8), ("quick_ratio", 1.4),
+        ("gross_margin", 35.0), ("ebit_margin", 18.0), ("net_margin", 12.0),
+        ("ev_ebitda", 9.5), ("dividend_yield", 0.0),
+    ]
+    return pd.DataFrame({
+        "item": [r[0] for r in rows],
+        "item_id": [r[0] for r in rows],
+        "2025": [r[1] for r in rows],
+    })
+
+
 def _vnstock_with(fake_stock, kbs_ratio_df=None) -> MagicMock:
     """A fake client that is SOURCE-AWARE when a KBS frame is supplied.
 
@@ -229,7 +254,7 @@ def _ratio_df_basic():
 async def test_ratio_block_populates_flat_and_nested_fields_with_percent_conversion():
     fake_stock = _build_fake_stock(ratio_df=_ratio_df_basic())
     svc = _make_service()
-    with _patch_vnstock(svc, _vnstock_with(fake_stock)):
+    with _patch_vnstock(svc, _vnstock_with(fake_stock, _kbs_ratio_matching_basic())):
         out = await svc.get_company_financials("FPT")
     assert out.pe_ratio == 15.0
     assert out.pb_ratio == 2.3
@@ -238,7 +263,12 @@ async def test_ratio_block_populates_flat_and_nested_fields_with_percent_convers
     assert out.roa == pytest.approx(7.0)
     assert out.profit_margin == pytest.approx(12.0)
     assert out.debt_to_equity == 0.6
-    assert out.market_cap == 200_000.0
+    # Backlog #97: market cap is no longer read from the ratio sheet. VCI's
+    # figure was ~3x stale, and KBS carries none — it is now recomputed as
+    # `P/B x book equity`, which needs a balance sheet. This fixture is
+    # ratio-only, so the honest answer here is None; the derivation itself is
+    # asserted in TestFieldsRestoredFromBacklog76.
+    assert out.market_cap is None
     assert out.current_ratio == 1.8
     assert out.ev_ebitda == 9.5
     # eps now comes from the income statement, not the ratio sheet, so this
@@ -254,15 +284,20 @@ async def test_ratio_block_populates_flat_and_nested_fields_with_percent_convers
 
 @pytest.mark.asyncio
 async def test_ratio_block_skips_percent_conversion_when_already_percent_scaled():
-    """ROE already > 1 (e.g. expressed as 22.5) is left alone."""
-    ratio_df = _long({
-        "P/E": 10.0,
-        "ROE (%)": 22.5,  # > 1 -> no conversion
-        "ROA (%)": 8.0,   # > 1 -> no conversion
-    })
+    """An already-percent ROE (22.5) is passed through, never re-scaled.
+
+    Backlog #97: the point survives the source change but its subject moved.
+    This used to prove `_as_percent` would not double-scale a VCI value that
+    was already a percent. KBS reports percents ALWAYS, so the hazard now
+    lives in the KBS mapping, which must return 22.5 as 22.5 and never 2250.
+    """
+    ratio_df = _long({"P/E": 10.0, "ROE (%)": 22.5, "ROA (%)": 8.0})
     fake_stock = _build_fake_stock(ratio_df=ratio_df)
+    kbs = pd.DataFrame({
+        "item": ["roe", "roa"], "item_id": ["roe", "roa"], "2025": [22.5, 8.0],
+    })
     svc = _make_service()
-    with _patch_vnstock(svc, _vnstock_with(fake_stock)):
+    with _patch_vnstock(svc, _vnstock_with(fake_stock, kbs)):
         out = await svc.get_company_financials("FPT")
     assert out.roe == 22.5
     assert out.roa == 8.0
@@ -504,7 +539,7 @@ async def test_full_happy_path_returns_all_sections():
         cf_df=cf_df,
     )
     svc = _make_service()
-    with _patch_vnstock(svc, _vnstock_with(fake_stock)):
+    with _patch_vnstock(svc, _vnstock_with(fake_stock, _kbs_ratio_matching_basic())):
         out = await svc.get_company_financials("vnm")
     # Top-level
     assert out.symbol == "VNM"
@@ -576,11 +611,62 @@ class TestFieldsRestoredFromBacklog76:
     @pytest.mark.asyncio
     async def test_enterprise_value_is_market_cap_plus_debt_less_cash(self):
         svc = _make_service()
-        with _patch_vnstock(svc, _vnstock_with(self._fixture())):
+        kbs = _kbs_ratio_matching_basic()
+        kbs = pd.concat([kbs, pd.DataFrame({
+            "item": ["BVPS"], "item_id": ["book_value_per_share_bvps"],
+            "2025": [20_000.0],
+        })], ignore_index=True)
+        fake = self._fixture()
+        # A live close of 50.0 (vendor units, thousands of VND) -> 50,000 VND.
+        fake.quote.history.return_value = pd.DataFrame({"close": [48.0, 50.0]})
+        with _patch_vnstock(svc, _vnstock_with(fake, kbs)):
             out = await svc.get_company_financials("FPT")
-        # 200,000 + 12,000 - 5,000. Only LONG-TERM liabilities are available,
-        # so this is a lower bound on EV — stated in the code comment too.
-        assert out.enterprise_value == pytest.approx(207_000.0)
+        # Backlog #97 changed the market-cap INPUT, not this formula.
+        #   shares     = equity / BVPS = 40,000 / 20,000 = 2
+        #   market cap = live close x shares = 50,000 x 2 = 100,000
+        #   EV         = 100,000 + 12,000 - 5,000
+        # It used to be the vendor's stale figure (200,000, giving 207,000).
+        # Still a LOWER BOUND: only long-term liabilities are available.
+        assert out.market_cap == pytest.approx(100_000.0)
+        assert out.enterprise_value == pytest.approx(107_000.0)
+
+    @pytest.mark.asyncio
+    async def test_the_vendors_thousand_vnd_quote_is_scaled_to_vnd(self):
+        """A silent 1000x error here would be invisible in a ratio and
+        enormous in a market cap, so the unit is pinned.
+
+        The vendor quotes in thousands (FPT closes around 57.0) while BVPS is
+        in VND (25,679.55). Mixing them would understate market cap by three
+        orders of magnitude.
+        """
+        svc = _make_service()
+        kbs = pd.concat([_kbs_ratio_matching_basic(), pd.DataFrame({
+            "item": ["BVPS"], "item_id": ["book_value_per_share_bvps"],
+            "2025": [20_000.0],
+        })], ignore_index=True)
+        fake = self._fixture()
+        fake.quote.history.return_value = pd.DataFrame({"close": [50.0]})
+        with _patch_vnstock(svc, _vnstock_with(fake, kbs)):
+            out = await svc.get_company_financials("FPT")
+        # 2 shares x 50,000 VND, NOT 2 x 50.
+        assert out.market_cap == pytest.approx(100_000.0)
+
+    @pytest.mark.asyncio
+    async def test_a_quote_outage_leaves_market_cap_unset_not_stale(self):
+        svc = _make_service()
+        kbs = pd.concat([_kbs_ratio_matching_basic(), pd.DataFrame({
+            "item": ["BVPS"], "item_id": ["book_value_per_share_bvps"],
+            "2025": [20_000.0],
+        })], ignore_index=True)
+        fake = self._fixture()
+        fake.quote.history.side_effect = RuntimeError("quote feed down")
+        with _patch_vnstock(svc, _vnstock_with(fake, kbs)):
+            out = await svc.get_company_financials("FPT")
+        assert out is not None
+        assert out.market_cap is None
+        assert out.enterprise_value is None
+        # the rest of the response survives
+        assert out.pe_ratio == pytest.approx(15.0)
 
     @pytest.mark.asyncio
     async def test_neither_is_fabricated_when_the_balance_sheet_is_thin(self):
@@ -677,7 +763,7 @@ class TestFieldsTheFourXAdaptationDropped:
         """The other half: absent is still the right answer when no source
         supplies it. A wrong book value is worse than an absent one."""
         svc = _make_service()
-        with _patch_vnstock(svc, _vnstock_with(self._full_fixture())):
+        with _patch_vnstock(svc, _vnstock_with(self._full_fixture(), _kbs_ratio_matching_basic())):
             out = await svc.get_company_financials("FPT")
         assert out.book_value_per_share is None
 

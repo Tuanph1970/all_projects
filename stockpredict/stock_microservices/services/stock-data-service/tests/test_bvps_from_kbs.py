@@ -149,4 +149,10 @@ class TestItIsWiredIntoTheResponse:
             out = await svc.get_company_financials("FPT")
         assert out is not None
         assert out.book_value_per_share is None
-        assert out.pe_ratio == pytest.approx(8.76)
+        # Backlog #97: VCI's ratio values are NOT a fallback. They were eight
+        # years stale (this 8.76 is one of them), so when KBS is unavailable
+        # the ratio fields stay unset rather than serving a stale number —
+        # the principle #76 was decided on, applied to the other fifteen
+        # fields as well.
+        assert out.pe_ratio is None
+        assert out.ratios_as_of is None

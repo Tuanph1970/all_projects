@@ -85,6 +85,105 @@ VNSTOCK_PERIODS = {
 FINANCIAL_SOURCE_OVERRIDES = {"ratio": "KBS"}
 
 
+#: Backlog #97 — our response field -> (KBS `item_id`, scale).
+#:
+#: VCI's `ratio()` is degenerate: `period="quarter"` returns columns labelled
+#: 2018-Q1..Q4 and `period="year"` sixteen columns all labelled 2018, BOTH
+#: carrying the same four numbers. FPT's served `pe_ratio` was 11.6044 — one
+#: of them — against an actual FY2025 15.91. Fifteen fields were present,
+#: plausible and eight years stale.
+#:
+#: ANNUAL, decided by measurement: KBS `period="year"` is (58, 6) with four
+#: distinct ordered years, while `period="quarter"` returns columns
+#: `2026-Q2, 2025-Q4, 2026-Q1, 2025-Q4_1` — unordered, with FPT's
+#: `2025-Q4_1` duplicating *2026-Q2's* values, and quarterly ROE reading 5.89
+#: against an annual 28.3 (un-annualised). Three traps in one frame.
+#:
+#: `scale` converts KBS's convention to the one the response already uses:
+#:   "as_is"    both agree (plain multiples, and percents the code already
+#:              normalised to percent for VCI via `_as_percent`)
+#:   "from_pct" KBS reports a percent where the response carries a multiple
+KBS_RATIO_FIELDS = {
+    "pe_ratio":         ("pe_ratio", "as_is"),
+    "pb_ratio":         ("pb_ratio", "as_is"),
+    "ps_ratio":         ("ps_ratio", "as_is"),
+    "ev_ebitda":        ("ev_ebitda", "as_is"),
+    "roe":              ("roe", "as_is"),
+    "roa":              ("roa", "as_is"),
+    "gross_margin":     ("gross_margin", "as_is"),
+    "operating_margin": ("ebit_margin", "as_is"),
+    "profit_margin":    ("net_margin", "as_is"),
+    "dividend_yield":   ("dividend_yield", "as_is"),
+    "current_ratio":    ("short_term_ratio", "as_is"),
+    "quick_ratio":      ("quick_ratio", "as_is"),
+    # TOTAL liabilities over equity, as a MULTIPLE — the faithful analogue of
+    # VCI's field (0.7994 for FPT). KBS's own `debt_to_equity` (48.17) is
+    # interest-bearing debt ONLY and is a percent, so taking it would both
+    # change the definition and publish 48.17x gearing.
+    "debt_to_equity":   ("liabilities_to_equity", "from_pct"),
+}
+
+#: Deliberately NOT sourced here:
+#:   market_cap        — KBS's ratio sheet has none, and VCI's was ~3x stale
+#:                       (26.57T against roughly 84T for FPT). Absent beats
+#:                       wrong, which is how #76 was decided.
+#:   debt_to_assets    — DERIVED from the balance sheet at #76/#77, not from
+#:   enterprise_value    the ratio sheet, so #97 does not touch either.
+#:   eps               — comes from the income statement.
+
+
+def ratio_metrics_from_kbs(df):
+    """Normalised ratio metrics and the period they describe, from a KBS frame.
+
+    Returns `({field: value}, as_of)` — `({}, None)` when the frame is not a
+    usable KBS ratio sheet.
+
+    **The period matters and is returned, not assumed.** KBS annual
+    price-based ratios (P/E, P/B, P/S, EV/EBITDA, dividend yield) are priced
+    at FISCAL YEAR END, not today. Measured: deriving price as `BVPS x P/B`
+    lands within 2% for TCB and 6% for VNM but 68% out for FPT, whose price
+    fell from ~96k to 57k during 2025. So `as_of` travels with the numbers
+    rather than leaving a consumer to assume they are current.
+    """
+    import pandas as _pd
+
+    empty = ({}, None)
+    if df is None or not isinstance(df, _pd.DataFrame) or df.empty:
+        return empty
+    if "item_id" not in df.columns:
+        return empty
+
+    # A period label is exactly four digits, optionally with a quarter part.
+    # `2025_1` is a de-duplicated duplicate, not a period (see the quarterly
+    # frame's `2025-Q4_1`), and must never be mistaken for one.
+    periods = [c for c in df.columns
+               if str(c)[:4].isdigit() and "_" not in str(c)]
+    if not periods:
+        return empty
+    latest = sorted(periods, key=str, reverse=True)[0]
+
+    by_id = {}
+    for _, row in df.iterrows():
+        key = str(row.get("item_id"))
+        if key and key not in by_id:
+            by_id[key] = row.get(latest)
+
+    out = {}
+    for field, (item_id, scale) in KBS_RATIO_FIELDS.items():
+        raw = by_id.get(item_id)
+        if raw is None:
+            continue
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if value != value:                      # NaN
+            continue
+        out[field] = value / 100.0 if scale == "from_pct" else value
+
+    return out, (str(latest) if out else None)
+
+
 def bvps_from_ratio_frame(df) -> Optional[float]:
     """Book value per share from a KBS ratio frame, or `None`.
 
@@ -2209,6 +2308,39 @@ class StockService:
 
     # ==================== Financial Data Operations ====================
 
+    async def _latest_close(self, symbol: str) -> Optional[float]:
+        """Most recent daily close, in VND, or `None`.
+
+        Backlog #97. Used to state market cap currently rather than at fiscal
+        year end. Returns `None` rather than raising, because market cap is one
+        field and a quote outage must not take the rest of the response with
+        it.
+
+        The vendor quotes in thousands of VND (FPT closes around 57.0), while
+        BVPS is in VND (25,679.55), so the close is scaled by 1,000 to put
+        both on one unit. Asserted by a test, because a silent 1000x error
+        here would be invisible in a ratio and enormous in a market cap.
+        """
+        from datetime import timedelta as _td
+
+        try:
+            stock = self.vnstock.stock(
+                symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE
+            )
+            end = date.today()
+            df = await vnstock_call(
+                stock.quote.history,
+                start=(end - _td(days=21)).strftime("%Y-%m-%d"),
+                end=end.strftime("%Y-%m-%d"),
+            )
+            if df is None or len(df) == 0 or "close" not in df.columns:
+                return None
+            close = float(df["close"].iloc[-1])
+            return close * 1000.0 if close > 0 else None
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("latest close for %s unavailable: %s", symbol, exc)
+            return None
+
     async def get_company_financials(self, symbol: str) -> Optional[CompanyFinancialsResponse]:
         """
         Get financial ratios and metrics for a company from vnstock.
@@ -2266,7 +2398,16 @@ class StockService:
                     npm = self._as_percent(self._pick(latest, 'After-tax Profit Margin (%)'))
                     ev_ebitda = self._pick(latest, 'EV/EBITDA')
                     div_yield = self._as_percent(self._pick(latest, 'Dividend Yield (%)'))
-                    mcap = self._pick(latest, 'Market Cap')
+                    # Backlog #97: `Market Cap` from this frame was ~3x stale
+                    # (26.57T for FPT against roughly 84T today). KBS's ratio
+                    # sheet carries no market cap, so it is RECOMPUTED from
+                    # the balance sheet further down as `P/B x book equity` —
+                    # algebraically exact, since P/B is market cap over book
+                    # equity by definition, and it keeps market cap on the
+                    # same fiscal-year basis as every other price-based ratio
+                    # (reported by `ratios_as_of`). The stale vendor figure is
+                    # never used.
+                    mcap = None
                     # Backlog #76 — book value per share. The pre-4.x code read
                     # this straight from the ratio sheet ('BVPS (VND)'); the 4.x
                     # rewrite dropped it and nothing noticed for four months
@@ -2283,30 +2424,53 @@ class StockService:
                         'BVPS (VND)', 'BVPS', 'Book value per share',
                         'Book Value Per Share (VND)', 'Book value per share (VND)',
                     )
-                    if bvps is None:
-                        # Backlog #76: VCI supplies it under no name, but the
-                        # KBS ratio sheet carries `book_value_per_share_bvps`
-                        # outright (#95a). Best-effort and deliberately
-                        # separate: BVPS is one field, and losing the vendor
-                        # for it must not take the other fifteen with it.
-                        #
-                        # This costs one extra vnstock call per invocation,
-                        # which matters against the 20 req/min guest quota
-                        # (#49). It is only made when VCI has already failed
-                        # to supply the field, which today is always.
-                        try:
-                            kbs_ratio = await vnstock_call(
-                                self.vnstock.stock(
-                                    symbol=symbol.upper(), source="KBS"
-                                ).finance.ratio,
-                                period="year",
-                            )
+                    # Backlog #76 + #97 — ONE KBS call now serves both: the
+                    # BVPS that VCI supplies under no name, and every
+                    # ratio-derived field, because VCI's `ratio()` is eight
+                    # years stale (see KBS_RATIO_FIELDS). Previously two
+                    # separate concerns; merging them keeps the cost at one
+                    # extra vnstock call per invocation, which matters against
+                    # the 20 req/min guest quota (#49).
+                    #
+                    # Best-effort: if KBS is unavailable the ratio fields stay
+                    # unset. VCI's stale values are deliberately NOT a
+                    # fallback — a wrong number is worse than an absent one.
+                    try:
+                        kbs_ratio = await vnstock_call(
+                            self.vnstock.stock(
+                                symbol=symbol.upper(), source="KBS"
+                            ).finance.ratio,
+                            period="year",
+                        )
+                        if bvps is None:
                             bvps = bvps_from_ratio_frame(kbs_ratio)
-                        except Exception as exc:  # noqa: BLE001
-                            logger.warning(
-                                "BVPS lookup via KBS failed for %s: %s: %s",
-                                symbol, type(exc).__name__, exc,
-                            )
+                        kbs_metrics, ratios_as_of = ratio_metrics_from_kbs(kbs_ratio)
+                        if kbs_metrics:
+                            pe = kbs_metrics.get("pe_ratio", None)
+                            pb = kbs_metrics.get("pb_ratio", None)
+                            ps = kbs_metrics.get("ps_ratio", None)
+                            roe = kbs_metrics.get("roe", None)
+                            roa = kbs_metrics.get("roa", None)
+                            de = kbs_metrics.get("debt_to_equity", None)
+                            cr = kbs_metrics.get("current_ratio", None)
+                            qr = kbs_metrics.get("quick_ratio", None)
+                            gm = kbs_metrics.get("gross_margin", None)
+                            om = kbs_metrics.get("operating_margin", None)
+                            npm = kbs_metrics.get("profit_margin", None)
+                            ev_ebitda = kbs_metrics.get("ev_ebitda", None)
+                            div_yield = kbs_metrics.get("dividend_yield", None)
+                            financials.ratios_as_of = ratios_as_of
+                        else:
+                            pe = pb = ps = roe = roa = de = cr = qr = None
+                            gm = om = npm = ev_ebitda = div_yield = None
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning(
+                            "KBS ratio lookup failed for %s: %s: %s — ratio "
+                            "fields left unset rather than served stale",
+                            symbol, type(exc).__name__, exc,
+                        )
+                        pe = pb = ps = roe = roa = de = cr = qr = None
+                        gm = om = npm = ev_ebitda = div_yield = None
                     # Vendor-reported debt/assets if offered; otherwise derived
                     # from the balance sheet further down.
                     debt_to_assets = self._pick(
@@ -2444,6 +2608,39 @@ class StockService:
                     # every bank. EV is not a conventional measure for banks
                     # anyway, so declining to compute it is the right answer,
                     # not a gap.
+                    # Backlog #97 — market cap from a LIVE price, not the
+                    # fiscal-year one.
+                    #
+                    # The vendor's figure was ~3x stale (26.57T for FPT against
+                    # roughly 84T). The obvious replacement, `P/B x book
+                    # equity`, is algebraically exact but prices at FISCAL YEAR
+                    # END: FPT fell from ~96k to 57k during 2025, which put it
+                    # at 152.9T — 1.8x too HIGH, i.e. no better in relative
+                    # error than the stale figure it replaced. Measured, not
+                    # assumed.
+                    #
+                    # So an absolute currency figure is stated CURRENTLY while
+                    # the ratios stay on their fiscal basis. That is the
+                    # conventional presentation, not a fudge: ratios are
+                    # reported per fiscal year, market cap as of now.
+                    #
+                    #   shares = book equity / BVPS   (same KBS sheet, so the
+                    #                                  period cancels)
+                    #   market cap = live close x shares
+                    if (financials.market_cap is None and total_equity
+                            and financials.book_value_per_share):
+                        try:
+                            shares = total_equity / financials.book_value_per_share
+                            price = await self._latest_close(symbol)
+                            if price and shares > 0:
+                                financials.market_cap = price * shares
+                        except Exception as exc:  # noqa: BLE001
+                            logger.warning(
+                                "live market cap for %s failed: %s: %s — left "
+                                "unset rather than stated on a stale basis",
+                                symbol, type(exc).__name__, exc,
+                            )
+
                     if financials.market_cap and cash is not None and long_term_debt is not None:
                         financials.enterprise_value = (
                             financials.market_cap + long_term_debt - cash
