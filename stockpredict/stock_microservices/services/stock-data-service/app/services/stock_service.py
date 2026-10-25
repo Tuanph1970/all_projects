@@ -238,6 +238,21 @@ def bvps_from_ratio_frame(df) -> Optional[float]:
 #: consumers read.
 SOURCE_SUPPORTS_LANG = {"VCI": True, "KBS": False}
 
+#: Dividends (#59). No vnstock 4.0.7 source exposes Company.dividends(), but
+#: VCI's corporate-events feed carries them: DIV rows are cash dividends and
+#: some ISS rows are share distributions. VCI tags every DIV/ISS row
+#: category=DIVIDEND (ESOP and rights issues included), so the English title
+#: is the only discriminator. Order matters: first match wins.
+DIVIDEND_SHARE_ISSUE_KINDS = (
+    ("stock dividend", "Cổ tức bằng cổ phiếu", "Stock"),
+    ("bonus issue", "Cổ phiếu thưởng", "Bonus shares"),
+)
+#: Public Company.events() fetches ONE page of 50 across every event type,
+#: so director dealings crowd dividends out; page through DIV,ISS directly.
+DIVIDEND_EVENTS_PAGE_SIZE = 200
+DIVIDEND_EVENTS_MAX_PAGES = 10
+DIVIDEND_EVENTS_FROM_DATE = "20000101"
+
 
 def _is_rate_limit(exc: Exception) -> bool:
     return _VnaiRateLimitExceeded is not None and isinstance(exc, _VnaiRateLimitExceeded)
@@ -978,8 +993,11 @@ class StockService:
         try:
             stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
 
-            # VCI data source may not support dividends; check before calling
-            if not hasattr(stock.company.data_source, 'dividends'):
+            data_source = stock.company.data_source
+            if not hasattr(data_source, 'dividends'):
+                # VCI has no dividends(); fall back to its corporate events (#59)
+                if hasattr(data_source, '_fetch_events'):
+                    return await self._get_dividends_from_events(data_source, symbol)
                 logger.info(f"Dividend data not supported by {settings.VNSTOCK_DATA_SOURCE} for {symbol}")
                 return []
 
@@ -1006,6 +1024,67 @@ class StockService:
             else:
                 logger.error(f"Error fetching company dividends for {symbol}: {e}")
             return []
+
+    async def _get_dividends_from_events(self, data_source, symbol: str) -> List[dict]:
+        """Page through VCI DIV/ISS corporate events and keep the distributions."""
+        events: List[dict] = []
+        for page in range(DIVIDEND_EVENTS_MAX_PAGES):
+            batch = await vnstock_call(
+                data_source._fetch_events,
+                event_codes="DIV,ISS",
+                from_date=DIVIDEND_EVENTS_FROM_DATE,
+                page=page,
+                size=DIVIDEND_EVENTS_PAGE_SIZE,
+            )
+            events.extend(batch or [])
+            if not batch or len(batch) < DIVIDEND_EVENTS_PAGE_SIZE:
+                break
+        records = self._dividend_events_to_records(events)
+        logger.info(f"Fetched company dividends for {symbol} from events: {len(records)} records")
+        return records
+
+    @staticmethod
+    def _dividend_events_to_records(events: List[dict]) -> List[dict]:
+        """Map raw VCI events to the dividend rows the frontend reads
+        (title, exrightDate, issueDate, ratio, value, eventType/eventTypeEn).
+        Newest ex-right date first; non-distribution share issues dropped."""
+        def _day(value) -> Optional[str]:
+            return str(value)[:10] if value else None
+
+        records = []
+        for ev in events:
+            code = ev.get("eventCode")
+            title_en = ev.get("eventTitleEn") or ""
+            if code == "DIV":
+                kind_vi, kind_en = "Tiền mặt", "Cash"
+                paid = ev.get("payoutDate")
+                value = ev.get("valuePerShare")
+            elif code == "ISS":
+                kind = next(
+                    (k for k in DIVIDEND_SHARE_ISSUE_KINDS if k[0] in title_en.lower()),
+                    None,
+                )
+                if kind is None:
+                    continue
+                _, kind_vi, kind_en = kind
+                paid = ev.get("issueDate") or ev.get("listingDate")
+                value = None
+            else:
+                continue
+            records.append({
+                "title": ev.get("eventTitleVi") or title_en or None,
+                "titleEn": title_en or None,
+                "eventCode": code,
+                "eventType": kind_vi,
+                "eventTypeEn": kind_en,
+                "recordDate": _day(ev.get("recordDate")),
+                "exrightDate": _day(ev.get("exrightDate")),
+                "issueDate": _day(paid),
+                "ratio": ev.get("exerciseRatio"),
+                "value": value,
+            })
+        records.sort(key=lambda r: r["exrightDate"] or "", reverse=True)
+        return records
 
     # ==================== Cached Company Data (DB-first) ====================
 

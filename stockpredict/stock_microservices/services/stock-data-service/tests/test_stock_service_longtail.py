@@ -176,6 +176,111 @@ async def test_get_company_dividends_data_returns_empty_when_source_lacks_suppor
     assert out == []
 
 
+# Raw VCI /events rows (camelCase, as _fetch_events returns them). VCI tags
+# every DIV/ISS row category=DIVIDEND, ESOP included, so only the title
+# tells a distribution apart from a capital raise.
+_VCI_CASH_DIV = {
+    "eventCode": "DIV", "category": "DIVIDEND",
+    "eventTitleVi": "Trả cổ tức bằng tiền mặt - Đợt 2 2025 - 1,000 VND",
+    "eventTitleEn": "Cash Dividend - Interim 2 2025 - 1,000 VND",
+    "recordDate": "2026-05-29T00:00:00", "exrightDate": "2026-05-28T00:00:00",
+    "payoutDate": "2026-06-10T00:00:00", "valuePerShare": 1000.0, "exerciseRatio": 0.1,
+}
+_VCI_BONUS = {
+    "eventCode": "ISS", "category": "DIVIDEND",
+    "eventTitleVi": "Phát hành cổ phiếu - Cổ phiếu thưởng tỉ lệ 10.0%",
+    "eventTitleEn": "Share Issue - Bonus Issue ratio 10.0%",
+    "recordDate": "2026-09-22T00:00:00", "exrightDate": "2026-09-21T00:00:00",
+    "exerciseRatio": 0.1,
+}
+_VCI_STOCK_DIV = {
+    "eventCode": "ISS", "category": "DIVIDEND",
+    "eventTitleVi": "Phát hành cổ phiếu - Trả cổ tức bằng cổ phiếu tỉ lệ 15%",
+    "eventTitleEn": "Share Issue - Stock dividend ratio 15%",
+    "exrightDate": "2025-07-21T00:00:00", "issueDate": "2025-08-05T00:00:00",
+    "exerciseRatio": 0.15,
+}
+_VCI_ESOP = {
+    "eventCode": "ISS", "category": "DIVIDEND",
+    "eventTitleEn": "Share Issue - ESOP ratio 0.5%",
+    "exrightDate": "2026-06-24T00:00:00", "exerciseRatio": 0.005,
+}
+_VCI_RIGHTS = {
+    "eventCode": "ISS", "category": "DIVIDEND",
+    "eventTitleEn": "Share Issue - Rights issue ratio 20%",
+    "exrightDate": "2024-01-10T00:00:00", "exerciseRatio": 0.2,
+}
+
+
+def test_dividend_events_to_records_maps_cash_and_share_distributions():
+    rows = [_VCI_STOCK_DIV, _VCI_ESOP, _VCI_CASH_DIV, _VCI_RIGHTS, _VCI_BONUS]
+    out = StockService._dividend_events_to_records(rows)
+
+    # ESOP and rights issues are capital raises, not distributions
+    assert [r["eventTypeEn"] for r in out] == ["Bonus shares", "Cash", "Stock"]
+    # newest ex-right date first, dates trimmed to YYYY-MM-DD
+    assert [r["exrightDate"] for r in out] == ["2026-09-21", "2026-05-28", "2025-07-21"]
+
+    cash = out[1]
+    assert cash["title"] == _VCI_CASH_DIV["eventTitleVi"]
+    assert cash["titleEn"] == _VCI_CASH_DIV["eventTitleEn"]
+    assert cash["value"] == 1000.0
+    assert cash["ratio"] == 0.1
+    assert cash["recordDate"] == "2026-05-29"
+    assert cash["issueDate"] == "2026-06-10"  # cash: the payout date
+
+    assert out[0]["value"] is None            # share distributions carry no cash
+    assert out[2]["issueDate"] == "2025-08-05"
+
+
+def test_dividend_events_to_records_tolerates_missing_fields():
+    out = StockService._dividend_events_to_records([{"eventCode": "DIV"}, {}])
+    assert len(out) == 1
+    assert out[0]["exrightDate"] is None
+    assert out[0]["ratio"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_company_dividends_data_falls_back_to_vci_events():
+    """#59: VCI has no dividends(); read DIV/ISS corporate events instead."""
+    fake_data_source = MagicMock(spec=["_fetch_events"])
+    fake_data_source._fetch_events.return_value = [_VCI_CASH_DIV, _VCI_ESOP]
+    fake_stock = MagicMock()
+    fake_stock.company.data_source = fake_data_source
+    fake_vnstock = MagicMock()
+    fake_vnstock.stock.return_value = fake_stock
+
+    svc = _make_service()
+    with _patch_vnstock(svc, fake_vnstock):
+        out = await svc.get_company_dividends_data("FPT")
+
+    assert [r["eventTypeEn"] for r in out] == ["Cash"]
+    kwargs = fake_data_source._fetch_events.call_args.kwargs
+    assert kwargs["event_codes"] == "DIV,ISS"
+
+
+@pytest.mark.asyncio
+async def test_get_company_dividends_data_pages_past_the_first_page():
+    """VCI pages events; a full page means there may be more."""
+    from app.services.stock_service import DIVIDEND_EVENTS_PAGE_SIZE
+    full_page = [dict(_VCI_CASH_DIV, exrightDate=f"2020-01-{i % 28 + 1:02d}T00:00:00")
+                 for i in range(DIVIDEND_EVENTS_PAGE_SIZE)]
+    fake_data_source = MagicMock(spec=["_fetch_events"])
+    fake_data_source._fetch_events.side_effect = [full_page, [_VCI_BONUS]]
+    fake_stock = MagicMock()
+    fake_stock.company.data_source = fake_data_source
+    fake_vnstock = MagicMock()
+    fake_vnstock.stock.return_value = fake_stock
+
+    svc = _make_service()
+    with _patch_vnstock(svc, fake_vnstock):
+        out = await svc.get_company_dividends_data("FPT")
+
+    assert len(out) == DIVIDEND_EVENTS_PAGE_SIZE + 1
+    pages = [c.kwargs["page"] for c in fake_data_source._fetch_events.call_args_list]
+    assert pages == [0, 1]
+
+
 # ---------------------------------------------------------------------------
 # get_company_profile_data — overview + enrichment
 # ---------------------------------------------------------------------------
