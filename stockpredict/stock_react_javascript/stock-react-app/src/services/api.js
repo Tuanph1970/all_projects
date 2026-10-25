@@ -15,6 +15,26 @@ const getAuthHeaders = () => {
 };
 
 /**
+ * Turn an error response body into a readable message.
+ * FastAPI returns `detail` as a string for app errors but as a list of
+ * {loc, msg} objects for 422 validation errors.
+ */
+export const formatApiError = (errorData, fallback) => {
+  const detail = errorData?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail) && detail.length) {
+    return detail
+      .map((d) => {
+        const field = Array.isArray(d?.loc) ? d.loc[d.loc.length - 1] : null;
+        return field && d?.msg ? `${field}: ${d.msg}` : d?.msg;
+      })
+      .filter(Boolean)
+      .join('; ') || fallback;
+  }
+  return errorData?.message || fallback;
+};
+
+/**
  * Authentication API
  * Routes to Auth Service via /api/v2/auth
  */
@@ -34,7 +54,7 @@ export const authAPI = {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.detail || errorData?.message || 'Invalid credentials');
+        throw new Error(formatApiError(errorData, 'Invalid credentials'));
       }
 
       const data = await response.json();

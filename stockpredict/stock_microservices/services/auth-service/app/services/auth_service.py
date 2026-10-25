@@ -130,11 +130,11 @@ class AuthService:
         if not user:
             user = await self.repository.get_user_by_username(login_data.email)
         if not user:
-            raise ValueError("Invalid email or password")
+            raise ValueError("Invalid username/email or password")
 
         # Verify password
         if not self.verify_password(login_data.password, user.hashed_password):
-            raise ValueError("Invalid email or password")
+            raise ValueError("Invalid username/email or password")
 
         # Check if user is active
         if not user.is_active:
