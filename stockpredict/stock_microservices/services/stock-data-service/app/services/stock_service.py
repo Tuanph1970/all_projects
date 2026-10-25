@@ -6,7 +6,7 @@ import contextvars
 import logging
 import re
 import time
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time as dt_time
 from typing import Optional, List, Tuple
 import json
 import pandas as pd
@@ -252,6 +252,53 @@ DIVIDEND_SHARE_ISSUE_KINDS = (
 DIVIDEND_EVENTS_PAGE_SIZE = 200
 DIVIDEND_EVENTS_MAX_PAGES = 10
 DIVIDEND_EVENTS_FROM_DATE = "20000101"
+
+#: Price board staleness (#48). HOSE/HNX trade Mon-Fri 09:00-15:00 ICT (ATC
+#: ends 14:45; 15:00 covers HNX's post-close session). Vietnam has no DST, so
+#: a fixed UTC+7 offset is exact. Holidays are not modelled: on one, the board
+#: just refetches an unchanged market at most once per max-age.
+MARKET_TZ_OFFSET = timedelta(hours=7)
+MARKET_OPEN = dt_time(9, 0)
+MARKET_CLOSE = dt_time(15, 0)
+
+
+def _utcnow() -> datetime:
+    """Naive UTC, matching how PriceBoard.updated_at is stored. Patched in tests."""
+    return datetime.utcnow()
+
+
+def price_board_is_stale(updated_at: Optional[datetime], now: datetime, max_age: timedelta) -> bool:
+    """Whether a board snapshot taken at ``updated_at`` (naive UTC) is stale at ``now``.
+
+    In session: older than ``max_age``. Outside it: taken before the most
+    recent close, i.e. it does not show the last session's final prices.
+    """
+    if updated_at is None:
+        return True
+    local_now = now + MARKET_TZ_OFFSET
+    if local_now.weekday() < 5 and MARKET_OPEN <= local_now.time() < MARKET_CLOSE:
+        return now - updated_at > max_age
+    last_close = datetime.combine(local_now.date(), MARKET_CLOSE)
+    if local_now < last_close:
+        last_close -= timedelta(days=1)
+    while last_close.weekday() >= 5:
+        last_close -= timedelta(days=1)
+    return updated_at + MARKET_TZ_OFFSET < last_close
+
+
+# One refresh per group at a time; concurrent readers wait, then see fresh rows.
+_price_board_locks: dict = {}
+_price_board_lock_loop: Optional[asyncio.AbstractEventLoop] = None
+
+
+def _get_price_board_lock(group: str) -> asyncio.Lock:
+    """Per-group lock, reset if the running loop changes (see _get_vnstock_lock)."""
+    global _price_board_lock_loop
+    loop = asyncio.get_running_loop()
+    if _price_board_lock_loop is not loop:
+        _price_board_locks.clear()
+        _price_board_lock_loop = loop
+    return _price_board_locks.setdefault(group, asyncio.Lock())
 
 
 def _is_rate_limit(exc: Exception) -> bool:
@@ -2171,33 +2218,44 @@ class StockService:
     async def get_price_board(self, group: str = "VN30") -> List[dict]:
         """
         Get price board data from DB cache.
-        Falls back to live fetch + store if DB is empty for this group.
+        Refreshes live (fetch + store) if the group is empty or stale (#48):
+        the nightly refresh runs at 01:00, so without this the board showed
+        the previous session all day.
         """
         from sqlalchemy import select
 
         group_upper = group.upper()
         session = self.repository.session
 
-        result = await session.execute(
-            select(PriceBoard).where(PriceBoard.stock_group == group_upper)
-        )
-        rows = result.scalars().all()
+        async with _get_price_board_lock(group_upper):
+            result = await session.execute(
+                select(PriceBoard).where(PriceBoard.stock_group == group_upper)
+            )
+            rows = result.scalars().all()
 
-        if rows:
-            logger.debug(f"Price board DB hit for {group_upper}: {len(rows)} rows")
+            if rows:
+                stamps = [r.updated_at for r in rows]
+                oldest = None if None in stamps else min(stamps)
+                max_age = timedelta(seconds=settings.PRICE_BOARD_MAX_AGE_SECONDS)
+                if not price_board_is_stale(oldest, _utcnow(), max_age):
+                    logger.debug(f"Price board DB hit for {group_upper}: {len(rows)} rows")
+                    return [self._price_board_row_to_dict(r) for r in rows]
+                logger.info(f"Price board for {group_upper} is stale (oldest {oldest}), refreshing")
+            else:
+                logger.info(f"Price board DB empty for {group_upper}, fetching live data")
+
+            count = await self.refresh_price_board(group_upper)
+            if count == 0:
+                # Keep serving what we have rather than blanking the board
+                if rows:
+                    logger.warning(f"Price board refresh failed for {group_upper}; serving stale rows")
+                return [self._price_board_row_to_dict(r) for r in rows]
+
+            result = await session.execute(
+                select(PriceBoard).where(PriceBoard.stock_group == group_upper)
+            )
+            rows = result.scalars().all()
             return [self._price_board_row_to_dict(r) for r in rows]
-
-        # DB empty for this group — fetch live, store, then return
-        logger.info(f"Price board DB empty for {group_upper}, fetching live data")
-        count = await self.refresh_price_board(group_upper)
-        if count == 0:
-            return []
-
-        result = await session.execute(
-            select(PriceBoard).where(PriceBoard.stock_group == group_upper)
-        )
-        rows = result.scalars().all()
-        return [self._price_board_row_to_dict(r) for r in rows]
 
     async def refresh_price_board(self, group: str = "VN30") -> int:
         """

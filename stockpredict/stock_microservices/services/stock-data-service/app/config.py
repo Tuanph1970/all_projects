@@ -93,6 +93,10 @@ class Settings(BaseSettings):
     # Company data sync
     COMPANY_SYNC_STALE_DAYS: int = 7
 
+    # Backlog #48 — during trading hours a price board row older than this is
+    # refetched on read (one Vietcap POST; not vnstock, so no quota cost).
+    PRICE_BOARD_MAX_AGE_SECONDS: int = 60
+
     # Tracing
     TRACING_ENABLED: bool = True
     TRACING_JAEGER_HOST: str = "jaeger"

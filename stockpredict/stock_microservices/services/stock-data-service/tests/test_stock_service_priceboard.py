@@ -9,10 +9,11 @@ Covers the four remaining big methods on stock_service.py:
 - refresh_price_board: deletes the group's rows + inserts fresh +
   fans out price updates.
 - get_price_board: DB hit short-circuits; DB miss triggers refresh +
-  re-reads.
+  re-reads; stale rows (#48) trigger a refresh, and survive a failed one.
 
 All vnstock + Vietcap HTTP + event publisher are mocked.
 """
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pandas as pd
@@ -403,19 +404,91 @@ async def test_refresh_price_board_swallows_publish_failure():
 # get_price_board
 # ---------------------------------------------------------------------------
 
+# #48 — the board is refreshed when stale. VN trades 09:00-15:00 ICT (UTC+7),
+# Mon-Fri. These instants are UTC, as PriceBoard.updated_at is stored.
+TUE_1030_ICT = datetime(2026, 10, 20, 3, 30)    # Tuesday, mid-session
+TUE_0100_ICT = datetime(2026, 10, 19, 18, 0)    # Tuesday 01:00, the nightly refresh
+TUE_1600_ICT = datetime(2026, 10, 20, 9, 0)     # Tuesday, after the close
+MON_1600_ICT = datetime(2026, 10, 19, 9, 0)     # Monday, after the close
+SAT_1000_ICT = datetime(2026, 10, 24, 3, 0)     # Saturday
+FRI_1500_ICT = datetime(2026, 10, 23, 8, 0)     # Friday, the close itself
+FRI_1430_ICT = datetime(2026, 10, 23, 7, 30)    # Friday, before the close
+MAX_AGE = timedelta(seconds=60)
+
+
+@pytest.mark.parametrize("updated_at, now, stale", [
+    # In session: stale once older than the max age
+    (TUE_1030_ICT - timedelta(seconds=30), TUE_1030_ICT, False),
+    (TUE_1030_ICT - timedelta(seconds=90), TUE_1030_ICT, True),
+    # The reported bug: the 01:00 refresh served all day long
+    (TUE_0100_ICT, TUE_1030_ICT, True),
+    # After the close: fresh only if taken at/after today's close
+    (TUE_0100_ICT, TUE_1600_ICT, True),
+    (TUE_1600_ICT - timedelta(minutes=30), TUE_1600_ICT, False),
+    # Overnight: yesterday's post-close snapshot is still the latest market
+    (MON_1600_ICT, TUE_0100_ICT, False),
+    # Weekend: Friday's close is the latest market; earlier is stale
+    (FRI_1500_ICT, SAT_1000_ICT, False),
+    (FRI_1430_ICT, SAT_1000_ICT, True),
+    (None, SAT_1000_ICT, True),
+])
+def test_price_board_is_stale(updated_at, now, stale):
+    assert svc_mod.price_board_is_stale(updated_at, now, MAX_AGE) is stale
+
+
+def _board_rows(updated_at):
+    return [
+        PriceBoard(symbol="FPT", stock_group="VN30", match_price=105.0,
+                   ref_price=100.0, updated_at=updated_at),
+        PriceBoard(symbol="VNM", stock_group="VN30", match_price=70.0,
+                   ref_price=70.0, updated_at=updated_at),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_get_price_board_refreshes_stale_rows_during_session():
+    """#48: rows from the 01:00 refresh must not be served mid-session."""
+    stale = _row_with_scalars(_board_rows(TUE_0100_ICT))
+    fresh = _row_with_scalars(_board_rows(TUE_1030_ICT))
+
+    svc = _make_service()
+    svc.repository.session = MagicMock()
+    svc.repository.session.execute = AsyncMock(side_effect=[stale, fresh])
+
+    with patch.object(svc_mod, "_utcnow", return_value=TUE_1030_ICT), \
+         patch.object(svc, "refresh_price_board", AsyncMock(return_value=2)) as refresh_mock:
+        out = await svc.get_price_board("VN30")
+    refresh_mock.assert_awaited_once_with("VN30")
+    assert svc.repository.session.execute.await_count == 2  # read, re-read
+    assert len(out) == 2
+
+
+@pytest.mark.asyncio
+async def test_get_price_board_serves_stale_rows_when_refresh_fails():
+    """A failed refresh must not blank a board that has data."""
+    stale = _row_with_scalars(_board_rows(TUE_0100_ICT))
+
+    svc = _make_service()
+    svc.repository.session = MagicMock()
+    svc.repository.session.execute = AsyncMock(return_value=stale)
+
+    with patch.object(svc_mod, "_utcnow", return_value=TUE_1030_ICT), \
+         patch.object(svc, "refresh_price_board", AsyncMock(return_value=0)):
+        out = await svc.get_price_board("VN30")
+    assert [r["symbol"] for r in out] == ["FPT", "VNM"]
+
+
 @pytest.mark.asyncio
 async def test_get_price_board_returns_cached_rows_when_db_populated():
-    cached = [
-        PriceBoard(symbol="FPT", stock_group="VN30", match_price=105.0, ref_price=100.0),
-        PriceBoard(symbol="VNM", stock_group="VN30", match_price=70.0, ref_price=70.0),
-    ]
+    cached = _board_rows(TUE_1030_ICT - timedelta(seconds=10))
 
     svc = _make_service()
     repo = svc.repository
     repo.session = MagicMock()
     repo.session.execute = AsyncMock(return_value=_row_with_scalars(cached))
 
-    with patch.object(svc, "refresh_price_board", AsyncMock()) as refresh_mock:
+    with patch.object(svc_mod, "_utcnow", return_value=TUE_1030_ICT), \
+         patch.object(svc, "refresh_price_board", AsyncMock()) as refresh_mock:
         out = await svc.get_price_board("VN30")
     refresh_mock.assert_not_awaited()  # cache hit short-circuits
     assert len(out) == 2
