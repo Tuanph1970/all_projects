@@ -439,3 +439,14 @@ def test_password_reset_signing_key_differs_from_jwt_secret():
     access-token signing."""
     k = AuthService._password_reset_signing_key()
     assert k != settings.JWT_SECRET_KEY.encode()
+
+
+@pytest.mark.asyncio
+async def test_login_accepts_username_field_and_legacy_email_alias(test_db):
+    await _seed_user(test_db)
+    svc = AuthService(UserRepository(test_db))
+    from app.models.schemas import UserLogin
+    new = UserLogin.model_validate({"username": "alice", "password": "Password123!"})
+    legacy = UserLogin.model_validate({"email": "alice@example.com", "password": "Password123!"})
+    assert (await svc.login(new)).access_token
+    assert (await svc.login(legacy)).access_token

@@ -126,9 +126,9 @@ class AuthService:
     ) -> TokenResponse:
         """Authenticate user and return tokens"""
         # The identifier can be either the account email or the username
-        user = await self.repository.get_user_by_email(login_data.email)
+        user = await self.repository.get_user_by_email(login_data.username)
         if not user:
-            user = await self.repository.get_user_by_username(login_data.email)
+            user = await self.repository.get_user_by_username(login_data.username)
         if not user:
             raise ValueError("Invalid username/email or password")
 

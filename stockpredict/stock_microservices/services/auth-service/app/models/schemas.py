@@ -3,7 +3,7 @@ Pydantic Schemas for API request/response validation
 """
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import AliasChoices, BaseModel, EmailStr, Field, field_validator
 import re
 
 
@@ -35,7 +35,12 @@ class UserCreate(BaseModel):
 
 class UserLogin(BaseModel):
     """Schema for user login"""
-    email: str = Field(..., description="Account email or username")
+    # Accepts a username or an email. `email` is kept as an alias for older clients.
+    username: str = Field(
+        ...,
+        validation_alias=AliasChoices("username", "email"),
+        description="Account username or email",
+    )
     password: str
 
 
