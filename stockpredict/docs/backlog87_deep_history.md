@@ -69,6 +69,20 @@ in the whole workstream: every horizon positive, the edge growing with the
 horizon, and t consistently 1.6–1.9 — just short, three times over. The
 60-session edge of +12.57% is economically large.
 
+> **CORRECTION, Backlog #90 (2026-10-26).** The verdict above stands — 0 of 3,
+> at every sampling phase tested — but *"t consistently 1.6–1.9, just short,
+> three times over"* does not. Those three numbers describe one phase of the
+> non-overlap grid, not the data. `forward_returns` starts at `WARMUP_POINTS`
+> as an **index**, so beginning the series a few readings earlier re-phases
+> every selected observation. Deepening the pull to 2004 added 38 breadth
+> readings — none of them a low-MEI day — and t fell to +1.22 / +0.88 / +1.09;
+> trimming those 38 back reproduces the table above exactly. Sweeping the start
+> by up to 44 readings moves t across +0.83–1.83 (h10), +0.53–1.71 (h20) and
+> +0.93–1.67 (h60), so the figures here sit at the **top** of their own range.
+> Read this table as "fails, and too unstable at n = 11–29 to call a near miss."
+> See `docs/backlog90_deep_history_2004.md`; the sampler fix is Backlog #99 and
+> must be pre-registered rather than tuned against this data.
+
 The three horizons are **not independent** — the same episodes measured over
 different windows — so their p-values cannot be combined as if they were, and
 the consistency is weaker evidence than it looks.
@@ -159,7 +173,7 @@ bound parameter reads as "flat, so the parameter doesn't matter."
 | | |
 |---|---|
 | data depth | **done** — 19.7 years, 92 symbols, real VNINDEX, depth configurable |
-| E&M's bottoms claim | **testable at last**; directionally supported, 0/3 significant |
+| E&M's bottoms claim | **testable at last**; 0/3 significant. ~~directionally supported~~ — withdrawn by #90: the near-miss is sampling-phase dependent (see the correction above) |
 | breadth *level* → returns | **nothing**, in either direction; EM-4's finding overturned |
 | the exposure governor | still **not built** — now because it is unsupported, not contra-indicated |
 | EM-6 (Dow multi-index gate) | **unblocked** — the real VNINDEX now exists locally |

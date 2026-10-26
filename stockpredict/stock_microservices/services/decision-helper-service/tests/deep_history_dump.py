@@ -51,7 +51,14 @@ VN100: List[str] = [
     "VPI", "VTP",
 ]
 
-START = "2008-01-01"
+# Backlog #90. Was "2008-01-01", which truncated BOTH series. Probed before changing
+# it: VCI serves VNINDEX from 2004-01-05 (5,667 bars; asking for 2000 returns the same,
+# so that is the vendor's floor) and reaches further back per symbol than the 2008 pull
+# captured — REE from 2002-12-04, VNM from 2006-01-19, ACB from 2006-11-21, against
+# 2007-02-06 for all three in the old dump. The vendor returns bars EARLIER than the
+# requested start, which is why the old file begins 2007-01-19 despite asking for 2008
+# and why the limit was easy to miss.
+START = "2004-01-01"
 END = "2026-10-13"
 SPACING_SECONDS = 3.2       # the guest quota, per Backlog #46/#49
 MIN_BARS = 500              # below this a symbol is too short to contribute
