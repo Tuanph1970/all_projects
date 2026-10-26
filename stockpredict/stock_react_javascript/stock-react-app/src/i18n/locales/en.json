@@ -489,7 +489,14 @@
       "add_error": "Couldn't add the symbol",
       "remove_error": "Couldn't remove {{symbol}}",
       "column_proposal_by": "Proposed by",
-      "column_proposal_action": "Call"
+      "column_proposal_action": "Call",
+      "column_result": "Result",
+      "result_vs_index": "vs index {{value}}",
+      "result_from_session": "from the {{date}} call",
+      "result_other_session": "This is the most recent stored call for this symbol ({{date}}), not the one cited on this row.",
+      "result_not_scored_yet": "Stored, but no horizon has elapsed yet — the first mark lands one trading session after the call.",
+      "result_no_call": "No stored TCB call for this symbol.",
+      "result_unadjusted": "Priced off unadjusted closes, so a corporate action inside the window is counted as a return. Treat this figure with caution."
     }
   },
   "portfolio": {

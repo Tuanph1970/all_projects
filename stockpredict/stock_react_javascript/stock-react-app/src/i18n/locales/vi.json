@@ -489,7 +489,14 @@
       "add_error": "Không thể thêm mã",
       "remove_error": "Không thể xóa {{symbol}}",
       "column_proposal_by": "Nguồn đề xuất",
-      "column_proposal_action": "Khuyến nghị"
+      "column_proposal_action": "Khuyến nghị",
+      "column_result": "Kết quả",
+      "result_vs_index": "so với chỉ số {{value}}",
+      "result_from_session": "từ khuyến nghị ngày {{date}}",
+      "result_other_session": "Đây là khuyến nghị gần nhất đã lưu cho mã này ({{date}}), không phải khuyến nghị ghi trên dòng này.",
+      "result_not_scored_yet": "Đã lưu nhưng chưa đủ thời gian để tính — mốc đầu tiên có sau một phiên giao dịch.",
+      "result_no_call": "Chưa có khuyến nghị TCB nào được lưu cho mã này.",
+      "result_unadjusted": "Tính trên giá chưa điều chỉnh, nên sự kiện doanh nghiệp trong kỳ bị tính thành lợi nhuận. Cần thận trọng với con số này."
     }
   },
   "portfolio": {

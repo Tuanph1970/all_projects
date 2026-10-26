@@ -2,8 +2,61 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Star, Trash2, RefreshCw, Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import httpClient from '../../services/httpClient';
+import tcbNewsService from '../../services/tcbNewsService';
 import { API_ENDPOINTS } from '../../constants/api';
 import { useNavigate } from 'react-router-dom';
+
+// Forward-return horizons, in trading sessions, exactly as the scorer fills them
+// (news-service call_scorer.HORIZONS / FR-BM-SCORE).
+const HORIZONS = [1, 5, 20, 60];
+
+/** Returns are stored as fractions (0.031 = +3.1%). Null means the horizon has not
+ *  elapsed — a dash, never a zero, which would read as "flat". Mirrors TcbNews. */
+const pct = (v, digits = 1) =>
+  v == null ? '—' : `${v > 0 ? '+' : ''}${(v * 100).toFixed(digits)}%`;
+
+const returnColor = (v) => (v == null ? '#9ca3af' : v < 0 ? '#dc2626' : '#16a34a');
+
+const isoDay = (v) => (typeof v === 'string' ? v.slice(0, 10) : null);
+
+/**
+ * The longest horizon that has actually elapsed for one call.
+ *
+ * The scorer never partially fills a horizon — an unelapsed one stays null rather than
+ * borrowing the last available bar — so the largest non-null horizon is the most
+ * informative honest answer to "how did this call turn out?", and it is labelled with
+ * its horizon so a 1-session number is never mistaken for a 60-session one.
+ */
+const latestMark = (reco) => {
+  if (!reco) return null;
+  for (let i = HORIZONS.length - 1; i >= 0; i -= 1) {
+    const h = HORIZONS[i];
+    const value = reco[`ret_${h}d`];
+    if (value != null) {
+      return { horizon: h, value, excess: reco[`ret_${h}d_vs_index`] ?? null };
+    }
+  }
+  return null;
+};
+
+/**
+ * Pick which stored call a watchlist row should report.
+ *
+ * Prefers the call from the very session the watchlist row cites, so the number always
+ * belongs to the proposal on screen. Falling back to the newest call for that symbol
+ * keeps a result visible when the two disagree, and the cell then says which session it
+ * came from — an unlabelled number from a different call would be worse than none.
+ */
+const markFor = (ledger, symbol, proposalDate) => {
+  const forSymbol = ledger.filter((r) => r.symbol === symbol);
+  if (forSymbol.length === 0) return null;
+  const wanted = isoDay(proposalDate);
+  const exact = wanted && forSymbol.find((r) => isoDay(r.session_date) === wanted);
+  if (exact) return { reco: exact, sameSession: true };
+  const newest = forSymbol.reduce(
+    (a, b) => ((isoDay(a.session_date) || '') >= (isoDay(b.session_date) || '') ? a : b));
+  return { reco: newest, sameSession: !wanted };
+};
 
 // BUY / SELL / HOLD / WATCH as written to portfolio_holdings.proposal_action.
 // WATCH is ours: TCBS's "Chờ mua" is an explicit not-yet-a-buy, so it is not folded
@@ -33,6 +86,7 @@ const ProposalBadge = ({ action, label }) => {
 const Watchlist = () => {
   const { t } = useTranslation();
   const [items, setItems] = useState([]);
+  const [ledger, setLedger] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -44,13 +98,20 @@ const Watchlist = () => {
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const res = await httpClient.get(API_ENDPOINTS.WATCHLIST);
+    // The watchlist is the screen; the TCB ledger only annotates it. Fetched in
+    // parallel, and a ledger failure is swallowed deliberately — a news-service outage
+    // must cost the operator an extra column, never the watchlist itself.
+    const [res, ledgerRes] = await Promise.all([
+      httpClient.get(API_ENDPOINTS.WATCHLIST),
+      tcbNewsService.recos({ limit: 200 }).catch(() => ({ success: false })),
+    ]);
     if (res.success && Array.isArray(res.data)) {
       setItems(res.data);
     } else {
       setError(res.error?.message || t('tools.watchlist.load_error'));
       setItems([]);
     }
+    setLedger(ledgerRes?.success && Array.isArray(ledgerRes.data) ? ledgerRes.data : []);
     setLoading(false);
   }, [t]);
 
@@ -169,6 +230,7 @@ const Watchlist = () => {
                 <th style={{ padding: 12, textAlign: 'right' }}>{t('tools.watchlist.column_current_price')}</th>
                 <th style={{ padding: 12, textAlign: 'right' }}>{t('tools.watchlist.column_change')}</th>
                 <th style={{ padding: 12, textAlign: 'center' }}>{t('tools.watchlist.column_proposal_action')}</th>
+                <th style={{ padding: 12, textAlign: 'right' }}>{t('tools.watchlist.column_result')}</th>
                 <th style={{ padding: 12, textAlign: 'left' }}>{t('tools.watchlist.column_proposal_by')}</th>
                 <th style={{ padding: 12, textAlign: 'center' }}></th>
               </tr>
@@ -178,6 +240,8 @@ const Watchlist = () => {
                 const symbol = item.symbol || item;
                 const changePct = item.change_percent ?? item.changePercent;
                 const positive = changePct != null && changePct >= 0;
+                const matched = markFor(ledger, symbol, item.proposal_date);
+                const mark = latestMark(matched?.reco);
                 return (
                   <tr key={symbol} style={{ borderTop: '1px solid #f3f4f6' }}>
                     <td style={{ padding: 12 }}>
@@ -197,6 +261,60 @@ const Watchlist = () => {
                       {item.proposal_action
                         ? <ProposalBadge action={item.proposal_action} label={item.proposal_label} />
                         : <span style={{ color: '#9ca3af' }}>—</span>}
+                    </td>
+                    {/* How the call turned out (#57). The ledger lived only on the TCB
+                        News screen, so the watch screen showed what TCB said and never
+                        whether it worked. */}
+                    <td style={{ padding: 12, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {mark ? (
+                        <>
+                          <div style={{ color: returnColor(mark.value), fontWeight: 600 }}>
+                            {pct(mark.value)}
+                            <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 12 }}>
+                              {' '}· {mark.horizon}d
+                            </span>
+                            {/* An unadjusted mark can be badly wrong: a raw series
+                                spanning a bonus issue prices the share-count change as a
+                                loss (Backlog #60). Flagged, not hidden. */}
+                            {matched.reco.ret_adjusted === false && (
+                              <span
+                                title={t('tools.watchlist.result_unadjusted')}
+                                style={{ color: '#d97706', marginLeft: 4 }}
+                              >
+                                *
+                              </span>
+                            )}
+                          </div>
+                          {/* The benchmark travels with the number (EC-B7), rather than
+                              being buried in a tooltip. */}
+                          {mark.excess != null && (
+                            <div style={{ color: '#6b7280', fontSize: 12 }}>
+                              {t('tools.watchlist.result_vs_index', { value: pct(mark.excess) })}
+                            </div>
+                          )}
+                          {!matched.sameSession && (
+                            <div
+                              style={{ color: '#9ca3af', fontSize: 11 }}
+                              title={t('tools.watchlist.result_other_session', {
+                                date: isoDay(matched.reco.session_date),
+                              })}
+                            >
+                              {t('tools.watchlist.result_from_session', {
+                                date: isoDay(matched.reco.session_date),
+                              })}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <span
+                          style={{ color: '#9ca3af' }}
+                          title={matched
+                            ? t('tools.watchlist.result_not_scored_yet')
+                            : t('tools.watchlist.result_no_call')}
+                        >
+                          —
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: 12, color: '#4b5563' }} title={item.proposal_note || ''}>
                       {item.proposal_by || '—'}
