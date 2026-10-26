@@ -32,14 +32,22 @@ class TcbNewsService {
    *                                        to store without touching the watchlist;
    *                                        omit to push every recognised call.
    * @param {string}   [params.proposalBy]  attribution, defaults to "TCB"
+   * @param {object[]}  [params.corrections] operator fixes to misparsed calls
+   *                                        (Backlog #55): `{index, from_symbol,
+   *                                        symbol?, action?, target_price?}`. The
+   *                                        server re-parses `content`, so a preview
+   *                                        edit only survives if it is sent here —
+   *                                        and it records each overridden field so a
+   *                                        later reparse does not revert it (EC-B2).
    */
-  async save({ content, sessionDate, subject, pushSymbols, proposalBy }) {
+  async save({ content, sessionDate, subject, pushSymbols, proposalBy, corrections }) {
     return httpClient.post(API_ENDPOINTS.TCB_NEWS, {
       content,
       session_date: sessionDate,
       subject: subject || undefined,
       push_symbols: pushSymbols,
       proposal_by: proposalBy || 'TCB',
+      corrections: corrections?.length ? corrections : undefined,
     });
   }
 

@@ -62,10 +62,11 @@ class TcbRepository:
         """Create the three tables if absent. Shares `Base` with news_events, so the
         news repository's `_ensure_database()` has already created the database."""
         Base.metadata.create_all(self._engine)
-        self._ensure_scoring_columns()
+        self._ensure_reco_columns()
 
-    def _ensure_scoring_columns(self) -> None:
-        """Add the FR-BM-SCORE columns to a `tcb_news_reco` created before they existed.
+    def _ensure_reco_columns(self) -> None:
+        """Add columns that outgrew the original `tcb_news_reco` — the FR-BM-SCORE marks
+        and the Backlog #55 correction provenance.
 
         `create_all` creates missing tables but never alters an existing one, so a
         database that already stored calls would otherwise be missing every return
@@ -88,6 +89,9 @@ class TcbRepository:
             "ret_adjusted": "TINYINT(1) NOT NULL DEFAULT 0",
             "scored_at": "DATETIME NULL",
             "scoring_done": "TINYINT(1) NOT NULL DEFAULT 0",
+            # Operator corrections (Backlog #55).
+            "corrected_fields": "VARCHAR(128) NULL",
+            "corrected_at": "DATETIME NULL",
         }
         with self._engine.begin() as conn:
             for column, ddl in columns.items():
@@ -198,6 +202,10 @@ class TcbRepository:
                 rationale=r.rationale,
                 target_price=r.target_price,
                 pushed_to_watchlist=False,
+                # Provenance for anything a human overrode in the preview (#55). NULL
+                # when the parser's reading stands, so a reparse can tell the two apart.
+                corrected_fields=(",".join(r.corrected_fields) or None),
+                corrected_at=(_utcnow() if r.corrected_fields else None),
             )
             for r in parsed.recos
         ]

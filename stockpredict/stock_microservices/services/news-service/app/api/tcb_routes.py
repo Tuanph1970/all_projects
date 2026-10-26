@@ -6,8 +6,10 @@ Two-step by design, matching the operator's confirm-before-save workflow:
     POST /news/tcb           store the mail and push the ticked calls to the watchlist
 
 Splitting them is what makes a misread ticker correctable: the operator sees exactly
-what the parser found, fixes the session date if the guess is off, and unticks anything
-wrong before a single row exists.
+what the parser found, fixes the session date if the guess is off, corrects a wrong
+ticker or action outright (Backlog #55), and unticks anything wrong before a single row
+exists. Correcting rather than only excluding matters because an excluded call is a
+*lost* call — the mail still stores it, but the watchlist never sees it.
 """
 from __future__ import annotations
 
@@ -31,6 +33,7 @@ from app.api.tcb_schemas import (
 )
 from app.config import get_settings
 from app.deps import get_call_scorer, get_tcb_repo, get_watchlist_pusher
+from app.ingest.tcb_corrections import CorrectionError, apply_corrections
 from app.ingest.tcb_mail_parser import ParsedMail, parse_tcb_mail
 from app.models.tcb_news import TcbNews, TcbNewsReco
 from app.services.call_scorer import build_record
@@ -79,6 +82,10 @@ def _reco_to_out(r: TcbNewsReco) -> RecoOut:
         id=r.id, symbol=r.symbol, action=r.action, label_verbatim=r.label_verbatim,
         rationale=r.rationale, target_price=r.target_price,
         pushed_to_watchlist=r.pushed_to_watchlist,
+        # Correction provenance travels with the call (#55): a reader of the ledger can
+        # see that a human overrode the parser rather than having to take the row on
+        # trust, and a reparse pass can tell which fields to leave alone.
+        corrected_fields=r.corrected_fields, corrected_at=r.corrected_at,
         **{f: getattr(r, f) for f in _SCORE_FIELDS},
     )
 
@@ -119,6 +126,17 @@ def save_tcb_mail(
     try:
         parsed = parse_tcb_mail(req.content, reference_date=req.session_date)
     except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+
+    # The operator's fixes land between parsing and storage (Backlog #55). They must be
+    # applied HERE and not in the parser: `raw_content` stays byte-identical (EC-B2), so
+    # a parser fix is still replayable over the archive, and each overridden field is
+    # recorded on the stored call so a reparse does not quietly undo a human's work.
+    # A correction that cannot be matched to its call rejects the whole save (EC-B10) —
+    # one ticker on the wrong row would poison the ledger silently.
+    try:
+        parsed = apply_corrections(parsed, req.corrections)
+    except CorrectionError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
 
     row, created = repo.save(

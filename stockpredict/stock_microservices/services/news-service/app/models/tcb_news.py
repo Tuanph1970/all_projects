@@ -153,6 +153,23 @@ class TcbNewsReco(Base):
     pushed_to_watchlist: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     pushed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # --- Operator corrections (Backlog #55) --------------------------------
+    # Which fields a human overrode in the preview, comma-separated ("symbol,action"),
+    # with NULL meaning "exactly what the parser read".
+    #
+    # This is provenance, not decoration. EC-B2 makes extraction a re-runnable pass over
+    # the immutable `raw_content`, so a reparse re-derives whatever the parser reads
+    # today — which would silently revert a human's fix unless something records that
+    # the field was overridden. It is also the honest audit trail for a ledger that
+    # EC-B7 expects to be trustworthy: a call whose ticker a person changed is a
+    # different kind of evidence from one the parser got right.
+    #
+    # `label_verbatim` is deliberately NOT correctable: EC-B4 keeps exactly what TCBS
+    # wrote, and a correction changes OUR normalisation, never the source phrase.
+    corrected_fields: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    corrected_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+
     # --- Forward-return scoring (FR-BM-SCORE) ------------------------------
     # Returns are fractions (0.031 = +3.1%) over 1/5/20/60 *trading sessions* from the
     # call's session close. A horizon that has not yet elapsed stays NULL — there is no

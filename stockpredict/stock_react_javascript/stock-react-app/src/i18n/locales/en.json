@@ -2744,6 +2744,9 @@
     "record_hint": "{{scored}} of {{total}} calls scored. A horizon shows a dash until it has fully elapsed.",
     "record_benchmark_note": "The benchmark is the same directional bet placed on the VN-Index over the same windows. TCB only shows skill where its hit rate beats that column — a high hit rate in a rising market is not evidence on its own.",
     "unadjusted_warning": "Some returns use raw closing prices because no adjusted close was available for that symbol — a bonus issue or stock dividend inside the window will show as a move that did not economically happen.",
-    "capital_adjusted_note": "Returns are capital-adjusted (bonus issues, stock dividends and splits) and substantially adjusted for cash dividends too. Measured on 353 ex-dividend dates (Backlog #58): only about 16% of a cash dividend shows up as a price drop — -0.55% against a 3.5% mean yield — so roughly 84% is already in the figure. A high-yield stock reads marginally low, on the order of 0.2-0.4% over a 60-session window; dividends are deliberately not added back, because adding the full amount would overstate returns by the 84% already included."
+    "capital_adjusted_note": "Returns are capital-adjusted (bonus issues, stock dividends and splits) and substantially adjusted for cash dividends too. Measured on 353 ex-dividend dates (Backlog #58): only about 16% of a cash dividend shows up as a price drop — -0.55% against a 3.5% mean yield — so roughly 84% is already in the figure. A high-yield stock reads marginally low, on the order of 0.2-0.4% over a 60-session window; dividends are deliberately not added back, because adding the full amount would overstate returns by the 84% already included.",
+    "symbol_aria": "Ticker for the call TCBS wrote as {{symbol}}",
+    "action_aria": "Action for {{symbol}}",
+    "corrections_pending": "{{count}} correction(s) will be saved with this mail and recorded on the call."
   }
 }

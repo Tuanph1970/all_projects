@@ -100,8 +100,11 @@ test('the preview shows the recommendation with its verbatim TCB wording', async
   paste();
   click(screen.getByText('Phân tích'));
 
-  expect(await screen.findByText('NTP')).toBeInTheDocument();
-  expect(screen.getByText('WATCH')).toBeInTheDocument();
+  // Backlog #55 made the ticker and action editable, so these are form controls now,
+  // not text nodes — a correction has to be possible without re-pasting the mail.
+  expect(await screen.findByDisplayValue('NTP')).toBeInTheDocument();
+  expect(screen.getByLabelText(/Hành động cho NTP/)).toHaveValue('WATCH');
+  // The verbatim wording stays plain text and stays uneditable (EC-B4).
   expect(screen.getByText('Chờ mua')).toBeInTheDocument();
 });
 
@@ -109,7 +112,7 @@ test('save pushes the ticked recommendation with the confirmed session date', as
   render(<TcbNews />);
   paste();
   click(screen.getByText('Phân tích'));
-  await screen.findByText('NTP');
+  await screen.findByDisplayValue('NTP');
 
   click(screen.getByText(/Lưu & thêm/));
   await waitFor(() => expect(tcbNewsService.save).toHaveBeenCalled());
@@ -155,7 +158,7 @@ test('a duplicate paste is reported without clearing the form', async () => {
   render(<TcbNews />);
   paste();
   click(screen.getByText('Phân tích'));
-  await screen.findByText('NTP');
+  await screen.findByDisplayValue('NTP');
   click(screen.getByText(/Lưu & thêm/));
 
   expect(await screen.findByText(/đã được lưu trước đó/)).toBeInTheDocument();
@@ -292,4 +295,119 @@ test('no caveat before anything has been scored', async () => {
   await screen.findByText('Nhật ký khuyến nghị');
   expect(screen.queryByText(/giá đóng cửa thô/)).not.toBeInTheDocument();
   expect(screen.queryByText(/điều chỉnh theo sự kiện thay đổi số lượng/)).not.toBeInTheDocument();
+});
+
+
+// ---------------------------------------------------------------------------
+// Correcting a misparsed call (Backlog #55)
+//
+// Unticking a wrong ticker does not fix the call, it LOSES it: the mail still stores
+// the recommendation and the watchlist never sees it. These protect the fix path, and
+// in particular that an edit actually reaches the server — which re-parses `content`,
+// so a correction left out of the payload is silently discarded.
+// ---------------------------------------------------------------------------
+
+const parseAndWait = async () => {
+  render(<TcbNews />);
+  paste();
+  click(screen.getByText('Phân tích'));
+  return screen.findByDisplayValue('NTP');
+};
+
+test('a corrected ticker is sent as a correction, not just displayed', async () => {
+  const ticker = await parseAndWait();
+  await userEvent.clear(ticker);
+  await userEvent.type(ticker, 'NTL');
+
+  click(screen.getByText(/Lưu & thêm/));
+  await waitFor(() => expect(tcbNewsService.save).toHaveBeenCalled());
+
+  const sent = tcbNewsService.save.mock.calls[0][0];
+  expect(sent.corrections).toEqual([
+    { index: 0, from_symbol: 'NTP', symbol: 'NTL' },
+  ]);
+});
+
+test('the CORRECTED ticker is what gets pushed to the watchlist', async () => {
+  const ticker = await parseAndWait();
+  await userEvent.clear(ticker);
+  await userEvent.type(ticker, 'NTL');
+
+  click(screen.getByText(/Lưu & thêm/));
+  await waitFor(() => expect(tcbNewsService.save).toHaveBeenCalled());
+
+  // Pushing the parser's wrong ticker would defeat the point of fixing it.
+  expect(tcbNewsService.save.mock.calls[0][0].pushSymbols).toEqual(['NTL']);
+});
+
+test('correcting a ticker does not lose its tick', async () => {
+  // The selection used to be keyed by symbol, so renaming the ticker silently
+  // deselected the call — the exact failure this feature exists to prevent.
+  const ticker = await parseAndWait();
+  await userEvent.clear(ticker);
+  await userEvent.type(ticker, 'NTL');
+
+  expect(screen.getByLabelText(/Đưa NTL vào danh mục|NTL/)).toBeChecked();
+});
+
+test('a corrected action is sent and reaches the push', async () => {
+  await parseAndWait();
+  await userEvent.selectOptions(screen.getByLabelText(/Hành động cho NTP/), 'BUY');
+
+  click(screen.getByText(/Lưu & thêm/));
+  await waitFor(() => expect(tcbNewsService.save).toHaveBeenCalled());
+
+  expect(tcbNewsService.save.mock.calls[0][0].corrections).toEqual([
+    { index: 0, from_symbol: 'NTP', action: 'BUY' },
+  ]);
+});
+
+test('an unknown action can be resolved, and the warning then clears', async () => {
+  tcbNewsService.preview.mockResolvedValue({
+    success: true,
+    data: { ...PREVIEW, recos: [{ symbol: 'NTP', action: null, label_verbatim: 'Mua gom dần' }] },
+  });
+  await parseAndWait();
+  expect(screen.getByText(/chưa nhận diện được/i)).toBeInTheDocument();
+
+  await userEvent.selectOptions(screen.getByLabelText(/Hành động cho NTP/), 'BUY');
+
+  // A warning that survives its own fix teaches people to ignore warnings.
+  await waitFor(() =>
+    expect(screen.queryByText(/chưa nhận diện được/i)).not.toBeInTheDocument());
+});
+
+test('an untouched preview sends no corrections at all', async () => {
+  await parseAndWait();
+  click(screen.getByText(/Lưu & thêm/));
+  await waitFor(() => expect(tcbNewsService.save).toHaveBeenCalled());
+
+  expect(tcbNewsService.save.mock.calls[0][0].corrections).toEqual([]);
+});
+
+test('retyping the same ticker is not reported as a correction', async () => {
+  const ticker = await parseAndWait();
+  await userEvent.clear(ticker);
+  await userEvent.type(ticker, 'NTP');
+
+  click(screen.getByText(/Lưu & thêm/));
+  await waitFor(() => expect(tcbNewsService.save).toHaveBeenCalled());
+
+  // The audit trail only means something if it records real changes.
+  expect(tcbNewsService.save.mock.calls[0][0].corrections).toEqual([]);
+});
+
+test('a pending correction is announced before saving', async () => {
+  const ticker = await parseAndWait();
+  await userEvent.clear(ticker);
+  await userEvent.type(ticker, 'NTL');
+
+  expect(await screen.findByText(/chỉnh sửa sẽ được lưu/)).toBeInTheDocument();
+});
+
+test('the verbatim label has no editable control (EC-B4)', async () => {
+  await parseAndWait();
+  // "Chờ mua" is what TCBS wrote; a correction changes our normalisation, never that.
+  expect(screen.getByText('Chờ mua').tagName).toBe('TD');
+  expect(screen.queryByDisplayValue('Chờ mua')).not.toBeInTheDocument();
 });

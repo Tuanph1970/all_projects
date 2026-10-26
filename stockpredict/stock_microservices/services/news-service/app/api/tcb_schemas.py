@@ -41,6 +41,12 @@ class RecoOut(BaseModel):
     ret_adjusted: bool = False     # False => raw closes; corporate actions distort
     scored_at: Optional[datetime] = None
 
+    # Which fields a human overrode in the preview, comma-separated (Backlog #55). NULL
+    # means the parser's reading stands. Surfaced because a corrected call is a
+    # different kind of evidence from one the parser got right (EC-B7).
+    corrected_fields: Optional[str] = None
+    corrected_at: Optional[datetime] = None
+
 
 class CompanyOut(BaseModel):
     id: Optional[int] = None
@@ -95,6 +101,32 @@ class TcbMailOut(BaseModel):
     created_at: Optional[datetime] = None
 
 
+class RecoCorrection(BaseModel):
+    """One operator correction to a parsed recommendation (Backlog #55).
+
+    Addressed by `index` into the parsed list, with `from_symbol` as a cross-check: the
+    preview and the save parse the same text with a different reference date, so the
+    order is not contractually identical, and applying a ticker fix to the wrong call
+    would be worse than refusing. A mismatch is a 422, never a best-effort guess
+    (EC-B10).
+
+    Only these three fields are correctable. `label_verbatim` is not: EC-B4 keeps exactly
+    what TCBS wrote, and a correction changes our normalisation, not the source phrase —
+    which is also what leaves the correction auditable afterwards. Send only what
+    changed; a field left null means "leave the parser's reading alone".
+    """
+
+    index: int = Field(..., ge=0, description="Position in the parsed recommendation list")
+    from_symbol: str = Field(
+        ..., min_length=1, max_length=20,
+        description="The ticker the operator saw at that position — the cross-check")
+    symbol: Optional[str] = Field(default=None, max_length=20)
+    action: Optional[str] = Field(
+        default=None,
+        description="BUY | SELL | HOLD | WATCH, or empty to leave the action unknown")
+    target_price: Optional[float] = Field(default=None, gt=0)
+
+
 class TcbSaveRequest(BaseModel):
     """Store a previewed mail and optionally push its calls to the watchlist."""
 
@@ -109,6 +141,14 @@ class TcbSaveRequest(BaseModel):
             "Tickers whose recommendation should be written to the watchlist. "
             "Omit to push every recommendation that carries a recognised action; "
             "send [] to store the mail without touching the watchlist."
+        ),
+    )
+    corrections: Optional[list[RecoCorrection]] = Field(
+        default=None,
+        description=(
+            "Operator fixes to misparsed recommendations, applied before storage. "
+            "Each overridden field is recorded on the stored call so a reparse does not "
+            "silently revert it (EC-B2)."
         ),
     )
     proposal_by: str = Field(default="TCB", max_length=32)

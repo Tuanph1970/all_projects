@@ -88,6 +88,12 @@ class ParsedReco:
     rationale: Optional[str] = None
     target_price: Optional[float] = None
 
+    # Fields an operator corrected in the preview before saving (Backlog #55). NEVER set
+    # by the parser — it is set by `tcb_corrections.apply_corrections` on the way to
+    # storage, and it rides on this object rather than in a parallel list because an
+    # index-aligned side-channel is exactly how a correction ends up on the wrong call.
+    corrected_fields: tuple[str, ...] = ()
+
 
 @dataclass
 class ParsedCompany:

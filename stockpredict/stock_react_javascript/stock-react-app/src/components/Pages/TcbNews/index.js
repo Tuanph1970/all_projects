@@ -166,7 +166,11 @@ const TcbNews = () => {
   const [content, setContent] = useState('');
   const [sessionDate, setSessionDate] = useState(todayIso());
   const [preview, setPreview] = useState(null);
-  const [selected, setSelected] = useState({});      // symbol -> boolean
+  const [selected, setSelected] = useState({});      // index -> boolean
+  // index -> { symbol?, action? } — the operator's corrections to a misparsed call
+  // (Backlog #55). Only what actually changed is sent; the server re-parses `content`,
+  // so an edit that is not sent here is silently discarded.
+  const [edits, setEdits] = useState({});
   const [parsing, setParsing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -237,19 +241,28 @@ const TcbNews = () => {
     if (res.data.session_date_hint) setSessionDate(res.data.session_date_hint);
     // Pre-tick every call we could normalise; an unknown label stays unticked so it
     // cannot reach the watchlist without the operator looking at it.
+    //
+    // Keyed by INDEX, not symbol (Backlog #55). A corrected ticker would otherwise lose
+    // its tick the moment it was fixed, and two calls on the same symbol in one mail
+    // would share one checkbox.
     setSelected(Object.fromEntries(
-      (res.data.recos || []).map((r) => [r.symbol, Boolean(r.action)])
+      (res.data.recos || []).map((r, i) => [i, Boolean(r.action)])
     ));
+    setEdits({});
   };
 
   const handleSave = async () => {
     if (!preview) return;
     setSaving(true);
     setError(null);
+    // The CORRECTED symbol is what gets pushed — pushing the parser's wrong ticker
+    // would defeat the whole point of letting it be fixed (Backlog #55).
     const pushSymbols = (preview.recos || [])
-      .filter((r) => selected[r.symbol])
-      .map((r) => r.symbol);
-    const res = await tcbNewsService.save({ content, sessionDate, pushSymbols });
+      .map((r, i) => ({ symbol: (edits[i]?.symbol ?? r.symbol).trim().toUpperCase(), i }))
+      .filter(({ i }) => selected[i])
+      .map(({ symbol }) => symbol);
+    const res = await tcbNewsService.save({
+      content, sessionDate, pushSymbols, corrections });
     setSaving(false);
     if (!res.success) {
       setError(errorMessage(res, 'tcb_news.save_error'));
@@ -260,6 +273,7 @@ const TcbNews = () => {
       setContent('');
       setPreview(null);
       setSelected({});
+      setEdits({});
     }
     loadHistory();
   };
@@ -272,10 +286,30 @@ const TcbNews = () => {
 
   // Memoised so the `|| []` fallback doesn't hand useMemo a fresh array each render.
   const recos = useMemo(() => preview?.recos || [], [preview]);
+  /** The effective recommendation at `i` — the parse with any correction applied. */
+  const effective = useCallback(
+    (r, i) => ({ ...r, ...(edits[i] || {}) }), [edits]);
+
   const selectedCount = useMemo(
-    () => recos.filter((r) => selected[r.symbol]).length,
+    () => recos.filter((r, i) => selected[i]).length,
     [recos, selected],
   );
+
+  /** Only genuinely changed fields, in the shape the save endpoint validates. */
+  const corrections = useMemo(() => recos.map((r, i) => {
+    const edit = edits[i] || {};
+    const out = { index: i, from_symbol: r.symbol };
+    let changed = false;
+    if (edit.symbol != null && edit.symbol.trim().toUpperCase() !== r.symbol) {
+      out.symbol = edit.symbol.trim().toUpperCase();
+      changed = true;
+    }
+    if (edit.action != null && (edit.action || null) !== (r.action || null)) {
+      out.action = edit.action;
+      changed = true;
+    }
+    return changed ? out : null;
+  }).filter(Boolean), [recos, edits]);
 
   return (
     <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
@@ -412,31 +446,78 @@ const TcbNews = () => {
                 </tr>
               </thead>
               <tbody>
-                {recos.map((r) => (
-                  <tr key={r.symbol} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '6px 8px' }}>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(selected[r.symbol])}
-                        onChange={(e) =>
-                          setSelected((prev) => ({ ...prev, [r.symbol]: e.target.checked }))}
-                        aria-label={t('tcb_news.push_aria', { symbol: r.symbol })}
-                      />
-                    </td>
-                    <td style={{ padding: '6px 8px', fontWeight: 600 }}>{r.symbol}</td>
-                    <td style={{ padding: '6px 8px' }}>
-                      <ActionBadge action={r.action} label={r.label_verbatim} />
-                    </td>
-                    <td style={{ padding: '6px 8px' }}>{r.label_verbatim}</td>
-                    <td style={{ padding: '6px 8px', color: '#4b5563' }}>{r.rationale}</td>
-                  </tr>
-                ))}
+                {recos.map((r, i) => {
+                  const eff = effective(r, i);
+                  const edited = corrections.some((c) => c.index === i);
+                  const palette = ACTION_COLORS[eff.action] || { bg: '#f3f4f6', fg: '#6b7280' };
+                  return (
+                    <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '6px 8px' }}>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(selected[i])}
+                          onChange={(e) =>
+                            setSelected((prev) => ({ ...prev, [i]: e.target.checked }))}
+                          aria-label={t('tcb_news.push_aria', { symbol: eff.symbol })}
+                        />
+                      </td>
+                      {/* Correctable, not just excludable (Backlog #55). Unticking a
+                          misparsed call does not fix it — it loses it. */}
+                      <td style={{ padding: '6px 8px' }}>
+                        <input
+                          type="text"
+                          value={eff.symbol}
+                          onChange={(e) => setEdits((prev) => ({
+                            ...prev, [i]: { ...prev[i], symbol: e.target.value } }))}
+                          aria-label={t('tcb_news.symbol_aria', { symbol: r.symbol })}
+                          maxLength={12}
+                          style={{
+                            width: 72, padding: '3px 6px', fontWeight: 600,
+                            textTransform: 'uppercase',
+                            border: `1px solid ${edited ? '#d97706' : '#d1d5db'}`,
+                            borderRadius: 4,
+                          }}
+                        />
+                      </td>
+                      <td style={{ padding: '6px 8px' }}>
+                        <select
+                          value={eff.action || ''}
+                          onChange={(e) => setEdits((prev) => ({
+                            ...prev, [i]: { ...prev[i], action: e.target.value } }))}
+                          aria-label={t('tcb_news.action_aria', { symbol: r.symbol })}
+                          title={r.label_verbatim || ''}
+                          style={{
+                            padding: '3px 6px', borderRadius: 4, fontWeight: 600,
+                            fontSize: 12, background: palette.bg, color: palette.fg,
+                            border: `1px solid ${edited ? '#d97706' : '#d1d5db'}`,
+                          }}
+                        >
+                          <option value="">{t('tcb_news.action_unknown')}</option>
+                          {['BUY', 'SELL', 'HOLD', 'WATCH'].map((a) => (
+                            <option key={a} value={a}>{a}</option>
+                          ))}
+                        </select>
+                      </td>
+                      {/* Never editable: EC-B4 keeps exactly what TCBS wrote, and it is
+                          what makes a correction auditable afterwards. */}
+                      <td style={{ padding: '6px 8px' }}>{r.label_verbatim}</td>
+                      <td style={{ padding: '6px 8px', color: '#4b5563' }}>{r.rationale}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
-          {recos.some((r) => !r.action) && (
+          {/* The effective action, so the hint clears the moment the operator resolves
+              it — a warning that survives its own fix teaches people to ignore it. */}
+          {recos.some((r, i) => !effective(r, i).action) && (
             <p style={{ fontSize: 12, color: '#92400e', marginTop: 8 }}>
               {t('tcb_news.unknown_action_hint')}
+            </p>
+          )}
+          {corrections.length > 0 && (
+            <p style={{ fontSize: 12, color: '#92400e', marginTop: 8 }}>
+              {t('tcb_news.corrections_pending', { count: corrections.length })}
             </p>
           )}
 
