@@ -2737,6 +2737,6 @@
     "record_hint": "Đã chấm {{scored}}/{{total}} khuyến nghị. Kỳ hạn chưa đủ số phiên sẽ hiển thị dấu gạch.",
     "record_benchmark_note": "Chuẩn so sánh là cùng một lệnh đặt trên VN-Index trong đúng khoảng thời gian đó. TCB chỉ thực sự có năng lực khi tỷ lệ đúng vượt cột này — tỷ lệ đúng cao trong thị trường tăng không tự nó là bằng chứng.",
     "unadjusted_warning": "Một số mã tính lợi nhuận trên giá đóng cửa thô do không có giá điều chỉnh — cổ tức bằng cổ phiếu hoặc chia tách trong kỳ sẽ hiện thành mức biến động không có thật về mặt kinh tế.",
-    "capital_adjusted_note": "Lợi nhuận đã điều chỉnh theo sự kiện thay đổi số lượng cổ phiếu (cổ tức cổ phiếu, chia tách) nhưng chưa cộng lại cổ tức tiền mặt trả trong kỳ, nên mã có tỷ suất cổ tức cao sẽ hiện thấp hơn thực tế một chút."
+    "capital_adjusted_note": "Lợi nhuận đã điều chỉnh theo sự kiện thay đổi số lượng cổ phiếu (cổ tức cổ phiếu, chia tách) và phần lớn đã điều chỉnh cả cổ tức tiền mặt. Đo trên 353 ngày giao dịch không hưởng quyền (Backlog #58): chỉ khoảng 16% cổ tức tiền mặt thể hiện thành mức giảm giá — -0,55% so với tỷ suất bình quân 3,5% — nên khoảng 84% đã nằm trong số liệu. Mã có tỷ suất cổ tức cao chỉ hiện thấp hơn thực tế rất ít, khoảng 0,2-0,4% trong cửa sổ 60 phiên; chúng tôi chủ ý KHÔNG cộng lại cổ tức, vì cộng toàn bộ sẽ làm lợi nhuận cao hơn thực tế đúng bằng 84% đã được tính."
   }
 }
