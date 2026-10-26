@@ -9,11 +9,38 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import TcbNews from './index';
 import tcbNewsService from '../../../services/tcbNewsService';
+import i18n from '../../../i18n';
+
 
 jest.mock('../../../services/tcbNewsService');
-jest.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key, opts) => (opts ? `${key}:${JSON.stringify(opts)}` : key) }),
-}));
+
+// Backlog #71. The root cause was not a missing import — this suite
+// MOCKED react-i18next with a stub whose `t()` returned the key:
+//
+//   jest.mock('react-i18next', () => ({
+//     useTranslation: () => ({ t: (key, opts) => ... key) }),
+//   }));
+//
+// The stub is gone. Do not reinstate it: it is what made the suite
+// self-confirming. This suite used to query the raw i18n KEYS
+// (`getByText('Phân tích')`) and passed only because it never
+// initialised the shared instance — uninitialised, react-i18next's `t()`
+// returns the key, so the component rendered the key and the assertion
+// matched it. Eighteen green tests that proved nothing about what a user
+// sees, and they would have flipped red the moment anyone added the import.
+//
+// With the real module and the shared instance initialised, every query
+// below goes through the real Vietnamese copy. A missing or renamed
+// translation now FAILS this suite, which is the point.
+//
+// Long notes are matched on a distinctive fragment rather than the full
+// string: the assertion should survive a copy edit (the #58 rewrite of
+// `capital_adjusted_note` is exactly that case) while still proving the
+// translated text reached the DOM. Interpolated strings — {{count}},
+// {{symbol}}, {{date}}, {{scored}} — must be regexes for the same reason.
+beforeAll(async () => {
+  await i18n.changeLanguage('vi');
+});
 
 const PREVIEW = {
   id: null,
@@ -45,14 +72,14 @@ beforeEach(() => {
 
 // user-event v13 in this project: no .setup(), calls are synchronous.
 const paste = (text = 'some email body') =>
-  userEvent.type(screen.getByLabelText('tcb_news.content_label'), text);
+  userEvent.type(screen.getByLabelText('Nội dung email'), text);
 
 const click = (el) => userEvent.click(el);
 
 test('parse sends the pasted content and stores nothing', async () => {
   render(<TcbNews />);
   paste();
-  click(screen.getByText('tcb_news.parse_button'));
+  click(screen.getByText('Phân tích'));
 
   await waitFor(() => expect(tcbNewsService.preview).toHaveBeenCalled());
   expect(tcbNewsService.preview.mock.calls[0][0]).toBe('some email body');
@@ -62,16 +89,16 @@ test('parse sends the pasted content and stores nothing', async () => {
 test('the parsed session date overrides the default date', async () => {
   render(<TcbNews />);
   paste();
-  click(screen.getByText('tcb_news.parse_button'));
+  click(screen.getByText('Phân tích'));
 
   await waitFor(() =>
-    expect(screen.getByLabelText('tcb_news.session_date_label')).toHaveValue('2026-09-21'));
+    expect(screen.getByLabelText('Phiên giao dịch')).toHaveValue('2026-09-21'));
 });
 
 test('the preview shows the recommendation with its verbatim TCB wording', async () => {
   render(<TcbNews />);
   paste();
-  click(screen.getByText('tcb_news.parse_button'));
+  click(screen.getByText('Phân tích'));
 
   expect(await screen.findByText('NTP')).toBeInTheDocument();
   expect(screen.getByText('WATCH')).toBeInTheDocument();
@@ -81,10 +108,10 @@ test('the preview shows the recommendation with its verbatim TCB wording', async
 test('save pushes the ticked recommendation with the confirmed session date', async () => {
   render(<TcbNews />);
   paste();
-  click(screen.getByText('tcb_news.parse_button'));
+  click(screen.getByText('Phân tích'));
   await screen.findByText('NTP');
 
-  click(screen.getByText(/tcb_news.save_button/));
+  click(screen.getByText(/Lưu & thêm/));
   await waitFor(() => expect(tcbNewsService.save).toHaveBeenCalled());
   expect(tcbNewsService.save.mock.calls[0][0]).toMatchObject({
     sessionDate: '2026-09-21',
@@ -95,13 +122,13 @@ test('save pushes the ticked recommendation with the confirmed session date', as
 test('unticking a recommendation keeps it off the watchlist', async () => {
   render(<TcbNews />);
   paste();
-  click(screen.getByText('tcb_news.parse_button'));
+  click(screen.getByText('Phân tích'));
 
-  const tick = await screen.findByLabelText(/tcb_news.push_aria/);
+  const tick = await screen.findByLabelText(/vào danh mục theo dõi/);
   expect(tick).toBeChecked();          // a recognised action is pre-ticked
   click(tick);
 
-  click(screen.getByText(/tcb_news.save_button/));
+  click(screen.getByText(/Lưu & thêm/));
   await waitFor(() => expect(tcbNewsService.save).toHaveBeenCalled());
   expect(tcbNewsService.save.mock.calls[0][0].pushSymbols).toEqual([]);
 });
@@ -114,10 +141,10 @@ test('a recommendation with an unrecognised label is not pre-ticked', async () =
   });
   render(<TcbNews />);
   paste();
-  click(screen.getByText('tcb_news.parse_button'));
+  click(screen.getByText('Phân tích'));
 
-  expect(await screen.findByLabelText(/tcb_news.push_aria/)).not.toBeChecked();
-  expect(screen.getByText('tcb_news.unknown_action_hint')).toBeInTheDocument();
+  expect(await screen.findByLabelText(/vào danh mục theo dõi/)).not.toBeChecked();
+  expect(screen.getByText(/chưa nhận diện được/)).toBeInTheDocument();
 });
 
 test('a duplicate paste is reported without clearing the form', async () => {
@@ -127,12 +154,12 @@ test('a duplicate paste is reported without clearing the form', async () => {
   });
   render(<TcbNews />);
   paste();
-  click(screen.getByText('tcb_news.parse_button'));
+  click(screen.getByText('Phân tích'));
   await screen.findByText('NTP');
-  click(screen.getByText(/tcb_news.save_button/));
+  click(screen.getByText(/Lưu & thêm/));
 
-  expect(await screen.findByText(/tcb_news.duplicate/)).toBeInTheDocument();
-  expect(screen.getByLabelText('tcb_news.content_label')).toHaveValue('some email body');
+  expect(await screen.findByText(/đã được lưu trước đó/)).toBeInTheDocument();
+  expect(screen.getByLabelText('Nội dung email')).toHaveValue('some email body');
 });
 
 test('a parse failure surfaces the error and offers no save', async () => {
@@ -140,16 +167,16 @@ test('a parse failure surfaces the error and offers no save', async () => {
     success: false, error: { message: 'boom' } });
   render(<TcbNews />);
   paste();
-  click(screen.getByText('tcb_news.parse_button'));
+  click(screen.getByText('Phân tích'));
 
   expect(await screen.findByText('boom')).toBeInTheDocument();
-  expect(screen.getByText(/tcb_news.save_button/).closest('button')).toBeDisabled();
+  expect(screen.getByText(/Lưu & thêm/).closest('button')).toBeDisabled();
 });
 
 test('save is disabled until the email has been parsed', async () => {
   render(<TcbNews />);
   paste();
-  expect(screen.getByText(/tcb_news.save_button/).closest('button')).toBeDisabled();
+  expect(screen.getByText(/Lưu & thêm/).closest('button')).toBeDisabled();
 });
 
 // ---------------------------------------------------------------------------
@@ -173,7 +200,7 @@ test('the ledger shows each call with its forward returns', async () => {
     scored_calls: 1, detail: 'not reportable yet' } } } });
   render(<TcbNews />);
 
-  expect(await screen.findByText('tcb_news.ledger_title')).toBeInTheDocument();
+  expect(await screen.findByText('Nhật ký khuyến nghị')).toBeInTheDocument();
   expect(screen.getByText('+1.2%')).toBeInTheDocument();
   expect(screen.getByText('-3.1%')).toBeInTheDocument();
   expect(screen.getByText('+8.4%')).toBeInTheDocument();
@@ -182,7 +209,7 @@ test('the ledger shows each call with its forward returns', async () => {
 test('an unelapsed horizon shows a dash, never a zero', async () => {
   withLedger([SCORED], { success: false, error: { response: { data: { scored_calls: 1 } } } });
   render(<TcbNews />);
-  await screen.findByText('tcb_news.ledger_title');
+  await screen.findByText('Nhật ký khuyến nghị');
   // ret_60d is null -> "—"; a "0.0%" here would read as "flat" rather than "unknown".
   expect(screen.getAllByText('—').length).toBeGreaterThan(0);
   expect(screen.queryByText('+0.0%')).not.toBeInTheDocument();
@@ -193,9 +220,14 @@ test('the aggregate is withheld below the minimum and says how far off it is', a
     scored_calls: 7, detail: 'not reportable yet: 7 scored call(s), 30 required' } } } });
   render(<TcbNews />);
 
-  expect(await screen.findByText(/tcb_news.record_not_yet/)).toBeInTheDocument();
-  expect(screen.getByText(/"scored":7/)).toBeInTheDocument();
-  expect(screen.queryByText('tcb_news.col_hit_rate')).not.toBeInTheDocument();
+  expect(await screen.findByText(/Chưa đủ dữ liệu để công bố/)).toBeInTheDocument();
+  // Was `getByText(/"scored":7/)` — the removed stub serialised the
+  // interpolation options as JSON, so this asserted on a string that never
+  // reached a user. The real sentence names both the count so far and the
+  // threshold, which is what "says how far off it is" meant.
+  expect(screen.getByText(/mới có 7 khuyến nghị/)).toBeInTheDocument();
+  expect(screen.getByText(/đủ 30/)).toBeInTheDocument();
+  expect(screen.queryByText('Tỷ lệ đúng của TCB')).not.toBeInTheDocument();
 });
 
 test('the record renders the hit rate beside its benchmark', async () => {
@@ -207,22 +239,24 @@ test('the record renders the hit rate beside its benchmark', async () => {
   } });
   render(<TcbNews />);
 
-  expect(await screen.findByText('tcb_news.col_hit_rate')).toBeInTheDocument();
+  expect(await screen.findByText('Tỷ lệ đúng của TCB')).toBeInTheDocument();
   expect(screen.getByText('60%')).toBeInTheDocument();   // TCB
   expect(screen.getByText('50%')).toBeInTheDocument();   // the benchmark it must beat
   expect(screen.getByText('+4.2%')).toBeInTheDocument();
   expect(screen.getByText('+1.8%')).toBeInTheDocument();
-  expect(screen.getByText('tcb_news.record_benchmark_note')).toBeInTheDocument();
+  // A fragment unique to the note: "Chuẩn so sánh" alone also opens the
+  // col_benchmark column header, so it matches two elements.
+  expect(screen.getByText(/chỉ thực sự có năng lực/)).toBeInTheDocument();
 });
 
 test('scoring now re-reads the ledger and the record', async () => {
   withLedger([SCORED], { success: false, error: { response: { data: { scored_calls: 1 } } } });
   tcbNewsService.score.mockResolvedValue({ success: true, data: { scored: 1 } });
   render(<TcbNews />);
-  await screen.findByText('tcb_news.ledger_title');
+  await screen.findByText('Nhật ký khuyến nghị');
 
   tcbNewsService.recos.mockClear();
-  click(screen.getByText('tcb_news.score_now'));
+  click(screen.getByText('Chấm điểm ngay'));
 
   await waitFor(() => expect(tcbNewsService.score).toHaveBeenCalled());
   await waitFor(() => expect(tcbNewsService.recos).toHaveBeenCalled());
@@ -231,7 +265,7 @@ test('scoring now re-reads the ledger and the record', async () => {
 test('the raw-close warning fires only when a symbol lacked an adjusted close', async () => {
   withLedger([SCORED], { success: false, error: { response: { data: { scored_calls: 1 } } } });
   render(<TcbNews />);
-  expect(await screen.findByText('tcb_news.unadjusted_warning')).toBeInTheDocument();
+  expect(await screen.findByText(/giá đóng cửa thô/)).toBeInTheDocument();
 });
 
 test('adjusted returns carry no raw-close warning', async () => {
@@ -239,15 +273,15 @@ test('adjusted returns carry no raw-close warning', async () => {
   withLedger([{ ...SCORED, ret_adjusted: true }],
     { success: false, error: { response: { data: { scored_calls: 1 } } } });
   render(<TcbNews />);
-  await screen.findByText('tcb_news.ledger_title');
-  expect(screen.queryByText('tcb_news.unadjusted_warning')).not.toBeInTheDocument();
+  await screen.findByText('Nhật ký khuyến nghị');
+  expect(screen.queryByText(/giá đóng cửa thô/)).not.toBeInTheDocument();
 });
 
 test('the capital-adjusted note shows on any scored return, adjusted or not', async () => {
   withLedger([{ ...SCORED, ret_adjusted: true }],
     { success: false, error: { response: { data: { scored_calls: 1 } } } });
   render(<TcbNews />);
-  expect(await screen.findByText('tcb_news.capital_adjusted_note')).toBeInTheDocument();
+  expect(await screen.findByText(/điều chỉnh theo sự kiện thay đổi số lượng/)).toBeInTheDocument();
 });
 
 test('no caveat before anything has been scored', async () => {
@@ -255,7 +289,7 @@ test('no caveat before anything has been scored', async () => {
     ret_20d: null, ret_60d: null, ret_20d_vs_index: null }],
   { success: false, error: { response: { data: { scored_calls: 0 } } } });
   render(<TcbNews />);
-  await screen.findByText('tcb_news.ledger_title');
-  expect(screen.queryByText('tcb_news.unadjusted_warning')).not.toBeInTheDocument();
-  expect(screen.queryByText('tcb_news.capital_adjusted_note')).not.toBeInTheDocument();
+  await screen.findByText('Nhật ký khuyến nghị');
+  expect(screen.queryByText(/giá đóng cửa thô/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/điều chỉnh theo sự kiện thay đổi số lượng/)).not.toBeInTheDocument();
 });
