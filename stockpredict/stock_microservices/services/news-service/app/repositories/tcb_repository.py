@@ -275,9 +275,16 @@ class TcbRepository:
             row.scored_at = _utcnow()
             s.commit()
 
-    def all_scored_calls(self) -> list[tuple[str | None, dict, dict]]:
-        """(action, {horizon: return}, {horizon: excess}) for every stored call —
-        the input to the track record (FR-BM-RECORD)."""
+    def all_scored_calls(self) -> list[tuple[str | None, dict, dict, bool]]:
+        """(action, {horizon: return}, {horizon: excess}, adjusted) for every stored
+        call — the input to the track record (FR-BM-RECORD).
+
+        `ret_adjusted` travels with the marks rather than being left in the table for
+        someone to remember to check (Backlog #60): it is what tells `build_record` that
+        a call was priced off a raw series and so carries a share-count event as a
+        return. Reading it here is the only reason the flag is load-bearing instead of
+        decorative.
+        """
         with self._Session() as s:
             rows = s.execute(select(TcbNewsReco)).scalars().all()
             return [
@@ -285,6 +292,7 @@ class TcbRepository:
                     r.action,
                     {h: getattr(r, f"ret_{h}d") for h in (1, 5, 20, 60)},
                     {h: getattr(r, f"ret_{h}d_vs_index") for h in (1, 5, 20, 60)},
+                    bool(r.ret_adjusted),
                 )
                 for r in rows
             ]

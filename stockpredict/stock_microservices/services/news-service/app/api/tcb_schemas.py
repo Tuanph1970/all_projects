@@ -155,6 +155,10 @@ class CallRecordResponse(BaseModel):
 
     total_calls: int
     scored_calls: int
+    # Scored calls withheld because their prices were unadjusted (Backlog #60) — a raw
+    # series spanning a share-count event carries that event as a return. Surfaced so a
+    # reader can see the record is a subset, rather than the calls vanishing silently.
+    excluded_unadjusted: int = 0
     min_calls: int
     reportable: bool
     horizons: dict[str, HorizonRecord] = Field(default_factory=dict)

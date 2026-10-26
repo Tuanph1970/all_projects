@@ -19,6 +19,14 @@ Three rules the implementation exists to enforce:
    compares the stock's move between two specific dates with the index's move between
    *those same two dates* — not between the same two positions in the index's own
    series, which drift apart whenever the stock is halted.
+
+4. **An unadjusted mark is provisional, and never published** (Backlog #60). A *back-
+   adjusted* series cannot corrupt a return — the adjustment is a uniform rescale and a
+   return is a ratio, so a restatement landing mid-horizon cancels out (verified: a 1:1
+   bonus issue drifts `ref_close` 100 -> 50 and leaves every horizon unchanged). A *raw*
+   series is the real hazard: it prices the share-count change itself, measuring -45%
+   over 20 sessions where the true move was +10%. Such a mark therefore neither retires
+   the call nor reaches the track record.
 """
 from __future__ import annotations
 
@@ -175,7 +183,15 @@ class CallScorer:
                 continue
 
             score = score_call(session_date=session_date, prices=prices, index=index)
-            done = score.complete or (today - session_date).days > self._give_up_after_days
+            # An unadjusted mark is PROVISIONAL, never final (Backlog #60). Nothing
+            # re-scores a call once `scoring_done` is set, so retiring one priced off a
+            # raw series would freeze a fiction: a raw series spanning a 1:1 bonus issue
+            # prices the share-count change as a loss that never happened — measured at
+            # -45% over 20 sessions where the true move was +10%. Leaving the call in the
+            # queue lets the row heal the moment adj_close arrives upstream, and
+            # `give_up_after_days` still bounds how long it is retried.
+            final = score.complete and score.adjusted
+            done = final or (today - session_date).days > self._give_up_after_days
             self._repo.save_score(reco.id, score, scoring_done=done)
             if score.any_scored:
                 result.scored += 1
@@ -219,19 +235,29 @@ DIRECTIONAL = {"BUY": 1, "SELL": -1}
 def build_record(rows: list[tuple], *, min_calls: int) -> dict:
     """Aggregate scored calls into the desk's track record.
 
-    `rows` are (action, {horizon: ret}, {horizon: excess}) triples.
+    `rows` are (action, {horizon: ret}, {horizon: excess}, adjusted) 4-tuples.
 
     Every hit rate is reported beside the benchmark it must beat — what the same
     directional bet on the index over the same windows would have returned (C4/EC-B7).
     A method only "improves" if it beats that, which is why the two numbers always
     travel together rather than the hit rate being published alone.
+
+    Capital-adjusted marks only (Backlog #60): a call priced off a raw series that spans
+    a share-count event carries that event as if it were a return (-45% over 20 sessions
+    against a true +10%), and averaging it in would publish a number the desk never
+    earned. Such calls are withheld from every figure here and *counted* in
+    `excluded_unadjusted`, so the omission is visible rather than silent — and they are
+    excluded before `reportable` is decided, because the threshold exists to gate what
+    actually gets published.
     """
     scored = [r for r in rows if any(v is not None for v in r[1].values())]
+    usable = [r for r in scored if r[3]]
     record = {
         "total_calls": len(rows),
-        "scored_calls": len(scored),
+        "scored_calls": len(usable),
+        "excluded_unadjusted": len(scored) - len(usable),
         "min_calls": min_calls,
-        "reportable": len(scored) >= min_calls,
+        "reportable": len(usable) >= min_calls,
         "horizons": {},
         "by_action": {},
     }
@@ -239,9 +265,9 @@ def build_record(rows: list[tuple], *, min_calls: int) -> dict:
         return record
 
     for h in HORIZONS:
-        abs_returns = [r[1][h] for r in scored if r[1].get(h) is not None]
-        exc_returns = [r[2][h] for r in scored if r[2].get(h) is not None]
-        directional = [r for r in scored
+        abs_returns = [r[1][h] for r in usable if r[1].get(h) is not None]
+        exc_returns = [r[2][h] for r in usable if r[2].get(h) is not None]
+        directional = [r for r in usable
                        if r[0] in DIRECTIONAL and r[1].get(h) is not None]
         hits = [r for r in directional if r[1][h] * DIRECTIONAL[r[0]] > 0]
         # The benchmark: the same directional bet placed on the index instead. An
@@ -260,7 +286,7 @@ def build_record(rows: list[tuple], *, min_calls: int) -> dict:
         }
 
     for action in ("BUY", "SELL", "HOLD", "WATCH"):
-        of_action = [r for r in scored if r[0] == action]
+        of_action = [r for r in usable if r[0] == action]
         if not of_action:
             continue
         record["by_action"][action] = {

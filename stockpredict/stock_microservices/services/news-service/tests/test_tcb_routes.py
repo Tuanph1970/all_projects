@@ -380,9 +380,14 @@ def test_record_reports_once_enough_calls_are_scored(tcb_client, tcb_repo):
         s.commit()
         ids = [r.id for r in mail.recos]
     for rid in ids:
+        # adjusted=True is required to be publishable since Backlog #60: a call priced
+        # off a raw series is withheld from the record. CallScore defaults the flag to
+        # False so that forgetting it withholds rather than publishes, which means a
+        # fixture about the *reporting threshold* has to say so explicitly.
         tcb_repo.save_score(rid, CallScore(
             returns={1: 0.01, 5: 0.02, 20: 0.05, 60: 0.08},
-            excess={1: 0.01, 5: 0.02, 20: 0.05, 60: 0.08}), scoring_done=True)
+            excess={1: 0.01, 5: 0.02, 20: 0.05, 60: 0.08},
+            adjusted=True), scoring_done=True)
 
     body = tcb_client.get(f"{PREFIX}/tcb/calls/record").json()
     assert body["reportable"] is True

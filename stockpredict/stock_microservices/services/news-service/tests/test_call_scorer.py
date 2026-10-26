@@ -24,11 +24,17 @@ from app.services.call_scorer import (
 CALL_DATE = date(2026, 9, 21)
 
 
-def series(closes, *, start=CALL_DATE, symbol="NTP", adjusted=False, skip=()):
+def series(closes, *, start=CALL_DATE, symbol="NTP", adjusted=True, skip=()):
     """A synthetic daily series starting at `start`, one bar per weekday.
 
     `skip` names offsets to omit, which simulates a halted stock — the case that
     separates "N sessions later" from "N calendar days later".
+
+    `adjusted` defaults to True because that is production: stock-data-service writes
+    adj_close on ingest (Backlog #56), so the fallback to raw closes is the exception.
+    It matters since Backlog #60 — an unadjusted mark no longer retires a call — so the
+    tests that are *about* the raw fallback pass `adjusted=False` explicitly rather than
+    inheriting it by accident.
     """
     dates, values, d, i = [], [], start, 0
     while len(dates) < len(closes):
@@ -331,9 +337,9 @@ async def test_an_empty_queue_is_a_cheap_noop():
 # The track record (FR-BM-RECORD, EC-B7)
 # ---------------------------------------------------------------------------
 
-def _row(action, ret, excess=None):
+def _row(action, ret, excess=None, *, adjusted=True):
     return (action, {1: ret, 5: ret, 20: ret, 60: ret},
-            {1: excess, 5: excess, 20: excess, 60: excess})
+            {1: excess, 5: excess, 20: excess, 60: excess}, adjusted)
 
 
 def test_record_refuses_to_report_below_the_minimum():
@@ -397,7 +403,8 @@ def test_a_call_that_beat_the_index_shows_positive_excess_and_a_losing_benchmark
 
 
 def test_mean_return_ignores_unfilled_horizons():
-    rows = [("BUY", {1: 0.10, 5: 0.10, 20: None, 60: None}, {1: None, 5: None, 20: None, 60: None})
+    rows = [("BUY", {1: 0.10, 5: 0.10, 20: None, 60: None},
+             {1: None, 5: None, 20: None, 60: None}, True)
             for _ in range(30)]
     record = build_record(rows, min_calls=30)
     assert record["horizons"]["1d"]["n"] == 30
@@ -448,3 +455,149 @@ async def test_scorer_drives_the_real_repository_end_to_end():
     # Completed calls leave the queue, so the next tick is free.
     assert repo.list_unscored() == []
     assert (await CallScorer(repo, prices).tick(today=CALL_DATE))["considered"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Corporate actions and the price basis (Backlog #60)
+#
+# The backlog row expected a *restatement* to corrupt a call scored across it. It
+# cannot: a back-adjusted series is a uniform rescale and a return is a ratio, so the
+# factor cancels. The real hazard is the RAW fallback, which prices the share-count
+# event itself — and, before this, froze that figure permanently.
+# ---------------------------------------------------------------------------
+
+# A stock worth +0.5/session on an original share, with a 1:1 bonus issue 10 sessions
+# after the call. Economic truth: +10% by session 20, +30% by session 60 — the bonus
+# issue changes the share count, not the value.
+_EX = 10
+
+
+def _value(n):
+    return [100.0 + 0.5 * i for i in range(n)]
+
+
+def _restated(n):
+    """Back-adjusted: every pre-ex bar scaled to meet the post-ex level. Continuous."""
+    return [v * 0.5 for v in _value(n)]
+
+
+def _raw(n):
+    """Unadjusted market print: a -50% cliff at the ex-date that nothing earned."""
+    return [v * (0.5 if i >= _EX else 1.0) for i, v in enumerate(_value(n))]
+
+
+def test_a_back_adjusted_restatement_leaves_every_return_unchanged():
+    """The premise of #60, measured: a restatement landing mid-horizon is harmless.
+
+    This is why the fix is not "re-score when ref_close drifts" — the reference drifts
+    by exactly the adjustment factor while the returns do not move at all.
+    """
+    before = score_call(session_date=CALL_DATE,
+                        prices=series(_value(8), adjusted=True))
+    after = score_call(session_date=CALL_DATE,
+                       prices=series(_restated(61), adjusted=True))
+
+    assert before.ref_close == 100.0 and after.ref_close == 50.0   # drifted by 0.5
+    assert before.returns[1] == pytest.approx(after.returns[1])    # 100.5/100 == 50.25/50
+    assert before.returns[5] == pytest.approx(after.returns[5])
+    assert after.returns[20] == pytest.approx(0.10)                # the economic truth
+    assert after.returns[60] == pytest.approx(0.30)
+
+
+def test_a_raw_series_prices_the_bonus_issue_as_if_it_were_a_return():
+    """The actual hazard, with the size of the error pinned down."""
+    score = score_call(session_date=CALL_DATE, prices=series(_raw(61), adjusted=False))
+
+    assert score.adjusted is False
+    assert score.returns[20] == pytest.approx(-0.45)   # 55/100 - 1; truth is +0.10
+    assert score.returns[60] == pytest.approx(-0.35)   # 65/100 - 1; truth is +0.30
+    # The horizons that do not span the ex-date are untouched, which is what makes the
+    # corruption easy to miss: two of the four marks look perfectly ordinary.
+    assert score.returns[1] == pytest.approx(0.005)
+    assert score.returns[5] == pytest.approx(0.025)
+
+
+@pytest.mark.asyncio
+async def test_a_complete_but_unadjusted_call_is_not_retired():
+    repo = FakeRepo([(FakeReco(1, "NTP"), CALL_DATE)])
+    prices = FakePrices({"NTP": series(_raw(61), adjusted=False)})
+    await CallScorer(repo, prices).tick(today=CALL_DATE + timedelta(days=100))
+
+    score, done = repo.saved[1]
+    assert score.complete is True      # every horizon has elapsed and been filled
+    assert done is False               # ...but the basis is raw, so it stays provisional
+
+
+@pytest.mark.asyncio
+async def test_an_unadjusted_call_is_still_retired_once_its_window_closes():
+    """Provisional must not mean immortal — the give-up window still applies."""
+    repo = FakeRepo([(FakeReco(1, "NTP"), CALL_DATE)])
+    prices = FakePrices({"NTP": series(_raw(61), adjusted=False)})
+    await CallScorer(repo, prices).tick(today=CALL_DATE + timedelta(days=201))
+
+    _, done = repo.saved[1]
+    assert done is True
+
+
+@pytest.mark.asyncio
+async def test_a_raw_mark_heals_once_an_adjusted_series_arrives():
+    """End to end on the real repository: the fiction is overwritten, not frozen.
+
+    This is the behaviour #60 was really about. Before the guard, the first tick set
+    `scoring_done` and nothing ever revisited the call, so -45% stood as the desk's
+    20-session result for a call that actually made +10%.
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import StaticPool
+    from pathlib import Path
+
+    from app.ingest.tcb_mail_parser import parse_tcb_mail
+    from app.repositories.tcb_repository import TcbRepository
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False},
+                           poolclass=StaticPool)
+    repo = TcbRepository(engine)
+    repo.ensure_schema()
+    raw = (Path(__file__).parent / "fixtures" / "tcb_mail_1.txt").read_text(encoding="utf-8")
+    repo.save(parse_tcb_mail(raw, reference_date=CALL_DATE), raw=raw, session_date=CALL_DATE)
+
+    # Tick 1 — adj_close is missing upstream, so the scorer falls back to raw closes.
+    await CallScorer(repo, FakePrices({"NTP": series(_raw(61), adjusted=False)})).tick(
+        today=CALL_DATE + timedelta(days=100))
+    (reco, _), = repo.list_recos(symbol="NTP")
+    assert reco.ret_20d == pytest.approx(-0.45) and reco.ret_adjusted is False
+    assert reco.scoring_done is False
+    assert [r.symbol for r, _ in repo.list_unscored()] == ["NTP"]   # still queued
+
+    # Tick 2 — adj_close populated (Backlog #56), so the series is now back-adjusted.
+    await CallScorer(repo, FakePrices({"NTP": series(_restated(61), adjusted=True)})).tick(
+        today=CALL_DATE + timedelta(days=110))
+    (reco, _), = repo.list_recos(symbol="NTP")
+    assert reco.ret_20d == pytest.approx(0.10)     # healed to the economic truth
+    assert reco.ret_60d == pytest.approx(0.30)
+    assert reco.ret_adjusted is True and reco.scoring_done is True
+    assert repo.list_unscored() == []
+
+
+def test_the_record_withholds_unadjusted_calls_and_counts_them():
+    rows = ([_row("BUY", 0.05) for _ in range(30)]
+            + [_row("BUY", -0.45, adjusted=False) for _ in range(5)])
+    record = build_record(rows, min_calls=30)
+
+    assert record["total_calls"] == 35
+    assert record["scored_calls"] == 30          # the five are not in any figure
+    assert record["excluded_unadjusted"] == 5    # ...and they are not silent either
+    assert record["horizons"]["20d"]["n"] == 30
+    assert record["horizons"]["20d"]["mean_return"] == pytest.approx(0.05)
+    assert record["by_action"]["BUY"]["n"] == 30
+
+
+def test_unadjusted_calls_do_not_count_towards_the_minimum():
+    """The threshold gates what is published, so it counts only publishable calls."""
+    rows = ([_row("BUY", 0.05) for _ in range(29)]
+            + [_row("BUY", 0.05, adjusted=False) for _ in range(10)])
+    record = build_record(rows, min_calls=30)
+
+    assert record["reportable"] is False
+    assert record["scored_calls"] == 29 and record["excluded_unadjusted"] == 10
+    assert record["horizons"] == {}
