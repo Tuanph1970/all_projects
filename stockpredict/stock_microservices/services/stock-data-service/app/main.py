@@ -79,6 +79,19 @@ async def _run_sync():
         except Exception as e:
             logger.error(f"Price board refresh failed: {e}", exc_info=True)
 
+        # Backlog #91 — keep the market indices current. The on-read fallback
+        # in get_market_indices only fires on an EMPTY table, so without this
+        # the first read would backfill a year and then never refresh again.
+        # A SHORT window here: the upsert is bounded to the dates it writes,
+        # so a week is enough to close any gap, and the 365-day backfill stays
+        # on the empty-table path. Five vendor calls at the guest throttle
+        # (#49), once a day.
+        try:
+            rows = await service.sync_market_indices(days=7)
+            logger.info(f"Market indices refreshed: {rows} rows")
+        except Exception as e:
+            logger.error(f"Market index refresh failed: {e}", exc_info=True)
+
 
 async def _background_company_sync():
     """Background task: sync on startup if stale, then daily at 1:00 AM."""

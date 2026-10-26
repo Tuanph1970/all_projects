@@ -267,6 +267,48 @@ def _utcnow() -> datetime:
     return datetime.utcnow()
 
 
+#: Backlog #91 — the index codes the vendor actually serves, verified at EM-6
+#: against VCI with their first available bar:
+#:   VNINDEX     5,672 bars from 2004-01-05
+#:   HNXINDEX    5,217 bars from 2005-07-14
+#:   UPCOMINDEX  4,238 bars from 2009-06-25
+#:   VN30        3,669 bars from 2012-02-06
+#:   HNX30       3,522 bars from 2012-07-09
+#: VN100 is deliberately absent: 1,082 bars from 2022 is too short to be
+#: useful as an index series.
+def _safe_float(value) -> Optional[float]:
+    """float(value) or None — never raises, never coerces NaN to a number."""
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return None
+    return None if out != out else out
+
+
+def _safe_int(value) -> Optional[int]:
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return None
+    return None if out != out else int(out)
+
+
+MARKET_INDEX_CODES = ("VNINDEX", "VN30", "HNXINDEX", "HNX30", "UPCOMINDEX")
+
+MARKET_INDEX_NAMES = {
+    "VNINDEX": "VN-Index",
+    "VN30": "VN30",
+    "HNXINDEX": "HNX-Index",
+    "HNX30": "HNX30",
+    "UPCOMINDEX": "UPCoM-Index",
+}
+
+#: How much history an on-read fallback pulls. Five vendor calls at the guest
+#: throttle (~3.1s apart, #49) cost ~16s, so this runs only when the table is
+#: EMPTY — never on an ordinary read.
+MARKET_INDEX_BACKFILL_DAYS = 365
+
+
 def price_board_has_prices(records) -> bool:
     """Whether a fetched board carries any real match price.
 
@@ -2167,14 +2209,85 @@ class StockService:
 
     # ==================== Market Index Operations ====================
 
-    async def get_market_indices(
-        self,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
-    ) -> List[MarketIndexResponse]:
-        """Get market index data"""
-        indices = await self.repository.get_market_indices(start_date, end_date)
+    async def sync_market_indices(self, days: int = MARKET_INDEX_BACKFILL_DAYS) -> int:
+        """Fetch the market indices from the vendor and store them (#91).
 
+        One vendor call per code. A single failure is logged and skipped
+        rather than aborting the batch — losing four indices because one had
+        a hiccup would be the wrong trade.
+        """
+        end = date.today()
+        start = end - timedelta(days=max(1, days))
+        records: List[dict] = []
+
+        for code in MARKET_INDEX_CODES:
+            try:
+                stock = self.vnstock.stock(
+                    symbol=code, source=settings.VNSTOCK_DATA_SOURCE
+                )
+                df = await vnstock_call(
+                    stock.quote.history,
+                    start=start.strftime("%Y-%m-%d"),
+                    end=end.strftime("%Y-%m-%d"),
+                    interval="1D",
+                )
+            except Exception as exc:  # noqa: BLE001
+                if _is_rate_limit(exc):
+                    logger.warning("vnstock rate limit hit on index %s", code)
+                else:
+                    logger.error("Index %s unavailable: %s: %s",
+                                 code, type(exc).__name__, exc)
+                continue
+
+            if df is None or len(df) == 0:
+                logger.warning("No data returned for index %s", code)
+                continue
+
+            prev_close = None
+            for row in df.itertuples(index=False):
+                close = getattr(row, "close", None)
+                # `MarketIndex.close` is NOT NULL, so a priceless bar would
+                # raise on insert and lose the whole batch.
+                if close is None or close != close:
+                    continue
+                close = float(close)
+                day = str(getattr(row, "time", ""))[:10]
+                if not day:
+                    continue
+                # change / change_percent are on the model but not in the
+                # vendor response, so they are derived. The FIRST bar has no
+                # predecessor and gets None rather than a fabricated zero.
+                change = None if prev_close is None else close - prev_close
+                change_pct = (
+                    None if prev_close in (None, 0)
+                    else (close - prev_close) / prev_close * 100.0
+                )
+                records.append({
+                    "code": code,
+                    "name": MARKET_INDEX_NAMES.get(code, code),
+                    "date": date.fromisoformat(day),
+                    "open": _safe_float(getattr(row, "open", None)),
+                    "high": _safe_float(getattr(row, "high", None)),
+                    "low": _safe_float(getattr(row, "low", None)),
+                    "close": close,
+                    "volume": _safe_int(getattr(row, "volume", None)),
+                    "value": _safe_int(getattr(row, "value", None)),
+                    "change": change,
+                    "change_percent": change_pct,
+                })
+                prev_close = close
+
+        if not records:
+            logger.warning("Market index sync produced no rows")
+            return 0
+
+        written = await self.repository.bulk_upsert_market_indices(records)
+        logger.info("Synced %d market index rows across %d codes",
+                    written, len({r["code"] for r in records}))
+        return written
+
+    @staticmethod
+    def _market_index_rows_to_response(indices) -> List[MarketIndexResponse]:
         return [
             MarketIndexResponse(
                 code=i.code,
@@ -2191,6 +2304,30 @@ class StockService:
             )
             for i in indices
         ]
+
+    async def get_market_indices(
+        self,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> List[MarketIndexResponse]:
+        """Market index data, falling back to a live sync when empty (#91).
+
+        The same shape `get_historical_data` and the price board already use:
+        serve the cache, and fetch from the vendor only when there is nothing
+        to serve. Before this the table had no writer at all, so the endpoint
+        returned empty forever.
+        """
+        indices = await self.repository.get_market_indices(start_date, end_date)
+        if not indices:
+            logger.info("Market indices empty, syncing from vendor")
+            try:
+                await self.sync_market_indices()
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Market index sync failed: %s: %s",
+                             type(exc).__name__, exc)
+                return []
+            indices = await self.repository.get_market_indices(start_date, end_date)
+        return self._market_index_rows_to_response(indices)
 
     async def get_latest_indices(self) -> List[MarketIndexResponse]:
         """Get latest market index values"""

@@ -383,6 +383,56 @@ class StockRepository:
         )
         return list(result.scalars().all())
 
+    async def bulk_upsert_market_indices(self, records: List[dict]) -> int:
+        """Replace the stored rows for each (code, date) in `records`.
+
+        Backlog #91: `market_indices` had a reader and two public endpoints
+        but NO WRITER anywhere, so both endpoints returned empty forever.
+        This is that writer.
+
+        Delete-then-insert per code, bounded to the date span being written,
+        mirroring `bulk_upsert_financial_statements`. The model has a UNIQUE
+        index on (code, date), so a plain insert would raise on the overlap
+        every refresh produces.
+        """
+        if not records:
+            return 0
+
+        by_code: dict = {}
+        for rec in records:
+            by_code.setdefault(rec["code"], []).append(rec)
+
+        written = 0
+        for code, rows in by_code.items():
+            days = [r["date"] for r in rows]
+            await self.session.execute(
+                delete(MarketIndex).where(
+                    and_(
+                        MarketIndex.code == code,
+                        MarketIndex.date >= min(days),
+                        MarketIndex.date <= max(days),
+                    )
+                )
+            )
+            for r in rows:
+                self.session.add(MarketIndex(
+                    code=code,
+                    name=r.get("name") or code,
+                    date=r["date"],
+                    open=r.get("open"),
+                    high=r.get("high"),
+                    low=r.get("low"),
+                    close=r["close"],
+                    volume=r.get("volume"),
+                    value=r.get("value"),
+                    change=r.get("change"),
+                    change_percent=r.get("change_percent"),
+                ))
+                written += 1
+
+        await self.session.commit()
+        return written
+
     async def bulk_upsert_financial_statements(
         self, symbol: str, statement_type: str, period: str, records: List[dict]
     ) -> int:
