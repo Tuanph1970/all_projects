@@ -21,6 +21,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_
 from sqlalchemy import create_engine
 from starlette.responses import Response
 
+from app.api.broker_routes import router as broker_router
 from app.api.routes import router
 from app.api.tcb_routes import router as tcb_router
 from app.config import get_settings
@@ -68,6 +69,12 @@ async def lifespan(app: FastAPI):
         if settings.ENABLE_SCORING:
             _start_call_scorer(tcb_repo)
 
+        # Broker mail intake, phase E1 (FR-BM-INTAKE). The table and the source are
+        # always constructed so `POST /news/broker/poll` and the stats endpoint work on
+        # demand; only the background loop is gated, and only when the mailbox is
+        # actually configured — see _start_broker_mail.
+        _start_broker_mail(engine)
+
         # Start the company poller outside test env (TestClient must not spawn pollers
         # or touch RabbitMQ/upstreams). N12 adds the macro poller behind ENABLE_MACRO.
         if settings.ENABLE_COMPANY and settings.ENVIRONMENT != "test":
@@ -87,6 +94,8 @@ async def lifespan(app: FastAPI):
         await container.macro_scheduler.stop()
     if container.scoring_scheduler is not None:
         await container.scoring_scheduler.stop()
+    if container.broker_mail_scheduler is not None:
+        await container.broker_mail_scheduler.stop()
     if container.bus is not None:
         try:
             await container.bus.disconnect()
@@ -149,6 +158,70 @@ def _start_call_scorer(tcb_repo: TcbRepository) -> None:
         sched = PollerScheduler(scorer, settings.SCORING_INTERVAL_SECONDS, name="call-scorer")
         sched.start()
         container.scoring_scheduler = sched
+
+
+def _start_broker_mail(engine) -> None:
+    """Wire broker-mail intake (E1: FR-BM-INTAKE, FR-BM-DEDUP, FR-BM-BACKFILL).
+
+    Three states, kept distinguishable on purpose:
+      * table + source always built, so the operator endpoints answer either way;
+      * scheduler started only when ENABLE_EMAIL *and* the mailbox is configured;
+      * configured-but-unreachable is reported per tick by the source, never at startup.
+
+    A mailbox outage must not fail startup, so nothing here connects — the factory is
+    called per tick (ImapMailbox deliberately does not hold a connection open).
+    """
+    from app.ingest.broker_mail_source import BrokerMailSource, ImapMailbox
+    from app.repositories.broker_mail_repository import BrokerMailRepository
+    from app.services.scheduler import PollerScheduler
+
+    repo = BrokerMailRepository(engine)
+    repo.ensure_schema()
+    container.broker_mail_repo = repo
+
+    def mailbox_factory():
+        # The config check lives HERE rather than in the route or beside the scheduler,
+        # so "is the mailbox usable?" is answered in exactly one place. With an empty
+        # host imaplib would dial localhost and the operator would read "Connection
+        # refused" — pointing at the network instead of at the three settings missing.
+        if not settings.broker_mail_configured:
+            raise RuntimeError(
+                "ingestion mailbox not configured: set BROKER_MAIL_HOST, "
+                "BROKER_MAIL_USER and BROKER_MAIL_PASSWORD (EC-B1: a dedicated "
+                "mailbox, never a personal inbox)")
+        return ImapMailbox(
+            settings.BROKER_MAIL_HOST,
+            settings.BROKER_MAIL_USER,
+            settings.BROKER_MAIL_PASSWORD,
+            port=settings.BROKER_MAIL_PORT,
+            folder=settings.BROKER_MAIL_FOLDER,
+            timeout=settings.HTTP_TIMEOUT_SECONDS * 3,   # IMAP login is slower than HTTP
+        )
+
+    source = BrokerMailSource(
+        repo, mailbox_factory,
+        allow_from=settings.broker_mail_allow_from,
+        source_key=settings.BROKER_MAIL_SOURCE_KEY,
+        lookback_days=settings.BROKER_MAIL_LOOKBACK_DAYS,
+    )
+    container.broker_mail_source = source
+
+    if not settings.ENABLE_EMAIL:
+        logger.info("broker mail intake off (ENABLE_EMAIL=0); endpoints still available")
+        return
+    if not settings.broker_mail_configured:
+        # Loud, because this is the one state that looks enabled and captures nothing —
+        # and every day it stays that way is a day of mail that may be unrecoverable.
+        logger.warning(
+            "ENABLE_EMAIL=1 but the ingestion mailbox is not configured "
+            "(BROKER_MAIL_HOST/USER/PASSWORD); no mail will be captured")
+        return
+    if settings.ENVIRONMENT == "test":
+        return
+    sched = PollerScheduler(
+        source, settings.BROKER_MAIL_POLL_INTERVAL_SECONDS, name="broker-mail")
+    sched.start()
+    container.broker_mail_scheduler = sched
 
 
 def _load_macro_sources() -> list:
@@ -226,6 +299,12 @@ app.include_router(
     tcb_router,
     prefix=f"/{settings.API_PREFIX}/api/v2/news",
     tags=["TCB News"],
+)
+
+app.include_router(
+    broker_router,
+    prefix=f"/{settings.API_PREFIX}/api/v2/news",
+    tags=["Broker Mail"],
 )
 
 

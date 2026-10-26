@@ -58,6 +58,30 @@ class Settings(BaseSettings):
     # Below this many scored calls the track record is not reportable (FR-BM-RECORD).
     SCORING_MIN_CALLS: int = 30
 
+    # --- Broker mail intake, phase E1 (FR-BM-INTAKE, EC-B1) ----------------
+    # `ENABLE_EMAIL` above is the stream toggle. SRS Appendix C names the default
+    # `BROKER_MAIL_ENABLED`, but ENABLE_EMAIL already exists here, is already plumbed
+    # through both compose files, and was reserved for exactly this stream — two flags
+    # meaning one thing is how a feature ends up half-on.
+    #
+    # Credentials address the DEDICATED ingestion mailbox and nothing else (EC-B1): the
+    # service must never hold credentials to an inbox carrying personal mail. Env only —
+    # there is no secret store yet (Backlog #24).
+    BROKER_MAIL_HOST: str = ""
+    BROKER_MAIL_PORT: int = 993
+    BROKER_MAIL_USER: str = ""
+    BROKER_MAIL_PASSWORD: str = ""
+    BROKER_MAIL_FOLDER: str = "INBOX"
+    # Appendix B's sender allow-list, as globs. The forwarding address is
+    # deployment-specific — a Gmail filter rewrites `From` to the forwarder — so it is
+    # appended here per deployment rather than hardcoded.
+    BROKER_MAIL_ALLOW_FROM: str = "*@tcbs.com.vn"
+    BROKER_MAIL_SOURCE_KEY: str = "tcbs.daily"
+    BROKER_MAIL_POLL_INTERVAL_SECONDS: int = 1800   # SRS Appendix C
+    # How far back each scheduled tick looks. Dedupe makes the overlap free, so this only
+    # has to exceed the longest outage we expect to sleep through.
+    BROKER_MAIL_LOOKBACK_DAYS: int = 7
+
     # Only these sentiments trigger a notification (good/bad only — EC-N8).
     NOTIFY_SENTIMENTS: str = "good,bad"
 
@@ -81,6 +105,18 @@ class Settings(BaseSettings):
     @property
     def notify_sentiments(self) -> list[str]:
         return [s.strip() for s in self.NOTIFY_SENTIMENTS.split(",") if s.strip()]
+
+    @property
+    def broker_mail_allow_from(self) -> list[str]:
+        return [p.strip() for p in self.BROKER_MAIL_ALLOW_FROM.split(",") if p.strip()]
+
+    @property
+    def broker_mail_configured(self) -> bool:
+        """True once the mailbox is actually addressable. Kept separate from
+        ENABLE_EMAIL so "switched on but not configured" is a distinguishable state
+        rather than a confusing connection error on every tick."""
+        return bool(self.BROKER_MAIL_HOST and self.BROKER_MAIL_USER
+                    and self.BROKER_MAIL_PASSWORD)
 
     class Config:
         env_file = ".env"

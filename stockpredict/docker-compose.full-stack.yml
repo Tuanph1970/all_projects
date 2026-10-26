@@ -465,7 +465,22 @@ services:
       - ENABLE_COMPANY=1
       - ENABLE_MACRO=${NEWS_ENABLE_MACRO:-1}
       - ENABLE_BRIDGE=${NEWS_ENABLE_BRIDGE:-1}
-      - ENABLE_EMAIL=0
+      # Broker-mail intake, E1 (FR-BM-INTAKE). Off until the gate in SRS Appendix E is
+      # met. Parameterised rather than a literal 0 so switching it on is a .env change,
+      # not a compose edit — and so the credentials never have to live in this file.
+      - ENABLE_EMAIL=${NEWS_ENABLE_EMAIL:-0}
+      # The DEDICATED ingestion mailbox (EC-B1) — never a personal inbox. Empty by
+      # default; the service logs loudly if ENABLE_EMAIL=1 while these are unset.
+      - BROKER_MAIL_HOST=${BROKER_MAIL_HOST:-}
+      - BROKER_MAIL_PORT=${BROKER_MAIL_PORT:-993}
+      - BROKER_MAIL_USER=${BROKER_MAIL_USER:-}
+      - BROKER_MAIL_PASSWORD=${BROKER_MAIL_PASSWORD:-}
+      - BROKER_MAIL_FOLDER=${BROKER_MAIL_FOLDER:-INBOX}
+      # Appendix B's allow-list. Append the forwarding address for this deployment:
+      # a Gmail filter rewrites From, so the broker's own domain is not enough.
+      - BROKER_MAIL_ALLOW_FROM=${BROKER_MAIL_ALLOW_FROM:-*@tcbs.com.vn}
+      - BROKER_MAIL_POLL_INTERVAL_SECONDS=${BROKER_MAIL_POLL_INTERVAL:-1800}
+      - BROKER_MAIL_LOOKBACK_DAYS=${BROKER_MAIL_LOOKBACK_DAYS:-7}
       - COMPANY_POLL_INTERVAL_SECONDS=${NEWS_COMPANY_POLL_INTERVAL:-900}
       - MACRO_POLL_INTERVAL_SECONDS=${NEWS_MACRO_POLL_INTERVAL:-1800}
       # Optional JSON economic-calendar registry (actual+consensus) for bridged,
