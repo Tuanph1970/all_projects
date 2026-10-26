@@ -267,6 +267,32 @@ def _utcnow() -> datetime:
     return datetime.utcnow()
 
 
+def price_board_has_prices(records) -> bool:
+    """Whether a fetched board carries any real match price.
+
+    Backlog #48 follow-up. Vietcap legitimately returns rows with
+    `matchPrice` 0 when the market is shut, and `refresh_price_board` used to
+    delete the stored board and insert those zeros — destroying the previous
+    session's closing prices. The snapshot then counted as FRESH (it
+    postdates the last close), so the board stayed blank until the next open,
+    and all weekend if a nightly refresh ran on a Saturday or Sunday.
+
+    Observed live at 08:07 ICT: 30 rows, 0 priced, the stored snapshot
+    timestamped 08:06 — before the 09:00 open.
+
+    The existing `if not records` guard catches an EMPTY response, not thirty
+    rows of zeros. This is the same intent — "keep serving what we have
+    rather than blanking the board" — applied to that case.
+    """
+    for rec in records or []:
+        try:
+            if float(rec.get("matchPrice") or 0) > 0:
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
+
+
 def price_board_is_stale(updated_at: Optional[datetime], now: datetime, max_age: timedelta) -> bool:
     """Whether a board snapshot taken at ``updated_at`` (naive UTC) is stale at ``now``.
 
@@ -2262,7 +2288,7 @@ class StockService:
         Fetch live data from Vietcap API, delete old rows, insert fresh ones.
         Returns count of inserted records.
         """
-        from sqlalchemy import delete as sa_delete
+        from sqlalchemy import delete as sa_delete, select
 
         group_upper = group.upper()
         logger.info(f"Refreshing price board for {group_upper}")
@@ -2273,6 +2299,23 @@ class StockService:
             return 0
 
         session = self.repository.session
+
+        # Backlog #48 follow-up: a price-less fetch (market shut) must not
+        # replace a board that HAS prices — that is how the previous close
+        # was being destroyed by the pre-open nightly refresh. With nothing
+        # stored yet it is still written: symbols and reference prices beat a
+        # blank screen.
+        if not price_board_has_prices(records):
+            existing = (await session.execute(
+                select(PriceBoard).where(PriceBoard.stock_group == group_upper)
+            )).scalars().all()
+            if any(r.match_price for r in existing):
+                logger.info(
+                    "Price board fetch for %s carried no match prices (market "
+                    "shut); keeping the %d priced rows already stored",
+                    group_upper, len(existing),
+                )
+                return 0
 
         # Delete old rows for this group
         await session.execute(

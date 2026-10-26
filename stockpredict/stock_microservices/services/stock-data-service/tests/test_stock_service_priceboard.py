@@ -413,6 +413,8 @@ MON_1600_ICT = datetime(2026, 10, 19, 9, 0)     # Monday, after the close
 SAT_1000_ICT = datetime(2026, 10, 24, 3, 0)     # Saturday
 FRI_1500_ICT = datetime(2026, 10, 23, 8, 0)     # Friday, the close itself
 FRI_1430_ICT = datetime(2026, 10, 23, 7, 30)    # Friday, before the close
+MON_0800_ICT = datetime(2026, 10, 26, 1, 0)     # Monday, before the open
+SUN_1200_ICT = datetime(2026, 10, 25, 5, 0)     # Sunday
 MAX_AGE = timedelta(seconds=60)
 
 
@@ -431,6 +433,13 @@ MAX_AGE = timedelta(seconds=60)
     (FRI_1500_ICT, SAT_1000_ICT, False),
     (FRI_1430_ICT, SAT_1000_ICT, True),
     (None, SAT_1000_ICT, True),
+    # Monday BEFORE the open — the only case where the weekend walk-back
+    # iterates twice (Mon -> Sun -> Sat -> Fri), so the latest market is
+    # still Friday's close. Added on review: the logic was right but this
+    # path, the most intricate one, had no test.
+    (FRI_1500_ICT, MON_0800_ICT, False),
+    (FRI_1430_ICT, MON_0800_ICT, True),
+    (SUN_1200_ICT, MON_0800_ICT, False),
 ])
 def test_price_board_is_stale(updated_at, now, stale):
     assert svc_mod.price_board_is_stale(updated_at, now, MAX_AGE) is stale
@@ -527,3 +536,98 @@ async def test_get_price_board_returns_empty_when_refresh_yields_nothing():
     with patch.object(svc, "refresh_price_board", AsyncMock(return_value=0)):
         out = await svc.get_price_board("VN30")
     assert out == []
+
+
+# ---------------------------------------------------------------------------
+# #48 follow-up — a price-less refresh must not destroy a priced board.
+#
+# Found on review, live: the board read 30 rows / 0 priced at 08:07 ICT. The
+# nightly refresh had run at 08:06 — BEFORE the 09:00 open — and Vietcap
+# legitimately returns no match prices with the market shut. `refresh_price_
+# board` then deleted Friday's closing prices and inserted thirty zero rows.
+#
+# The snapshot is then "fresh" by the staleness rule (it postdates Friday's
+# close), so the board stays blank until 09:00 — and stays blank ALL WEEKEND
+# if a nightly refresh runs on Saturday or Sunday. That is the original #48
+# symptom (matchPrice/change at 0/null) in the out-of-session window.
+#
+# The existing `if not records: return 0` guard catches an EMPTY list, not
+# thirty rows of zeros. This is the author's own stated intent — "keep serving
+# what we have rather than blanking the board" — applied to that case.
+
+class _FakeSession:
+    """Minimal async session: serves `rows` to a select, records a delete.
+
+    `refresh_price_board` issues a DELETE then `add()`s each row, so the
+    question these tests ask is simply whether the DELETE happened.
+    """
+
+    def __init__(self, rows):
+        self.rows = list(rows)
+        self.deleted = False
+        self.added = []
+
+    async def execute(self, statement):
+        if statement.__class__.__name__.lower().startswith("delete"):
+            self.deleted = True
+            return MagicMock()
+        return _row_with_scalars(self.rows)
+
+    def add(self, obj):
+        self.added.append(obj)
+
+    async def commit(self):
+        return None
+
+    async def rollback(self):
+        return None
+
+
+def _rec(symbol, match_price):
+    return {"symbol": symbol, "refPrice": 100.0, "matchPrice": match_price}
+
+
+class TestAPricelessRefreshDoesNotBlankAPricedBoard:
+
+    def test_price_board_has_prices_detects_a_dead_snapshot(self):
+        assert svc_mod.price_board_has_prices([_rec("FPT", 95.0)]) is True
+        assert svc_mod.price_board_has_prices([_rec("FPT", 0.0)]) is False
+        assert svc_mod.price_board_has_prices([_rec("FPT", None)]) is False
+        assert svc_mod.price_board_has_prices([]) is False
+        # one real price among dead rows is still a live board
+        assert svc_mod.price_board_has_prices(
+            [_rec("FPT", 0.0), _rec("VNM", 61.0)]) is True
+
+    @pytest.mark.asyncio
+    async def test_a_zero_price_fetch_leaves_an_existing_priced_board_alone(self):
+        svc = _make_service()
+        svc.repository.session = _FakeSession(_board_rows(TUE_1600_ICT))
+        svc.repository.session.rows[0].match_price = 95.0
+        with patch.object(svc, "_fetch_price_board_live",
+                          AsyncMock(return_value=[_rec("FPT", 0.0)])):
+            count = await svc.refresh_price_board("VN30")
+        assert count == 0, "a price-less fetch must not be treated as a refresh"
+        assert svc.repository.session.deleted is False, (
+            "Friday's closing prices were deleted and replaced by zeros"
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_zero_price_fetch_still_populates_an_EMPTY_board(self):
+        """Nothing to lose: symbols and reference prices beat a blank screen."""
+        svc = _make_service()
+        svc.repository.session = _FakeSession([])
+        with patch.object(svc, "_fetch_price_board_live",
+                          AsyncMock(return_value=[_rec("FPT", 0.0)])):
+            count = await svc.refresh_price_board("VN30")
+        assert count == 1
+
+    @pytest.mark.asyncio
+    async def test_a_priced_fetch_replaces_the_board_as_before(self):
+        svc = _make_service()
+        svc.repository.session = _FakeSession(_board_rows(TUE_1600_ICT))
+        svc.repository.session.rows[0].match_price = 95.0
+        with patch.object(svc, "_fetch_price_board_live",
+                          AsyncMock(return_value=[_rec("FPT", 97.0)])):
+            count = await svc.refresh_price_board("VN30")
+        assert count == 1
+        assert svc.repository.session.deleted is True
