@@ -18,6 +18,17 @@ That hypothesis was generated from #85's data, so testing it there would
 manufacture a finding. `#87`'s deep pull supplies the fix — **61 of the 92
 deep-dump symbols have never been seen by #63, #84 or #85.**
 
+Backlog #101 — gross AND net
+----------------------------
+`#86` reported GROSS, per `#80`, which pinned the metric at gross because a
+flat commission came to 1.8x the result it was measuring. That is the right
+choice for isolating the stop rule and the WRONG one for a shipping decision,
+so `#101` adds NET beside it. They answer different questions and `#82` says
+why in so many words: at these fee levels *"an arm wins on net by trading
+less"*, and the basing-point arm trades 23% less by construction. Both are
+printed, with commission paid per arm, so the net figure can be decomposed
+instead of merely quoted.
+
 Inference
 ---------
 Gross P&L per trade (`#80`), **clustered by symbol** (`#84`): one observation
@@ -71,16 +82,22 @@ def trades(bars: Sequence[OHLCVBar], **kw):
     return run_backtest_on_bars(cfg, bars).trade_ledger
 
 
-def mean_pnl(ledger, side: Optional[str]) -> Optional[float]:
-    """Mean gross P&L per trade on one side, or None if too few to mean."""
-    xs = [t.gross_pnl or 0.0 for t in ledger
+#: Backlog #101. `gross_pnl` isolates the stop rule; `net_pnl` is what a user
+#: actually keeps. Both are needed and they answer DIFFERENT questions — see
+#: the module docstring and docs/backlog101_em3_net.md.
+GROSS, NET = "gross_pnl", "net_pnl"
+
+
+def mean_pnl(ledger, side: Optional[str], field: str = GROSS) -> Optional[float]:
+    """Mean P&L per trade on one side, or None if too few to mean."""
+    xs = [getattr(t, field) or 0.0 for t in ledger
           if side is None or t.direction == side]
     if len(xs) < MIN_TRADES_PER_SIDE:
         return None
     return sum(xs) / len(xs)
 
 
-def total_pnl(ledger, side: Optional[str]) -> Optional[float]:
+def total_pnl(ledger, side: Optional[str], field: str = GROSS) -> Optional[float]:
     """TOTAL gross P&L on one side, not a per-trade mean.
 
     POST-HOC DIAGNOSTIC, added after the pre-registered criterion had been
@@ -96,7 +113,7 @@ def total_pnl(ledger, side: Optional[str]) -> Optional[float]:
     an artefact of trade count; if it does not, the per-trade framing is
     misleading and the headline has to change.
     """
-    xs = [t.gross_pnl or 0.0 for t in ledger
+    xs = [getattr(t, field) or 0.0 for t in ledger
           if side is None or t.direction == side]
     if len(xs) < MIN_TRADES_PER_SIDE:
         return None
@@ -146,6 +163,14 @@ def compare(per_symbol: Dict[str, Dict[str, object]], left: str, right: str,
         diffs.append(a - b)
     edge, t, n = paired_t(diffs)
     return edge, t, n, dropped, sum(1 for d in diffs if d > 0)
+
+
+def total_commission(ledger) -> float:
+    """What the arm actually paid. Backlog #101 reports it so the net result
+    can be DECOMPOSED rather than just quoted: net edge = gross edge minus the
+    commission difference, and #82 warns in so many words that at these fee
+    levels "an arm wins on net by trading less"."""
+    return sum(t.commission or 0.0 for t in ledger)
 
 
 def counts(per_symbol, arm: str, side: Optional[str]) -> int:
@@ -227,6 +252,46 @@ def run(bars_by_symbol: Dict[str, List[OHLCVBar]], symbols: List[str],
         print(f"{l + ' - ' + r:<34}{str(side or 'all'):<8}{edge:>+12.0f}"
               f"{(t if t is not None else float('nan')):>+9.2f}{n:>5}"
               f"{f'{pos}/{n}':>8} {sig}")
+
+    # -----------------------------------------------------------------------
+    # Backlog #101 — NET. Pre-registered in docs/backlog101_em3_net.md: the
+    # inference is #86's, unchanged; only the field changes.
+    # -----------------------------------------------------------------------
+    print("\n" + "-" * 78)
+    print("Backlog #101 - NET of commission (0.15%/side) and sell tax (0.10%).")
+    print("Inference inherited from #86 unchanged; only gross_pnl -> net_pnl.")
+    print("-" * 78)
+    print(f"{'arm':<22}{'commission':>14}{'per trade':>12}{'trades':>9}")
+    for arm in ARMS:
+        paid = sum(total_commission(a[arm]) for a in per_symbol.values())
+        tr = counts(per_symbol, arm, None)
+        print(f"{arm:<22}{paid:>14,.0f}{paid / max(1, tr):>12.2f}{tr:>9}")
+
+    print(f"\n{'comparison':<34}{'side':<8}{'GROSS':>12}{'NET':>12}{'t net':>9}"
+          f"{'n':>5}{'pos':>8}")
+    net_rows = {}
+    for key, (l, r, side) in {
+        "long_B_vs_A": ("B_basing_both", "A_atr", "LONG"),
+        "short_B_vs_A": ("B_basing_both", "A_atr", "SHORT"),
+        "all_B_vs_A": ("B_basing_both", "A_atr", None),
+        "all_C_vs_B": ("C_basing_long_only", "B_basing_both", None),
+    }.items():
+        g, _, _, _, _ = compare(per_symbol, l, r, side,
+                                stat=lambda L, S: total_pnl(L, S, GROSS))
+        n_edge, n_t, n_n, _, n_pos = compare(
+            per_symbol, l, r, side, stat=lambda L, S: total_pnl(L, S, NET))
+        net_rows[key] = (n_edge, n_t, n_pos, n_n)
+        sig = "SIG" if n_t is not None and abs(n_t) > 1.96 else "ns"
+        print(f"{l + ' - ' + r:<34}{str(side or 'all'):<8}{g:>+12.0f}"
+              f"{n_edge:>+12.0f}{(n_t if n_t is not None else float('nan')):>+9.2f}"
+              f"{n_n:>5}{f'{n_pos}/{n_n}':>8} {sig}")
+
+    edge, t_net, pos, nn = net_rows["all_B_vs_A"]
+    print("\n#101 DECISION INPUT (threshold fixed before the run):")
+    print(f"  TOTAL NET P&L per symbol, basing point vs ATR: {edge:+,.0f} "
+          f"t={t_net:+.2f}  {pos}/{nn} symbols")
+    print(f"  -> net advantage positive AND t > +1.96: "
+          f"{'YES' if (edge > 0 and t_net and t_net > 1.96) else 'NO'}")
 
     print("\nexposure (calendar days in market, all symbols pooled):")
     for arm in ARMS:
