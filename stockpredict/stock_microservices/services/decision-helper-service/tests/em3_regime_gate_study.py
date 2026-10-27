@@ -49,7 +49,18 @@ from typing import Dict, List, Optional, Tuple
 
 from app.services.backtest.harness import BacktestConfig, run_backtest_on_bars
 
-from tests.failed_signal_override_study import MAX_SYMBOLS, WARMUP, load_bars
+from tests.failed_signal_override_study import WARMUP, load_bars
+
+#: LOCAL and explicit, per Backlog #86, and deliberately kept at 12 — the value
+#: this study actually ran on. Its published table (docs/backlog85_em3_regime_gate.md)
+#: was labelled "32 symbols" and is 12: this was `MAX_SYMBOLS` imported from
+#: `failed_signal_override_study`, where `#82` set it to 12 on 2026-10-19, the
+#: day before this study ran. Pinning it here keeps the corrected table
+#: reproducible instead of quietly replacing it with a different result.
+#:
+#: Re-running at 32 is NOT the fix for the thin sample. #86 supersedes the
+#: question properly, on 61 symbols no EM-3 study has seen.
+MAX_SYMBOLS = 12
 
 TREND = ("TREND_UP", "TREND_DOWN")
 

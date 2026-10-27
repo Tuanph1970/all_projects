@@ -111,7 +111,10 @@ class BacktestConfig:
     # EM-3 — which trailing-stop rule the replay uses.
     #   "ATR"          the shipped 2xATR trail
     #   "BASING_POINT" E&M Ch 28: three days clear of a reaction low, then a
-    #                  filter below it, never lowered
+    #                  filter below it, never lowered — mirrored onto shorts
+    #   "BASING_POINT_LONG_ONLY"
+    #                  the same rule on longs, ATR trail on shorts (Backlog
+    #                  #86: the mirror is ours, not E&M's)
     # The A/B this exists for is the candidate's mandatory C4 benchmark.
     trailing_stop_mode: str = "ATR"
     # EM-8 M3. The plan asked for three arms (MEASURED_FIRST / NO_MEASURED /
@@ -224,6 +227,32 @@ class _Position:
 # Main harness
 # ---------------------------------------------------------------------------
 
+def basing_point_applies(mode: str, direction: Optional[str]) -> bool:
+    """Does the basing-point trail govern a position of this direction?
+
+    EM-3 / Backlog #86. `"BASING_POINT"` mirrors E&M's Ch 28 procedure onto
+    shorts; `"BASING_POINT_LONG_ONLY"` deliberately does not, and a short
+    falls through to the ATR trail instead.
+
+    The distinction is not a tuning knob. E&M write Ch 28 for an **advance** —
+    a high is made, prices recede, a reaction low forms — and Bassetti's
+    worked example is a bull market. The short-side mirror is **our**
+    translation, not a rule the book validates, so it gets its own arm rather
+    than being assumed.
+
+    Named and extracted so the truth table can be asserted directly. It was
+    an inline conditional inside the replay loop, where the only way to test
+    it was to find real bars that happened to produce the right trade
+    sequence — and #85 has just shown what happens when a study's behaviour
+    is only ever observed through its output.
+    """
+    if mode == "BASING_POINT":
+        return True
+    if mode == "BASING_POINT_LONG_ONLY":
+        return direction == "LONG"
+    return False
+
+
 def run_backtest_on_bars(
     config: BacktestConfig,
     bars: List[OHLCVBar],
@@ -267,9 +296,10 @@ def run_backtest_on_bars(
 
         # ── 1. Update trailing stop ──────────────────────────────────────
         if pos.state != "FLAT" and pos.stop is not None:
-            if config.trailing_stop_mode == "BASING_POINT" and basing is not None:
-                # EM-3. The tracker is fed this bar and only this bar, so the
-                # rule cannot see ahead; it returns None until three days have
+            if basing is not None and basing_point_applies(
+                    config.trailing_stop_mode, pos.direction):
+                # The tracker is fed this bar and only this bar, so the rule
+                # cannot see ahead; it returns None until three days have
                 # cleared a reaction low, and the entry stop stands until then.
                 candidate = basing.update(bar.high, bar.low, bar.close)
                 if candidate is not None:

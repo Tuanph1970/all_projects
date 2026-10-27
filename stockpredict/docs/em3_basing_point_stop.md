@@ -92,6 +92,18 @@ significance grew with the sample — which is what a real effect does, and
 pointedly not what happened in EM-2's `S4`, where the sign inverted when the
 sample grew.
 
+> **NOTE, Backlog #86 (2026-10-27).** Both figures above are correct and this
+> section was honest about which sample it used — but for several days the
+> committed script could not re-derive the 32-symbol headline. It imported
+> `MAX_SYMBOLS` from `failed_signal_override_study`, where `#82` set it to 12
+> on 2026-10-19, so a re-run printed the +48.79 / t = +1.42 row instead of the
+> table above. The constant is now **local and explicit** in
+> `em3_basing_point_study.py`, and a fresh run reproduces this doc exactly:
+> −16.51 → +22.80, advantage +39.31 at t = +2.02, 3,701 vs 2,720 trades.
+> `#85` was bitten harder by the same shared import and did not notice — it
+> published a 12-symbol table as "32 symbols". A study's sample size is part
+> of its result and must not be a value another module can move.
+
 ---
 
 ## The qualification, which matters

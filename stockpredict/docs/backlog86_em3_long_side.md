@@ -165,3 +165,151 @@ E&M's procedure in general. And EM-3's edge was already known to be
 **tail-driven and inconsistent** (#84: 54% of windows, sign test never
 significant); nothing here changes that, so even a pass leaves a rule that
 wins by magnitude rather than by reliability.
+
+---
+
+# Part 2 — the result (appended 2026-10-27, after the run)
+
+Part 1 is unedited. 61 held-out symbols, median ~16 years, three arms each.
+
+## The pre-registered criterion
+
+| | | |
+|---|---|---|
+| 1. LONG: basing point beats ATR, t > +1.96 | t = **+9.13** | **PASS** |
+| 2. SHORT: basing point does **not** beat ATR, ≤ 0 | edge = **+8.54** | **FAIL** |
+
+### **HYPOTHESIS NOT SUPPORTED.**
+
+This is pre-stated reading #2: the advantage is not long-specific, it is
+unconditional, and my reading of *why* EM-3 works was wrong.
+
+Gross P&L per trade, paired by symbol, 61 symbols, none dropped:
+
+| comparison | side | edge | t | symbols positive |
+|---|---|---|---|---|
+| B − A | LONG | **+73.42** | **+9.13** | 56/61 |
+| B − A | SHORT | +8.54 | +1.01 | 35/61 |
+| B − A | all | **+47.28** | **+7.08** | 52/61 |
+| C − A | LONG | +75.29 | +10.15 | 57/61 |
+| C − A | all | +43.58 | +8.35 | 55/61 |
+| C − B | all | −3.69 | −0.93 | 28/61 |
+
+## Why it failed, and the distinction #86 conflated
+
+Two separate claims were bundled into one hypothesis, and the held-out data
+splits them:
+
+* **"The advantage is concentrated on the long side"** — *true, and starkly
+  so.* +73.42 against +8.54, eight and a half times; 56 of 61 symbols positive
+  on longs against 35 of 61 on shorts, which is a coin flip.
+* **"The short-side mirror is harmful"** — *false.* It is **neutral**:
+  +8.54 at t = +1.01. #85's TREND_DOWN figure of **−7.32 does not replicate**.
+  On 61 unseen symbols the short side is mildly positive and indistinguishable
+  from zero.
+
+So the mirror is not a defect, and there is nothing to remove. **#86's hypothesis
+was built on a −7.32 from 12 symbols that did not survive contact with 61 new
+ones** — which is precisely the outcome #86 was written to make possible, and
+the reason it refused to test itself on #85's data.
+
+**The proposed remedy therefore buys nothing, and may cost.** Arm C against arm
+B is a wash on the full history (−3.69 per trade, t = −0.93; +1,136 total,
+t = +1.18) and **significantly worse post-2021** (−13.84 per trade, t = −2.07,
+only 19 of 61 symbols better). Long-only should **not** ship.
+
+## The finding that outgrew the question
+
+EM-3's basing-point advantage **replicates out of sample, broadly, on 61
+symbols no EM-3 study has seen**: +47.28 per trade at clustered **t = +7.08**,
+against +39.31 at t = +2.02 in-sample (#63) and clustered t = +3.39 (#84).
+
+Before publishing that I checked the confound that could have manufactured it:
+**arm B takes 23% fewer trades** (18,586 against 24,225), and a per-trade mean
+rewards a rule for trading less. `#80` fixed the metric at gross-per-trade for
+an unrelated reason — commission was 1.8× the result it was measuring — so this
+had never been addressed.
+
+**Total gross P&L per symbol** — same period, same starting equity, the
+economically meaningful quantity (post-hoc diagnostic, not a criterion):
+
+| comparison | side | total edge per symbol | t | symbols positive |
+|---|---|---|---|---|
+| B − A | LONG | **+11,666** | **+7.77** | 54/61 |
+| B − A | SHORT | +783 | +0.98 | 33/61 |
+| B − A | all | **+12,449** | **+6.60** | 51/61 |
+| C − B | all | +1,136 | +1.18 | 34/61 |
+
+The two views agree, so the edge is not an artefact of trade count. And it is
+not an artefact of sitting out either — **arm B is in the market 11% *more*
+days** (213,033 against 191,300) while taking 23% fewer trades, so it earns
+more in total from more exposure spread over fewer, longer positions. Exactly
+what E&M's "put stops where they're hard to get to" is supposed to do.
+
+### Consistency, which #84 could not demonstrate
+
+`#84` found the edge magnitude-driven and inconsistent: 54% of windows, **66%
+of symbols** (≈21 of 32), sign test never significant. On the held-out set it
+is **51–52 of 61 symbols (84–85%)**, which under a fair coin is about one in
+ten million. Same statistic, three times the symbols, and a far stronger
+answer.
+
+This does **not** overturn #84's window-level result — a symbol can be net
+positive while only half its sub-periods are, and those are different
+granularities. What is new is that at **symbol** level the edge is broad rather
+than tail-driven, where #84's 21/32 could not separate itself from chance.
+
+## The secondary: it is not a period artefact
+
+The held-out symbols carry ~16 years each against the original 32's 5.3, so
+Part 1 pre-committed to reporting the post-2021 subperiod. Same direction,
+smaller:
+
+| comparison | side | per trade | t | total/symbol | t |
+|---|---|---|---|---|---|
+| B − A | LONG | +50.43 | +4.61 | +2,335 | +4.54 |
+| B − A | SHORT | +17.11 | +1.33 | +460 | +1.23 |
+| B − A | all | +38.59 | +4.38 | +2,796 | +4.11 |
+
+Criterion 1 passes, criterion 2 fails again — and the short-side estimate is
+*larger* here (+17.11), so the long-side reading does not improve on recent
+data. The replication is a symbol effect, not a period effect.
+
+## Standing
+
+| | |
+|---|---|
+| #86's hypothesis | **refuted** out of sample — shorts are neutral, not harmful |
+| long-only arm (C) | **do not ship** — a wash overall, significantly worse post-2021 |
+| #85's TREND_DOWN −7.32 | **did not replicate**; it was 12 symbols of noise |
+| EM-3's edge, out of sample | **replicates strongly and broadly** — +12,449 total per symbol, t = +6.60, 51/61 |
+| EM-3's consistency | **demonstrated at symbol level**, where #84 could not |
+| the shipped default | still ATR — see below, this is not mine to change |
+
+## Two things this does NOT establish, and one new item
+
+**1. Everything above is GROSS.** `#80` fixed the metric at gross because
+commission was 1.8× the result it measured. A shipping decision needs **net**,
+and I did not measure it. The direction is favourable — arm B takes 23% fewer
+trades, so fewer commission legs — but "favourable direction" is not a number,
+and this project has been burned four times by exactly that kind of inference.
+Registered as **#101**, not asserted here.
+
+**2. Changing the default is a user-visible decision, not a measurement.**
+`harness.py` already notes that the live recommendation path consults these
+verdicts and that changing it "needs its own decision — see Backlog #83". The
+evidence for revisiting ATR is now much stronger than when #63 concluded
+"default stays ATR", and that is what #101 carries: the net figure plus the
+owner's call. I am not flipping a shipped stop rule on a gross backtest.
+
+Also unchanged: this is one market and one era. 61 symbols of Vietnamese
+equities 2004–2026 is a strong replication *within* that market, not evidence
+about E&M's procedure in general.
+
+## Reproducing
+
+```bash
+cd stock_microservices/services/decision-helper-service
+PYTHONPATH=. python3 tests/em3_long_side_study.py     # ~60 min, 61 symbols x 3 arms
+PYTHONPATH=. python3 -m pytest tests/test_long_only_basing_point.py -q
+```

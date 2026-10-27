@@ -33,7 +33,19 @@ from typing import Dict, List
 
 from app.services.backtest.harness import BacktestConfig, run_backtest_on_bars
 
-from tests.failed_signal_override_study import MAX_SYMBOLS, WARMUP, load_bars
+from tests.failed_signal_override_study import WARMUP, load_bars
+
+#: LOCAL and explicit, per Backlog #86. This was `MAX_SYMBOLS` imported from
+#: `failed_signal_override_study`, where `#82` later set it to 12 — which left
+#: this script unable to reproduce its own published headline (the table in
+#: docs/em3_basing_point_stop.md is the 32-symbol run: gross/trade -16.51 ->
+#: +22.80, advantage +39.31 at t = +2.02). At 12 it prints +48.79 at t = +1.42,
+#: which that doc reports honestly as the smaller-sample figure.
+#:
+#: #85 was bitten harder by the same import and did not notice: it published a
+#: 12-symbol table as "32 symbols". A study's sample size is part of its
+#: result and must not be a value another module can move.
+MAX_SYMBOLS = 32
 
 
 def arm(bars_by_symbol, label: str, **kw) -> Dict[str, object]:
