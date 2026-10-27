@@ -420,20 +420,44 @@ export const stockAPI = {
       const portfolio = await portfolioResponse.json();
       const portfolioId = portfolio.id;
 
-      // Add holding
+      // NOTE: this function is currently UNREFERENCED. The Holdings screen
+      // adds a position through `portfolioService.addStock`, which calls
+      // `buyStock` below (a BUY transaction) — that path is correct and was
+      // verified against the running service: quantity 100 -> total_cost
+      // 6050. Nothing is broken for users here.
+      //
+      // The latent bug fixed below matters only if this function is ever
+      // wired up: the field is `quantity`, NOT `shares`. HoldingCreate
+      // declares `quantity: int = Field(default=0, ge=0)` and pydantic drops
+      // unknown keys, so `shares` was discarded and the holding stored ZERO
+      // shares — and since the repository computes
+      // `total_cost = quantity * average_price`, the cost basis came out 0
+      // too. Confirmed directly against the service: POST {shares: 100}
+      // returned {"quantity": 0, "total_cost": 0.0}.
+      //
+      // `company_name` is no longer sent: `portfolio_holdings` has no such
+      // column and HoldingCreate has no such field, so it was always
+      // discarded.
       const response = await fetch(API_ENDPOINTS.PORTFOLIO_HOLDINGS(portfolioId), {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
           symbol: symbol,
-          company_name: companyName,
-          shares: shares,
+          quantity: shares,
           average_price: price
         })
       });
 
       if (!response.ok) {
-        throw new Error('Failed to add stock');
+        const errorText = await response.text();
+        let detail = '';
+        try {
+          const errorData = errorText ? JSON.parse(errorText) : {};
+          detail = errorData.detail || errorData.error || '';
+        } catch (parseError) {
+          detail = errorText;
+        }
+        throw new Error(typeof detail === 'string' && detail ? detail : 'Failed to add stock');
       }
 
       const data = await response.json();
@@ -465,11 +489,28 @@ export const stockAPI = {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to remove stock');
+        // Surface the server's reason (e.g. 404 "Holding not found") instead of
+        // a generic string, and tolerate an empty or non-JSON error body.
+        const errorText = await response.text();
+        let detail = '';
+        try {
+          const errorData = errorText ? JSON.parse(errorText) : {};
+          detail = errorData.detail || errorData.error || '';
+        } catch (parseError) {
+          detail = errorText;
+        }
+        throw new Error(detail || 'Failed to remove stock');
       }
 
-      const data = await response.json();
-      return data;
+      // DELETE returns 204 No Content - no body to parse.
+      //
+      // This line used to be `await response.json()`, which throws
+      // "Unexpected end of JSON input" on an empty body. The delete had
+      // already committed server-side, so the UI reported a failure for a
+      // request that succeeded and the row reappeared until the user
+      // refreshed. `deleteAlert` below had already hit and fixed this; this
+      // call was missed.
+      return { success: true };
     } catch (error) {
       throw new Error('Failed to remove stock: ' + error.message);
     }
