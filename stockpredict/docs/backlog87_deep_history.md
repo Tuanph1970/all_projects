@@ -80,8 +80,14 @@ horizon, and t consistently 1.6–1.9 — just short, three times over. The
 > by up to 44 readings moves t across +0.83–1.83 (h10), +0.53–1.71 (h20) and
 > +0.93–1.67 (h60), so the figures here sit at the **top** of their own range.
 > Read this table as "fails, and too unstable at n = 11–29 to call a near miss."
-> See `docs/backlog90_deep_history_2004.md`; the sampler fix is Backlog #99 and
-> must be pre-registered rather than tuned against this data.
+> See `docs/backlog90_deep_history_2004.md`; the sampler fix is Backlog #99,
+> which was pre-registered and run: it reports t = +0.46 / +0.55 / +0.79 and
+> **also found that a naive Welch t on the full overlapping sample reads
+> +1.26 / +2.01 / +2.83 and would have "confirmed" this claim at two
+> horizons.** The 11 observations in the table above did not escape the #79
+> trap either — they removed the mechanical overlap, not the episodic
+> clustering, and Welch treated three or four bear markets as 11 independent
+> draws.
 
 The three horizons are **not independent** — the same episodes measured over
 different windows — so their p-values cannot be combined as if they were, and
@@ -173,7 +179,7 @@ bound parameter reads as "flat, so the parameter doesn't matter."
 | | |
 |---|---|
 | data depth | **done** — 19.7 years, 92 symbols, real VNINDEX, depth configurable |
-| E&M's bottoms claim | **testable at last**; 0/3 significant. ~~directionally supported~~ — withdrawn by #90: the near-miss is sampling-phase dependent (see the correction above) |
+| E&M's bottoms claim | **testable at last**; 0/3 significant. ~~directionally supported~~ — withdrawn by #90, and **settled by #99**: on a phase-independent estimator with a block bootstrap, t = +0.46/+0.55/+0.79 and the near miss is gone at every window. See `docs/backlog99_phase_independent_em4.md` |
 | breadth *level* → returns | **nothing**, in either direction; EM-4's finding overturned |
 | the exposure governor | still **not built** — now because it is unsupported, not contra-indicated |
 | EM-6 (Dow multi-index gate) | **unblocked** — the real VNINDEX now exists locally |

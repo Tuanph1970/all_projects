@@ -158,6 +158,18 @@ bars could not help, because breadth has no constituents to measure there.
   phase-independent statistic. That has to be pre-registered and run once, not tuned
   against this data.
 
+> **OUTCOME, Backlog #99 (2026-10-27).** Done, pre-registered in a commit that landed
+> before the estimator was written. Every qualifying day plus a moving-block bootstrap
+> gives t = **+0.46 / +0.55 / +0.79** — fails 0 of 3, and no window tested reaches
+> +1.50, so the near miss is unavailable at any phase. Two things this session found
+> that are worth more than the verdict: a **naive** Welch t on the same full sample
+> reads +1.26 / +2.01 / +2.83 and would have *passed* the criterion 2 of 3 (the
+> bootstrap deflates it 2.8–3.6×), and the phase sweep's residual movement is **not**
+> re-selection — at h60, k=40 drops 37 observations of which 34 are low-MEI days
+> averaging −23.65%, i.e. 18% of the low arm and the strongest counter-evidence in the
+> series. #99's own pre-registered prediction (that the sweep spread would collapse)
+> **failed**, and is reported as failed. See `docs/backlog99_phase_independent_em4.md`.
+
 ## Reproducing
 
 ```bash
