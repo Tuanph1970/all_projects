@@ -239,3 +239,68 @@ spread over many symbols, not by being reliable within any one of them.
 cd stock_microservices/services/decision-helper-service
 PYTHONPATH=. python3 tests/em3_long_side_study.py   # ~60 min; prints gross AND net
 ```
+
+---
+
+# Part 3 — the flip, taken by owner decision (2026-10-27)
+
+The owner took decision (1) — the **backtest** default — and not (2), the live
+path. `BacktestConfig.trailing_stop_mode` is now **`"BASING_POINT"`**.
+
+## It could not be a one-line change, and that is the finding
+
+Part 2 recommended the flip and warned it "silently redefines *baseline* for
+every other study in this service". That turned out to be literally true, and
+worse than the phrase suggests. Nine call sites took their **ATR control arm**
+from the class default:
+
+| site | what it would have become |
+|---|---|
+| `api/routes.py` — `POST /backtest` | a **user-visible** response governed by the new default |
+| `em3_basing_point_study.py` | its "ATR trail (shipped)" arm = the basing point → the A/B compares the rule **with itself** |
+| `em3_regime_gate_study.py` | both arms identical → #85's corrected table stops reproducing |
+| `em3_walk_forward_study.py` (×2) | #84's control arm |
+| `em3_long_side_study.py` — `"A_atr": {}` | #86's and #101's own control arm |
+| `failed_signal_override_study.py` (×2) | #82's published figures |
+| `em9_penetration_sweep.py`, `em8_target_mode_study.py` | ATR-based published numbers |
+
+Every one of those would have reported **≈ zero difference** against a
+published table claiming a large one — with no test failing, because #101's
+probe had already established that nothing in the suite pinned the default.
+
+So the flip is: **the default moves, and every existing caller names ATR
+explicitly.** The new default governs *future* work only. That is what makes
+it safe, and it is the opposite of what "one line" implied.
+
+## The live surface was NOT moved
+
+`api/routes.py` now passes `trailing_stop_mode="ATR"` explicitly. Changing what
+`POST /backtest` returns is the **#83 gate** — a separate decision that has not
+been taken. Exposing the mode as a request field is the natural follow-up if it
+ever is.
+
+## Verified by reproduction, not by the suite passing
+
+The suite passing proves little here, since it passed under both defaults
+before any of this. The real check is that the published results still come
+out:
+
+| study | published | re-run after the flip |
+|---|---|---|
+| `#63` A/B | −16.51 → +22.80, advantage **+39.31**, t = **+2.02** | identical |
+| `#85` regimes | TREND_UP **+92.68**, TREND_DOWN **−7.32**, RANGE **+65.86**, both criteria FAIL | identical |
+
+Two guards ship with the change, both of which fail if someone undoes it
+silently:
+
+* `test_the_backtest_default_is_the_basing_point_trail` — pins the new default;
+* `test_the_live_backtest_endpoint_still_pins_the_ATR_trail` — pins the #83
+  gate, so dropping the route's explicit "ATR" cannot quietly hand a
+  user-visible response to the default.
+
+965 passed / 9 skipped, ruff clean.
+
+## What is still open
+
+The **live recommendation path** — decision (2). Unchanged, and still the
+owner's.

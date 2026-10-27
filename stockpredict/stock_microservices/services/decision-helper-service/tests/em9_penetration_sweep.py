@@ -50,7 +50,10 @@ for level in LEVELS:
     expectancies, pfs = [], []
     for sym in symbols:
         bars = bars_by_sym[sym]
-        cfg = BacktestConfig(ticker=sym, start_date=bars[300].date, end_date=bars[-1].date)
+        # trailing_stop_mode pinned by Backlog #101: the class default moved to
+        # "BASING_POINT", and this study's published numbers are ATR ones.
+        cfg = BacktestConfig(ticker=sym, start_date=bars[300].date,
+                             end_date=bars[-1].date, trailing_stop_mode="ATR")
         r = run_backtest_on_bars(cfg, bars).stats
         trades += r.num_trades
         wins += r.num_wins

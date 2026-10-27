@@ -99,7 +99,11 @@ def welch(a: List[float], b: List[float]):
 if __name__ == "__main__":
     bars = load_bars()
     arms = [
-        arm(bars, "ATR trail (shipped)"),
+        # Backlog #101: "shipped" meant the class default, which moved to
+        # "BASING_POINT" on 2026-10-27. Named explicitly so this study keeps
+        # reproducing its published table (-16.51 -> +22.80, +39.31, t=+2.02).
+        arm(bars, "ATR trail (was the default pre-#101)",
+            trailing_stop_mode="ATR"),
         arm(bars, "Basing point (rules 1-3)", trailing_stop_mode="BASING_POINT"),
         arm(bars, "Basing point + rule 4", trailing_stop_mode="BASING_POINT",
             basing_point_new_high_rule=True),

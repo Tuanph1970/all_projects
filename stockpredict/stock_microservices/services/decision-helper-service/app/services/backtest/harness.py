@@ -116,7 +116,26 @@ class BacktestConfig:
     #                  the same rule on longs, ATR trail on shorts (Backlog
     #                  #86: the mirror is ours, not E&M's)
     # The A/B this exists for is the candidate's mandatory C4 benchmark.
-    trailing_stop_mode: str = "ATR"
+    #
+    # DEFAULT CHANGED 2026-10-27, Backlog #101, by owner decision. It was
+    # "ATR" for the life of the harness. The evidence, on 61 symbols no EM-3
+    # study had seen (#86 + #101):
+    #
+    #   gross  +12,449 total P&L per symbol, clustered t = +6.60, 51/61 positive
+    #   net    +16,383 total P&L per symbol, clustered t = +8.97, 54/61 positive
+    #
+    # and the net result decomposes as gross +12,449 plus commission saved
+    # +3,934, so 76% of it is the rule rather than its 23% lower turnover
+    # (#82's caution, measured and found to be a minority).
+    #
+    # TWO THINGS WERE PINNED SO THIS FLIP CHANGES ONLY FUTURE WORK:
+    #   * `api/routes.py` passes "ATR" explicitly. The /backtest endpoint is a
+    #     user-visible surface and moving it is a SEPARATE decision — the #83
+    #     gate — which has not been taken.
+    #   * every existing study passes its control arm explicitly, so published
+    #     figures stay reproducible. Changing a default under published results
+    #     is the bound-default trap this project has paid for five times.
+    trailing_stop_mode: str = "BASING_POINT"
     # EM-8 M3. The plan asked for three arms (MEASURED_FIRST / NO_MEASURED /
     # TRAILING_ONLY) to answer "should a measured objective be a target at
     # all". Two of them turned out to be the same run: MEASURED_MOVE has

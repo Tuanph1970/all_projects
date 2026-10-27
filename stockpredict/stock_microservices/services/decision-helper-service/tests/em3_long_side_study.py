@@ -54,7 +54,10 @@ FILTER_PCT = 6.0                 # #84's primary value; NOT swept
 SUBPERIOD_START = "2021-06-09"   # the shallow file's first bar
 
 ARMS = {
-    "A_atr": {},
+    # Backlog #101 pinned this. The class default moved to "BASING_POINT" on
+    # 2026-10-27, so the ATR control must say so explicitly — otherwise this
+    # study would compare the basing point against itself and report ~0.
+    "A_atr": {"trailing_stop_mode": "ATR"},
     "B_basing_both": {"trailing_stop_mode": "BASING_POINT"},
     "C_basing_long_only": {"trailing_stop_mode": "BASING_POINT_LONG_ONLY"},
 }

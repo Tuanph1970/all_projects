@@ -106,7 +106,8 @@ def run(filter_pct: float = 6.0, new_high: bool = False) -> Dict[str, float]:
         if len(b) < WARMUP + 90:
             continue
         for lo, hi in _windows(b):
-            atr = _arm_on_window(b, lo, hi)
+            # ATR named explicitly, Backlog #101: it is no longer the default.
+            atr = _arm_on_window(b, lo, hi, trailing_stop_mode="ATR")
             bp = _arm_on_window(
                 b, lo, hi, trailing_stop_mode="BASING_POINT",
                 basing_point_filter_pct=filter_pct,
@@ -163,7 +164,8 @@ def run_clustered(filter_pct: float = 6.0) -> Dict[str, float]:
             continue
         diffs = []
         for lo, hi in _windows(b):
-            atr = _arm_on_window(b, lo, hi)
+            # ATR named explicitly, Backlog #101: it is no longer the default.
+            atr = _arm_on_window(b, lo, hi, trailing_stop_mode="ATR")
             bp = _arm_on_window(
                 b, lo, hi, trailing_stop_mode="BASING_POINT",
                 basing_point_filter_pct=filter_pct,

@@ -107,7 +107,10 @@ def pool(buckets: Dict[str, List[float]], keys) -> List[float]:
 
 if __name__ == "__main__":
     bars = load_bars()
-    atr = collect(bars)
+    # Backlog #101: ATR is no longer the class default, so the control arm
+    # names it. Without this the two arms would be identical and #85's
+    # corrected table would stop reproducing.
+    atr = collect(bars, trailing_stop_mode="ATR")
     bp = collect(bars, trailing_stop_mode="BASING_POINT")
 
     print("gross P&L per trade, by regime at entry\n")

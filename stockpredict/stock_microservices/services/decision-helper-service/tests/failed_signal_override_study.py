@@ -95,7 +95,11 @@ def run_arm(bars_by_symbol, **kw) -> Dict[str, object]:
         if len(b) < WARMUP + 90:
             continue
         cfg = BacktestConfig(
-            ticker=sym, start_date=b[WARMUP].date, end_date=b[-1].date, **kw
+            # ATR first so a caller's **kw still wins. Pinned by Backlog #101:
+            # the class default moved to "BASING_POINT" and this study's
+            # published figures are ATR ones.
+            ticker=sym, start_date=b[WARMUP].date, end_date=b[-1].date,
+            **{"trailing_stop_mode": "ATR", **kw}
         )
         res = run_backtest_on_bars(cfg, b)
         trades += res.stats.num_trades
@@ -139,7 +143,11 @@ def per_trade_gross(bars_by_symbol, **kw) -> List[float]:
         if len(b) < WARMUP + 90:
             continue
         cfg = BacktestConfig(
-            ticker=sym, start_date=b[WARMUP].date, end_date=b[-1].date, **kw
+            # ATR first so a caller's **kw still wins. Pinned by Backlog #101:
+            # the class default moved to "BASING_POINT" and this study's
+            # published figures are ATR ones.
+            ticker=sym, start_date=b[WARMUP].date, end_date=b[-1].date,
+            **{"trailing_stop_mode": "ATR", **kw}
         )
         res = run_backtest_on_bars(cfg, b)
         out.extend(t.gross_pnl or 0.0 for t in res.trade_ledger)

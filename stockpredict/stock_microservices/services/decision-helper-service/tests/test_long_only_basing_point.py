@@ -150,25 +150,51 @@ def test_shorts_exist_in_the_fixture_or_the_arm_is_untested(real_bars):
 # The shipped default (Backlog #101)
 # ---------------------------------------------------------------------------
 
-def test_the_shipped_backtest_default_is_still_the_ATR_trail():
+def test_the_backtest_default_is_the_basing_point_trail():
     """A guard, not a tautology — and #101 is why it exists.
 
-    #101 probed flipping this default to "BASING_POINT" and **all 963 tests
-    passed**, which sounds reassuring and is actually the finding: nothing in
-    the suite pinned the shipped default, so it could have moved in any commit
-    without a single failure. #87 added the same kind of guard to
-    `HISTORY_YEARS` after it sat at 5 years for the life of the project
-    precisely because it was correct-looking, consumed once, and unasserted.
+    This default was "ATR" for the life of the harness and moved to
+    "BASING_POINT" on 2026-10-27 by owner decision, on the evidence of #86 and
+    #101: on 61 symbols no EM-3 study had seen, +12,449 total GROSS P&L per
+    symbol (t = +6.60) and +16,383 NET (t = +8.97, 54/61 positive), of which
+    76% decomposes to the rule rather than to its 23% lower turnover.
 
-    The evidence now favours the basing point — #86 measured +12,449 gross and
-    #101 +16,383 NET total P&L per symbol on 61 held-out symbols (t = +8.97,
-    54/61) — so this default may well change. It must change **deliberately**:
-    the live recommendation path consults these verdicts and that is a
-    user-visible decision (the #83 gate). Flipping this line should break this
-    test and make someone say so out loud.
+    The guard exists because #101 probed the flip first and found that **all
+    963 tests passed either way** — nothing pinned the default, so it could
+    have moved in any commit without a single failure. #87 added the same kind
+    of guard to `HISTORY_YEARS` after it sat wrong for the life of the project
+    for exactly that reason: correct-looking, consumed once, unasserted.
+
+    Changing this line again should break this test and make someone say so
+    out loud.
     """
     from app.services.backtest.harness import BacktestConfig
 
     assert BacktestConfig(
         ticker="T", start_date=None, end_date=None,
-    ).trailing_stop_mode == "ATR"
+    ).trailing_stop_mode == "BASING_POINT"
+
+
+def test_the_live_backtest_endpoint_still_pins_the_ATR_trail():
+    """The #83 gate, asserted rather than trusted to a comment.
+
+    #101 moved the *class* default but NOT the user-visible surface: changing
+    what `POST /backtest` returns is a separate owner decision that has not
+    been taken. The endpoint therefore passes `trailing_stop_mode="ATR"`
+    explicitly, and this test fails if that pin is ever dropped — at which
+    point the default would silently take over a live response.
+
+    Read as source rather than exercised through HTTP because the pin is a
+    property of the call site, and a request-level test would need the market
+    client, bars and a DB to say the same thing less directly.
+    """
+    import inspect
+
+    from app.api import routes
+
+    source = inspect.getsource(routes)
+    assert 'trailing_stop_mode="ATR"' in source, (
+        "the /backtest endpoint no longer pins the ATR trail; the class "
+        "default (BASING_POINT since #101) would now govern a user-visible "
+        "response — that is the #83 gate and needs an owner decision"
+    )

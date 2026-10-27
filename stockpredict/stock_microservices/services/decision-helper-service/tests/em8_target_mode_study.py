@@ -74,8 +74,10 @@ def load(path: str) -> Dict[str, List[OHLCVBar]]:
 
 
 def arm(sym: str, bars: Sequence[OHLCVBar], mode: str) -> Tuple[int, float, float, Dict[str, int]]:
+    # trailing_stop_mode pinned by Backlog #101 (the class default moved to
+    # "BASING_POINT"); this study measures target modes against an ATR stop.
     cfg = BacktestConfig(ticker=sym, start_date=START, end_date=END,
-                         target_mode=mode)
+                         target_mode=mode, trailing_stop_mode="ATR")
     res = run_backtest_on_bars(cfg, list(bars))
     led = [t for t in res.trade_ledger if t.net_pnl is not None]
     reasons: Dict[str, int] = defaultdict(int)
