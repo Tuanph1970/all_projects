@@ -35,7 +35,21 @@ through `compute_regime`, causally, reading only bars up to the entry.
 
 ## Result
 
-Gross P&L per trade, by regime at entry, 32 symbols:
+Gross P&L per trade, by regime at entry:
+
+> **CORRECTION, Backlog #86 (2026-10-27).** This table was published as
+> "32 symbols". It is **12**. `em3_regime_gate_study.py` imports
+> `MAX_SYMBOLS` from `failed_signal_override_study`, where `#82` set it to 12
+> on 2026-10-19 — the day before this study ran — while
+> `em3_walk_forward_study.py` defines its own `MAX_SYMBOLS = 32`. Re-running
+> today reproduces the table below to the last decimal on
+> `['ACB','BCM','BID','BVH','CTG','DPG','FPT','GAS','GVR','HDB','HPG','MBB']`.
+> The verdict is unaffected — both criteria failed, and criterion 2 failed on
+> a point estimate that does not depend on power — but the TREND_DOWN figure
+> that generated Backlog #86 rests on a third of the evidence claimed here.
+> A cross-study shared-constant trap: the fifth bound-default this project has
+> paid for (EM-1 S2, #78, W1, #84, this). See
+> `docs/backlog86_em3_long_side.md`.
 
 | regime at entry | n (ATR) | ATR | n (BP) | BP | advantage | Welch t |
 |---|---|---|---|---|---|---|
