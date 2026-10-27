@@ -91,9 +91,17 @@ def real_bars():
 
 
 def _ledger(bars, mode):
+    # The mode is ALWAYS passed explicitly, including "ATR".
+    #
+    # This used to omit it for the ATR arm and lean on the config default. That
+    # made the test itself depend on a bound default: #101 probed flipping
+    # `trailing_stop_mode` to "BASING_POINT" and this was the ONLY test in 963
+    # that broke — not because the codebase objected, but because two of its
+    # three arms silently became the same run. A test that asserts three modes
+    # differ must not take one of them from a default that can move.
     cfg = BacktestConfig(
         ticker="T", start_date=bars[WARMUP].date, end_date=bars[-1].date,
-        **({} if mode == "ATR" else {"trailing_stop_mode": mode}),
+        trailing_stop_mode=mode,
     )
     return run_backtest_on_bars(cfg, bars).trade_ledger
 
@@ -136,3 +144,31 @@ def test_shorts_exist_in_the_fixture_or_the_arm_is_untested(real_bars):
     directions = {t.direction for t in _ledger(bars, "BASING_POINT")}
     assert "SHORT" in directions, directions
     assert "LONG" in directions, directions
+
+
+# ---------------------------------------------------------------------------
+# The shipped default (Backlog #101)
+# ---------------------------------------------------------------------------
+
+def test_the_shipped_backtest_default_is_still_the_ATR_trail():
+    """A guard, not a tautology — and #101 is why it exists.
+
+    #101 probed flipping this default to "BASING_POINT" and **all 963 tests
+    passed**, which sounds reassuring and is actually the finding: nothing in
+    the suite pinned the shipped default, so it could have moved in any commit
+    without a single failure. #87 added the same kind of guard to
+    `HISTORY_YEARS` after it sat at 5 years for the life of the project
+    precisely because it was correct-looking, consumed once, and unasserted.
+
+    The evidence now favours the basing point — #86 measured +12,449 gross and
+    #101 +16,383 NET total P&L per symbol on 61 held-out symbols (t = +8.97,
+    54/61) — so this default may well change. It must change **deliberately**:
+    the live recommendation path consults these verdicts and that is a
+    user-visible decision (the #83 gate). Flipping this line should break this
+    test and make someone say so out loud.
+    """
+    from app.services.backtest.harness import BacktestConfig
+
+    assert BacktestConfig(
+        ticker="T", start_date=None, end_date=None,
+    ).trailing_stop_mode == "ATR"
