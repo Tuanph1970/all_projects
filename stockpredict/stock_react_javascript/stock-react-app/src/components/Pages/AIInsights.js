@@ -58,6 +58,11 @@ export const AIInsights = () => {
   const [chartPatterns, setChartPatterns] = useState(null);
   const [chartPatternsClimax, setChartPatternsClimax] = useState(null);
   const [chartLoading, setChartLoading] = useState(false);
+  // Why a separate error from `error`: that one belongs to the insights fetch
+  // and renders in the page banner. A chart failure has to be visible IN the
+  // chart card, because the generic empty state there says "select indicators
+  // and click Analyze", which is actively misleading after a network failure.
+  const [chartError, setChartError] = useState(null);
 
   // Fetch portfolio holdings for stock dropdown
   const fetchPortfolioHoldings = useCallback(async () => {
@@ -236,94 +241,12 @@ export const AIInsights = () => {
   }, [availableIndicators]);
 
   // eslint-disable-next-line no-unused-vars -- preserved for the indicator-chart path
-  const fetchIndicatorData = async () => {
-    if (!selectedStock || !dateRange.start || !dateRange.end) {
-      return;
-    }
-
-    setChartLoading(true);
-    try {
-      // Try to fetch from the API endpoint
-      const response = await axios.post(`${API_BASE_URL}/insights/indicators/data/`, {
-        symbol: selectedStock,
-        start_date: dateRange.start,
-        end_date: dateRange.end,
-        indicators: selectedIndicators
-      });
-
-      if (response.data.status === 'success') {
-        // Store entire response object so indicatorData.data works correctly
-        setIndicatorData(response.data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch indicator data, using mock data:', err);
-
-      // Generate mock data for demonstration
-      const mockData = generateMockIndicatorData(dateRange.start, dateRange.end, selectedIndicators);
-      setIndicatorData(mockData);
-    } finally {
-      setChartLoading(false);
-    }
-  };
-
-  const generateMockIndicatorData = (startDate, endDate, indicators) => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const data = [];
-    const days = Math.floor((end - start) / (1000 * 60 * 60 * 24));
-    const numPoints = Math.min(days, 100);
-
-    let basePrice = 100;
-    let obv = 1000000;
-
-    for (let i = 0; i <= numPoints; i++) {
-      const date = new Date(start.getTime() + (i * (end - start) / numPoints));
-      const dateStr = date.toISOString().split('T')[0];
-
-      const priceChange = (Math.random() - 0.48) * 2;
-      basePrice = Math.max(50, basePrice + priceChange);
-      const bbDev = basePrice * 0.02;
-      const macdVal = (Math.random() - 0.5) * 5;
-      obv += (Math.random() - 0.5) * 100000;
-
-      // Always generate all fields so every series toggle works without refetch
-      data.push({
-        date: dateStr,
-        price: parseFloat(basePrice.toFixed(2)),
-        // Moving averages (rough approximation)
-        EMA: parseFloat((basePrice * (1 + (Math.random() - 0.5) * 0.03)).toFixed(2)),
-        SMA: parseFloat((basePrice * (1 + (Math.random() - 0.5) * 0.02)).toFixed(2)),
-        // Bollinger Bands
-        BB_upper: parseFloat((basePrice + bbDev * 2).toFixed(2)),
-        BB_middle: parseFloat(basePrice.toFixed(2)),
-        BB_lower: parseFloat((basePrice - bbDev * 2).toFixed(2)),
-        // VWAP (close approximation)
-        VWAP: parseFloat((basePrice * (1 + (Math.random() - 0.5) * 0.015)).toFixed(2)),
-        // Momentum (0-100)
-        RSI: parseFloat((30 + Math.random() * 40).toFixed(2)),
-        Stochastic: parseFloat((20 + Math.random() * 60).toFixed(2)),
-        MFI: parseFloat((25 + Math.random() * 50).toFixed(2)),
-        // MACD
-        MACD: parseFloat(macdVal.toFixed(2)),
-        MACD_signal: parseFloat((macdVal * 0.8).toFixed(2)),
-        MACD_histogram: parseFloat((macdVal * 0.2).toFixed(2)),
-        // Volume
-        volume: Math.round(500000 + Math.random() * 1000000),
-        OBV: Math.round(obv),
-      });
-    }
-
-    return {
-      data,
-      indicators: {
-        trend: { name: indicators.trend, description: 'Trend Indicator' },
-        momentum: { name: indicators.momentum, description: 'Momentum Indicator' },
-        volatility: { name: indicators.volatility, description: 'Volatility Indicator' },
-        volume: { name: indicators.volume, description: 'Volume Indicator' }
-      }
-    };
-  };
-
+  // NOTE: there used to be a second, UNREFERENCED copy of this fetch here
+  // (`fetchIndicatorData`), identical to `loadIndicatorData` below. #49's
+  // successor work found it by mutation testing: breaking its non-success
+  // branch changed no test result, because nothing ever called it. Two copies
+  // of a fetch are two places for a fallback to be reintroduced, so the dead
+  // one is gone rather than kept in sync.
   useEffect(() => {
     const loadIndicatorData = async () => {
       if (!selectedStock || !dateRange.start || !dateRange.end) {
@@ -343,13 +266,15 @@ export const AIInsights = () => {
         if (response.data.status === 'success') {
           // Store entire response object so indicatorData.data works correctly
           setIndicatorData(response.data);
+          setChartError(null);
+        } else {
+          setIndicatorData(null);
+          setChartError(response.data?.message || t('analysis.ai_insights.chart_unavailable'));
         }
       } catch (err) {
-        console.error('Failed to fetch indicator data, using mock data:', err);
-
-        // Generate mock data for demonstration (returns object with data property)
-        const mockData = generateMockIndicatorData(dateRange.start, dateRange.end, selectedIndicators);
-        setIndicatorData(mockData);
+        console.error('Failed to fetch indicator data:', err);
+        setIndicatorData(null);
+        setChartError(err.response?.data?.message || t('analysis.ai_insights.chart_unavailable'));
       } finally {
         setChartLoading(false);
       }
@@ -406,7 +331,13 @@ export const AIInsights = () => {
           <h2 className="text-xl font-semibold text-gray-900">{t('analysis.ai_insights.chart_title')}</h2>
           {chartLoading && <RefreshCw className="w-5 h-5 text-blue-500 animate-spin" />}
         </div>
-        {chartData.length === 0 ? (
+        {chartError ? (
+          <div className="text-center py-8" role="alert">
+            <ChartLine className="w-12 h-12 text-red-400 mx-auto mb-3" />
+            <p className="text-red-700">{chartError}</p>
+            <p className="text-sm text-gray-500 mt-2">{t('analysis.ai_insights.chart_retry_hint')}</p>
+          </div>
+        ) : chartData.length === 0 ? (
           <div className="text-center py-8">
             <ChartLine className="w-12 h-12 text-gray-400 mx-auto mb-3" />
             <p className="text-gray-600">{t('analysis.ai_insights.no_indicator_data')}</p>
