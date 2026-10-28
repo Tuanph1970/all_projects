@@ -44,6 +44,8 @@ import time
 import warnings
 from typing import List
 
+from tests.vnstock_throttle import activate, describe, min_interval
+
 warnings.filterwarnings("ignore")
 
 #: Every index VCI serves with enough history to act as a witness. VN100 is
@@ -52,7 +54,8 @@ INDICES: List[str] = ["VNINDEX", "VN30", "HNXINDEX", "HNX30", "UPCOMINDEX"]
 
 START = "2000-01-01"        # earlier than any series; the vendor clamps it
 END = "2026-10-20"
-SPACING_SECONDS = 3.2       # the vnstock guest quota, per Backlog #46/#49
+#: Backlog #49: derived from the tier at call time rather than hardcoded, so
+#: setting VNSTOCK_API_KEY actually speeds this up (3.1s guest / 1.05s keyed).
 
 
 def fetch(symbol: str):
@@ -80,6 +83,11 @@ def write_rows(handle, symbol: str, df) -> int:
 
 def main() -> None:
     out_path = sys.argv[1] if len(sys.argv) > 1 else "/tmp/vn_indices.tsv"
+    # activate() exports the key into the environment before the banner, so
+    # vnai grants the keyed tier too — reading .env for spacing alone would
+    # make us call at 1.05s while vnai still rate-limited us as a guest.
+    activate()
+    print(describe(), flush=True)
     print(f"indices -> {out_path}", flush=True)
 
     kept = 0
@@ -90,7 +98,7 @@ def main() -> None:
             except Exception as exc:  # noqa: BLE001
                 print(f"   [{i}/{len(INDICES)}] {code}: FAILED "
                       f"{type(exc).__name__} {exc}", flush=True)
-                time.sleep(SPACING_SECONDS)
+                time.sleep(min_interval())
                 continue
             if df is None or df.empty:
                 print(f"   [{i}/{len(INDICES)}] {code}: EMPTY", flush=True)
@@ -100,7 +108,7 @@ def main() -> None:
                 print(f"   [{i}/{len(INDICES)}] {code}: {n} bars, "
                       f"{str(df['time'].min())[:10]} -> "
                       f"{str(df['time'].max())[:10]}", flush=True)
-            time.sleep(SPACING_SECONDS)
+            time.sleep(min_interval())
 
     print(f"\nkept {kept} of {len(INDICES)} indices", flush=True)
 

@@ -22,10 +22,11 @@ and is now `settings.HISTORY_YEARS`.
 
 Throttling
 ----------
-vnstock 4.x applies a client-side quota (20 req/min for a guest), so the
-service spaces calls ~3.1s apart and this script inherits that: ~92 symbols
-costs about five minutes. Setting `VNSTOCK_API_KEY` raises it to 60/min
-(Backlog #49).
+vnstock 4.x applies a client-side quota (20 req/min guest, 60 with a free
+Community key), and since Backlog #49 this script DERIVES its spacing from the
+tier instead of hardcoding it: ~92 symbols costs about five minutes as a
+guest and under two with `VNSTOCK_API_KEY` set. The banner says which tier is
+in force, so a slow run is never a mystery.
 """
 from __future__ import annotations
 
@@ -33,6 +34,8 @@ import sys
 import time
 import warnings
 from typing import List
+
+from tests.vnstock_throttle import activate, describe, min_interval
 
 warnings.filterwarnings("ignore")
 
@@ -60,7 +63,11 @@ VN100: List[str] = [
 # and why the limit was easy to miss.
 START = "2004-01-01"
 END = "2026-10-13"
-SPACING_SECONDS = 3.2       # the guest quota, per Backlog #46/#49
+#: Backlog #49. Was a hardcoded 3.2, which meant a VNSTOCK_API_KEY bought this
+#: script nothing — it is now derived from the tier at call time (3.1s guest,
+#: 1.05s with a free Community key), so a 92-symbol pull drops from ~5 minutes
+#: to ~1.7. Read at call time, NOT bound at import: this project has paid for
+#: the bound-default trap six times, and `vnstock_throttle` has a test for it.
 MIN_BARS = 500              # below this a symbol is too short to contribute
 
 
@@ -91,6 +98,11 @@ def main() -> None:
     out_path = sys.argv[1] if len(sys.argv) > 1 else "/tmp/deep_bars.tsv"
     idx_path = sys.argv[2] if len(sys.argv) > 2 else "/tmp/deep_index.tsv"
 
+    # activate() exports the key into the environment before the banner, so
+    # vnai grants the keyed tier too — reading .env for spacing alone would
+    # make us call at 1.05s while vnai still rate-limited us as a guest.
+    activate()
+    print(describe(), flush=True)
     print(f"index -> {idx_path}", flush=True)
     with open(idx_path, "w") as fh:
         try:
@@ -111,7 +123,7 @@ def main() -> None:
                 print(f"   [{i:>2}/{len(VN100)}] {sym}: FAILED "
                       f"{type(exc).__name__}", flush=True)
                 skipped += 1
-                time.sleep(SPACING_SECONDS)
+                time.sleep(min_interval())
                 continue
             if df is None or len(df) < MIN_BARS:
                 print(f"   [{i:>2}/{len(VN100)}] {sym}: only "
@@ -122,7 +134,7 @@ def main() -> None:
                 kept += 1
                 print(f"   [{i:>2}/{len(VN100)}] {sym}: {n} bars from "
                       f"{str(df['time'].min())[:10]}", flush=True)
-            time.sleep(SPACING_SECONDS)
+            time.sleep(min_interval())
 
     print(f"\nkept {kept} symbols, skipped {skipped}", flush=True)
 
