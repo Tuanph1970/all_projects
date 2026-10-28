@@ -128,3 +128,136 @@ A threshold is a judgement. 46 is defensible and it is not unique; the sweep
 is reported precisely because no single line is. And nothing here adds
 information — it removes some, deliberately, to ask whether what remains says
 the same thing.
+
+---
+
+# Part 2 — the result (appended 2026-10-28, after the run)
+
+Part 1 is unedited.
+
+**The correctness check first**, because everything else depends on it:
+filtering the `min_universe=10` series by `classified >= 46` produced the
+identical day list and identical MEI values to recomputing
+`compute_mei_series(bars, min_universe=46)` — 3,943 readings both ways. So the
+filter means what Part 1 said it means.
+
+## PRIMARY — MIN_CLASSIFIED = 46
+
+3,943 of 4,895 readings kept (80.6%), **2010-12-21 → 2026-10-13**, classified
+min 46 / median 84 / max 92.
+
+| horizon | n low | n other | edge | t_boot | 2.5th pct | discarded | power |
+|---|---|---|---|---|---|---|---|
+| 10 | 288 | 3,395 | +0.97% | +1.25 | −0.57% | 0 | ok |
+| 20 | 288 | 3,385 | +0.90% | +0.64 | −1.59% | 0 | ok |
+| 60 | 267 | 3,366 | +1.09% | +0.47 | −3.85% | 0 | ok |
+
+**Criterion fails, 0 of 3. All three horizons clear the power floor (3 of 3
+testable, floor 30, actual 267–288).** Zero replicates discarded.
+
+So by Part 1's third reading: **#87 and #90's thin-universe caveat is
+ANSWERED and closed.** The EM-4 verdict does not depend on readings taken off
+a handful of charts. That was worth as much as a pass would have been, and
+Part 1 said so in advance.
+
+## My first expectation was wrong, and in an interesting direction
+
+Part 1 predicted "n_low will fall sharply — a 46 threshold likely removes
+roughly half of it". **n_low rose, 191 → 288**, while 19% of readings were
+*removed*.
+
+The reason is that the bottom decile is recomputed over the filtered series,
+as Part 1 specified. A different trailing history puts the 10th-percentile
+cut-off in a different place, so "extremely low" selects a different and in
+this case larger set of days. I had reasoned about the filter as though it
+only subtracted observations; it also redefines which of the survivors are
+extreme.
+
+That makes the result *stronger* than planned, not weaker: the thick
+instrument failed with more evidence than the mixed one had, not less.
+
+## The finding underneath the verdict
+
+| h60 | #99 (min_universe 10) | #100 (min 46) |
+|---|---|---|
+| edge | **+6.24%** | **+1.09%** |
+| n low | 191 | 267 |
+| t_boot | +0.79 | +0.47 |
+
+**#99's economically large sixty-session edge was largely a thin-reading
+phenomenon.** #87 called +12.57% "economically large" and #99 still had
++6.24%; on a majority-universe instrument it is +1.09%, i.e. gone. The low
+arm's own mean forward return is actually *higher* on thick readings (+9.71%
+against +7.08% — the orientation figures that opened #100), so the edge
+collapsed because the **unconditional** return rose more: 2010-2026 was a
+rising market, which compresses any "buy the bottom" advantage.
+
+## The sweep, and the cell that would have been a headline
+
+| min_classified | readings | n₁₀ | t₁₀ | n₂₀ | t₂₀ | n₆₀ | t₆₀ |
+|---|---|---|---|---|---|---|---|
+| 10 | 4,895 | 211 | +0.46 | 208 | +0.55 | 191 | +0.79 |
+| **20** | 4,639 | 142 | +1.20 | 142 | +0.93 | 130 | **+2.95 SIG** |
+| 30 | 4,255 | 299 | +0.34 | 299 | −0.18 | 278 | +1.05 |
+| **46** | 3,943 | 288 | +1.25 | 288 | +0.64 | 267 | +0.47 |
+| 60 | 2,652 | 315 | +0.98 | 315 | +0.46 | 293 | +0.13 |
+| 80 | 2,090 | 182 | +1.48 | 182 | +0.90 | 161 | +1.20 |
+
+**No threshold passes the criterion.** But look at `min_classified = 20`,
+h60: **t = +2.95**, comfortably significant on its own.
+
+Had I picked 20 as the threshold, that cell would have been the headline —
+"E&M's bottoms claim confirmed at the 60-session horizon on a clean
+universe" — and Part 1's disclosure is the only reason it isn't. Two things
+disarm it, both fixed in advance:
+
+* **#87's criterion requires more than one horizon.** At threshold 20 the
+  other two are +1.20 and +0.93, so even there the criterion fails 1 of 3.
+  This is precisely the lucky-window case that clause was written to exclude,
+  and it is the clearest demonstration so far that the clause earns its place.
+* **The sweep is reported.** t₆₀ runs +0.79, +2.95, +1.05, +0.47, +0.13,
+  +1.20 across the six cut-offs — non-monotone and unstable. A statistic that
+  swings by 2.8 points on a judgement call about universe size is not
+  supporting anything, which is the same conclusion #90 reached about grid
+  phase and #99 about dependence.
+
+## A confound I cannot remove, stated rather than buried
+
+**Raising the threshold also moves the window.** At 46 the series starts
+**2010-12-21**, so 2007–2010 — including the GFC bottom of 2009-02-24, the
+single most striking descriptive fact in #87 (MEI read 0.0% on the index's
+three lowest closes) — is **excluded entirely**.
+
+So the primary result compares a thick-universe instrument on 2010-2026
+against a mixed instrument on 2007-2026. It is *both* a different instrument
+and a different period, and this data cannot separate them: the early years
+are exactly the thin ones, by construction, because the universe fills up over
+time.
+
+What that does and does not permit:
+
+* It **does** support the pre-registered conclusion — the verdict is not
+  produced by thin readings. The claim fails on both instruments.
+* It does **not** support "thick readings carry no information about
+  bottoms", because the thick window contains no bottom of 2009's severity.
+  2020 and 2022 are in it; a 2009 is not.
+
+The honest summary is the one #90 and #99 already reached from two other
+directions: **what binds is how few major bottoms this market has produced**,
+and no choice of threshold, estimator or phase changes that.
+
+## Standing
+
+| | |
+|---|---|
+| #87/#90's thin-universe caveat | **answered and closed** — the verdict holds on a majority-universe instrument with more evidence, not less |
+| `MIN_UNIVERSE = 10` | left at 10, deliberately: #100 is a sensitivity, not a retune, and the production value was never the binding knob (#99 found no low-arm observation below 19 symbols) |
+| the "economically large" 60-session edge | **withdrawn** — +6.24% becomes +1.09% once thin readings go; it was a thin-reading and rising-market artefact |
+| EM-4 overall | closed. Fails on every instrument, phase and threshold tried |
+
+## Reproducing
+
+```bash
+cd stock_microservices/services/decision-helper-service
+PYTHONPATH=. python3 tests/em4_universe_thickness.py   # ~12 min
+```
