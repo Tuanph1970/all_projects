@@ -16,7 +16,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from starlette.responses import Response
 
 from app.config import get_settings
-from app.api.rate_limit import limiter
+from app.api.rate_limit import check_proxy_trust, limiter
 from app.api.routes import router as auth_router
 from app.api.dependencies import engine
 from app.models.domain import Base
@@ -51,6 +51,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator:
     # Startup
     logger.info(f"Starting {settings.SERVICE_NAME} v{settings.SERVICE_VERSION}")
     logger.info(f"Environment: {settings.ENVIRONMENT}")
+
+    # Backlog #24. The per-IP rate limit silently degrades to a GLOBAL one when
+    # uvicorn is not told to trust the proxy, because `get_remote_address` then
+    # keys every request to Traefik's own address. That was the live state until
+    # 2026-10-28 and nothing announced it, so it announces itself now.
+    proxy_warning = check_proxy_trust()
+    if proxy_warning:
+        logger.warning("RATE LIMIT MISCONFIGURED: %s", proxy_warning)
+    else:
+        logger.info("Rate limiting keys on the real client "
+                    "(FORWARDED_ALLOW_IPS is set to a proxy network)")
 
     # Create database tables if not exist
     async with engine.begin() as conn:

@@ -272,6 +272,14 @@ services:
     container_name: stock_auth_service
     environment:
       - SERVICE_NAME=auth-service
+      # Backlog #24. uvicorn only honours X-Forwarded-For from peers listed
+      # here, and its default is 127.0.0.1 — which a Docker bridge peer never
+      # matches. Without this the per-IP rate limit keyed every request to
+      # Traefik's own address, making the 5/minute budget GLOBAL: six sign-ins
+      # in a minute locked out everyone. Deliberately NOT '*', which would make
+      # uvicorn trust the client-controlled leftmost entry and let a caller pick
+      # its own bucket.
+      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-127.0.0.1,172.16.0.0/12}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3004,http://localhost:3000}
       - SERVICE_VERSION=1.0.0
       - ENVIRONMENT=${ENVIRONMENT:-production}
