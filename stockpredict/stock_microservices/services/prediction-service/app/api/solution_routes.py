@@ -41,9 +41,21 @@ training_status = {}
 
 # Model type mapping: DARTS neural network types -> scikit-learn/gradient boosting models
 # Since DARTS is not installed in this microservice, we use available ML models
+# NOTE: keys must match the VALUES of routes.MODEL_TYPE_MAP, which is what lands
+# in model_instances.model_type. Backlog #110 found four that did not: the map
+# held RNNModel / TCNModel / TransformerModel / TFTModel while the catalogue
+# stores RNN / TCN / Transformer / TFT, so those four fell through to the
+# 'xgboost' default AND missed their MODEL_DEFAULTS profile — four of fourteen
+# model choices were silently the same default XGBoost. The *Model spellings are
+# kept as aliases in case older rows carry them (the author had already hit this
+# for NBeats/NBEATSModel and handled that one).
 DARTS_TO_ML_MAP = {
     'BlockRNN': 'xgboost',
+    'RNN': 'lightgbm',
     'RNNModel': 'lightgbm',
+    'TCN': 'xgboost',
+    'Transformer': 'lightgbm',
+    'TFT': 'lightgbm',
     'TCNModel': 'xgboost',
     'TransformerModel': 'lightgbm',
     'NBEATSModel': 'random_forest',
@@ -76,14 +88,18 @@ def _create_ml_model(model_type: str, model_sub_type: str = '', config_json=None
         'XGBoost':          {'n_estimators': 200, 'max_depth': 6,  'learning_rate': 0.10, 'subsample': 0.8, 'colsample_bytree': 0.8},
         'BlockRNN':         {'n_estimators': 300, 'max_depth': 8,  'learning_rate': 0.05, 'subsample': 0.85, 'colsample_bytree': 0.7},
         'TCNModel':         {'n_estimators': 150, 'max_depth': 10, 'learning_rate': 0.08, 'subsample': 0.75, 'colsample_bytree': 0.9},
+        'TCN':              {'n_estimators': 150, 'max_depth': 10, 'learning_rate': 0.08, 'subsample': 0.75, 'colsample_bytree': 0.9},
         'NHits':            {'n_estimators': 500, 'max_depth': 5,  'learning_rate': 0.03, 'subsample': 0.9, 'colsample_bytree': 0.6},
         'TiDE':             {'n_estimators': 100, 'max_depth': 4,  'learning_rate': 0.15, 'subsample': 0.7, 'colsample_bytree': 0.85},
         'CatBoost':         {'n_estimators': 400, 'max_depth': 7,  'learning_rate': 0.04, 'subsample': 0.8, 'colsample_bytree': 0.75},
         # ── LightGBM variants ──
         'LightGBM':         {'n_estimators': 200, 'max_depth': 6,  'learning_rate': 0.10, 'subsample': 0.8, 'colsample_bytree': 0.8, 'num_leaves': 31},
         'RNNModel':         {'n_estimators': 300, 'max_depth': 8,  'learning_rate': 0.05, 'subsample': 0.85, 'colsample_bytree': 0.7, 'num_leaves': 63},
+        'RNN':              {'n_estimators': 300, 'max_depth': 8,  'learning_rate': 0.05, 'subsample': 0.85, 'colsample_bytree': 0.7, 'num_leaves': 63},
         'TransformerModel': {'n_estimators': 400, 'max_depth': 5,  'learning_rate': 0.03, 'subsample': 0.9, 'colsample_bytree': 0.6, 'num_leaves': 127},
+        'Transformer':      {'n_estimators': 400, 'max_depth': 5,  'learning_rate': 0.03, 'subsample': 0.9, 'colsample_bytree': 0.6, 'num_leaves': 127},
         'TFTModel':         {'n_estimators': 350, 'max_depth': 9,  'learning_rate': 0.04, 'subsample': 0.8, 'colsample_bytree': 0.75, 'num_leaves': 80},
+        'TFT':              {'n_estimators': 350, 'max_depth': 9,  'learning_rate': 0.04, 'subsample': 0.8, 'colsample_bytree': 0.75, 'num_leaves': 80},
         'DLinear':          {'n_estimators': 100, 'max_depth': 3,  'learning_rate': 0.15, 'subsample': 0.7, 'colsample_bytree': 0.9, 'num_leaves': 15},
         'NLinear':          {'n_estimators': 80,  'max_depth': 2,  'learning_rate': 0.20, 'subsample': 0.7, 'colsample_bytree': 0.95, 'num_leaves': 10},
         # ── RandomForest variants ──
@@ -373,8 +389,16 @@ async def _run_training(solution_id: int, train_params: dict):
             # Target: next day's close price
             feature_df['target'] = feature_df['close'].shift(-1)
 
-            # Drop NaN rows
+            # Backlog #110 — record what the warm-up costs before discarding it.
+            # `dropna()` drops every row where ANY feature is NaN, so the usable
+            # window is set by the LONGEST-warm-up indicator and applies to all
+            # models alike (these are tabular learners; none needs a sequence
+            # window of its own). That is correct, but it was invisible: adding a
+            # single SMA-200 silently removes 200 bars, which on a three-year
+            # request is over a quarter of the data, with nothing reporting it.
+            rows_before_warmup = int(len(feature_df))
             feature_df = feature_df.dropna()
+            rows_after_warmup = int(len(feature_df))
 
             if len(feature_df) < 30:
                 training_status[solution_id] = {
@@ -452,7 +476,8 @@ async def _run_training(solution_id: int, train_params: dict):
                 'direction_accuracy': direction_accuracy,
                 'training_samples': int(len(X_train)),
                 'validation_samples': int(len(X_val)),
-                'features_used': len(feature_cols)
+                'features_used': len(feature_cols),
+                'rows_dropped_to_warmup': rows_before_warmup - rows_after_warmup,
             })
 
             await db.execute(
@@ -489,15 +514,32 @@ async def _run_training(solution_id: int, train_params: dict):
                 date_str = d.strftime('%Y-%m-%d')
                 is_validation = i >= split_idx
 
+                # Backlog #110 — the prediction is plotted on the bar it actually
+                # forecasts. The target is `close.shift(-1)`, so `all_pred[i]`
+                # estimates close[i+1]; emitting it at row i put the predicted line
+                # ONE BAR AHEAD of the `actual_price` it was drawn against, which
+                # made the chart's "actual vs predicted" compare two different
+                # quantities. Row i therefore carries the forecast MADE AT i-1, so
+                # `actual_price` and `predicted_price` are the same quantity on the
+                # same bar and `close == actual_price` still holds for the UI.
+                forecast_for_this_bar = float(all_pred[i - 1]) if i > 0 else None
+                # ...and the in-sample/held-out boundary moves with it: the forecast
+                # on this bar was made at i-1.
+                forecast_is_validation = (i - 1) >= split_idx
+
                 point = {
                     'date': date_str,
                     'actual_price': float(feature_df['close'].iloc[i]),
-                    # Full fitted/target line across the whole window so the chart
+                    # The fitted/forecast line across the whole window so the chart
                     # always shows a "target train price" series (not just the tail).
-                    'predicted_price': float(all_pred[i]),
+                    'predicted_price': forecast_for_this_bar,
                     # Out-of-sample portion, exposed separately so it can be
                     # highlighted/toggled distinctly from the in-sample fit.
-                    'validation_price': float(all_pred[i]) if is_validation else None,
+                    'validation_price': (forecast_for_this_bar
+                                         if forecast_is_validation else None),
+                    # Explicit rather than inferred from validation_price being null,
+                    # so a consumer cannot average in-sample fits by accident.
+                    'in_sample': not forecast_is_validation,
                     'close': float(feature_df['close'].iloc[i]),
                     'open': float(df.loc[d, 'open']) if d in df.index else None,
                     'high': float(df.loc[d, 'high']) if d in df.index else None,
@@ -547,6 +589,24 @@ async def _run_training(solution_id: int, train_params: dict):
                     "mae": mae,
                     "r2": r2,
                     "direction_accuracy": direction_accuracy,
+                    "data_accounting": {
+                        # Backlog #110. Makes the cost of indicator choice visible:
+                        # `rows_dropped_to_warmup` is history paid for and thrown
+                        # away because some indicator needed a longer lookback.
+                        "bars_fetched": int(len(df)),
+                        "rows_before_warmup": rows_before_warmup,
+                        "rows_after_warmup": rows_after_warmup,
+                        "rows_dropped_to_warmup": rows_before_warmup - rows_after_warmup,
+                        "training_samples": int(len(X_train)),
+                        "validation_samples": int(len(X_val)),
+                        "features_used": len(feature_cols),
+                        "train_end_date": (
+                            dates_list[split_idx - 1].strftime('%Y-%m-%d')
+                            if split_idx > 0 else None),
+                        "validation_start_date": (
+                            dates_list[split_idx].strftime('%Y-%m-%d')
+                            if split_idx < len(dates_list) else None),
+                    },
                     "predictions": predictions,
                     "prediction_dates": prediction_dates,
                     "training_status": "completed",
