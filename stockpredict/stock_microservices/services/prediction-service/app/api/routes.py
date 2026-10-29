@@ -24,6 +24,9 @@ from app.models.schemas import (
 logger = logging.getLogger(__name__)
 
 # Valid model type names (lowercase) mapped to proper case
+from app.api.model_capabilities import covariate_support
+
+
 MODEL_TYPE_MAP = {
     'blockrnn': 'BlockRNN', 'rnn': 'RNN', 'tcn': 'TCN',
     'transformer': 'Transformer', 'tft': 'TFT', 'nbeats': 'NBeats',
@@ -1013,19 +1016,27 @@ async def create_model_by_type(
 
     try:
         config_json = json.dumps(parameters)
+        past_cov, future_cov = covariate_support(model_type)
         result = await db.execute(
             text("INSERT INTO model_instances "
                  "(model_name, model_type, model_sub_type, user_id, status, "
-                 "config_json, created_by, created_at, updated_at) "
+                 "config_json, created_by, past_covariate, future_covariate, "
+                 "created_at, updated_at) "
                  "VALUES (:model_name, :model_type, :model_sub_type, :user_id, 'created', "
-                 ":config_json, :created_by, NOW(), NOW())"),
+                 ":config_json, :created_by, :past_covariate, :future_covariate, "
+                 "NOW(), NOW())"),
             {
                 "model_name": model_name,
                 "model_type": model_type,
                 "model_sub_type": model_sub_type,
                 "user_id": user_id,
                 "config_json": config_json,
-                "created_by": user_id
+                "created_by": user_id,
+                # Backlog #107. These were omitted, so every instance fell to the
+                # column default of 0 and the Solutions UI concluded that no model
+                # accepts any covariate.
+                "past_covariate": int(past_cov),
+                "future_covariate": int(future_cov),
             }
         )
         await db.commit()

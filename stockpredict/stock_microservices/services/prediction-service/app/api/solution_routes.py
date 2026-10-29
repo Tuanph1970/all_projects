@@ -29,6 +29,8 @@ from sqlalchemy import text
 from app.api.dependencies import get_db, get_current_user_optional, get_current_user, async_session_factory
 from app.config import get_settings
 
+from app.api.model_capabilities import covariate_support
+
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
@@ -710,7 +712,19 @@ async def get_predict_models(
                 """)
             )
         rows = result.mappings().all()
-        return [dict(row) for row in rows]
+        # Backlog #107. The stored flags are authoritative for nothing: the create
+        # path never set them, so every existing row carries the column default of
+        # 0 and the Solutions UI concluded no model accepts any covariate. Derive
+        # them from the model type instead, which corrects historical rows without
+        # a migration and keeps one source of truth in code.
+        out = []
+        for row in rows:
+            item = dict(row)
+            past_cov, future_cov = covariate_support(item.get("model_type"))
+            item["past_covariate"] = int(past_cov)
+            item["future_covariate"] = int(future_cov)
+            out.append(item)
+        return out
     except Exception as e:
         logger.warning(f"Failed to fetch predict models: {e}")
         return []
