@@ -48,14 +48,17 @@ def test_the_table_does_not_claim_types_the_api_will_not_create():
     assert not extra, f"capability entries for non-creatable types: {extra}"
 
 
-def test_blockrnn_is_past_only_and_rnn_is_future_only():
-    """The asymmetry that is easy to get backwards — and that the existing
-    `tbl_model_field` seed does get backwards, offering both kinds for each."""
-    assert covariate_support("BlockRNN") == (True, False)
+def test_rnn_is_the_future_only_model():
+    """The asymmetry that is easy to get backwards. RNNModel takes FUTURE
+    covariates and not past ones — verified against the installed darts 0.48.1,
+    which also corrected this table's BlockRNN entry: it said past-only (true of
+    older Darts) and the library reports both."""
     assert covariate_support("RNN") == (False, True)
+    assert covariate_support("BlockRNN") == (True, True)
 
 
 @pytest.mark.parametrize("model_type", ["TFT", "DLinear", "NLinear", "TiDE",
+                                        "BlockRNN",
                                         "XGBoost", "LightGBM", "RandomForest",
                                         "CatBoost"])
 def test_models_that_take_both_kinds(model_type):

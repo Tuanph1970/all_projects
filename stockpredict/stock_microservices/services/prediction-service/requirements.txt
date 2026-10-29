@@ -42,3 +42,30 @@ prometheus-client>=0.19.0
 # Utilities
 python-dotenv>=1.0.0
 joblib>=1.3.0
+
+# Time-series modelling (Backlog #109). `darts` carries the TimeSeries
+# abstraction and — the part this project needs — the past/future COVARIATE
+# API the Solutions UI is built around.
+#
+# The `[torch]` extra is REQUIRED, and the reason is a trap worth recording.
+# Base `darts` plus a CPU torch makes all fifteen model classes IMPORTABLE, so
+# an import probe passes — but the torch architectures are placeholders that
+# raise at FIT time:
+#     ImportError: The `(Py)Torch` module could not be imported.
+# What they actually need is pytorch-lightning, which only the extra declares.
+# Importable is not trainable; verified by FITTING a BlockRNNModel, not by
+# importing it.
+#
+# The extra on its own would resolve the full CUDA stack (nvidia-cublas, cudnn,
+# nccl, cusparse ...), ~2.5-3GB for a machine not training on GPU. So the
+# Dockerfile installs CPU-only torch FIRST from
+# https://download.pytorch.org/whl/cpu; pip then finds torch satisfied and the
+# extra adds only pytorch-lightning, lightning-utilities and torchmetrics —
+# confirmed by dry-run: no torch reinstall, no CUDA wheels.
+#
+# To move to GPU later: drop the CPU index line in the Dockerfile. The host has
+# an RTX 3060 and Docker already exposes the `nvidia` runtime.
+#
+# (The single nvidia-nccl-cu12 in the image predates this and belongs to
+# xgboost, not torch — checked against the previous image.)
+darts[torch]>=0.48,<0.49

@@ -46,7 +46,10 @@ from typing import Dict, Tuple
 #: stored in `model_instances.model_type`.
 MODEL_COVARIATE_SUPPORT: Dict[str, Tuple[bool, bool]] = {
     # Torch sequence models
-    "BlockRNN":     (True,  False),   # past only
+    # darts 0.48 reports BlockRNNModel as supporting BOTH. This entry said
+    # past-only until 2026-10-29, when the installed library contradicted it
+    # (older Darts was past-only). The library wins.
+    "BlockRNN":     (True,  True),
     "RNN":          (False, True),    # future only — the asymmetry above
     "TCN":          (True,  False),
     "Transformer":  (True,  False),
@@ -56,7 +59,14 @@ MODEL_COVARIATE_SUPPORT: Dict[str, Tuple[bool, bool]] = {
     "DLinear":      (True,  True),
     "NLinear":      (True,  True),
     "TiDE":         (True,  True),
-    # Regression models — all take both, plus lags
+    # Regression models: "CAN BE CONFIGURED to take both", which is the question
+    # the UI is actually asking. Verified against darts 0.48.1 — capability is
+    # CONSTRUCTION-dependent, not a class property:
+    #     XGBModel(lags=12)                             -> past=0 future=0
+    #     XGBModel(lags=12, lags_past_covariates=5)     -> past=1 future=0
+    #     XGBModel(lags=12, lags_future_covariates=[0]) -> past=0 future=1
+    # so a solution's covariate_type selections must drive those two arguments.
+    # A static table can only express the ceiling.
     "XGBoost":      (True,  True),
     "LightGBM":     (True,  True),
     "RandomForest": (True,  True),
@@ -86,3 +96,14 @@ def covariate_support(model_type: str | None) -> Tuple[bool, bool]:
 #: migration, so it is deliberately left to a follow-up rather than folded in
 #: here. Recorded so the disagreement is not discovered a third time.
 SEED_DISAGREEMENTS = ("BlockRNN", "RNN", "TCN", "Transformer", "TiDE")
+
+#: Backlog #109 — darts is now installed, so these literals can be replaced by
+#: the library's own supports_past_covariates / supports_future_covariates,
+#: read from an INSTANCE. They are properties: reading them off the CLASS
+#: returns the descriptor, which is always truthy, and an early probe did
+#: exactly that and reported "both" for all thirteen models. Verified
+#: 2026-10-29 against darts 0.48.1 from instances: this table agrees with the
+#: library for 9 of 13 (RNN, TCN, Transformer, NBeats, NHits, TFT, DLinear,
+#: NLinear, TiDE); the four differences are the BlockRNN correction above and
+#: the three regression models, whose flags are construction-dependent.
+LIBRARY_VERIFIED_AGAINST = "darts 0.48.1"
