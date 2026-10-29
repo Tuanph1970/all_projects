@@ -182,27 +182,6 @@ async def test_get_predict_models_swallows_db_error(client: AsyncClient, mock_db
 
 
 # ---------------------------------------------------------------------------
-# GET /covariates — get_predict_covariates
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_get_predict_covariates_returns_active_rows(client: AsyncClient, mock_db):
-    rows = [{"id": 1, "series_name": "Open"}, {"id": 2, "series_name": "Close"}]
-    mock_db.execute = AsyncMock(return_value=_result_with_mappings(rows))
-    r = await client.get(f"{PREFIX}/covariates")
-    assert r.status_code == 200
-    assert len(r.json()) == 2
-
-
-@pytest.mark.asyncio
-async def test_get_predict_covariates_swallows_db_error(client: AsyncClient, mock_db):
-    mock_db.execute = AsyncMock(side_effect=RuntimeError("DB down"))
-    r = await client.get(f"{PREFIX}/covariates")
-    assert r.status_code == 200
-    assert r.json() == []
-
-
-# ---------------------------------------------------------------------------
 # POST / — create_solution
 # ---------------------------------------------------------------------------
 

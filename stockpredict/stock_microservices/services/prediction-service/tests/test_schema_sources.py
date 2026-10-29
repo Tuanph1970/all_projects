@@ -30,9 +30,11 @@ What CAN happen, and what these tests pin instead:
    aimed at a table no `CREATE` in the same list produces. Those statements
    run in sequence at startup against a live database; a typo'd table name
    fails there and nowhere else.
-3. **A query references a table nothing creates.** This is not hypothetical:
-   `tbl_time_series` is selected by `/covariates` and is created by neither
-   source nor anywhere else in the repo. See the last test.
+3. **A query references a table nothing creates.** This was not hypothetical:
+   `tbl_time_series` was selected by `/covariates` and created by neither
+   source nor anywhere else. Removed under Backlog #102 on 2026-10-29; the
+   last two tests keep the gap from reopening, in that instance and in
+   general.
 """
 from __future__ import annotations
 
@@ -119,46 +121,71 @@ def test_every_altered_or_seeded_table_is_also_created():
 
 
 # ---------------------------------------------------------------------------
-# 3. The gap that is real today
+# 3. The gap that WAS real, and is now removed (Backlog #102)
 # ---------------------------------------------------------------------------
+#
+# `tbl_time_series` was SELECTed by `GET /solutions/covariates` and created by
+# neither schema source nor anywhere else, so the handler's
+# `except -> return []` answered an empty list forever. The owner settled it on
+# 2026-10-29: time series are not used, and models take only technical
+# indicators, which have their own live path (IndicatorSelector in
+# SolutionModal -> solution_indicators -> technical_indicators, 54 rows
+# seeded).
+#
+# Three independent confirmations that the feature was dead on BOTH sides
+# before it was removed:
+#   * the table did not exist in the live database (7 legacy tbl_* tables did);
+#   * `tbl_solution` has no `target`, `past_covariate` or `future_covariate`
+#     columns, so the read side resolved to `undefined`;
+#   * `create_solution` never persisted those fields either.
+#
+# Removing it also fixed a live crash: `formSubmit` opened with
+# `selectedPastCovariateIds.map(Number)` on a value that was `undefined` for an
+# existing solution, so Save on the edit screen threw before sending anything.
 
-#: Referenced in SQL but created by neither schema source, nor anywhere else in
-#: stock_microservices/. Listed explicitly so it cannot be forgotten, and so a
-#: NEW unbacked reference is distinguishable from this known one.
-KNOWN_UNBACKED_TABLES = {"tbl_time_series"}
+def test_the_dead_covariates_endpoint_stays_removed():
+    """A table nothing creates must not acquire a new caller.
 
-#: Owned by other services; prediction-service reads them cross-service, which
-#: is expected in this monolith-migration codebase.
-EXTERNALLY_OWNED_TABLES = {"portfolios", "portfolio_holdings"}
-
-
-def test_tbl_time_series_is_still_unbacked_and_the_endpoint_still_degrades():
-    """`/covariates` selects from `tbl_time_series`, which nothing creates.
-
-    The call is wrapped in `except Exception -> logger.warning -> return []`,
-    so the endpoint answers `[]` forever rather than erroring: the screen shows
-    no covariates and only a log line says why. That is a deliberate
-    degradation, and this test pins it so the mitigation cannot be removed
-    while the gap remains.
-
-    It fails — deliberately — if someone CREATES the table (then drop this
-    test and the KNOWN_UNBACKED entry) or deletes the dead endpoint.
+    The previous version of this test asserted the endpoint still existed and
+    still degraded gracefully; it failed the moment the endpoint was deleted,
+    which is what it was written to do. This is its replacement: the same gap
+    cannot reopen quietly.
     """
     routes = (APP / "api" / "solution_routes.py").read_text()
-    assert "tbl_time_series" in routes, (
-        "tbl_time_series is no longer referenced — if the endpoint was removed "
-        "or the table created, drop this test and its KNOWN_UNBACKED entry")
-    assert "tbl_time_series" not in inline_sql_tables() | sqlalchemy_tables()
-
-    # The guard that keeps it from 500ing, asserted on the handler itself.
-    handler = routes[routes.index("async def get_predict_covariates"):]
-    handler = handler[: handler.index("\n@")] if "\n@" in handler else handler
-    assert "except Exception" in handler and "return []" in handler, (
-        "the covariates handler no longer degrades gracefully, so a missing "
-        "tbl_time_series would now surface as a 500")
+    assert "async def get_predict_covariates" not in routes, (
+        "the /covariates handler is back — it SELECTs tbl_time_series, which "
+        "nothing creates, so it can only ever return []")
+    # The explanatory comment may name the table; no executable SQL may.
+    sql = " ".join(_sql_literals(APP / "api" / "solution_routes.py"))
+    assert "tbl_time_series" not in sql, (
+        "a SQL statement references tbl_time_series again")
 
 
-@pytest.mark.parametrize("table", sorted(KNOWN_UNBACKED_TABLES))
-def test_known_unbacked_tables_are_genuinely_unbacked(table):
-    """Keeps the allowlist honest — an entry that IS backed should be removed."""
-    assert table not in inline_sql_tables() | sqlalchemy_tables()
+def test_no_table_is_queried_that_neither_source_creates():
+    """The general form of the #102 defect, not just the one instance.
+
+    Only tables this service owns are checked. `portfolios` and
+    `portfolio_holdings` belong to portfolio-service and are read
+    cross-service, which is expected in this monolith-migration codebase.
+    """
+    known = inline_sql_tables() | sqlalchemy_tables() | EXTERNALLY_OWNED_TABLES
+    queried = set()
+    for path in sorted(APP.rglob("**/*.py")):
+        for literal in _sql_literals(path):
+            for name in re.findall(
+                    r"\bFROM\s+`?([a-z_][a-z0-9_]*)`?", literal, re.I):
+                name = name.lower()
+                # Only names shaped like this service's tables; SQL literals
+                # also contain prose in docstrings ("DELETE a solution ...").
+                if name in known or name.startswith(("tbl_", "model_", "solution_",
+                                                     "technical_", "prediction")):
+                    queried.add(name)
+    unbacked = sorted(queried - known)
+    assert not unbacked, (
+        f"queried but created by neither schema source: {unbacked}. That is the "
+        f"#102 failure mode: the query is wrapped in a try/except, so it returns "
+        f"empty forever and only a log line says why.")
+
+
+#: Owned by other services; prediction-service reads them cross-service.
+EXTERNALLY_OWNED_TABLES = {"portfolios", "portfolio_holdings"}

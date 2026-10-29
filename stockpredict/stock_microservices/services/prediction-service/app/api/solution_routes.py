@@ -716,25 +716,14 @@ async def get_predict_models(
         return []
 
 
-@solution_router.get("/covariates")
-@solution_router.get("/covariates/")
-async def get_predict_covariates(
-    db: AsyncSession = Depends(get_db)
-):
-    """Get covariates (time series) for solution configuration.
-    Matches webapi: views_solution.get_predict_covariates
-    """
-    try:
-        result = await db.execute(
-            text("SELECT id, series_name FROM tbl_time_series WHERE status = 1")
-        )
-        rows = result.mappings().all()
-        return [dict(row) for row in rows]
-    except Exception as e:
-        logger.warning(f"Failed to fetch covariates: {e}")
-        return []
-
-
+# GET /covariates was removed 2026-10-29 (Backlog #102). It SELECTed
+# `id, series_name FROM tbl_time_series`, a table that never existed in this
+# deployment — created by neither of prediction-service's schema sources nor
+# anywhere else — so the handler's `except -> return []` meant it answered an
+# empty list forever. Confirmed dead by the owner: models use only technical
+# indicators, which have their own path (IndicatorSelector -> solution_indicators
+# -> technical_indicators, 54 rows seeded). tbl_solution has no target or
+# covariate columns either, so neither side of the feature was ever wired.
 @solution_router.post("")
 @solution_router.post("/")
 @solution_router.post("/create")

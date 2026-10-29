@@ -24,34 +24,23 @@ export async function getTickers(){
     console.error('Error fetching tickers:', result.error);
     return [];
 }
-export async function getTimeSeries(){
-    const result = await httpClient.get(API_ENDPOINTS.SOLUTION_COVARIATES);
-    if (result.success) {
-        return result.data || [];
-    }
-    console.error('Error fetching time series:', result.error);
-    return [];
-}
 
 const SolutionAddNew = ()=>{
     const { t } = useTranslation();
     const [tickerList,setTickerList ] = useState([])
     const [modelList,setModelList] = useState([])
-    const [timeSeries,setTimeSeries] = useState([])
     const [isLoading,setIsLoading] = useState(true)
 
     useEffect(() => {
         const loadData = async () => {
             try {
                 setIsLoading(true)
-                const [models, tickers, timeSeriesData] = await Promise.all([
+                const [models, tickers] = await Promise.all([
                     getModels(),
-                    getTickers(),
-                    getTimeSeries()
+                    getTickers()
                 ])
                 setModelList(models)
                 setTickerList(tickers)
-                setTimeSeries(timeSeriesData)
             } catch (error) {
                 console.error('Error loading data:', error)
             } finally {
@@ -95,8 +84,8 @@ const SolutionAddNew = ()=>{
             </TabList>
 
             <TabPanel>
-            {tickerList.length >0 && modelList.length > 0 && timeSeries.length > 0 ?
-                <p><GeneralSollutionInfo tickers={tickerList} models={modelList} timeseies={timeSeries} solution = {null}/></p> : null
+            {tickerList.length > 0 && modelList.length > 0 ?
+                <p><GeneralSollutionInfo tickers={tickerList} models={modelList} solution={null}/></p> : null
              }
             </TabPanel>
             <TabPanel>
