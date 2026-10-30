@@ -18,7 +18,10 @@ It was never run. Two independent findings make running it meaningless today,
 and both are facts about the *input*, not about the price data:
 
 1. **The score carries no information beyond a 3-level label** — it is a
-   hardcoded constant per label, not a model output (§2).
+   hardcoded constant per label, not a model output, and its middle value is
+   `+0.5` rather than `0` (§2a, §2b). These two are the disqualifying findings;
+   two further arguments in the first draft of this document were overstated
+   and are corrected in §2c and §2d.
 2. **There are 11 independent observations** — not 209 (§3).
 
 Finding 1 alone is disqualifying: a variable with three values, two of which are
@@ -59,33 +62,62 @@ is not a signed score, and not even an ordinal scale with meaningful distances.
 This is precisely the trap #106 §(1) warned about — "a scale with 'normal' in
 the middle" — except the middle is not in the middle.
 
-**(c) The label is 7 English keywords counted over generated prose.**
-`_analyze_sentiment` (`insights_service.py:457`) counts
+**(c) The label is a keyword count over the LLM's prose, not the LLM's own
+judgement.** `_analyze_sentiment` (`insights_service.py:457`) counts
 `bullish|buy|positive|growth|upside|strong|outperform` against
-`bearish|sell|negative|decline|downside|weak|underperform`, and requires a
-**margin of 2** (`bullish_count > bearish_count + 1`) to leave neutral. It scores
-the *analysis text*, not the news. Verified by running it:
+`bearish|sell|negative|decline|downside|weak|underperform`, needing a **margin
+of 2** to leave neutral. So the model reads the news, forms an explicit view,
+writes it out — and the view is then re-derived by counting seven words in its
+own prose. That indirection is the defect: the judgement already exists and is
+discarded.
 
-| input | result |
-|---|---|
-| clearly-bad Vietnamese prose (`"bao lo nang, co phieu giam san, trien vong xau"`) | **neutral** (+0.5) |
-| one English bearish word (`"The outlook is negative."`) | **neutral** (+0.5) |
-| three English bearish words | bearish (−0.8) |
+**This is weaker than the first version of this document claimed, and the
+correction is mine.** I wrote that the counter is "near-blind on Vietnamese
+news", citing a test where clearly-bad Vietnamese prose returned neutral. That
+test fed Vietnamese text *directly* to `_analyze_sentiment`, which is a path the
+pipeline never takes: measured against the live endpoint, the LLM answers in
+**English regardless of input language**, so the counter always sees English
+analysis prose. The claim tested a function in isolation and then described it
+as a property of the system. What does survive, measured: a single bearish
+English word returns neutral (margin-of-2), so a mildly negative analysis lands
+in the same bucket as no view at all.
 
-On Vietnamese-language news the counter is near-blind, and the margin rule pushes
-anything marginal to neutral. 79% neutral is the expected output of this rule,
-not a property of the news.
+I also explained the 79% neutral rate by that blindness. **That explanation was
+wrong.** Inspecting the corpus, it is dominated by routine regulatory filings —
+listing notices, offering reports, charter amendments, licence changes — which
+genuinely *are* neutral. The rate is mostly a property of the corpus, not of the
+rule.
 
-**(d) With no LLM configured the result is a constant.** `_call_llm` falls
-through to `_generate_template_response`, whose fixed text contains **no word
-from either list** — so it yields `bullish_count == bearish_count == 0` →
-`neutral` → `+0.5`, deterministically, for every item. Verified by running it.
-`ANTHROPIC_API_KEY` is empty in the deployed ai-insights container and
-`OPENAI_API_KEY` is 35 characters (short for a real key), so some or all of the
-165 neutrals may be this constant rather than any judgement at all. The 44
-non-neutral rows show *a* provider answered at some point, so the corpus is a
-mixture of template-constant and keyword-counted rows with no field recording
-which is which.
+**(d) The template fallback is reachable, but is not what runs.** `_call_llm`
+falls through to `_generate_template_response`, whose fixed text contains **no
+word from either list**, so it yields `neutral` → `+0.5` deterministically for
+every item (verified by running it). The first version of this document treated
+that as a live possibility for the stored data, on the grounds that
+`ANTHROPIC_API_KEY` is empty and `OPENAI_API_KEY` is 35 characters. **Measured
+since: OpenAI answers, and answers well** — a bearish test item returned
+`bearish`/−0.8 with substantive prose. So the stored corpus is real LLM output
+scored by the crude counter, not template constants. The defect is now a
+*silent-degradation* risk rather than a description of the data: if the key
+lapses, every item silently becomes `+0.5` and nothing records that it happened.
+That is what makes provenance (§5.4) worth having.
+
+## 2.1 What the label gets right
+
+Stated because the first version of this document under-reported it. Judged
+against the titles, the three-level label tracks real good/bad at the extremes:
+
+- `bad` — tax penalty and arrears, a share-price slump the company had to
+  address, quarterly earnings-variance explanations, a branch closure, a
+  regulator revoking an operating approval.
+- `good` — profit results, a 20% dividend, construction contract and highway
+  tender wins.
+
+So the **label** is useful and should not be thrown away. The failure is
+everything downstream of it: the ternary at :522 that turns it into a number,
+and the choice of `+0.5` for the middle. One real labelling error is visible
+too — routine administrative filings (sustainability report, amended charter,
+licence change, signing an audit contract) are labelled `good` rather than
+neutral, which inflates the positive class.
 
 ## 3. The data could not support the study either
 
@@ -152,9 +184,15 @@ All four must hold:
 ## 6. Consequences for #106
 
 **#106 is blocked, which is the outcome #108 existed to determine.** Feeding
-`sentiment_score` to a model today would supply a feature that is `+0.5` for 79%
-of rows, `+0.5` for every row scored while the LLM was unreachable, and signed
-the wrong way for "no strong view". A model would learn the ingestion schedule.
+`sentiment_score` to a model today would supply a feature that takes three
+values, is `+0.5` for 79% of rows, and is signed the wrong way for "no strong
+view" — a feature whose dominant value says *mildly good* when it means
+*nothing happened*. That rests on §2a and §2b alone and does not depend on the
+two corrected arguments.
+
+**But the label is worth keeping (§2.1).** The fix is therefore smaller than
+"replace the sentiment pipeline": ask the LLM for a graded score and stop
+re-deriving one from its prose.
 
 #106's own design holds up and is unaffected: separate intensity from polarity,
 decay the impulse, use publication time, past covariates only. **Intensity —
