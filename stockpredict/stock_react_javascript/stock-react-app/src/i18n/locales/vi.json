@@ -1576,7 +1576,10 @@
     "save_success": "Lưu giải pháp thành công!",
     "predict_success": "Dự đoán hoàn thành thành công!",
     "save_first_train": "Vui lòng lưu giải pháp trước khi huấn luyện",
-    "save_first_predict": "Vui lòng lưu giải pháp trước khi dự đoán"
+    "save_first_predict": "Vui lòng lưu giải pháp trước khi dự đoán",
+    "include_news": "Bao gồm biến tin tức (chỉ quá khứ)",
+    "news_halflife": "Chu kỳ bán rã tin tức (ngày)",
+    "news_covariate_note": "Thêm hai biến QUÁ KHỨ: cường độ tin tức (số bài viết có suy giảm) và sắc thái tin tức (sắc thái trung bình có suy giảm). Giá trị 0 nghĩa là không có tin nào ảnh hưởng đến phiên đó, không phải tin trung tính. Tin tức ngày mai không thể biết trước hôm nay, nên đây không bao giờ là biến tương lai."
   },
   "backtest": {
     "title": "Backtest dự đoán",

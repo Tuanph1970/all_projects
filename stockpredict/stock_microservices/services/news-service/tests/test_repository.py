@@ -208,3 +208,47 @@ def test_ensure_schema_adds_the_column_to_a_pre_existing_table(tmp_path):
         )).one()
     assert row[0] == 0.5
     assert row[1] is None
+
+
+# ---------------------------------------------------------------------------
+# Backlog #106 — feature_points
+# ---------------------------------------------------------------------------
+
+def test_feature_points_returns_oldest_first_within_the_window(news_repo):
+    from datetime import datetime, timezone
+    for day in (3, 1, 2):
+        it = _item(guid=f"fp-{day}", ts_utc=datetime(2026, 9, day, 2, 0, tzinfo=timezone.utc))
+        news_repo.upsert(it)
+        news_repo.mark_classified(it.news_id(), sentiment="good", category="earnings",
+                                  score=0.1 * day, score_source="model")
+    pts = news_repo.feature_points(
+        symbol="FPT",
+        since=datetime(2026, 9, 1, tzinfo=timezone.utc),
+        until=datetime(2026, 9, 30, tzinfo=timezone.utc),
+    )
+    assert [p[0].day for p in pts] == [1, 2, 3], "the decay needs oldest-first"
+    assert [p[2] for p in pts] == ["model"] * 3
+
+
+def test_feature_points_is_not_capped_like_the_read_api(news_repo):
+    """query() caps at `limit` and orders newest-first, so building the series on
+    it would drop the oldest part of the window — the half the decay needs."""
+    from datetime import datetime, timedelta, timezone
+    base = datetime(2026, 9, 1, 2, 0, tzinfo=timezone.utc)
+    for n in range(150):
+        it = _item(guid=f"many-{n}", ts_utc=base + timedelta(hours=n))
+        news_repo.upsert(it)
+    pts = news_repo.feature_points(symbol="FPT", since=base,
+                                   until=base + timedelta(days=30))
+    assert len(pts) == 150
+    assert len(news_repo.query(symbol="FPT")) <= 100   # the read API's cap
+
+
+def test_feature_points_excludes_other_symbols(news_repo):
+    from datetime import datetime, timezone
+    ts = datetime(2026, 9, 2, 2, 0, tzinfo=timezone.utc)
+    news_repo.upsert(_item(guid="s-acb", symbol="ACB", ts_utc=ts))
+    news_repo.upsert(_item(guid="s-fpt", symbol="FPT", ts_utc=ts))
+    assert len(news_repo.feature_points(
+        symbol="ACB", since=datetime(2026, 9, 1, tzinfo=timezone.utc),
+        until=datetime(2026, 9, 30, tzinfo=timezone.utc))) == 1

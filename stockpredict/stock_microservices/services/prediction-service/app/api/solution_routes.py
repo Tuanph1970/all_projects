@@ -30,6 +30,12 @@ from app.api.dependencies import get_db, get_current_user_optional, get_current_
 from app.config import get_settings
 
 from app.api.model_capabilities import covariate_support
+from app.services.news_covariates import (
+    NewsCovariateError,
+    attach_news_features,
+    fetch_news_features,
+    news_coverage,
+)
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -61,6 +67,38 @@ training_status = {}
 # flag away from being undone.
 DEFAULT_TRAINING_ENGINE = 'darts'
 SUPPORTED_TRAINING_ENGINES = ('tabular', 'darts')
+
+
+# Backlog #106 — news as PAST covariates. Opt-in, and default OFF.
+#
+# Not timidity: on today's corpus the two columns are zero for almost every bar
+# (four symbols and seven weeks of news against a three-year price request), so
+# defaulting them on would quietly add two near-constant features to every
+# existing solution and move its numbers for no gain. A solution asks for them.
+#
+# The half-life is in CALENDAR days and is the operator's one knob. #106 called
+# for 3-10 days; the bounds here are wider so an experiment is possible, and are
+# enforced rather than trusted, because a non-positive value has no decay factor.
+NEWS_FEATURES_DEFAULT = False
+NEWS_HALFLIFE_DEFAULT = 5.0
+NEWS_HALFLIFE_BOUNDS = (0.5, 90.0)
+
+
+def resolve_news_halflife(requested) -> float:
+    """Clamp the requested half-life into NEWS_HALFLIFE_BOUNDS.
+
+    Clamping rather than rejecting: this is a smoothing knob, not a correctness
+    switch, and a training run should not fail because a slider reached 0. A
+    non-numeric or NaN value falls back to the default.
+    """
+    lo, hi = NEWS_HALFLIFE_BOUNDS
+    try:
+        v = float(requested)
+    except (TypeError, ValueError):
+        return NEWS_HALFLIFE_DEFAULT
+    if v != v:  # NaN
+        return NEWS_HALFLIFE_DEFAULT
+    return max(lo, min(hi, v))
 
 
 def resolve_training_engine(requested: Optional[str]) -> str:
@@ -433,6 +471,45 @@ async def _run_training(solution_id: int, train_params: dict):
             # Build feature DataFrame using shared function
             feature_df = _build_feature_df(df, indicator_feature_df)
 
+            # Backlog #106 — news as PAST covariates, when the solution asked.
+            # Attached BEFORE the target and the warm-up dropna, so the columns
+            # are accounted for like any other feature. news_covariates fills
+            # absent dates with 0.0 precisely so that dropna cannot delete every
+            # bar outside the news window (the #110 trap, in a new place).
+            news_coverage_report = {"attached": False}
+            if bool(train_params.get('include_news', NEWS_FEATURES_DEFAULT)):
+                halflife = resolve_news_halflife(
+                    train_params.get('news_halflife_days', NEWS_HALFLIFE_DEFAULT))
+                training_status[solution_id]["message"] = "Fetching news covariates..."
+                try:
+                    async with httpx.AsyncClient(timeout=30.0) as news_client:
+                        news_rows = await fetch_news_features(
+                            news_client,
+                            base_url=settings.NEWS_SERVICE_URL,
+                            api_prefix=settings.API_PREFIX,
+                            symbol=ticker,
+                            start=str(feature_df.index.min().date()),
+                            end=str(feature_df.index.max().date()),
+                            halflife_days=halflife)
+                except NewsCovariateError as exc:
+                    # Fail rather than train silently without them: reporting a
+                    # news-aware model that never saw the feature is the #109
+                    # mislabelling defect in another costume.
+                    training_status[solution_id] = {
+                        "status": "failed",
+                        "error": ("news covariates were requested but could not "
+                                  f"be loaded: {exc}"),
+                        "failed_at": time_module.time(),
+                    }
+                    return
+                feature_df = attach_news_features(feature_df, news_rows)
+                news_coverage_report = news_coverage(feature_df)
+                news_coverage_report["halflife_days"] = halflife
+                logger.info(
+                    "solution %s: news covariates attached, %s/%s bars with coverage",
+                    solution_id, news_coverage_report.get("rows_with_coverage"),
+                    news_coverage_report.get("rows"))
+
             # Target: next day's close price
             feature_df['target'] = feature_df['close'].shift(-1)
 
@@ -463,7 +540,8 @@ async def _run_training(solution_id: int, train_params: dict):
                     model_id=model_id, ticker=ticker, train_params=train_params,
                     start_date=start_date, end_date=end_date,
                     rows_before_warmup=rows_before_warmup,
-                    rows_after_warmup=rows_after_warmup)
+                    rows_after_warmup=rows_after_warmup,
+                    news_coverage_report=news_coverage_report)
                 return
             if engine not in SUPPORTED_TRAINING_ENGINES:
                 training_status[solution_id] = {
@@ -1046,6 +1124,7 @@ async def get_ticker_time_range(
 async def _run_darts_engine(
     *, solution_id, db, feature_df, indicator_rows, model_instance, model_id,
     ticker, train_params, start_date, end_date, rows_before_warmup, rows_after_warmup,
+    news_coverage_report=None,
 ):
     """Backlog #109 Phase 2b — train through Darts instead of the tabular path.
 
@@ -1122,6 +1201,7 @@ async def _run_darts_engine(
 
     metrics_json = json.dumps({
         'engine': 'darts', 'model_type': model_type,
+        'news_covariates': (news_coverage_report or {"attached": False}),
         'rmse': m['rmse'], 'mae': m['mae'], 'r2': m['r2'],
         'direction_accuracy': m['direction_accuracy'],
         # The benchmark is stored WITH the figure, per C4 — a later reader must
@@ -1151,6 +1231,7 @@ async def _run_darts_engine(
                     f"(naive {result['naive']['rmse']:.4f})"),
         "result": {
             "engine": "darts", "model_type": model_type,
+            "news_covariates": (news_coverage_report or {"attached": False}),
             "rmse": m['rmse'], "mae": m['mae'], "r2": m['r2'],
             "direction_accuracy": m['direction_accuracy'],
             "naive": result['naive'], "beats_naive_rmse": result['beats_naive_rmse'],
@@ -1236,6 +1317,11 @@ async def train_solution(
         # resolve_training_engine, which is also where an unknown name is
         # reported, so the raw request value is what travels here.
         'engine': (data.get('engine') or DEFAULT_TRAINING_ENGINE),
+        # Backlog #106. Opt-in news PAST covariates and their decay half-life.
+        # Default off — see NEWS_FEATURES_DEFAULT for why.
+        'include_news': bool(data.get('include_news', NEWS_FEATURES_DEFAULT)),
+        'news_halflife_days': resolve_news_halflife(
+            data.get('news_halflife_days', NEWS_HALFLIFE_DEFAULT)),
     }
 
     asyncio.create_task(_run_training(solution_id, train_params))

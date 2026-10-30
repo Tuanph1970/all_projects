@@ -1576,7 +1576,10 @@
     "save_success": "Solution saved successfully!",
     "predict_success": "Prediction completed successfully!",
     "save_first_train": "Please save the solution first before training",
-    "save_first_predict": "Please save the solution first before predicting"
+    "save_first_predict": "Please save the solution first before predicting",
+    "include_news": "Include news covariates (past only)",
+    "news_halflife": "News half-life (calendar days)",
+    "news_covariate_note": "Adds two PAST covariates: news intensity (decayed article count) and news polarity (decayed mean tone). 0 means no coverage reached that bar, not neutral news. Tomorrow's coverage is not knowable today, so these can never be future covariates."
   },
   "backtest": {
     "title": "Prediction Backtest",

@@ -19,6 +19,12 @@ const parseTrainingDate = (value, fallback) => {
     return Number.isNaN(parsed.getTime()) ? fallback : parsed;
 };
 
+// Backlog #106. Calendar-day half-life for the news decay, mirroring
+// prediction-service's NEWS_HALFLIFE_DEFAULT. The backend clamps this into
+// [0.5, 90] and falls back to the default on anything unusable, so the UI does
+// not have to be the last line of defence — but it should not send nonsense.
+const NEWS_HALFLIFE_DEFAULT = 5;
+
 const defaultEndDate = () => new Date();
 const defaultStartDate = () => {
     const d = new Date();
@@ -32,6 +38,12 @@ const TrainingSolution = (props)=>{
     const [endDate,setEndDate] = useState(() => parseTrainingDate(props.solution['end_training_date'], defaultEndDate()))
     const [validation,setValidation] = useState(true)
     const [validateionNumber,setValidationNumber] = useState(0.2)
+    // Backlog #106 — news as PAST covariates. Off by default, matching the
+    // backend's NEWS_FEATURES_DEFAULT: on today's corpus the two columns are
+    // zero for almost every bar, so switching it on for every solution would
+    // add two near-constant features and move the numbers for no gain.
+    const [includeNews,setIncludeNews] = useState(false)
+    const [newsHalflife,setNewsHalflife] = useState(NEWS_HALFLIFE_DEFAULT)
     const [rmseValue,setRmseValue] = useState(null)
     const [trainingStatus,setTrainingStatus] = useState('')
     const [trainingProgress, setTrainingProgress] = useState(0)
@@ -138,7 +150,11 @@ const TrainingSolution = (props)=>{
             validation:validation,
             train_ratio:validateionNumber,
             start_date:startDate.toISOString().split('T')[0],
-            end_date:endDate.toISOString().split('T')[0]
+            end_date:endDate.toISOString().split('T')[0],
+            // Backlog #106. Sent only as the operator set them; the backend
+            // decides the default and clamps the half-life.
+            include_news: includeNews,
+            news_halflife_days: Number(newsHalflife) || NEWS_HALFLIFE_DEFAULT
         }
 
         setTrainingStatus(t('solutions.training_in_progress'))
@@ -259,6 +275,50 @@ const TrainingSolution = (props)=>{
                                 {isPolling ? t('solutions.training_btn') : t('solutions.train_btn')}
                             </button>
                         </div>
+                    </div>
+
+                    {/* Backlog #106 — news as PAST covariates. Never future: tomorrow's
+                        coverage is not knowable today, which is the same rule
+                        #104/#105 enforce for indicators. */}
+                    <div className="row g-2 mb-3 align-items-end">
+                        <div className="col-md-4">
+                            <div className="form-check">
+                                <input
+                                    type="checkbox"
+                                    checked={includeNews}
+                                    onChange={(e)=>setIncludeNews(e.target.checked)}
+                                    className="form-check-input"
+                                    id="includeNewsCheck"
+                                />
+                                <label className="form-check-label" htmlFor="includeNewsCheck">
+                                    <small>{t('solutions.include_news')}</small>
+                                </label>
+                            </div>
+                        </div>
+                        {includeNews && (
+                            <div className="col-md-3">
+                                <label className="form-label form-label-sm mb-1" htmlFor="newsHalflife">
+                                    <small>{t('solutions.news_halflife')}</small>
+                                </label>
+                                <input
+                                    id="newsHalflife"
+                                    type="number"
+                                    step="0.5"
+                                    min="0.5"
+                                    max="90"
+                                    value={newsHalflife}
+                                    onChange={(e)=>setNewsHalflife(e.target.value)}
+                                    className="form-control form-control-sm"
+                                />
+                            </div>
+                        )}
+                        {includeNews && (
+                            <div className="col-md-5">
+                                <small className="text-muted d-block">
+                                    &#128240; {t('solutions.news_covariate_note')}
+                                </small>
+                            </div>
+                        )}
                     </div>
 
                     {/* Model Details Section */}

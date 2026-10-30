@@ -155,6 +155,31 @@ class NewsRepository:
             obj.classified_at = _utcnow()
             s.commit()
 
+    def feature_points(
+        self, *, symbol: str, since: datetime, until: datetime
+    ) -> list[tuple[datetime, Optional[float], Optional[str]]]:
+        """(ts_utc, sentiment_score, score_source) for one symbol in a window.
+
+        Backlog #106. Deliberately NOT `query()`: that one caps at `limit` rows
+        and is ordered newest-first for the read API, so a feature series built
+        on it would silently truncate the oldest part of the window — the half
+        the decay needs most. This returns every matching row, oldest first, and
+        only the three columns the feature builder reads.
+
+        Dedup is already structural: news_id is the primary key and is derived
+        from guid/url/(symbol‖title‖date) (FR-NEWS-DEDUP), so a republished
+        story does not inflate intensity.
+        """
+        stmt = (
+            select(NewsEvent.ts_utc, NewsEvent.sentiment_score, NewsEvent.score_source)
+            .where(NewsEvent.symbol == symbol)
+            .where(NewsEvent.ts_utc >= since)
+            .where(NewsEvent.ts_utc <= until)
+            .order_by(NewsEvent.ts_utc.asc())
+        )
+        with self._Session() as s:
+            return [(r[0], r[1], r[2]) for r in s.execute(stmt).all()]
+
     def mark_notified(self, news_id: str) -> None:
         self._stamp(news_id, "notified_at")
 

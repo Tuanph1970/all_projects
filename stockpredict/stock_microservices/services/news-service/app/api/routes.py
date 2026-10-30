@@ -7,7 +7,8 @@ land in task N8.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import date as date_type
+from datetime import datetime, time, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -15,6 +16,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.api.schemas import IngestRequest, IngestResponse
 from app.deps import container, get_repo
 from app.exceptions import ClassificationError, NewsIngestError, SourceUnavailableError
+from app.features.news_features import (
+    DEFAULT_HALFLIFE_DAYS,
+    NewsItemPoint,
+    daily_news_features,
+    rows_to_payload,
+)
 from app.models.domain import NewsEvent
 from app.models.news_item import NewsItem
 from app.repositories.news_repository import NewsRepository
@@ -75,6 +82,66 @@ def list_news(
         since=since, until=until, limit=limit, offset=offset,
     )
     return {"data": [_row_to_dict(r) for r in rows], "count": len(rows)}
+
+
+@router.get("/news/features/{symbol}", summary="Decayed news covariates for one symbol")
+def news_features(
+    symbol: str,
+    start: date_type = Query(..., description="first session date, inclusive"),
+    end: date_type = Query(..., description="last session date, inclusive"),
+    halflife_days: float = Query(DEFAULT_HALFLIFE_DAYS, gt=0, le=90),
+    warmup_days: int = Query(30, ge=0, le=365),
+    repo: NewsRepository = Depends(get_repo),
+):
+    """Backlog #106 — news as PAST covariates: decayed intensity + polarity.
+
+    One row per CALENDAR date (news ages over a weekend), so the caller reindexes
+    onto its own trading calendar; this service has no market calendar and should
+    not grow one. `warmup_days` of earlier news is read so the decay is already
+    running at the first returned row instead of restarting from zero.
+
+    PAST COVARIATES ONLY. Tomorrow's news intensity is not known today, so these
+    must never be offered as future covariates (#104/#105, CLAUDE.md C1). The
+    response says so in `covariate_type`, rather than leaving the caller to
+    assume it.
+    """
+    if end < start:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"end {end} precedes start {start}",
+        )
+    since = datetime.combine(start - timedelta(days=warmup_days), time.min, tzinfo=timezone.utc)
+    until = datetime.combine(end, time.max, tzinfo=timezone.utc)
+    points = [
+        NewsItemPoint(ts_utc=ts, sentiment_score=score, score_source=source)
+        for ts, score, source in repo.feature_points(
+            symbol=symbol.upper(), since=since, until=until
+        )
+    ]
+    rows = daily_news_features(
+        points, start=start, end=end,
+        halflife_days=halflife_days, warmup_days=warmup_days,
+    )
+    payload = rows_to_payload(rows)
+    scored = sum(r["scored_count"] for r in payload)
+    return {
+        "symbol": symbol.upper(),
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "halflife_days": halflife_days,
+        "warmup_days": warmup_days,
+        "covariate_type": "past",
+        "features": ["news_intensity", "news_polarity"],
+        # Reported so a caller can see WHY polarity is flat rather than guessing.
+        # articles_in_window counts coverage; scored_in_window counts the rows
+        # whose tone is trustworthy after #112 — rows written before it carry
+        # score_source NULL and are excluded from polarity (Backlog #113).
+        "articles_in_window": sum(r["article_count"] for r in payload),
+        "scored_in_window": scored,
+        "polarity_available": scored > 0,
+        "data": payload,
+        "count": len(payload),
+    }
 
 
 @router.get("/news/{news_id}", summary="Get one news item (incl. raw_json)")

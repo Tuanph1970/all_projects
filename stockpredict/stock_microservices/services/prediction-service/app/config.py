@@ -39,6 +39,8 @@ class Settings(BaseSettings):
 
     # Service URLs
     STOCK_DATA_SERVICE_URL: str = "http://stock-data-service:8001"
+    # Backlog #106 — source of the decayed news covariate series.
+    NEWS_SERVICE_URL: str = "http://news-service:8013"
 
     # ML Configuration
     MODEL_PATH: str = "/app/models"
