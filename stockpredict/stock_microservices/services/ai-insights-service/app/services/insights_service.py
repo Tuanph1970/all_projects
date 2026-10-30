@@ -174,6 +174,136 @@ def _keyword_news_category(text: str) -> str:
     return "other"
 
 
+# Backlog #112 — the sentiment score comes from the model that read the news.
+#
+# It used to be computed FROM the label by a ternary at the bottom of
+# analyze_news: `0.5 if neutral else (0.8 if bullish else -0.8)`. That carried
+# zero information beyond three buckets, and it scored "neutral" at +0.5, so
+# anything reading the field as a signed polarity read "nothing happened" as
+# moderately good news — 79% of the live corpus. #108 measured it; the doc is
+# docs/backlog108_news_sentiment_validation.md.
+#
+# The model already forms an explicit view and writes it out. The old code then
+# threw that away and re-derived a label by counting seven English words in the
+# model's own prose. So the fix is to ASK for the number and parse it, exactly
+# as CATEGORY is already asked for and parsed.
+
+# Below this magnitude the model is saying "no material view", which is a
+# different statement from a weak directional call.
+NEUTRAL_DEADBAND = 0.1
+
+# Used only when the model gave a direction but no magnitude: direction known,
+# magnitude unknown. Deliberately modest, and always accompanied by
+# score_source='label_fallback' so a consumer can decline to trust the number.
+# This is NOT a return of the ternary: it never applies when a score was given.
+LABEL_ONLY_MAGNITUDE = 0.5
+
+# Marker from _generate_template_response. Its text contains no word from either
+# keyword list, so it scores as "neutral" and used to be indistinguishable from
+# a real neutral judgement — which is how a lapsed API key could fill the corpus
+# with constants that nothing recorded.
+_TEMPLATE_MARKER = "This is a template response"
+
+_SENTIMENT_LABELS = ("bullish", "bearish", "neutral")
+
+# Backlog #112. The scoring call samples deterministically; the prose endpoints
+# keep LLM_TEMPERATURE (0.7), where variety is harmless. Scoped deliberately
+# rather than set globally — flattening the narrative endpoints is not the goal.
+NEWS_SCORING_TEMPERATURE = 0.0
+
+
+def _parse_llm_score(content: str) -> Optional[float]:
+    """Read the 'SCORE: <n>' line the prompt asks for; clamp to [-1, 1].
+
+    Returns None when absent or unparseable so the caller can fall back and
+    SAY that it fell back, rather than inventing a magnitude.
+    """
+    if not content:
+        return None
+    m = re.search(r"score\s*[:\-]\s*([+-]?\d*\.?\d+)", content, flags=re.IGNORECASE)
+    if not m:
+        return None
+    try:
+        v = float(m.group(1))
+    except ValueError:
+        return None
+    return max(-1.0, min(1.0, v))
+
+
+def _parse_llm_sentiment(content: str) -> Optional[str]:
+    """Read the 'SENTIMENT: <label>' line; validate against the closed set."""
+    if not content:
+        return None
+    m = re.search(r"sentiment\s*[:\-]\s*([a-z]+)", content, flags=re.IGNORECASE)
+    if not m:
+        return None
+    cand = m.group(1).strip().lower()
+    return cand if cand in _SENTIMENT_LABELS else None
+
+
+def _label_for_score(score: float) -> str:
+    if score >= NEUTRAL_DEADBAND:
+        return "bullish"
+    if score <= -NEUTRAL_DEADBAND:
+        return "bearish"
+    return "neutral"
+
+
+def _resolve_sentiment(content: str) -> tuple[str, float, str]:
+    """Return (label, score, score_source) for one analysis reply.
+
+    Precedence, best evidence first:
+      model          — the model gave a score; that score is used verbatim.
+      label_fallback — a direction but no magnitude; magnitude is a placeholder.
+      template       — no LLM answered at all; recorded as such, never as a
+                       neutral judgement.
+      keyword_fallback — last resort, the old keyword counter over the prose.
+
+    In every fallback a neutral verdict scores exactly 0.0, which is the #112(b)
+    fix and the one that matters most to consumers.
+    """
+    score = _parse_llm_score(content)
+    label = _parse_llm_sentiment(content)
+
+    if score is not None:
+        # The label line, when present, is the model's own and is preserved even
+        # if it disagrees with the deadband; otherwise derive it from the score.
+        return (label or _label_for_score(score)), score, "model"
+
+    if label is not None:
+        magnitude = {"bullish": LABEL_ONLY_MAGNITUDE,
+                     "bearish": -LABEL_ONLY_MAGNITUDE}.get(label, 0.0)
+        return label, magnitude, "label_fallback"
+
+    if content and _TEMPLATE_MARKER in content:
+        return "neutral", 0.0, "template"
+
+    keyword_label = _analyze_sentiment_keywords(content)
+    magnitude = {"bullish": LABEL_ONLY_MAGNITUDE,
+                 "bearish": -LABEL_ONLY_MAGNITUDE}.get(keyword_label, 0.0)
+    return keyword_label, magnitude, "keyword_fallback"
+
+
+def _analyze_sentiment_keywords(content: str) -> str:
+    """The pre-#112 keyword counter, kept ONLY as a last resort.
+
+    It counts seven English words over the model's prose with a margin-of-2
+    rule, so a mildly negative analysis carrying one bearish word lands in the
+    same bucket as no view at all. That is why it is last and why its use is
+    reported in score_source.
+    """
+    content_lower = (content or "").lower()
+    bullish_words = ['bullish', 'buy', 'positive', 'growth', 'upside', 'strong', 'outperform']
+    bearish_words = ['bearish', 'sell', 'negative', 'decline', 'downside', 'weak', 'underperform']
+    bullish_count = sum(1 for word in bullish_words if word in content_lower)
+    bearish_count = sum(1 for word in bearish_words if word in content_lower)
+    if bullish_count > bearish_count + 1:
+        return "bullish"
+    if bearish_count > bullish_count + 1:
+        return "bearish"
+    return "neutral"
+
+
 def _parse_llm_category(content: str) -> Optional[str]:
     """Extract a 'CATEGORY: <label>' line the LLM was asked to emit; validate it."""
     if not content:
@@ -271,7 +401,8 @@ class InsightsService:
             logger.error(f"Error fetching stock data: {e}")
         return data
 
-    async def _call_llm(self, prompt: str, system_prompt: str = None) -> str:
+    async def _call_llm(self, prompt: str, system_prompt: str = None,
+                        *, temperature: Optional[float] = None) -> str:
         """Dispatch to the configured LLM provider with graceful fallback.
 
         Provider priority (when LLM_PROVIDER=auto):
@@ -282,19 +413,27 @@ class InsightsService:
         sys_text = system_prompt or "You are a professional stock analyst."
         provider = self._resolve_provider()
 
+        # Backlog #112. `temperature` is an override for callers that need a
+        # REPRODUCIBLE answer rather than good prose. None means "use the
+        # configured LLM_TEMPERATURE", which is what every narrative endpoint
+        # wants; analyze_news passes 0.0 because its number becomes a model
+        # feature, and a feature that changes between identical inputs encodes
+        # sampling noise. Measured before this existed: the same title scored
+        # 0.25 on one run and 0.00 on the next at LLM_TEMPERATURE=0.7.
         if provider in ("anthropic", "auto"):
-            text = await self._call_anthropic(prompt, sys_text)
+            text = await self._call_anthropic(prompt, sys_text, temperature=temperature)
             if text is not None:
                 return text
 
         if provider in ("openai", "auto") and settings.OPENAI_API_KEY:
-            text = await self._call_openai(prompt, sys_text)
+            text = await self._call_openai(prompt, sys_text, temperature=temperature)
             if text is not None:
                 return text
 
         return self._generate_template_response(prompt)
 
-    async def _call_anthropic(self, prompt: str, system_prompt: str) -> Optional[str]:
+    async def _call_anthropic(self, prompt: str, system_prompt: str,
+                              *, temperature: Optional[float] = None) -> Optional[str]:
         """Call Claude via the Anthropic SDK. Returns None on any failure
         so the dispatcher can fall through to OpenAI / template.
 
@@ -309,6 +448,7 @@ class InsightsService:
             message = await client.messages.create(
                 model=settings.ANTHROPIC_MODEL,
                 max_tokens=settings.LLM_MAX_TOKENS,
+                temperature=(settings.LLM_TEMPERATURE if temperature is None else temperature),
                 system=[{
                     "type": "text",
                     "text": system_prompt,
@@ -324,7 +464,8 @@ class InsightsService:
             logger.error("Anthropic call failed: %s", e)
             return None
 
-    async def _call_openai(self, prompt: str, system_prompt: str) -> Optional[str]:
+    async def _call_openai(self, prompt: str, system_prompt: str,
+                           *, temperature: Optional[float] = None) -> Optional[str]:
         """OpenAI fallback — kept on raw httpx since we don't ship the SDK.
         Returns None on any failure.
         """
@@ -342,7 +483,8 @@ class InsightsService:
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": prompt},
                         ],
-                        "temperature": settings.LLM_TEMPERATURE,
+                        "temperature": (settings.LLM_TEMPERATURE
+                                        if temperature is None else temperature),
                         "max_tokens": settings.LLM_MAX_TOKENS,
                     },
                     timeout=60.0,
@@ -501,13 +643,41 @@ Maintain current position and monitor for clearer signals before taking action.
         for item in news_items[:5]:
             prompt += f"- {item.get('title', '')}: {item.get('content', '')[:200]}\n"
         prompt += (
-            "\nOn the last line, classify the primary news category as exactly one of: "
-            + ", ".join(NEWS_CATEGORIES)
-            + ".\nFormat that line as 'CATEGORY: <label>'."
+            "\nThen end your reply with exactly these three lines:\n"
+            "SENTIMENT: <bullish|bearish|neutral>\n"
+            "SCORE: <a number from -1.00 to 1.00, where -1 is maximally bad for "
+            "the share price, 0 is no material impact, and 1 is maximally good. "
+            "Use the full range — reserve magnitudes above 0.6 for news that "
+            "genuinely moves the investment case.>\n"
+            "CATEGORY: <exactly one of: " + ", ".join(NEWS_CATEGORIES) + ">\n"
+            # Backlog #112. Measured on the live corpus: routine administrative
+            # disclosures (sustainability reports, amended charters, licence
+            # changes, signing an audit contract) were coming back 'good',
+            # inflating the positive class. Fixed in the instruction rather than
+            # by post-processing, because it is a judgement, not a parse.
+            "\nTreat PROCEDURAL filings — listing notices, offering reports, "
+            "charter amendments, routine licence updates, auditor appointments, "
+            "record-date and routine personnel notices — as NEUTRAL with a score "
+            "near 0, even when they are procedurally favourable. Reserve a "
+            "non-neutral score for news that changes the investment case.\n"
+            # The first version of this instruction said "routine administrative
+            # or regulatory disclosures", and the model correctly obeyed it for
+            # ADVERSE regulatory actions too: a tax penalty, a branch closure and
+            # a revoked branch approval all came back 0.00, so the whole negative
+            # class collapsed while positives stayed graded. The carve-out below
+            # fixes that asymmetry. Measured, not assumed — see the session log.
+            "IMPORTANT: an adverse regulatory or legal action is NOT a procedural "
+            "filing. Penalties, fines, tax arrears, sanctions, licence or approval "
+            "revocations, enforcement decisions, lawsuits, trading restrictions, "
+            "unexpected branch or business-line closures and going-concern or audit "
+            "qualifications must be scored NEGATIVE, graded by how material they "
+            "are to the company. Score the direction even when the monetary amount "
+            "is small relative to the company: a small fine that signals a "
+            "compliance or governance problem is still negative news."
         )
 
-        content = await self._call_llm(prompt)
-        sentiment = self._analyze_sentiment(content)
+        content = await self._call_llm(prompt, temperature=NEWS_SCORING_TEMPERATURE)
+        sentiment, sentiment_score, score_source = _resolve_sentiment(content)
 
         # Prefer the LLM's category; fall back to a keyword scan of the news text so a
         # template-only provider (or an unparseable reply) still yields a useful label.
@@ -519,7 +689,12 @@ Maintain current position and monitor for clearer signals before taking action.
         return NewsAnalysisResponse(
             symbol=symbol.upper(),
             overall_sentiment=sentiment,
-            sentiment_score=0.5 if sentiment == "neutral" else (0.8 if sentiment == "bullish" else -0.8),
+            # Backlog #112: the model's own number. This line used to be
+            # `0.5 if neutral else (0.8 if bullish else -0.8)` — a constant per
+            # label, with the middle value positive. score_source says how much
+            # weight the magnitude deserves.
+            sentiment_score=sentiment_score,
+            score_source=score_source,
             category=category,
             key_events=[item.get("title", "") for item in news_items[:3]],
             potential_impact="moderate",

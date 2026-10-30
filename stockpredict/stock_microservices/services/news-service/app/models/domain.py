@@ -43,6 +43,13 @@ class NewsEvent(Base):
     category: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     sentiment: Mapped[str | None] = mapped_column(String(8), nullable=True)  # good|bad|neutral
     sentiment_score: Mapped[float | None] = mapped_column(Float, nullable=True)  # [-1, 1]
+    # Backlog #112(d). How sentiment_score was obtained: 'model' (the LLM
+    # returned a graded score), 'label_fallback' (direction only; magnitude is a
+    # placeholder), 'keyword_fallback' (a keyword count over the prose), or
+    # 'template' (no LLM answered — nothing was judged). NULL on rows written
+    # before the field existed, which is honest: we do not know how they were
+    # scored, and defaulting them to 'model' would assert something false.
+    score_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     # Pipeline stamps.
     ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

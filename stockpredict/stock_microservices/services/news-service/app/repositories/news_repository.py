@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -60,6 +60,30 @@ class NewsRepository:
         otherwise fail with 'Unknown database'. We create it here (no-op for sqlite)."""
         self._ensure_database()
         Base.metadata.create_all(self._engine)
+        self._ensure_added_columns()
+
+    # Columns added to news_events after it was first deployed. create_all() does
+    # NOT alter an existing table, so without this a new model field would exist
+    # in Python and never in the database — and would fail only at runtime, only
+    # on a real deploy against the live table. Each entry is applied if absent
+    # and skipped if present, so repeated deploys are no-ops (#112d).
+    _ADDED_COLUMNS = (
+        ("score_source", "VARCHAR(16) NULL"),
+    )
+
+    def _ensure_added_columns(self) -> None:
+        insp = inspect(self._engine)
+        if not insp.has_table(NewsEvent.__tablename__):
+            return
+        existing = {c["name"] for c in insp.get_columns(NewsEvent.__tablename__)}
+        for name, ddl in self._ADDED_COLUMNS:
+            if name in existing:
+                continue
+            with self._engine.begin() as conn:
+                conn.execute(text(
+                    f"ALTER TABLE {NewsEvent.__tablename__} ADD COLUMN {name} {ddl}"
+                ))
+            logger.info("added column %s.%s", NewsEvent.__tablename__, name)
 
     def _ensure_database(self) -> None:
         url = self._engine.url
@@ -115,7 +139,8 @@ class NewsRepository:
             return True
 
     def mark_classified(
-        self, news_id: str, *, sentiment: str | None, category: str | None, score: float | None
+        self, news_id: str, *, sentiment: str | None, category: str | None,
+        score: float | None, score_source: str | None = None
     ) -> None:
         with self._Session() as s:
             obj = s.get(NewsEvent, news_id)
@@ -124,6 +149,9 @@ class NewsRepository:
             obj.sentiment = sentiment
             obj.category = category
             obj.sentiment_score = score
+            # #112(d): store HOW the score was obtained, so a row scored while
+            # no LLM was reachable is not indistinguishable from a judgement.
+            obj.score_source = score_source
             obj.classified_at = _utcnow()
             s.commit()
 

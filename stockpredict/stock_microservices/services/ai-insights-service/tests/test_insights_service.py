@@ -609,7 +609,11 @@ async def test_analyze_news_returns_sentiment_and_key_events():
         )
     assert out.symbol == "FPT"
     assert out.overall_sentiment == "bullish"
-    assert out.sentiment_score == 0.8
+    # Backlog #112: this asserted 0.8, the old per-label constant. The reply
+    # carries no SCORE line, so this now exercises the keyword last resort —
+    # direction only, with a placeholder magnitude that says so.
+    assert out.sentiment_score == pytest.approx(0.5)
+    assert out.score_source == "keyword_fallback"
     assert "FPT signs deal" in out.key_events
 
 
@@ -639,7 +643,10 @@ async def test_analyze_news_neutral_when_no_sentiment_signal():
     with patch.object(s, "_call_llm", AsyncMock(return_value="Plain summary text without signal words")):
         out = await s.analyze_news("FPT", [{"title": "Routine update", "content": ""}])
     assert out.overall_sentiment == "neutral"
-    assert out.sentiment_score == 0.5
+    # Backlog #112(b): this asserted 0.5 — it pinned the defect in place. A
+    # neutral verdict is 0.0, or "nothing happened" reads as mildly good news
+    # to everything downstream.
+    assert out.sentiment_score == 0.0
 
 
 @pytest.mark.asyncio
@@ -672,3 +679,285 @@ async def test_get_market_overview_returns_summary():
         out = await s.get_market_overview(focus="banks")
     assert out.summary == "Market summary today"
     assert out.outlook == "neutral"
+
+
+# ---------------------------------------------------------------------------
+# Backlog #112 — sentiment_score must come from the model, not from the label.
+#
+# Before this, analyze_news computed the score FROM the label by a ternary
+# (0.5 if neutral else 0.8 if bullish else -0.8), so it carried zero information
+# beyond three buckets, and "neutral" scored +0.5 — i.e. 79% of the real corpus
+# read as moderately GOOD news. See docs/backlog108_news_sentiment_validation.md.
+# ---------------------------------------------------------------------------
+
+from app.services.insights_service import _parse_llm_score, _parse_llm_sentiment
+
+
+def test_parse_score_reads_a_signed_decimal():
+    assert _parse_llm_score("SCORE: -0.62") == pytest.approx(-0.62)
+    assert _parse_llm_score("blah\nSCORE: 0.4\nmore") == pytest.approx(0.4)
+    assert _parse_llm_score("score : +0.25") == pytest.approx(0.25)
+
+
+def test_parse_score_returns_none_when_absent_rather_than_guessing():
+    assert _parse_llm_score("no score line here") is None
+    assert _parse_llm_score("") is None
+    assert _parse_llm_score("SCORE: not-a-number") is None
+
+
+def test_parse_score_clamps_into_range():
+    """A model that ignores the range must not widen the field's domain."""
+    assert _parse_llm_score("SCORE: -3.5") == -1.0
+    assert _parse_llm_score("SCORE: 9") == 1.0
+
+
+def test_parse_score_does_not_match_an_unrelated_number():
+    """'sentiment_score' talk in prose must not be mistaken for the answer."""
+    assert _parse_llm_score("Revenue rose 12.5% and the outlook improved.") is None
+
+
+def test_parse_sentiment_reads_the_label_line():
+    assert _parse_llm_sentiment("SENTIMENT: bearish") == "bearish"
+    assert _parse_llm_sentiment("SENTIMENT: Bullish") == "bullish"
+    assert _parse_llm_sentiment("sentiment - neutral") == "neutral"
+    assert _parse_llm_sentiment("SENTIMENT: sideways") is None
+    assert _parse_llm_sentiment("no label") is None
+
+
+@pytest.mark.asyncio
+async def test_analyze_news_uses_the_models_own_score():
+    """The headline fix: the magnitude is the model's, not a constant."""
+    s = _make_service()
+    reply = "Mildly negative.\nSENTIMENT: bearish\nSCORE: -0.33\nCATEGORY: earnings"
+    with patch.object(s, "_call_llm", AsyncMock(return_value=reply)):
+        out = await s.analyze_news("FPT", [{"title": "t", "content": "c"}])
+    assert out.overall_sentiment == "bearish"
+    assert out.sentiment_score == pytest.approx(-0.33)
+    assert out.score_source == "model"
+
+
+@pytest.mark.asyncio
+async def test_a_models_score_is_not_rounded_to_the_old_constants():
+    """Kills a regression to the ternary: -0.33 must not become -0.8."""
+    s = _make_service()
+    reply = "SENTIMENT: bearish\nSCORE: -0.33"
+    with patch.object(s, "_call_llm", AsyncMock(return_value=reply)):
+        out = await s.analyze_news("FPT", [{"title": "t", "content": "c"}])
+    assert out.sentiment_score not in (-0.8, 0.5, 0.8)
+
+
+@pytest.mark.asyncio
+async def test_neutral_scores_zero_not_a_positive_number():
+    """#112(b). The defect that mattered most: 'nothing happened' must not read
+    as mildly good news to anything consuming this as a signed polarity."""
+    s = _make_service()
+    with patch.object(s, "_call_llm", AsyncMock(return_value="Plain summary without signal words")):
+        out = await s.analyze_news("FPT", [{"title": "Routine update", "content": ""}])
+    assert out.overall_sentiment == "neutral"
+    assert out.sentiment_score == 0.0
+
+
+@pytest.mark.asyncio
+async def test_the_score_decides_the_label_when_the_label_line_is_missing():
+    s = _make_service()
+    with patch.object(s, "_call_llm", AsyncMock(return_value="Good news.\nSCORE: 0.7")):
+        out = await s.analyze_news("FPT", [{"title": "t", "content": "c"}])
+    assert out.overall_sentiment == "bullish"
+    assert out.sentiment_score == pytest.approx(0.7)
+    assert out.score_source == "model"
+
+
+@pytest.mark.asyncio
+async def test_a_score_inside_the_deadband_is_neutral():
+    """A near-zero score is 'no material view', not a weak buy."""
+    s = _make_service()
+    with patch.object(s, "_call_llm", AsyncMock(return_value="SCORE: 0.03")):
+        out = await s.analyze_news("FPT", [{"title": "t", "content": "c"}])
+    assert out.overall_sentiment == "neutral"
+    assert out.sentiment_score == pytest.approx(0.03)
+
+
+@pytest.mark.asyncio
+async def test_a_label_without_a_score_reports_direction_and_says_so():
+    """Direction known, magnitude unknown. The fallback magnitude must be
+    marked, so a consumer can decline to trust it — the thing that was missing
+    before, when every magnitude looked equally authoritative."""
+    s = _make_service()
+    with patch.object(s, "_call_llm", AsyncMock(return_value="SENTIMENT: bullish")):
+        out = await s.analyze_news("FPT", [{"title": "t", "content": "c"}])
+    assert out.overall_sentiment == "bullish"
+    assert out.sentiment_score > 0
+    assert out.score_source == "label_fallback"
+
+
+@pytest.mark.asyncio
+async def test_the_keyword_counter_is_a_marked_last_resort():
+    s = _make_service()
+    reply = "Bullish, positive, strong growth and upside."
+    with patch.object(s, "_call_llm", AsyncMock(return_value=reply)):
+        out = await s.analyze_news("FPT", [{"title": "t", "content": "c"}])
+    assert out.overall_sentiment == "bullish"
+    assert out.score_source == "keyword_fallback"
+
+
+@pytest.mark.asyncio
+async def test_a_template_reply_is_reported_as_template_not_as_a_judgement():
+    """#112(d). If the LLM key lapses, every item silently became +0.5 with
+    nothing recording it. The corpus then mixes judgements with constants
+    undetectably. Now the row says it was never judged."""
+    s = _make_service()
+    tpl = s._generate_template_response("any")
+    with patch.object(s, "_call_llm", AsyncMock(return_value=tpl)):
+        out = await s.analyze_news("FPT", [{"title": "t", "content": "c"}])
+    assert out.score_source == "template"
+    assert out.sentiment_score == 0.0
+    assert out.overall_sentiment == "neutral"
+
+
+@pytest.mark.asyncio
+async def test_the_prompt_asks_for_a_graded_score_and_calls_routine_filings_neutral():
+    """The parse is only reachable if the prompt asks for the line. And the
+    measured labelling error — routine administrative filings coming back
+    'good' — is fixed here, in the instruction, not by post-processing."""
+    s = _make_service()
+    llm = AsyncMock(return_value="SENTIMENT: neutral\nSCORE: 0.0")
+    with patch.object(s, "_call_llm", llm):
+        await s.analyze_news("FPT", [{"title": "t", "content": "c"}])
+    prompt = llm.await_args.args[0]
+    assert "SCORE:" in prompt
+    assert "-1" in prompt and "1" in prompt
+    assert "routine" in prompt.lower()
+    assert "neutral" in prompt.lower()
+
+
+@pytest.mark.asyncio
+async def test_the_prompt_carves_adverse_regulatory_action_out_of_neutral():
+    """Measured regression guard. The first version of the routine-filings
+    instruction said "routine administrative or regulatory disclosures", and the
+    model obeyed it for ADVERSE actions too: on a 20-title sample from the live
+    corpus a tax penalty, a branch closure and a revoked branch approval all
+    came back 0.00, so the entire negative class collapsed to zero while
+    positives stayed graded at 0.25-0.45. The carve-out must survive any later
+    edit of this prompt."""
+    s = _make_service()
+    llm = AsyncMock(return_value="SENTIMENT: neutral\nSCORE: 0.0")
+    with patch.object(s, "_call_llm", llm):
+        await s.analyze_news("FPT", [{"title": "t", "content": "c"}])
+    prompt = llm.await_args.args[0].lower()
+    assert "procedural" in prompt
+    # the adverse cases the collapse was measured on
+    for term in ("penalt", "revocation", "sanction", "negative"):
+        assert term in prompt, f"prompt no longer names {term!r}"
+    # and the reason a small fine still counts
+    assert "small" in prompt
+
+
+# ---------------------------------------------------------------------------
+# Backlog #112 — a score that is not reproducible is not a usable feature.
+#
+# Measured: the same title scored 0.25 on one run and 0.00 on the next, because
+# LLM_TEMPERATURE is 0.7. That is a fine setting for the prose endpoints, where
+# variety costs nothing, and the wrong setting for a number #106 would feed to a
+# model — the feature would encode sampling noise. The scoring call therefore
+# asks for a deterministic sample while the prose calls keep their default.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_news_scoring_asks_for_a_deterministic_sample():
+    s = _make_service()
+    llm = AsyncMock(return_value="SENTIMENT: neutral\nSCORE: 0.0")
+    with patch.object(s, "_call_llm", llm):
+        await s.analyze_news("FPT", [{"title": "t", "content": "c"}])
+    assert llm.await_args.kwargs.get("temperature") == 0.0
+
+
+@pytest.mark.asyncio
+async def test_call_llm_leaves_the_temperature_alone_when_no_override_is_given():
+    """The determinism is SCOPED to scoring; the prose endpoints keep
+    LLM_TEMPERATURE. Asserted inside the real _call_llm body — an earlier
+    version of this test patched _call_llm itself and asserted on the kwargs
+    going IN, so pinning temperature=0.0 inside the body survived it
+    untouched. Same vacuous shape as the #104/#105 guards and commit 56a3f21b.
+    """
+    s = _make_service()
+    seen = {}
+
+    async def spy_anthropic(prompt, system_prompt, *, temperature=None):
+        seen['temperature'] = temperature
+        return "prose"
+
+    with patch.object(s, "_resolve_provider", return_value="auto"), \
+         patch.object(s, "_call_anthropic", spy_anthropic):
+        await s._call_llm("hello")
+    assert seen['temperature'] is None, "an override leaked into an un-overridden call"
+
+
+@pytest.mark.asyncio
+async def test_call_llm_forwards_an_override_to_the_provider():
+    s = _make_service()
+    seen = {}
+
+    async def spy_anthropic(prompt, system_prompt, *, temperature=None):
+        seen['temperature'] = temperature
+        return "prose"
+
+    with patch.object(s, "_resolve_provider", return_value="auto"), \
+         patch.object(s, "_call_anthropic", spy_anthropic):
+        await s._call_llm("hello", temperature=0.0)
+    assert seen['temperature'] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_openai_request_body_carries_the_override(monkeypatch):
+    """The real _call_openai must put it in the HTTP payload. Stubbing
+    _call_openai (the first version of this test) could not see whether the
+    request body kept it — deleting the forward there passed."""
+    monkeypatch.setattr(svc_mod.settings, "LLM_TEMPERATURE", 0.7)
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json = MagicMock(return_value={"choices": [{"message": {"content": "ok"}}]})
+    captured = {}
+
+    class _Capturing:
+        async def __aenter__(self):
+            client = MagicMock()
+
+            async def _post(url, **kw):
+                captured["temperature"] = kw["json"]["temperature"]
+                return resp
+
+            client.post = _post
+            return client
+
+        async def __aexit__(self, *_):
+            return False
+
+    with patch("app.services.insights_service.httpx.AsyncClient", return_value=_Capturing()):
+        await _make_service()._call_openai("p", "sys", temperature=0.0)
+    assert captured["temperature"] == 0.0
+
+    with patch("app.services.insights_service.httpx.AsyncClient", return_value=_Capturing()):
+        await _make_service()._call_openai("p", "sys")
+    assert captured["temperature"] == 0.7, "the configured default must still apply"
+
+
+@pytest.mark.asyncio
+async def test_anthropic_request_carries_the_override(monkeypatch):
+    """Symmetric with the OpenAI case. Anthropic is not the live provider here
+    (its key is unset), but the override must survive a switch — a mutation
+    deleting this forward survived the first round of these tests."""
+    monkeypatch.setattr(svc_mod.settings, "LLM_TEMPERATURE", 0.7)
+    text_block = MagicMock()
+    text_block.type = "text"
+    text_block.text = "claude response"
+    fake_client = MagicMock()
+    fake_client.messages.create = AsyncMock(return_value=MagicMock(content=[text_block]))
+
+    s = _make_service()
+    with patch.object(s, "_get_anthropic_client", return_value=fake_client):
+        await s._call_anthropic("p", "sys", temperature=0.0)
+    assert fake_client.messages.create.await_args.kwargs["temperature"] == 0.0
+
+    with patch.object(s, "_get_anthropic_client", return_value=fake_client):
+        await s._call_anthropic("p", "sys")
+    assert fake_client.messages.create.await_args.kwargs["temperature"] == 0.7

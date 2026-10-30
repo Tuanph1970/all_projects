@@ -53,6 +53,17 @@ class NewsAnalysisResponse(BaseModel):
     symbol: str
     overall_sentiment: str
     sentiment_score: float  # -1 to 1
+    # Backlog #112. How sentiment_score was obtained, so a consumer can weight
+    # it instead of treating every magnitude as equally authoritative:
+    #   model            the model returned a graded score; use it.
+    #   label_fallback   direction only; the magnitude is a placeholder.
+    #   keyword_fallback no SENTIMENT/SCORE lines parsed; a keyword count over
+    #                    the prose. Direction is weak evidence, magnitude none.
+    #   template         no LLM answered. NOT a neutral judgement — nothing was
+    #                    judged. Previously indistinguishable from a real
+    #                    neutral, which let a lapsed API key fill the corpus
+    #                    with constants that nothing recorded.
+    score_source: str = "model"
     # Primary news category from the closed vocab (new_product, new_tech, management,
     # regulatory, earnings, partnership, other). LLM-assigned when available, else
     # keyword-derived. Consumers (e.g. news-service) prefer this over local heuristics.

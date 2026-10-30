@@ -27,6 +27,12 @@ class Classification(NamedTuple):
     sentiment: str   # "good" | "bad" | "neutral"
     category: str    # closed company vocab (SRS Appendix A)
     score: float     # [-1, 1]
+    # Backlog #112(d). How `score` was obtained, straight from ai-insights:
+    # 'model' | 'label_fallback' | 'keyword_fallback' | 'template', or 'unknown'
+    # when the upstream does not report it. Stored so a row scored while no LLM
+    # was reachable is distinguishable from a real judgement — without it, the
+    # corpus silently mixes the two and cannot be audited afterwards.
+    score_source: str = "unknown"
 
 
 _GOOD = {"bullish", "positive", "good", "up"}
@@ -123,8 +129,13 @@ class NewsClassifier:
         category = data.get("category")
         if not isinstance(category, str) or category not in _CATEGORIES:
             category = _derive_category(item.title, item.body)
+        # An upstream that does not report provenance yields "unknown" rather
+        # than a cheerful "model": asserting a provenance we have no evidence
+        # for is the over-claim this field exists to prevent.
+        source = data.get("score_source")
         return Classification(
             sentiment=_map_sentiment(data.get("overall_sentiment")),
             category=category,
             score=_clamp_score(data.get("sentiment_score")),
+            score_source=source if isinstance(source, str) and source else "unknown",
         )

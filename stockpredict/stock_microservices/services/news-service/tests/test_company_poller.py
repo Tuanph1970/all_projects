@@ -204,3 +204,28 @@ async def test_scheduler_runs_tick_then_stops():
     await asyncio.sleep(0.05)
     await sched.stop()
     assert poller.ticks >= 1
+
+
+@pytest.mark.asyncio
+async def test_poller_persists_the_score_provenance(news_repo):
+    """Backlog #112(d). The classifier learns how the score was obtained and the
+    poller is the only thing that can carry it to the store — if it drops the
+    value, the field exists everywhere and is NULL on every real row."""
+    watch = FakeWatch(["ACB", "VND"])
+    source = FakeCompanySource({
+        "ACB": [_item("ACB", "ACB profit up", "acb-1")],
+        "VND": [_item("VND", "VND fined", "vnd-1")],
+    })
+    classifier = FakeClassifier({
+        "ACB": Classification(sentiment="good", category="earnings",
+                              score=0.45, score_source="model"),
+        "VND": Classification(sentiment="bad", category="regulatory",
+                              score=0.0, score_source="template"),
+    })
+    await _poller(news_repo, watch, source, classifier, FakeNotifier()).tick()
+
+    stored = {r.symbol: r for r in news_repo.query()}
+    assert stored["ACB"].score_source == "model"
+    # The row that was never actually judged says so, even though its stored
+    # score (0.0) is indistinguishable from a real neutral verdict.
+    assert stored["VND"].score_source == "template"

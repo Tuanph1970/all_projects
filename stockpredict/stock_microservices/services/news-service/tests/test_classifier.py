@@ -136,3 +136,36 @@ def test_request_carries_symbol_and_title():
     _clf(handler).classify(_item(title="Hello world"))
     assert seen["symbol"] == "FPT"
     assert seen["news_items"][0]["title"] == "Hello world"
+
+
+# ---------------------------------------------------------------------------
+# Backlog #112(d) — the classifier carries the score's provenance through.
+# ---------------------------------------------------------------------------
+
+def test_classification_carries_the_score_source_from_ai_insights():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={
+            "symbol": "FPT", "overall_sentiment": "bearish",
+            "sentiment_score": -0.35, "category": "regulatory",
+            "score_source": "model",
+        })
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    c = NewsClassifier("http://ai", client=client).classify(_item())
+    assert c.sentiment == "bad"
+    assert c.score == -0.35
+    assert c.score_source == "model"
+
+
+def test_a_missing_score_source_is_unknown_not_assumed_to_be_a_model():
+    """An older ai-insights omits the field. Defaulting it to 'model' would
+    assert a provenance we have no evidence for — the exact over-claim the
+    provenance field exists to prevent."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={
+            "symbol": "FPT", "overall_sentiment": "neutral", "sentiment_score": 0.0,
+        })
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    c = NewsClassifier("http://ai", client=client).classify(_item())
+    assert c.score_source == "unknown"

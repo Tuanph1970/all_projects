@@ -46,6 +46,8 @@ def _row_to_dict(row: NewsEvent, *, include_raw: bool = False) -> dict:
         "category": row.category,
         "sentiment": row.sentiment,
         "sentiment_score": row.sentiment_score,
+        # #112(d): a consumer must be able to weight the score, not just read it.
+        "score_source": row.score_source,
         "ingested_at": row.ingested_at,
         "classified_at": row.classified_at,
         "notified_at": row.notified_at,

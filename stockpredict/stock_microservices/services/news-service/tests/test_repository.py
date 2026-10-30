@@ -122,3 +122,89 @@ def test_ts_utc_roundtrips_tz_aware(news_repo):
     news_repo.upsert(item)
     row = news_repo.get(item.news_id())
     assert row.ts_utc.utcoffset() is not None  # tz-aware (EC-N6)
+
+
+# ---------------------------------------------------------------------------
+# Backlog #112(d) — provenance for sentiment_score.
+#
+# Before this, a row scored while no LLM was reachable was indistinguishable
+# from a real neutral judgement: both stored +0.5 and nothing recorded which.
+# A corpus mixing judgements with constants cannot be audited after the fact,
+# which is exactly why #108 could not say how many of the 165 stored neutrals
+# had ever been judged at all. See docs/backlog108_news_sentiment_validation.md.
+# ---------------------------------------------------------------------------
+
+def test_mark_classified_persists_the_score_provenance(news_repo):
+    item = _item(guid="prov-1")
+    news_repo.upsert(item)
+    news_repo.mark_classified(
+        item.news_id(), sentiment="bad", category="regulatory",
+        score=-0.35, score_source="model",
+    )
+    after = news_repo.get(item.news_id())
+    assert after.sentiment_score == -0.35
+    assert after.score_source == "model"
+
+
+def test_a_template_scored_row_is_distinguishable_from_a_real_neutral(news_repo):
+    """The whole point of the field: these two rows carry the same score and
+    must not look the same."""
+    judged = _item(guid="judged")
+    fallback = _item(guid="fallback")
+    news_repo.upsert(judged)
+    news_repo.upsert(fallback)
+    news_repo.mark_classified(judged.news_id(), sentiment="neutral",
+                              category="other", score=0.0, score_source="model")
+    news_repo.mark_classified(fallback.news_id(), sentiment="neutral",
+                              category="other", score=0.0, score_source="template")
+    a = news_repo.get(judged.news_id())
+    b = news_repo.get(fallback.news_id())
+    assert a.sentiment_score == b.sentiment_score == 0.0
+    assert a.score_source != b.score_source
+
+
+def test_ensure_schema_adds_the_column_to_a_pre_existing_table(tmp_path):
+    """The live table predates the column and holds rows, and create_all() does
+    not ALTER. Without an explicit migration the field would exist in the model
+    and never in the database — failing only at runtime, on the real deploy."""
+    import sqlalchemy as sa
+    from app.repositories.news_repository import NewsRepository
+
+    db = tmp_path / "legacy.db"
+    engine = sa.create_engine(f"sqlite:///{db}")
+    # A table shaped like the deployed one: no score_source.
+    with engine.begin() as conn:
+        conn.execute(sa.text(
+            "CREATE TABLE news_events ("
+            " news_id VARCHAR(64) PRIMARY KEY, source VARCHAR(64) NOT NULL,"
+            " stream VARCHAR(16) NOT NULL, symbol VARCHAR(20), ts_utc DATETIME NOT NULL,"
+            " title TEXT NOT NULL, body TEXT, url VARCHAR(1024), lang VARCHAR(8),"
+            " raw_json TEXT, category VARCHAR(32), sentiment VARCHAR(8),"
+            " sentiment_score FLOAT, ingested_at DATETIME NOT NULL,"
+            " classified_at DATETIME, notified_at DATETIME, bridged_at DATETIME)"
+        ))
+        conn.execute(sa.text(
+            "INSERT INTO news_events (news_id, source, stream, ts_utc, title,"
+            " sentiment, sentiment_score, ingested_at)"
+            " VALUES ('old1','vnstock','company','2026-09-01','legacy row',"
+            " 'neutral', 0.5, '2026-09-01')"
+        ))
+
+    cols = lambda: {r[1] for r in engine.connect().execute(sa.text("PRAGMA table_info(news_events)"))}
+    assert "score_source" not in cols()
+
+    NewsRepository(engine).ensure_schema()
+    assert "score_source" in cols()
+
+    # Idempotent: a second deploy must not fail on an already-added column.
+    NewsRepository(engine).ensure_schema()
+    assert "score_source" in cols()
+
+    # And the legacy row survives, with the field null rather than invented —
+    # we do not know how it was scored, and saying "model" would be a lie.
+    with engine.connect() as conn:
+        row = conn.execute(sa.text(
+            "SELECT sentiment_score, score_source FROM news_events WHERE news_id='old1'"
+        )).one()
+    assert row[0] == 0.5
+    assert row[1] is None

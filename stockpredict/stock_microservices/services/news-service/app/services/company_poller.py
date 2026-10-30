@@ -81,7 +81,8 @@ class CompanyPoller:
                 continue
 
             self._repo.mark_classified(
-                row.news_id, sentiment=c.sentiment, category=c.category, score=c.score
+                row.news_id, sentiment=c.sentiment, category=c.category,
+                score=c.score, score_source=c.score_source,
             )
             stats["classified"] += 1
 
