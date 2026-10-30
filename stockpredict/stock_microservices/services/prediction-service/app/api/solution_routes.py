@@ -39,8 +39,55 @@ solution_router = APIRouter()
 # Global dictionary to track training status (matches webapi pattern)
 training_status = {}
 
+# Backlog #109 — the engine that trains a solution when the caller does not say.
+# OWNER DECISION 2026-10-30: the default is now 'darts', reversing Phase 2b's
+# deliberately conservative 'tabular'.
+#
+# That conservatism has done its job: the flag let Darts land without being able
+# to regress what already ran, and the owner's real scenario has since gone
+# through it end-to-end with all fourteen catalogue entries building and fitting.
+# THE REASON TO FLIP IS HONESTY, NOT SPEED. On the tabular path a solution
+# labelled 'TFT' is resolved by DARTS_TO_ML_MAP to LightGBM, so the model named
+# in the UI is not the model that trains; the darts engine builds the
+# architecture it names. The flip also makes two rules real on the path that
+# actually runs: an indicator marked 'future' is REFUSED rather than quietly
+# used (CLAUDE.md C1), and calendar features become the only future covariates.
+#
+# Checked before flipping, because the refusal is the one way this breaks an
+# existing solution: solution_indicators held no row with covariate_type
+# 'future' or 'both' (4 rows, all 'past'), so nothing starts failing. The cost
+# the owner accepted is time — real torch on CPU trains slower than a booster.
+# 'tabular' stays reachable via engine='tabular', so a regression is still one
+# flag away from being undone.
+DEFAULT_TRAINING_ENGINE = 'darts'
+SUPPORTED_TRAINING_ENGINES = ('tabular', 'darts')
+
+
+def resolve_training_engine(requested: Optional[str]) -> str:
+    """Normalise a requested engine name, falling back to the default.
+
+    Absent, None and blank all mean "the caller did not choose", which is what
+    keeps DEFAULT_TRAINING_ENGINE the single place the decision lives.
+
+    Validating the result is the CALLER's job. An unrecognised name is returned
+    unchanged rather than replaced by the default: silently substituting an
+    engine would train something other than what was asked for, which is the
+    class of behaviour #104/#105/#109 exist to remove.
+    """
+    if requested is None:
+        return DEFAULT_TRAINING_ENGINE
+    name = str(requested).strip().lower()
+    return name or DEFAULT_TRAINING_ENGINE
+
 # Model type mapping: DARTS neural network types -> scikit-learn/gradient boosting models
-# Since DARTS is not installed in this microservice, we use available ML models
+# USED ONLY BY THE 'tabular' ENGINE, which is no longer the default (#109,
+# DEFAULT_TRAINING_ENGINE above). The line that stood here — "Since DARTS is not
+# installed in this microservice" — has been false since Phase 1: darts 0.48.1
+# and CPU torch are in the image and the darts engine builds the architecture a
+# solution actually names. This map is therefore the DISHONEST path, kept
+# reachable on purpose as the one-flag way to undo a regression: it resolves
+# 'TFT' to LightGBM, so a result produced through it is a gradient booster
+# wearing a transformer's label. Read any tabular result with that in mind.
 # NOTE: keys must match the VALUES of routes.MODEL_TYPE_MAP, which is what lands
 # in model_instances.model_type. Backlog #110 found four that did not: the map
 # held RNNModel / TCNModel / TransformerModel / TFTModel while the catalogue
@@ -408,7 +455,7 @@ async def _run_training(solution_id: int, train_params: dict):
                 }
                 return
 
-            engine = str(train_params.get('engine') or 'tabular').strip().lower()
+            engine = resolve_training_engine(train_params.get('engine'))
             if engine == 'darts':
                 await _run_darts_engine(
                     solution_id=solution_id, db=db, feature_df=feature_df,
@@ -418,10 +465,13 @@ async def _run_training(solution_id: int, train_params: dict):
                     rows_before_warmup=rows_before_warmup,
                     rows_after_warmup=rows_after_warmup)
                 return
-            if engine != 'tabular':
+            if engine not in SUPPORTED_TRAINING_ENGINES:
                 training_status[solution_id] = {
                     "status": "failed",
-                    "error": f"unknown engine {engine!r}; expected 'tabular' or 'darts'",
+                    "error": (
+                        f"unknown engine {engine!r}; expected one of "
+                        + ", ".join(repr(e) for e in SUPPORTED_TRAINING_ENGINES)
+                    ),
                     "failed_at": time_module.time(),
                 }
                 return
@@ -1180,11 +1230,12 @@ async def train_solution(
         'end_date': data.get('end_date'),
         'validation': data.get('validation', False),
         'train_ratio': data.get('train_ratio', 0.8),
-        # Backlog #109 Phase 2b. 'tabular' is the existing, working pipeline and
-        # stays the default, so adopting Darts cannot regress what already runs —
-        # a bad result is one flag away from being undone. 'darts' selects the
-        # real architectures via app/services/darts_trainer.py.
-        'engine': (data.get('engine') or 'tabular'),
+        # Backlog #109. The default lives in DEFAULT_TRAINING_ENGINE — 'darts'
+        # since 2026-10-30 — so that it is stated once; pass engine='tabular'
+        # to run the older pipeline. Normalisation happens in _run_training via
+        # resolve_training_engine, which is also where an unknown name is
+        # reported, so the raw request value is what travels here.
+        'engine': (data.get('engine') or DEFAULT_TRAINING_ENGINE),
     }
 
     asyncio.create_task(_run_training(solution_id, train_params))

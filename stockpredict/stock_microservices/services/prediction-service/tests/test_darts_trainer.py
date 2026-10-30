@@ -697,6 +697,7 @@ def _ramp(n=100, lo=10.0, hi=30.0):
 
 def test_scaling_round_trips_back_to_original_units():
     """inverse_transform(transform(x)) == x, or the payload lies about prices."""
+    pytest.importorskip("darts")
     from app.services.darts_trainer import scale_for_training
     s = _ramp()
     scaled, scaler = scale_for_training(s, split=70)
@@ -705,6 +706,7 @@ def test_scaling_round_trips_back_to_original_units():
 
 
 def test_scaler_maps_the_training_span_into_unit_range():
+    pytest.importorskip("darts")
     from app.services.darts_trainer import scale_for_training
     scaled, _ = scale_for_training(_ramp(), split=70)
     train = scaled.values().ravel()[:70]
@@ -720,6 +722,7 @@ def test_scaler_is_fitted_on_training_span_only():
     tail far away and the TRAINING values must not budge. If the scaler were
     fitted on everything, every training value would change.
     """
+    pytest.importorskip("darts")
     from app.services.darts_trainer import scale_for_training
     from darts import TimeSeries
 
@@ -738,6 +741,7 @@ def test_scaler_is_fitted_on_training_span_only():
 
 def test_scaling_a_none_series_yields_none():
     """Models without covariates pass None through, so this is on the hot path."""
+    pytest.importorskip("darts")
     from app.services.darts_trainer import scale_for_training
     scaled, scaler = scale_for_training(None, split=10)
     assert scaled is None and scaler is None
@@ -758,6 +762,7 @@ def test_scaled_fit_tracks_a_series_a_constant_cannot():
     validation values inside the training range, so the test measures the
     pipeline rather than a known limit of the model family.
     """
+    pytest.importorskip("darts")
     from app.services.darts_trainer import run_darts_training
 
     n = 400

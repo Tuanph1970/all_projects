@@ -329,10 +329,14 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
           model supports future covariates" does not read as an invitation to
           mark an indicator 'future'. The DARTS engine adds these automatically
           (plan_covariates) and they are not operator-selectable, which is why
-          this is a statement rather than an empty picker. The qualifier is
-          deliberate: the tabular engine, still the default, builds no calendar
-          features at all, so an unqualified "supplied automatically" would be
-          false on the default path. */}
+          this is a statement rather than an empty picker. The note NAMES the
+          Darts engine deliberately, and that qualifier survived #109's flip of
+          the default (2026-10-30, DEFAULT_TRAINING_ENGINE in
+          prediction-service solution_routes.py). It now reads as true of the
+          default path rather than as a warning about it — but it must stay
+          qualified, because the older tabular engine is still reachable via
+          engine='tabular' and builds no calendar features at all, so an
+          unqualified "supplied automatically" would be false there. */}
       {modelCovariateConfig && Boolean(modelCovariateConfig.hasFutureCovariate) && (
         <p className="covariate-calendar-note">
           &#128197; {t('indicator_selector.calendar_future_note')}
