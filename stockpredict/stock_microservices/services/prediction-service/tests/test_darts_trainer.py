@@ -298,3 +298,466 @@ def test_the_naive_baseline_is_strong_on_a_random_walk():
     level = 20 + np.cumsum(rng.normal(0, 0.2, 300))
     base = naive_baseline(level[1:], last_train_value=level[0])
     assert base["r2"] > 0.9, base["r2"]
+
+
+# ---------------------------------------------------------------------------
+# Model construction (Phase 2b)
+# ---------------------------------------------------------------------------
+#
+# `darts` is installed in the prediction-service IMAGE, not on a developer
+# host, so these skip rather than fail outside the container. They are the
+# tests that actually matter for Phase 2b and are run inside the image.
+
+TORCH_TYPES = ["BlockRNN", "RNN", "TCN", "Transformer", "TFT",
+               "NBeats", "NHits", "DLinear", "NLinear", "TiDE"]
+REGRESSION_TYPES = ["XGBoost", "LightGBM", "RandomForest"]
+
+
+def _window(icl=12, ocl=3):
+    from app.services.darts_trainer import TrainingWindow
+    return TrainingWindow(total_rows=300, train_rows=240, validation_rows=60,
+                          input_chunk_length=icl, output_chunk_length=ocl)
+
+
+def _past_only_plan():
+    from app.services.darts_trainer import CovariatePlan
+    return CovariatePlan(past_columns=("rsi_14",))
+
+
+@pytest.mark.parametrize("model_type", TORCH_TYPES + REGRESSION_TYPES)
+def test_every_model_type_constructs(model_type):
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import build_model
+
+    model = build_model(model_type, _window(), _past_only_plan(), None)
+    assert model is not None
+
+
+def test_rnn_is_built_without_an_output_chunk_length():
+    """RNNModel does not accept it — passing one is a TypeError from inside the
+    library, which is exactly the kind of error this module exists to prevent
+    reaching the operator."""
+    pytest.importorskip("darts")
+    from darts.models import RNNModel
+
+    from app.services.darts_trainer import build_model
+
+    model = build_model("RNN", _window(), _past_only_plan(), None)
+    assert isinstance(model, RNNModel)
+
+
+def test_tft_is_built_so_it_can_fit_without_future_covariates():
+    """TFT needs future input. Since indicators cannot be future covariates,
+    the common case here has none, so `add_relative_index` must be set or fit
+    raises."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import build_model
+
+    model = build_model("TFT", _window(), _past_only_plan(), None)
+    assert model is not None
+
+
+def test_regression_capability_follows_the_PLAN_not_the_class():
+    """The Phase 1 finding, enforced: XGBModel only supports past covariates if
+    `lags_past_covariates` was supplied at construction, so the operator's
+    choice has to reach the constructor."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import CovariatePlan, build_model
+
+    with_past = build_model("XGBoost", _window(), CovariatePlan(past_columns=("rsi",)), None)
+    assert with_past.supports_past_covariates
+
+    without = build_model("XGBoost", _window(), CovariatePlan(), None)
+    assert not without.supports_past_covariates, (
+        "a model built from an empty plan must not claim covariate support — "
+        "fit() would then demand a series that does not exist")
+
+
+def test_a_future_plan_grants_future_capability():
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import CovariatePlan, build_model
+
+    plan = CovariatePlan(past_columns=("rsi",), future_columns=("dayofweek",))
+    model = build_model("XGBoost", _window(), plan, None)
+    assert model.supports_past_covariates and model.supports_future_covariates
+
+
+def test_torch_models_are_pinned_to_cpu():
+    """The image ships CPU-only torch on purpose. A model claiming GPU and
+    silently falling back would be worse than an explicit setting."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import CPU_TRAINER_KWARGS, build_model
+
+    assert CPU_TRAINER_KWARGS["accelerator"] == "cpu"
+    model = build_model("BlockRNN", _window(), _past_only_plan(), None)
+    assert model.trainer_params.get("accelerator") == "cpu"
+
+
+def test_config_overrides_epochs_and_seed():
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import build_model
+
+    model = build_model("BlockRNN", _window(), _past_only_plan(),
+                        {"n_epochs": 3, "random_state": 7})
+    assert model.n_epochs == 3
+
+
+def test_an_unknown_model_type_is_refused_readably():
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import DartsTrainingError, build_model
+
+    with pytest.raises(DartsTrainingError) as e:
+        build_model("Nonsense", _window(), _past_only_plan(), None)
+    assert "Nonsense" in str(e.value)
+
+
+def test_catboost_reports_its_missing_package_rather_than_crashing():
+    """CatBoost is in the catalogue but the `catboost` package is not
+    installed, so this must fail with a sentence an operator can act on."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import DartsTrainingError, build_model
+
+    try:
+        build_model("CatBoost", _window(), _past_only_plan(), None)
+    except DartsTrainingError as exc:
+        assert "CatBoost" in str(exc)
+    # If catboost later gets installed, constructing it is also acceptable.
+
+
+@pytest.mark.parametrize("model_type",
+                         ["BlockRNN", "TCN", "Transformer"] + REGRESSION_TYPES)
+def test_built_models_actually_fit_with_past_covariates(model_type):
+    """Construction is not usefulness — the Phase 1 lesson. These fit for real
+    on a short synthetic series with a past covariate attached."""
+    pytest.importorskip("darts")
+    import logging
+
+    from darts import TimeSeries
+
+    from app.services.darts_trainer import build_model
+
+    logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
+    idx = pd.bdate_range("2024-01-01", periods=160)
+    rng = np.random.default_rng(1)
+    target = TimeSeries.from_series(
+        pd.Series(np.linspace(10, 14, 160) + rng.normal(0, .1, 160), index=idx))
+    past = TimeSeries.from_series(pd.Series(rng.normal(0, 1, 160), index=idx), )
+
+    model = build_model(model_type, _window(), _past_only_plan(), {"n_epochs": 1})
+    model.fit(target, past_covariates=past)
+    out = model.predict(3, past_covariates=past)
+    assert len(out) == 3
+
+
+def test_rnn_fits_with_FUTURE_covariates_only():
+    """RNNModel takes future covariates and not past ones — found by fitting,
+    after a test that wrongly handed it a past covariate failed. The calendar
+    series is the legitimate future covariate here, and it must extend beyond
+    the target for Darts to accept it."""
+    pytest.importorskip("darts")
+    import logging
+
+    from darts import TimeSeries
+
+    from app.services.darts_trainer import build_model, calendar_frame, extend_index
+
+    logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
+    idx = pd.bdate_range("2024-01-01", periods=160)
+    rng = np.random.default_rng(2)
+    target = TimeSeries.from_series(
+        pd.Series(np.linspace(10, 14, 160) + rng.normal(0, .1, 160), index=idx))
+    cal = TimeSeries.from_dataframe(calendar_frame(extend_index(idx, 10)))
+
+    from app.services.darts_trainer import CovariatePlan
+    model = build_model("RNN", _window(), CovariatePlan(future_columns=("dayofweek",)),
+                        {"n_epochs": 1})
+    model.fit(target, future_covariates=cal)
+    assert len(model.predict(3, future_covariates=cal)) == 3
+
+
+def test_a_past_only_plan_is_refused_for_a_future_only_model():
+    """Silently ignoring four configured indicators would be the same class of
+    quiet behaviour as the rest of this week's findings."""
+    from app.services.darts_trainer import CovariateError, plan_covariates
+
+    with pytest.raises(CovariateError) as e:
+        plan_covariates(["rsi_14", "sma_20"], {"rsi_14": "past", "sma_20": "past"},
+                        model_supports_future=True, model_supports_past=False)
+    msg = str(e.value)
+    assert "rsi_14" in msg and "ignored entirely" in msg
+
+
+# ---------------------------------------------------------------------------
+# End-to-end orchestration (Phase 2b)
+# ---------------------------------------------------------------------------
+
+def _frame(n=320, seed=3):
+    """A price-like level series plus two indicator columns."""
+    idx = pd.bdate_range("2023-01-02", periods=n)
+    rng = np.random.default_rng(seed)
+    close = 20 + np.cumsum(rng.normal(0, 0.15, n))
+    return pd.DataFrame(
+        {"close": close,
+         "rsi_14": 50 + rng.normal(0, 8, n),
+         "sma_20": pd.Series(close, index=idx).rolling(20, min_periods=1).mean().to_numpy()},
+        index=idx)
+
+
+@pytest.mark.parametrize("model_type", ["BlockRNN", "XGBoost", "DLinear"])
+def test_run_darts_training_produces_auditable_output(model_type):
+    pytest.importorskip("darts")
+    import logging
+    logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
+    from app.services.darts_trainer import run_darts_training
+
+    out = run_darts_training(
+        _frame(), model_type=model_type,
+        indicator_columns=["rsi_14", "sma_20"],
+        covariate_types={"rsi_14": "past", "sma_20": "past"},
+        train_ratio=0.85, config={"n_epochs": 1, "input_chunk_length": 20,
+                                  "output_chunk_length": 5})
+    assert out["engine"] == "darts" and out["model_type"] == model_type
+    acc = out["data_accounting"]
+    assert acc["training_samples"] + acc["validation_samples"] == acc["rows_used"]
+    assert pd.Timestamp(acc["validation_start_date"]) > pd.Timestamp(acc["train_end_date"])
+    # every returned row is held-out, and recomputable
+    assert out["predictions"] and all(p["in_sample"] is False for p in out["predictions"])
+    recomputed = math.sqrt(sum((p["predicted_price"] - p["actual_price"]) ** 2
+                               for p in out["predictions"]) / len(out["predictions"]))
+    assert recomputed == pytest.approx(out["metrics"]["rmse"], rel=1e-6), (
+        "the reported rmse must be reproducible from the returned rows — the #110 lesson")
+
+
+def test_the_naive_benchmark_travels_with_the_metrics():
+    """C4: a reader must not be able to see r2 without seeing what
+    'tomorrow = today' scores on the same slice."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import run_darts_training
+
+    out = run_darts_training(
+        _frame(), model_type="XGBoost",
+        indicator_columns=["rsi_14"], covariate_types={"rsi_14": "past"},
+        train_ratio=0.85, config={"input_chunk_length": 20, "output_chunk_length": 5})
+    assert set(out["naive"]) == set(out["metrics"])
+    assert isinstance(out["beats_naive_rmse"], bool)
+
+
+def test_indicators_reach_the_model_as_past_covariates():
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import run_darts_training
+
+    out = run_darts_training(
+        _frame(), model_type="XGBoost",
+        indicator_columns=["rsi_14", "sma_20"],
+        covariate_types={"rsi_14": "past", "sma_20": "past"},
+        train_ratio=0.85, config={"input_chunk_length": 20, "output_chunk_length": 5})
+    assert out["covariates"]["past"] == ["rsi_14", "sma_20"]
+
+
+def test_a_future_marked_indicator_fails_the_whole_run():
+    """Not a warning buried in a log — the run stops and names the problem."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import CovariateError, run_darts_training
+
+    with pytest.raises(CovariateError) as e:
+        run_darts_training(
+            _frame(), model_type="XGBoost",
+            indicator_columns=["rsi_14"], covariate_types={"rsi_14": "future"},
+            train_ratio=0.85)
+    assert "rsi_14" in str(e.value)
+
+
+def test_a_frame_without_the_price_column_is_refused():
+    from app.services.darts_trainer import DartsTrainingError, run_darts_training
+
+    with pytest.raises(DartsTrainingError):
+        run_darts_training(_frame().drop(columns=["close"]), model_type="XGBoost",
+                           indicator_columns=[], covariate_types={})
+
+
+def test_a_missing_indicator_column_is_refused_before_fitting():
+    from app.services.darts_trainer import DartsTrainingError, run_darts_training
+
+    with pytest.raises(DartsTrainingError) as e:
+        run_darts_training(_frame(), model_type="XGBoost",
+                           indicator_columns=["not_computed"], covariate_types={})
+    assert "not_computed" in str(e.value)
+
+
+def test_a_validation_span_shorter_than_the_output_window_is_refused():
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import DartsTrainingError, run_darts_training
+
+    with pytest.raises(DartsTrainingError) as e:
+        run_darts_training(_frame(n=200), model_type="XGBoost",
+                           indicator_columns=[], covariate_types={},
+                           train_ratio=0.99,
+                           config={"input_chunk_length": 20, "output_chunk_length": 10})
+    assert "validation rows" in str(e.value)
+
+
+def _irregular_frame(n=320, seed=4):
+    """A frame with HOLIDAY GAPS, like real trading data.
+
+    The test that was missing. Every earlier fixture used `pd.bdate_range`,
+    which carries a clean `B` frequency, so none of them could reproduce the
+    failure real ACB data produced:
+        ValueError: The time index is missing the `freq` attribute...
+    Vietnamese market holidays (Tet and others) remove whole runs of business
+    days, so no frequency can be inferred from the index.
+    """
+    idx = pd.bdate_range("2023-01-02", periods=n + 20)
+    drop = set(idx[40:48]) | set(idx[150:153]) | {idx[200]}   # holiday runs
+    idx = pd.DatetimeIndex([d for d in idx if d not in drop])[:n]
+    assert idx.freq is None, "fixture must have no inferable frequency"
+    rng = np.random.default_rng(seed)
+    close = 20 + np.cumsum(rng.normal(0, 0.15, n))
+    return pd.DataFrame(
+        {"close": close,
+         "rsi_14": 50 + rng.normal(0, 8, n),
+         "sma_20": pd.Series(close).rolling(20, min_periods=1).mean().to_numpy()},
+        index=idx)
+
+
+def test_the_fixture_really_has_no_inferable_frequency():
+    """Guards the guard — if pandas ever infers a freq here, the test below
+    stops exercising the bug it was written for."""
+    assert _irregular_frame().index.freq is None
+    assert pd.infer_freq(_irregular_frame().index) is None
+
+
+@pytest.mark.parametrize("model_type", ["BlockRNN", "XGBoost"])
+def test_training_survives_market_holiday_gaps(model_type):
+    """The real-data failure, reproduced and fixed.
+
+    Darts needs a regular frequency; trading bars have none. The series are
+    therefore indexed by BAR NUMBER, which is also what the models mean — an
+    input_chunk_length of 30 is thirty trading bars.
+    """
+    pytest.importorskip("darts")
+    import logging
+    logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
+    from app.services.darts_trainer import run_darts_training
+
+    out = run_darts_training(
+        _irregular_frame(), model_type=model_type,
+        indicator_columns=["rsi_14", "sma_20"],
+        covariate_types={"rsi_14": "past", "sma_20": "past"},
+        train_ratio=0.85,
+        config={"n_epochs": 1, "input_chunk_length": 20, "output_chunk_length": 5})
+    assert out["predictions"]
+    assert out["metrics"]["rmse"] >= 0
+
+
+def test_output_rows_still_carry_real_dates_despite_positional_indexing():
+    """The index is positional; the REPORT must still be dated, or a reader
+    cannot line predictions up against anything."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import run_darts_training
+
+    frame = _irregular_frame()
+    out = run_darts_training(
+        frame, model_type="XGBoost",
+        indicator_columns=["rsi_14"], covariate_types={"rsi_14": "past"},
+        train_ratio=0.85, config={"input_chunk_length": 20, "output_chunk_length": 5})
+    dates = [p["date"] for p in out["predictions"]]
+    assert dates == sorted(dates)
+    assert pd.Timestamp(dates[0]) in frame.index
+
+
+# ===========================================================================
+# Scaling (Backlog #109 Phase 2b, added after the first real run)
+# ===========================================================================
+# The first real BlockRNN run returned forecasts with sd 0.18 around a flat
+# 19.44 against actuals of sd 0.79 — a near-constant. Unscaled inputs (price
+# ~20, RSI 0-100, volume ~1e6) saturate a network's first layer. These tests
+# cover the fix and, more importantly, the leak the fix could easily introduce.
+
+
+def _ramp(n=100, lo=10.0, hi=30.0):
+    from darts import TimeSeries
+    return TimeSeries.from_values(np.linspace(lo, hi, n))
+
+
+def test_scaling_round_trips_back_to_original_units():
+    """inverse_transform(transform(x)) == x, or the payload lies about prices."""
+    from app.services.darts_trainer import scale_for_training
+    s = _ramp()
+    scaled, scaler = scale_for_training(s, split=70)
+    back = scaler.inverse_transform(scaled).values().ravel()
+    assert np.allclose(back, s.values().ravel())
+
+
+def test_scaler_maps_the_training_span_into_unit_range():
+    from app.services.darts_trainer import scale_for_training
+    scaled, _ = scale_for_training(_ramp(), split=70)
+    train = scaled.values().ravel()[:70]
+    assert train.min() == pytest.approx(0.0, abs=1e-9)
+    assert train.max() == pytest.approx(1.0, abs=1e-9)
+
+
+def test_scaler_is_fitted_on_training_span_only():
+    """C1. Fitting on the full series would leak the validation span's range
+    into training — the preprocessing leak that makes metrics look better.
+
+    Proved by mutation rather than by reading the code: move the validation
+    tail far away and the TRAINING values must not budge. If the scaler were
+    fitted on everything, every training value would change.
+    """
+    from app.services.darts_trainer import scale_for_training
+    from darts import TimeSeries
+
+    base = np.linspace(10.0, 30.0, 100)
+    moved = base.copy()
+    moved[70:] = moved[70:] * 100.0          # validation tail, wildly different
+
+    a, _ = scale_for_training(TimeSeries.from_values(base), split=70)
+    b, _ = scale_for_training(TimeSeries.from_values(moved), split=70)
+
+    assert np.allclose(a.values().ravel()[:70], b.values().ravel()[:70])
+    # And the moved tail must land outside the unit range, which is the
+    # positive evidence that it was transformed by a train-only scaler.
+    assert b.values().ravel()[70:].max() > 1.0
+
+
+def test_scaling_a_none_series_yields_none():
+    """Models without covariates pass None through, so this is on the hot path."""
+    from app.services.darts_trainer import scale_for_training
+    scaled, scaler = scale_for_training(None, split=10)
+    assert scaled is None and scaler is None
+
+
+def test_scaled_fit_tracks_a_series_a_constant_cannot():
+    """The defect's signature was a near-constant forecast. On a clean
+    deterministic signal a working pipeline must beat the best constant.
+
+    Asserting a PROPERTY (beats the mean predictor), not an rmse value — per
+    CLAUDE.md, magnitudes from a simulator are not expected values.
+
+    NOT a ramp, which was this test's first draft and failed at rmse 5.07 vs
+    1.74. That failure was correct: a gradient-boosted tree predicts a
+    piecewise constant and CANNOT extrapolate above the largest target it
+    trained on, so a monotone series whose validation span leaves the training
+    range is the one shape it must lose on. A bounded oscillation keeps the
+    validation values inside the training range, so the test measures the
+    pipeline rather than a known limit of the model family.
+    """
+    from app.services.darts_trainer import run_darts_training
+
+    n = 400
+    idx = pd.bdate_range("2024-01-01", periods=n)
+    close = 25.0 + 5.0 * np.sin(2.0 * np.pi * np.arange(n) / 20.0)
+    frame = pd.DataFrame({"close": close}, index=idx)
+    out = run_darts_training(
+        frame,
+        model_type="LightGBM",
+        indicator_columns=[],
+        covariate_types={},
+        train_ratio=0.8,
+        price_column="close",
+    )
+    actual = np.array([p["actual_price"] for p in out["predictions"]])
+    predicted = np.array([p["predicted_price"] for p in out["predictions"]])
+    const_rmse = float(np.sqrt(np.mean((actual - actual.mean()) ** 2)))
+    model_rmse = float(np.sqrt(np.mean((actual - predicted) ** 2)))
+    assert model_rmse < const_rmse

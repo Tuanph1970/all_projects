@@ -408,6 +408,24 @@ async def _run_training(solution_id: int, train_params: dict):
                 }
                 return
 
+            engine = str(train_params.get('engine') or 'tabular').strip().lower()
+            if engine == 'darts':
+                await _run_darts_engine(
+                    solution_id=solution_id, db=db, feature_df=feature_df,
+                    indicator_rows=indicator_rows, model_instance=model_instance,
+                    model_id=model_id, ticker=ticker, train_params=train_params,
+                    start_date=start_date, end_date=end_date,
+                    rows_before_warmup=rows_before_warmup,
+                    rows_after_warmup=rows_after_warmup)
+                return
+            if engine != 'tabular':
+                training_status[solution_id] = {
+                    "status": "failed",
+                    "error": f"unknown engine {engine!r}; expected 'tabular' or 'darts'",
+                    "failed_at": time_module.time(),
+                }
+                return
+
             training_status[solution_id]["message"] = "Training model..."
             training_status[solution_id]["progress"] = 40
 
@@ -974,6 +992,125 @@ async def get_ticker_time_range(
 # Solution Detail Endpoints (must be after specific routes)
 # ==========================================
 
+
+async def _run_darts_engine(
+    *, solution_id, db, feature_df, indicator_rows, model_instance, model_id,
+    ticker, train_params, start_date, end_date, rows_before_warmup, rows_after_warmup,
+):
+    """Backlog #109 Phase 2b — train through Darts instead of the tabular path.
+
+    All the modelling lives in `app/services/darts_trainer.py`, which is pure;
+    this function is only the I/O around it: status updates, the model file and
+    the two UPDATEs.
+
+    On the covariate mapping: the trainer needs to know which feature columns
+    are past covariates and whether any were marked `future`. The indicator
+    NAMES in `solution_indicators` do not map one-to-one onto the computed
+    feature column names (`SMA` becomes `sma_20`, and a single indicator can
+    produce several columns), so rather than guess a mapping this passes every
+    feature column as a PAST covariate and refuses the run outright if any
+    solution row asks for `future` or `both`. That keeps the safety property
+    exact — nothing price-derived is ever fed as a future covariate — without
+    pretending to a per-column precision the schema does not support.
+    """
+    from app.services.darts_trainer import DartsTrainingError, run_darts_training
+
+    model_type = (model_instance or {}).get('model_type') or 'BlockRNN'
+    config_json = (model_instance or {}).get('config_json')
+    try:
+        config = json.loads(config_json) if isinstance(config_json, str) else (config_json or {})
+    except (json.JSONDecodeError, TypeError):
+        config = {}
+    if not isinstance(config, dict):
+        config = {}
+
+    feature_cols = [c for c in feature_df.columns if c not in ('close', 'target')]
+    bad = sorted({str(r.get('covariate_type') or 'past').strip().lower()
+                  for r in indicator_rows} - {'past', ''})
+    covariate_types = {c: 'past' for c in feature_cols}
+    if bad:
+        offenders = sorted({str(r.get('name') or r.get('indicator_id'))
+                            for r in indicator_rows
+                            if str(r.get('covariate_type') or 'past').strip().lower() in bad})
+        training_status[solution_id] = {
+            "status": "failed",
+            "error": ("these indicators are marked as future covariates: "
+                      + ", ".join(offenders)
+                      + ". A future covariate must be KNOWN over the forecast horizon, "
+                        "and a technical indicator is a function of price, so its future "
+                        "values are not knowable without the future prices. Mark them "
+                        "'past' and train again."),
+            "failed_at": time_module.time(),
+        }
+        return
+
+    training_status[solution_id]["message"] = f"Training {model_type} via Darts..."
+    training_status[solution_id]["progress"] = 40
+
+    try:
+        result = await asyncio.to_thread(
+            run_darts_training, feature_df,
+            model_type=model_type, indicator_columns=feature_cols,
+            covariate_types=covariate_types,
+            train_ratio=float(train_params.get('train_ratio', 0.8)),
+            config=config)
+    except DartsTrainingError as exc:
+        training_status[solution_id] = {
+            "status": "failed", "error": str(exc), "failed_at": time_module.time()}
+        return
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Darts training failed for solution %s", solution_id)
+        training_status[solution_id] = {
+            "status": "failed",
+            "error": f"{type(exc).__name__}: {exc}",
+            "failed_at": time_module.time()}
+        return
+
+    m = result["metrics"]
+    result["data_accounting"]["bars_fetched"] = rows_before_warmup
+    result["data_accounting"]["rows_dropped_to_warmup"] = rows_before_warmup - rows_after_warmup
+
+    metrics_json = json.dumps({
+        'engine': 'darts', 'model_type': model_type,
+        'rmse': m['rmse'], 'mae': m['mae'], 'r2': m['r2'],
+        'direction_accuracy': m['direction_accuracy'],
+        # The benchmark is stored WITH the figure, per C4 — a later reader must
+        # not find r2 without finding what "tomorrow = today" scored.
+        'naive_rmse': result['naive']['rmse'], 'naive_r2': result['naive']['r2'],
+        'beats_naive_rmse': result['beats_naive_rmse'],
+        **result["data_accounting"],
+    })
+    await db.execute(
+        text("""UPDATE model_instances
+                   SET status='trained', training_metrics_json=:metrics,
+                       last_training_date=NOW()
+                 WHERE id = :model_id"""),
+        {"metrics": metrics_json, "model_id": model_id})
+    await db.execute(
+        text("""UPDATE tbl_solution
+                   SET train_status='trained', solution_status=1,
+                       start_training_date=:start_date, end_training_date=:end_date
+                 WHERE id = :solution_id"""),
+        {"start_date": start_date, "end_date": end_date, "solution_id": solution_id})
+    await db.commit()
+
+    training_status[solution_id] = {
+        "status": "completed",
+        "completed_at": time_module.time(),
+        "message": (f"Darts {model_type} trained. RMSE {m['rmse']:.4f} "
+                    f"(naive {result['naive']['rmse']:.4f})"),
+        "result": {
+            "engine": "darts", "model_type": model_type,
+            "rmse": m['rmse'], "mae": m['mae'], "r2": m['r2'],
+            "direction_accuracy": m['direction_accuracy'],
+            "naive": result['naive'], "beats_naive_rmse": result['beats_naive_rmse'],
+            "covariates": result['covariates'],
+            "data_accounting": result['data_accounting'],
+            "predictions": result['predictions'],
+            "training_status": "completed",
+        },
+    }
+
 @solution_router.get("/{solution_id}/training-status")
 @solution_router.get("/{solution_id}/training-status/")
 async def get_training_status(
@@ -1043,6 +1180,11 @@ async def train_solution(
         'end_date': data.get('end_date'),
         'validation': data.get('validation', False),
         'train_ratio': data.get('train_ratio', 0.8),
+        # Backlog #109 Phase 2b. 'tabular' is the existing, working pipeline and
+        # stays the default, so adopting Darts cannot regress what already runs —
+        # a bad result is one flag away from being undone. 'darts' selects the
+        # real architectures via app/services/darts_trainer.py.
+        'engine': (data.get('engine') or 'tabular'),
     }
 
     asyncio.create_task(_run_training(solution_id, train_params))
