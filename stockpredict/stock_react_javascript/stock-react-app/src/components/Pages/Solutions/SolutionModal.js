@@ -1450,8 +1450,13 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                     <div className="covariate-model-summary mt-2">
                       <small className="text-muted">
                         <strong>{t('solutions.model_covariate_support')}</strong>{' '}
+                        {/* Backlog #104 — this badge read "Past + Future + Both".
+                            A model has two covariate capabilities, not three;
+                            "both" was the indicator selector's option, never a
+                            capability, and listing it implied a third kind of
+                            covariate the engine does not have. */}
                         {selectedModel.past_covariate && selectedModel.future_covariate && (
-                          <span className="badge bg-success me-1">Past + Future + Both</span>
+                          <span className="badge bg-success me-1">Past + Future</span>
                         )}
                         {selectedModel.past_covariate && !selectedModel.future_covariate && (
                           <span className="badge bg-info me-1">Past Only</span>

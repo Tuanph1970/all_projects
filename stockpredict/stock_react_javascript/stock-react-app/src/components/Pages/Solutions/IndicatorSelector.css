@@ -117,27 +117,18 @@
   margin-bottom: 0.375rem;
 }
 
-.covariate-type-select {
-  width: 100%;
-  padding: 0.375rem 0.5rem;
-  border: 1px solid #d1d5db;
+/* Backlog #104/#105 — the covariate type is a stated FACT, not a picker.
+   The .covariate-type-select rules that lived here styled a dropdown that no
+   longer exists: an indicator is always a past covariate. */
+.covariate-type-fixed {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
   border-radius: 0.25rem;
   font-size: 0.8125rem;
-  background: white;
-  color: #374151;
-  cursor: pointer;
-  transition: border-color 0.2s;
-  margin-bottom: 0.375rem;
-}
-
-.covariate-type-select:hover {
-  border-color: #9ca3af;
-}
-
-.covariate-type-select:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+  font-weight: 600;
+  background: #e0e7ff;
+  color: #3730a3;
+  border: 1px solid #c7d2fe;
 }
 
 .covariate-help-text {
@@ -148,22 +139,28 @@
   margin-top: 0.25rem;
 }
 
-.covariate-model-info {
+/* The model cannot use indicators at all — a blocking condition, so it reads
+   as a warning rather than as help text. role="alert" in the component. */
+.covariate-blocked {
   display: block;
-  font-size: 0.625rem;
-  color: #9ca3af;
+  font-size: 0.6875rem;
+  color: #92400e;
   margin-top: 0.375rem;
-  padding: 0.25rem 0.375rem;
-  background: #f3f4f6;
+  padding: 0.375rem 0.5rem;
+  background: #fef3c7;
   border-radius: 0.25rem;
-  border-left: 2px solid #3b82f6;
+  border-left: 3px solid #f59e0b;
 }
 
-.covariate-type-select:disabled {
-  background: #f3f4f6;
-  color: #6b7280;
-  cursor: not-allowed;
-  border-color: #e5e7eb;
+/* Where future covariates actually come from (calendar, added server-side). */
+.covariate-calendar-note {
+  font-size: 0.6875rem;
+  color: #1e40af;
+  margin: 0.75rem 0 0;
+  padding: 0.5rem 0.625rem;
+  background: #eff6ff;
+  border-radius: 0.25rem;
+  border-left: 3px solid #3b82f6;
 }
 
 .parameter-inputs {

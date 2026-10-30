@@ -3,28 +3,34 @@ import { useTranslation } from 'react-i18next';
 import indicatorService from '../../../services/indicatorService';
 import './IndicatorSelector.css';
 
+// Backlog #105 — A TECHNICAL INDICATOR IS ALWAYS A PAST COVARIATE.
+//
+// Not a policy choice; a consequence. A future covariate is a series whose
+// values over the FORECAST HORIZON are already known at prediction time. SMA,
+// EMA, RSI, MACD and Bollinger are deterministic functions of price, so knowing
+// them over the horizon means knowing the future prices. Offering 'future' or
+// 'both' here asked for something unobtainable.
+//
+// It was not merely useless, it was a leak. In a backtest the whole history is
+// on hand, so a 'future' indicator CAN be supplied and the model learns from
+// information that will not exist live — the backtest flatters itself and the
+// live path collapses. That is the leakage CLAUDE.md C1 forbids.
+//
+// The server now REFUSES an indicator marked future/both (plan_covariates in
+// prediction-service/app/services/darts_trainer.py). This selector no longer
+// offers the choice, so the refusal is unreachable from the UI rather than
+// being the operator's first sight of the rule.
+const INDICATOR_COVARIATE_TYPE = 'past';
+
 const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfig }) => {
   const { t } = useTranslation();
   // modelCovariateConfig: { hasPastCovariate: boolean, hasFutureCovariate: boolean }
   // Determines which covariate options to show in dropdowns
 
-  // Helper function to get default covariate type based on model config
-  const getDefaultCovariateType = (config) => {
-    // Use Boolean() to properly convert values (handles 0/1, true/false, undefined)
-    const hasPast = Boolean(config?.hasPastCovariate);
-    const hasFuture = Boolean(config?.hasFutureCovariate);
-
-    console.log('getDefaultCovariateType:', { config, hasPast, hasFuture });
-
-    if (hasPast && hasFuture) {
-      return 'past'; // default to past when both available
-    } else if (hasPast) {
-      return 'past';
-    } else if (hasFuture) {
-      return 'future';
-    }
-    return 'past'; // fallback when no model selected
-  };
+  // An indicator's covariate type does not depend on the model — see
+  // INDICATOR_COVARIATE_TYPE. A future-only model cannot use indicators at all,
+  // which is surfaced as a warning rather than by mislabelling them 'future'.
+  const getDefaultCovariateType = () => INDICATOR_COVARIATE_TYPE;
 
   const [indicators, setIndicators] = useState({
     trend: [],
@@ -45,7 +51,7 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
     volume: {}
   });
   // Initialize covariate types based on model config
-  const initialCovariateType = getDefaultCovariateType(modelCovariateConfig);
+  const initialCovariateType = getDefaultCovariateType();
   const [covariateTypes, setCovariateTypes] = useState({
     trend: initialCovariateType,
     momentum: initialCovariateType,
@@ -115,28 +121,13 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
         [type]: indicator.default_parameters || {}
       }));
 
-      // Also ensure covariate type is valid for current model
-      const hasPast = Boolean(modelCovariateConfig?.hasPastCovariate);
-      const hasFuture = Boolean(modelCovariateConfig?.hasFutureCovariate);
-
-      let validValues = [];
-      if (hasPast && hasFuture) {
-        validValues = ['past', 'future', 'both'];
-      } else if (hasPast) {
-        validValues = ['past'];
-      } else if (hasFuture) {
-        validValues = ['future'];
-      } else {
-        // If model config not set, default based on what's available
-        validValues = hasFuture ? ['future'] : ['past'];
-      }
-
-      setCovariateTypes(prev => {
-        if (!validValues.includes(prev[type])) {
-          return { ...prev, [type]: validValues[0] };
-        }
-        return prev;
-      });
+      // No model-dependent branch here any more: an indicator is a past
+      // covariate whatever the model supports (Backlog #105).
+      setCovariateTypes(prev => (
+        prev[type] === INDICATOR_COVARIATE_TYPE
+          ? prev
+          : { ...prev, [type]: INDICATOR_COVARIATE_TYPE }
+      ));
     }
   };
 
@@ -147,13 +138,6 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
         ...prev[type],
         [paramName]: value
       }
-    }));
-  };
-
-  const handleCovariateTypeChange = (type, covariateType) => {
-    setCovariateTypes(prev => ({
-      ...prev,
-      [type]: covariateType
     }));
   };
 
@@ -243,86 +227,20 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
     return icons[category];
   };
 
-  // Get available covariate options based on model configuration
-  const getAvailableCovariateOptions = () => {
-    const options = [];
-    // Use Boolean() to properly convert values (handles 0/1, true/false, undefined)
-    const hasPast = Boolean(modelCovariateConfig?.hasPastCovariate);
-    const hasFuture = Boolean(modelCovariateConfig?.hasFutureCovariate);
-
-    // Debug logging to help diagnose issues
-    console.log('getAvailableCovariateOptions:', {
-      modelCovariateConfig,
-      hasPast,
-      hasFuture,
-      rawPast: modelCovariateConfig?.hasPastCovariate,
-      rawFuture: modelCovariateConfig?.hasFutureCovariate
-    });
-
-    if (hasPast && hasFuture) {
-      // Model supports both - show all 3 options
-      options.push({ value: 'past', label: t('indicator_selector.past_label'), icon: '📊', help: t('indicator_selector.past_help') });
-      options.push({ value: 'future', label: t('indicator_selector.future_label'), icon: '📅', help: t('indicator_selector.future_help') });
-      options.push({ value: 'both', label: t('indicator_selector.both_label'), icon: '🔄', help: t('indicator_selector.both_help') });
-    } else if (hasPast) {
-      // Only past covariate supported
-      options.push({ value: 'past', label: t('indicator_selector.past_label'), icon: '📊', help: t('indicator_selector.past_help') });
-    } else if (hasFuture) {
-      // Only future covariate supported
-      options.push({ value: 'future', label: t('indicator_selector.future_label'), icon: '📅', help: t('indicator_selector.future_help') });
-    } else {
-      // No covariate config or model not selected - show both options with warning
-      console.warn('No valid covariate config - model may not be selected');
-      options.push({ value: 'past', label: t('indicator_selector.past_label'), icon: '📊', help: t('indicator_selector.past_help') });
-      options.push({ value: 'future', label: t('indicator_selector.future_label'), icon: '📅', help: t('indicator_selector.future_help') });
-    }
-
-    return options;
-  };
-
-  // Auto-adjust covariate types when model config changes
+  // Backlog #105 — repairs legacy rows. Solutions saved before this change may
+  // carry covariate_type 'future' or 'both' in solution_indicators; the server
+  // would refuse those at training time. Coerce them on load so the operator
+  // sees the correct value instead of a training failure later.
   useEffect(() => {
-    // Use Boolean() to properly convert values (handles 0/1, true/false, undefined)
-    const hasPast = Boolean(modelCovariateConfig?.hasPastCovariate);
-    const hasFuture = Boolean(modelCovariateConfig?.hasFutureCovariate);
-
-    console.log('useEffect - modelCovariateConfig changed:', {
-      modelCovariateConfig,
-      hasPast,
-      hasFuture
-    });
-
-    let validValues = [];
-    if (hasPast && hasFuture) {
-      validValues = ['past', 'future', 'both'];
-    } else if (hasPast) {
-      validValues = ['past'];
-    } else if (hasFuture) {
-      validValues = ['future'];
-    } else {
-      // No model selected or no covariate support - allow both
-      validValues = ['past', 'future'];
-    }
-
-    const defaultValue = validValues[0];
-
-    // Update covariate types to valid values if current selection is not valid
     setCovariateTypes(prev => {
+      const stale = ['trend', 'momentum', 'volatility', 'volume']
+        .filter(type => prev[type] !== INDICATOR_COVARIATE_TYPE);
+      if (stale.length === 0) return prev;
       const updated = { ...prev };
-      let hasChanges = false;
-      ['trend', 'momentum', 'volatility', 'volume'].forEach(type => {
-        if (!validValues.includes(prev[type])) {
-          // Default to first available option
-          updated[type] = defaultValue;
-          hasChanges = true;
-          console.log(`Updating covariate type for ${type}: ${prev[type]} -> ${defaultValue}`);
-        }
-      });
-      // Only return new object if there are changes to avoid infinite loop
-      return hasChanges ? updated : prev;
+      stale.forEach(type => { updated[type] = INDICATOR_COVARIATE_TYPE; });
+      return updated;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modelCovariateConfig?.hasPastCovariate, modelCovariateConfig?.hasFutureCovariate]);
+  }, [indicators]);
 
   const getSelectedIndicator = (type) => {
     if (!selectedIndicators[type]) return null;
@@ -370,36 +288,20 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
               {selectedIndicators[type] && (
                 <div className="covariate-type-selector">
                   <label>{t('indicator_selector.covariate_type')}</label>
-                  {(() => {
-                    const availableOptions = getAvailableCovariateOptions();
-                    const currentOption = availableOptions.find(opt => opt.value === covariateTypes[type]) || availableOptions[0];
-
-                    return (
-                      <>
-                        <select
-                          className="covariate-type-select"
-                          value={covariateTypes[type] || availableOptions[0]?.value || 'past'}
-                          onChange={(e) => handleCovariateTypeChange(type, e.target.value)}
-                          title={availableOptions.map(opt => `${opt.label}: ${opt.help}`).join(' | ')}
-                          disabled={availableOptions.length === 1}
-                        >
-                          {availableOptions.map(option => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        <span className="covariate-help-text">
-                          {currentOption?.icon} {currentOption?.help}
-                        </span>
-                        {availableOptions.length === 1 && (
-                          <span className="covariate-model-info">
-                            {t('indicator_selector.model_supports_only', { label: availableOptions[0]?.label.toLowerCase() })}
-                          </span>
-                        )}
-                      </>
-                    );
-                  })()}
+                  {/* Backlog #104/#105 — a FIXED value, not a dropdown. A
+                      one-option select reads as a choice the operator has yet
+                      to make; this states the rule and says why. */}
+                  <span className="covariate-type-fixed">
+                    &#128202; {t('indicator_selector.past_label')}
+                  </span>
+                  <span className="covariate-help-text">
+                    {t('indicator_selector.indicator_always_past_help')}
+                  </span>
+                  {modelCovariateConfig && !Boolean(modelCovariateConfig.hasPastCovariate) && (
+                    <span className="covariate-blocked" role="alert">
+                      &#9888; {t('indicator_selector.model_rejects_indicators')}
+                    </span>
+                  )}
                 </div>
               )}
 
@@ -422,6 +324,20 @@ const IndicatorSelector = ({ solutionId, onIndicatorsChange, modelCovariateConfi
           );
         })}
       </div>
+
+      {/* Backlog #104 — name the genuine future-covariate source, so "this
+          model supports future covariates" does not read as an invitation to
+          mark an indicator 'future'. The DARTS engine adds these automatically
+          (plan_covariates) and they are not operator-selectable, which is why
+          this is a statement rather than an empty picker. The qualifier is
+          deliberate: the tabular engine, still the default, builds no calendar
+          features at all, so an unqualified "supplied automatically" would be
+          false on the default path. */}
+      {modelCovariateConfig && Boolean(modelCovariateConfig.hasFutureCovariate) && (
+        <p className="covariate-calendar-note">
+          &#128197; {t('indicator_selector.calendar_future_note')}
+        </p>
+      )}
 
       <div className="selector-actions">
         <button
