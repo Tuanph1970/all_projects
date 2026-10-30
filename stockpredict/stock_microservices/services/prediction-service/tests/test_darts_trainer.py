@@ -411,17 +411,33 @@ def test_an_unknown_model_type_is_refused_readably():
     assert "Nonsense" in str(e.value)
 
 
-def test_catboost_reports_its_missing_package_rather_than_crashing():
-    """CatBoost is in the catalogue but the `catboost` package is not
-    installed, so this must fail with a sentence an operator can act on."""
-    pytest.importorskip("darts")
-    from app.services.darts_trainer import DartsTrainingError, build_model
+def test_catboost_is_installed_and_constructs():
+    """The catalogue advertises CatBoost, the UI seeds its parameter fields, so
+    it has to be buildable. This test previously tolerated BOTH states
+    ("constructs, or raises a readable error") because the package was absent;
+    `catboost` is now a declared requirement, so tolerating the absence would
+    let a dropped dependency pass silently.
 
-    try:
-        build_model("CatBoost", _window(), _past_only_plan(), None)
-    except DartsTrainingError as exc:
-        assert "CatBoost" in str(exc)
-    # If catboost later gets installed, constructing it is also acceptable.
+    Worth pinning because darts hides the failure: `from darts.models import
+    CatBoostModel` SUCCEEDS without the package — the class is a stub that
+    raises ImportError at CONSTRUCTION. An import probe therefore reports a
+    complete catalogue while this entry cannot be built.
+    """
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import build_model
+
+    model = build_model("CatBoost", _window(), _past_only_plan(), None)
+    assert model is not None
+    assert type(model).__name__ == "CatBoostModel"
+
+
+def test_every_catalogue_regression_type_can_be_built():
+    """No entry may be advertised and unbuildable — the gap CatBoost was in."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import REGRESSION_MODELS, build_model
+
+    for model_type in sorted(REGRESSION_MODELS):
+        assert build_model(model_type, _window(), _past_only_plan(), None) is not None
 
 
 @pytest.mark.parametrize("model_type",

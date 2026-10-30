@@ -69,3 +69,17 @@ joblib>=1.3.0
 # (The single nvidia-nccl-cu12 in the image predates this and belongs to
 # xgboost, not torch — checked against the previous image.)
 darts[torch]>=0.48,<0.49
+
+# CatBoost is a SEPARATE install, and darts hides that in a way worth naming:
+# `from darts.models import CatBoostModel` SUCCEEDS without the package — the
+# class is a stub that raises ImportError at CONSTRUCTION, not at import. So an
+# import probe says the catalogue is complete while one of its fourteen entries
+# cannot be built at all. The Solutions UI already advertises CatBoost
+# (api/routes.py) and seeds its parameter fields (main.py), so an owner could
+# pick a model that was guaranteed to fail.
+#
+# Installed rather than dropped from the catalogue because dropping it would
+# leave the tabular engine still resolving 'CatBoost' -> xgboost, which is the
+# mislabelling #109 exists to remove. Measured cost: a 93 MB wheel, ~300 MB
+# installed, on an image whose site-packages is already 2.7 GB with torch.
+catboost>=1.2,<2
