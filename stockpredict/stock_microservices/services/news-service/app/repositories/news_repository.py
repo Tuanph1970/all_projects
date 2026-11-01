@@ -208,6 +208,22 @@ class NewsRepository:
         with self._Session() as s:
             return [_normalize(r) for r in s.scalars(stmt).all()]
 
+    def list_unsourced_scored(self, *, stream: str = "company") -> list[NewsEvent]:
+        """Rows classified before #112: classified_at set, score_source NULL.
+
+        Backlog #113. These hold the pre-fix scores (neutral stored as +0.5).
+        A re-scored row gets a score_source, so it drops out of this set —
+        which is what makes the backfill resumable and safe to re-run."""
+        stmt = (
+            select(NewsEvent)
+            .where(NewsEvent.classified_at.is_not(None))
+            .where(NewsEvent.score_source.is_(None))
+            .where(NewsEvent.stream == stream)
+            .order_by(NewsEvent.ts_utc)
+        )
+        with self._Session() as s:
+            return [_normalize(r) for r in s.scalars(stmt).all()]
+
     def query(
         self,
         *,
