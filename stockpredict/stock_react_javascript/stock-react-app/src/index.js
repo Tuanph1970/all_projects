@@ -6,11 +6,12 @@ import './i18n';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 
-// Strip dev-only console output from production builds. The codebase has
-// ~188 console.log/debug/info calls scattered across components; rather
-// than touch each file, we no-op them here in prod and preserve them in
-// dev. console.error / console.warn intentionally pass through so genuine
-// error reporting still surfaces. Backlog #16.
+// Strip dev-only console output from production builds. Backlog #16 added
+// this when ~188 console.log/debug/info calls were scattered across
+// components; those were removed 2026-11-01 and the eslint no-console rule
+// (package.json) now flags new ones. Kept as a backstop for dependencies.
+// console.error / console.warn intentionally pass through so genuine
+// error reporting still surfaces.
 if (process.env.NODE_ENV === 'production') {
   const noop = () => {};
   // eslint-disable-next-line no-console

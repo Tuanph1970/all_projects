@@ -26,7 +26,6 @@ export const Stocks = () => {
           const result = await httpClient.get(API_ENDPOINTS.COMPANIES_ALL);
           if (result.success && result.data) {
             setTableRowsData(result.data);
-            console.log(result.data);
           }
         } catch (error) {
           console.error('Error fetching companies:', error);
@@ -660,10 +659,6 @@ export const StockList = () => {
         const responseData = result.data;
         const data = responseData.items || responseData.data || responseData || [];
 
-        // Debug: Log the first item to see actual structure
-        if (data.length > 0) {
-          console.log('Sample stock data:', data[0]);
-        }
 
         const cleanedData = data.map(stock => ({
           ...stock,

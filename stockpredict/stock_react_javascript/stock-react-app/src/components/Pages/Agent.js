@@ -61,7 +61,6 @@ export const Agent = () => {
             result.data['current_inventory'] + "\n" +
             "total_gain:" +
             result.data['total_gain'] + "\n";
-            console.log(statisticString)
             setStatistic(statisticString)
             setExHistory(result.data['exchange_history'])
             setTrainingHistory(result.data['training_history'])

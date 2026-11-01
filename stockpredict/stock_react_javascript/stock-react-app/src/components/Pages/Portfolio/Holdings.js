@@ -116,7 +116,6 @@ const Holdings = () => {
 
   const handleSellStock = async (e) => {
     e.preventDefault();
-    console.log('Selling stock:', selectedStock.symbol, 'shares:', sellData.shares);
     
     try {
       const result = await portfolioService.sellStock(
@@ -126,7 +125,6 @@ const Holdings = () => {
       );
 
       if (result.success) {
-        console.log('Stock sold successfully');
         setSellData({ shares: '' });
         setShowSellForm(false);
         setSelectedStock(null);
@@ -143,12 +141,10 @@ const Holdings = () => {
   };
 
   const handleRemoveStock = async (symbol) => {
-    console.log('Removing stock with symbol:', symbol);
     try {
       const result = await portfolioService.removeStock(symbol);
       
       if (result.success) {
-        console.log('Stock removed successfully');
         setConfirmDelete(null);
         loadPortfolioData();
         setError(null);
@@ -163,7 +159,6 @@ const Holdings = () => {
   };
 
   const openSellForm = (stock) => {
-    console.log('Opening sell form for stock:', stock);
     if (!stock) {
       console.error('No stock provided to openSellForm');
       return;
@@ -171,7 +166,6 @@ const Holdings = () => {
     setSelectedStock(stock);
     setSellData({ shares: '' });
     setShowSellForm(true);
-    console.log('Sell form state updated, showSellForm:', true);
   };
 
   const handleStockSelect = (e) => {
@@ -257,7 +251,6 @@ const Holdings = () => {
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log('Sell button clicked for stock:', row);
               openSellForm(row);
             }}
             className="action-btn sell-btn"
@@ -269,7 +262,6 @@ const Holdings = () => {
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log('Remove button clicked for stock:', row);
               setConfirmDelete(row);
             }}
             className="action-btn remove-btn"
@@ -284,16 +276,12 @@ const Holdings = () => {
 
   if (loading) return <LoadingSpinner />;
 
-  console.log('Holdings render - showSellForm:', showSellForm, 'selectedStock:', selectedStock);
-  console.log('confirmDelete:', confirmDelete);
-
   return (
     <div className="holdings-page">
       <div className="page-header">
         <h1>{t('portfolio.holdings.page_title')}</h1>
         <button
           onClick={() => {
-            console.log('Add Stock button clicked');
             loadStockOptions();
             setShowAddForm(true);
           }}

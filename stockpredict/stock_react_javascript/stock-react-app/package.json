@@ -42,6 +42,28 @@
     "extends": [
       "react-app",
       "react-app/jest"
+    ],
+    "rules": {
+      "no-console": [
+        "warn",
+        {
+          "allow": [
+            "warn",
+            "error"
+          ]
+        }
+      ]
+    },
+    "overrides": [
+      {
+        "files": [
+          "**/*.test.js",
+          "src/setupTests.js"
+        ],
+        "rules": {
+          "no-console": "off"
+        }
+      }
     ]
   },
   "jest": {

@@ -906,33 +906,20 @@ export const analysisAPI = {
   },
 
   getTechnicalAnalysis: async (symbol, period = 100) => {
-    console.log('=== API CALL DEBUG ===');
-    console.log('getTechnicalAnalysis called with:', { symbol, period });
 
     const url = `${API_ENDPOINTS.ANALYSIS_TECHNICAL(symbol)}?period=${period}`;
-    const token = localStorage.getItem('token');
-
-    console.log('API URL:', url);
-    console.log('Token:', token ? 'Token exists' : 'No token found');
 
     try {
-      console.log('Making fetch request...');
       const response = await fetch(url, {
         method: 'GET',
         headers: getAuthHeaders()
       });
 
-      console.log('Response received:', response.status, response.statusText);
-
       if (!response.ok) {
-        console.log('Response not OK, throwing error');
         throw new Error('Failed to fetch technical analysis');
       }
 
-      console.log('Parsing JSON response...');
       const data = await response.json();
-      console.log('API response data:', data);
-      console.log('=== END API CALL DEBUG ===');
       return data;
     } catch (error) {
       console.error('=== API CALL ERROR ===');

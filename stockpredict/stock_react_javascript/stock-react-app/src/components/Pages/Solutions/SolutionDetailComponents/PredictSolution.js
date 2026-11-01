@@ -40,19 +40,10 @@ const PredictSolution = (props)=>{
 
     // Load prediction dates from solution when component mounts (for returning to page)
     useEffect(() => {
-        console.log('[PredictSolution] props.solution changed:', props.solution);
-        console.log('[PredictSolution] props.solution.prediction_dates:', props.solution?.prediction_dates);
 
         // Check if solution has prediction_dates from backend (loaded from database)
         if (props.solution && props.solution.prediction_dates) {
             const { prediction_start_date, prediction_end_date, output_chunk_length, training_end_date } = props.solution.prediction_dates;
-
-            console.log('[PredictSolution] Setting dates from solution.prediction_dates:', {
-                prediction_start_date,
-                prediction_end_date,
-                output_chunk_length,
-                training_end_date
-            });
 
             if (prediction_start_date) {
                 setStartDate(new Date(prediction_start_date));
@@ -66,9 +57,6 @@ const PredictSolution = (props)=>{
                 training_end_date
             });
 
-            console.log('Prediction dates loaded from solution:', props.solution.prediction_dates);
-        } else {
-            console.log('[PredictSolution] No prediction_dates found in solution');
         }
     }, [props.solution]);
 
@@ -90,7 +78,6 @@ const PredictSolution = (props)=>{
                 training_end_date
             });
 
-            console.log('Prediction dates auto-filled from training:', props.predictionDates);
         }
     }, [props.predictionDates]);
 
@@ -119,7 +106,6 @@ const PredictSolution = (props)=>{
             const result = await httpClient.post(API_ENDPOINTS.SOLUTION_PREDICT, data, { timeout: 120000 });
             if (result.success && result.data) {
                 setPredictions(result.data);
-                console.log('Prediction results:', result.data);
             } else {
                 setError(result.error?.message || 'Prediction failed');
             }

@@ -57,14 +57,12 @@ const SolutionEdit = ()=>{
     const handleTrainingComplete = (trainingResult) => {
         if (trainingResult && trainingResult.prediction_dates) {
             setPredictionDates(trainingResult.prediction_dates)
-            console.log('Training complete - Prediction dates set:', trainingResult.prediction_dates)
         }
         if (trainingResult && trainingResult.model_id) {
             setTrainedModelInfo({
                 model_id: trainingResult.model_id,
                 rmse: trainingResult.rmse
             })
-            console.log('Training complete - Model info set:', trainingResult.model_id)
         }
     }
 
@@ -81,8 +79,6 @@ const SolutionEdit = ()=>{
 
                 if (solutionId) {
                     const solutiondata = await getSolution(solutionId)
-                    console.log('[SolutionEdit] Solution loaded from API:', solutiondata);
-                    console.log('[SolutionEdit] prediction_dates:', solutiondata?.prediction_dates);
                     setSolution(solutiondata)
                 }
             } catch (error) {

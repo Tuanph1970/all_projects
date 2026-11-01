@@ -252,17 +252,12 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
     }
 
     // Load prediction dates if available (from backend calculation for trained solutions)
-    console.log('[SolutionModal] populateSolutionData - solution:', sol);
-    console.log('[SolutionModal] populateSolutionData - prediction_dates:', sol.prediction_dates);
     if (sol.prediction_dates) {
-      console.log('[SolutionModal] Setting prediction dates from solution.prediction_dates');
       if (sol.prediction_dates.prediction_start_date) {
         setPredictStartDate(new Date(sol.prediction_dates.prediction_start_date));
-        console.log('[SolutionModal] Set predictStartDate:', sol.prediction_dates.prediction_start_date);
       }
       if (sol.prediction_dates.prediction_end_date) {
         setPredictEndDate(new Date(sol.prediction_dates.prediction_end_date));
-        console.log('[SolutionModal] Set predictEndDate:', sol.prediction_dates.prediction_end_date);
       }
       // Store model info for prediction tab
       setPredictionModelInfo({
@@ -271,16 +266,13 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
       });
     } else if (sol.end_training_date) {
       // Fallback: Calculate prediction start date from training end date + 1 business day
-      console.log('[SolutionModal] No prediction_dates, calculating from end_training_date:', sol.end_training_date);
       const endTrainingDate = new Date(sol.end_training_date);
       const predictStart = addBusinessDays(endTrainingDate, 1);
       setPredictStartDate(predictStart);
-      console.log('[SolutionModal] Calculated predictStartDate:', predictStart);
 
       // Default prediction end date to prediction start + 10 business days (default output_chunk_length)
       const predictEnd = addBusinessDays(predictStart, 10);
       setPredictEndDate(predictEnd);
-      console.log('[SolutionModal] Calculated predictEndDate:', predictEnd);
 
       // Store model info with default output_chunk_length
       setPredictionModelInfo({
@@ -291,14 +283,12 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
 
     // Restore persisted training result (metrics + chart data)
     if (sol.training_result && typeof sol.training_result === 'object') {
-      console.log('[SolutionModal] Restoring persisted training result');
       setTrainingResult(sol.training_result);
       processTrainingResults(sol.training_result);
     }
 
     // Restore persisted prediction result (same builder as the Predict button).
     if (sol.prediction_result && typeof sol.prediction_result === 'object') {
-      console.log('[SolutionModal] Restoring persisted prediction result');
       setPredictionResult(sol.prediction_result);
       const chartData = buildPredictionChartData(sol.prediction_result);
       if (chartData.length > 0) {
@@ -413,29 +403,15 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
       return newItem;
     });
 
-    console.log('✓ Merged chart data:', merged.length, 'points');
     return merged;
   };
 
   const processTrainingResults = (trainingData) => {
     try {
-      console.log('=== PROCESSING TRAINING RESULTS ===');
-      console.log('Full training data object:', trainingData);
-      console.log('Has predictions field:', !!trainingData?.predictions);
-      console.log('Predictions is array:', Array.isArray(trainingData?.predictions));
-      console.log('Predictions length:', trainingData?.predictions?.length || 0);
 
       // Early return if trainingData is null, undefined, or not an object
       if (!trainingData || typeof trainingData !== 'object') {
-        console.log('ℹ️ No training result data to process (will load from indicator service)');
         return false; // Return false to indicate no data processed
-      }
-
-      console.log('Type:', typeof trainingData);
-      console.log('Keys:', Object.keys(trainingData));
-      if (trainingData.predictions && trainingData.predictions.length > 0) {
-        console.log('✓ First prediction item:', trainingData.predictions[0]);
-        console.log('✓ Last prediction item:', trainingData.predictions[trainingData.predictions.length - 1]);
       }
 
       // Check different possible data structures from training response
@@ -456,44 +432,15 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
       for (const path of possiblePaths) {
         if (path && Array.isArray(path) && path.length > 0) {
           dataPoints = path;
-          console.log('✓ Found data at path, length:', path.length);
           break;
         }
       }
 
-      console.log('Data points found:', dataPoints.length);
       if (dataPoints.length > 0) {
-        console.log('First data point structure:', dataPoints[0]);
-      }
-
-      if (dataPoints.length > 0) {
-        // 🔍 DIAGNOSTIC: Check first data point structure from training
-        console.log('🔍 TRAINING DATA - First data point:', JSON.stringify(dataPoints[0], null, 2));
-        console.log('🔍 TRAINING DATA - Available fields:', Object.keys(dataPoints[0]));
-
         // Transform training results into chart data (shared mapper keeps the
         // Training and Prediction tabs visually identical).
         const chartData = dataPoints.map(apiPointToChartPoint);
 
-        console.log('✓ Successfully created chart data:', chartData.length, 'points');
-        console.log('Sample chart data point:', chartData[0]);
-        console.log('🔍 TRAINING CHART DATA - Field counts:');
-        console.log('  - actual:', chartData.filter(d => d.actual !== undefined && d.actual !== null).length);
-        console.log('  - predicted:', chartData.filter(d => d.predicted !== undefined && d.predicted !== null).length);
-        console.log('  - validation:', chartData.filter(d => d.validation !== undefined && d.validation !== null).length);
-        console.log('  - sma_20:', chartData.filter(d => d.sma_20 !== undefined && d.sma_20 !== null).length);
-        console.log('  - sma_50:', chartData.filter(d => d.sma_50 !== undefined && d.sma_50 !== null).length);
-        console.log('  - ema_12:', chartData.filter(d => d.ema_12 !== undefined && d.ema_12 !== null).length);
-        console.log('  - wma:', chartData.filter(d => d.wma !== undefined && d.wma !== null).length);
-        console.log('  - macd:', chartData.filter(d => d.macd !== undefined && d.macd !== null).length);
-        console.log('  - bb_upper:', chartData.filter(d => d.bb_upper !== undefined && d.bb_upper !== null).length);
-        console.log('  - bb_middle:', chartData.filter(d => d.bb_middle !== undefined && d.bb_middle !== null).length);
-        console.log('  - bb_lower:', chartData.filter(d => d.bb_lower !== undefined && d.bb_lower !== null).length);
-        console.log('  - atr (>0):', chartData.filter(d => d.atr !== undefined && d.atr > 0).length);
-        console.log('  - volume (raw):', chartData.filter(d => d.volume !== undefined && d.volume !== null).length);
-        console.log('  - volume_sma:', chartData.filter(d => d.volume_sma !== undefined && d.volume_sma !== null).length);
-        console.log('  - vwap (price indicator):', chartData.filter(d => d.vwap !== undefined && d.vwap !== null).length);
-        console.log('  - obv:', chartData.filter(d => d.obv !== undefined && d.obv !== null).length);
         setIndicatorChartData(chartData);
         setSuccess(`Training completed! Loaded ${chartData.length} data points with predictions and indicators`);
         return true; // Return true to indicate successful processing
@@ -531,13 +478,10 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
 
       const response = await httpClient.post(API_ENDPOINTS.SOLUTION_TRAIN, data);
 
-      console.log('Training response:', response);
-
       if (response.success && response.data) {
         // Check if training is async (status: 'training') or has immediate results
         if (response.data.status === 'training') {
           // Training is asynchronous - poll for results
-          console.log('Training started asynchronously, polling for results...');
           setTrainingStatus(t('solutions.training_in_progress'));
 
           // Poll every 3 seconds for training completion
@@ -556,32 +500,22 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                   setTrainingStatus(t('solutions.training_complete'));
                   setSuccess('Training completed with RMSE: ' + (trainingResult?.rmse || 'N/A'));
 
-                  console.log('📦 Training result received from backend:', trainingResult);
-                  console.log('📊 Predictions count:', trainingResult?.predictions?.length || 0);
-
                   // Process training results for chart display
                   const hasPredictions = processTrainingResults(trainingResult);
 
                   // FIXED: Only load indicator data separately if training didn't provide complete data
                   // If training result includes predictions, it already has all indicators merged in
                   if (!hasPredictions) {
-                    console.log('⚠️ Training result incomplete, loading indicators separately...');
                     await loadIndicatorChartData(false);
-                  } else {
-                    console.log('✅ Training result complete with predictions and indicators, skipping separate indicator load');
                   }
 
                   // Auto-fill prediction dates from training result
-                  console.log('[SolutionModal] Training result prediction_dates:', trainingResult?.prediction_dates);
                   if (trainingResult?.prediction_dates) {
-                    console.log('[SolutionModal] Auto-filling prediction dates from training result');
                     if (trainingResult.prediction_dates.prediction_start_date) {
                       setPredictStartDate(new Date(trainingResult.prediction_dates.prediction_start_date));
-                      console.log('[SolutionModal] Set predictStartDate:', trainingResult.prediction_dates.prediction_start_date);
                     }
                     if (trainingResult.prediction_dates.prediction_end_date) {
                       setPredictEndDate(new Date(trainingResult.prediction_dates.prediction_end_date));
-                      console.log('[SolutionModal] Set predictEndDate:', trainingResult.prediction_dates.prediction_end_date);
                     }
                     // Store model info for prediction tab
                     setPredictionModelInfo({
@@ -629,16 +563,12 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
           await loadIndicatorChartData(hasPredictions);
 
           // Auto-fill prediction dates from training result (synchronous case)
-          console.log('[SolutionModal] Sync training result prediction_dates:', response.data?.prediction_dates);
           if (response.data?.prediction_dates) {
-            console.log('[SolutionModal] Auto-filling prediction dates from sync training result');
             if (response.data.prediction_dates.prediction_start_date) {
               setPredictStartDate(new Date(response.data.prediction_dates.prediction_start_date));
-              console.log('[SolutionModal] Set predictStartDate:', response.data.prediction_dates.prediction_start_date);
             }
             if (response.data.prediction_dates.prediction_end_date) {
               setPredictEndDate(new Date(response.data.prediction_dates.prediction_end_date));
-              console.log('[SolutionModal] Set predictEndDate:', response.data.prediction_dates.prediction_end_date);
             }
             // Store model info for prediction tab
             setPredictionModelInfo({
@@ -675,22 +605,16 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
   const loadHistoricalPriceData = async () => {
     if (!ticker || !trainStartDate || !trainEndDate) {
       const msg = `Cannot load price data: ticker=${ticker}, startDate=${trainStartDate}, endDate=${trainEndDate}`;
-      console.log(msg);
       setError(msg);
       return;
     }
 
     try {
-      console.log('=== LOADING HISTORICAL PRICE DATA ===');
       const startDateStr = trainStartDate.toISOString().split('T')[0];
       const endDateStr = trainEndDate.toISOString().split('T')[0];
       const url = API_ENDPOINTS.COMPANY_HISTORICAL_DATA(ticker, startDateStr, endDateStr);
-      console.log('Fetching from:', url);
 
       const response = await httpClient.get(url);
-      console.log('Historical data response:', response);
-      console.log('Response type:', typeof response);
-      console.log('Response success:', response?.success);
 
       // Check for API errors first (404, 500, network errors, etc.)
       if (!response.success) {
@@ -720,12 +644,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
         return;
       }
 
-      console.log('Response data type:', typeof response?.data);
-      console.log('Response data is array:', Array.isArray(response?.data));
-      console.log('Response data length:', response?.data?.length);
-
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-        console.log('First data item:', response.data[0]);
 
         const chartData = response.data.map((item, index, array) => {
           const prevClose = index > 0 ? array[index - 1].close : item.close;
@@ -754,8 +673,6 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
           };
         });
 
-        console.log('✓ Successfully loaded historical price data:', chartData.length, 'points');
-        console.log('Sample chart data:', chartData.slice(0, 3));
         setIndicatorChartData(chartData);
         setSuccess(`✓ Loaded ${chartData.length} historical price points for visualization`);
       } else {
@@ -772,7 +689,6 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
 
   const loadIndicatorChartData = async (preservePredictions = false) => {
     if (!solution || !solution.id) {
-      console.log('Cannot load indicator data: solution not available');
       // Fallback to historical price data
       await loadHistoricalPriceData();
       return;
@@ -789,18 +705,7 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
         end_date: trainEndDate.toISOString().split('T')[0]
       };
 
-      console.log('=== LOADING INDICATOR CHART DATA ===');
-      console.log('Params:', data);
-      console.log('Preserve predictions:', preservePredictions);
-
       const response = await indicatorService.calculateSolutionIndicators(solution.id, data);
-
-      console.log('Indicator service RAW response:', response);
-      console.log('Response type:', typeof response);
-      console.log('Response keys:', Object.keys(response || {}));
-      console.log('Has success field:', 'success' in (response || {}));
-      console.log('Has data field:', 'data' in (response || {}));
-      console.log('Is response an array:', Array.isArray(response));
 
       // Try multiple response formats
       let indicatorData = null;
@@ -808,38 +713,31 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
       // Format 1: {success: true, data: [...]}
       if (response && response.success && response.data && Array.isArray(response.data)) {
         indicatorData = response.data;
-        console.log('✓ Found data in response.data (format 1)');
       }
       // Format 2: Direct array
       else if (Array.isArray(response)) {
         indicatorData = response;
-        console.log('✓ Response is direct array (format 2)');
       }
       // Format 3: {data: [...]} without success field
       else if (response && response.data && Array.isArray(response.data)) {
         indicatorData = response.data;
-        console.log('✓ Found data in response.data without success field (format 3)');
       }
       // Format 4: Response has results field
       else if (response && response.results && Array.isArray(response.results)) {
         indicatorData = response.results;
-        console.log('✓ Found data in response.results (format 4)');
       }
       // Format 5: Nested object structure {trend: {...}, momentum: {...}, volatility: {...}, volume: {...}}
       else if (response && typeof response === 'object' && !Array.isArray(response)) {
-        console.log('✓ Response is nested object structure (format 5) - attempting to transform');
 
         // Check if response has category keys
         const hasCategories = ['trend', 'momentum', 'volatility', 'volume'].some(key => key in response);
 
         if (hasCategories) {
-          console.log('Detected indicator categories in response');
 
           // Try to extract arrays from each category and merge them
           const allDataArrays = [];
 
           for (const [category, categoryData] of Object.entries(response)) {
-            console.log(`Processing category: ${category}`, typeof categoryData);
 
             // Each category might have a 'data' or 'values' array
             if (categoryData && typeof categoryData === 'object') {
@@ -906,34 +804,22 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
               });
             });
 
-            if (normalizedFields.size > 0) {
-              console.log('✓ Field normalizations applied:', Array.from(normalizedFields));
-            }
-
             // Convert merged object to array
             indicatorData = Object.values(mergedData).sort((a, b) =>
               new Date(a.date) - new Date(b.date)
             );
 
-            console.log(`✓ Successfully merged ${allDataArrays.length} indicator categories into ${indicatorData.length} data points`);
-            console.log('First merged data item (with field normalization):', indicatorData[0]);
           }
         }
       }
 
-      console.log('Indicator data found:', indicatorData ? indicatorData.length : 0, 'points');
-
       if (indicatorData && indicatorData.length > 0) {
-        console.log('First indicator data item:', indicatorData[0]);
-        console.log('🔍 RAW BACKEND DATA - Full first item:', JSON.stringify(indicatorData[0], null, 2));
 
         // Check if price data exists in indicator response
         const hasPriceData = indicatorData[0].close !== undefined ||
                             indicatorData[0].open !== undefined ||
                             indicatorData[0].high !== undefined ||
                             indicatorData[0].actual_price !== undefined;
-
-        console.log('🔍 Backend has price data:', hasPriceData);
 
         if (!hasPriceData) {
           console.warn('⚠️ Indicator service returned NO price data - loading historical prices...');
@@ -943,53 +829,10 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
             const startDateStr = trainStartDate.toISOString().split('T')[0];
             const endDateStr = trainEndDate.toISOString().split('T')[0];
             const priceUrl = API_ENDPOINTS.COMPANY_HISTORICAL_DATA(ticker, startDateStr, endDateStr);
-            console.log('Fetching historical prices from:', priceUrl);
 
             const priceResponse = await httpClient.get(priceUrl);
 
             if (priceResponse.success && priceResponse.data && Array.isArray(priceResponse.data)) {
-              console.log('✓ Loaded', priceResponse.data.length, 'historical price points');
-              console.log('🔍 RAW PRICE DATA - First item:', JSON.stringify(priceResponse.data[0], null, 2));
-
-              // Check ORIGINAL indicator data before merge
-              console.log('🔍 ORIGINAL indicator data (first item):', JSON.stringify(indicatorData[0], null, 2));
-              console.log('🔍 ALL FIELDS in indicator data:', Object.keys(indicatorData[0] || {}));
-
-              // Check for all selected indicators with different possible field names
-              const wmaFieldVariants = ['wma', 'WMA', 'weighted_ma', 'weighted_moving_average'];
-              const foundWmaField = wmaFieldVariants.find(field => indicatorData[0]?.[field] !== undefined);
-              console.log('🔍 WMA field name found:', foundWmaField || 'NONE');
-
-              const rsiFieldVariants = ['rsi', 'RSI', 'rsi_value', 'relative_strength_index'];
-              const foundRsiField = rsiFieldVariants.find(field => indicatorData[0]?.[field] !== undefined);
-              console.log('🔍 RSI field name found:', foundRsiField || 'NONE');
-
-              // Check data counts for YOUR selected indicators
-              console.log('🔍 Indicator data counts:',{
-                wma: indicatorData.filter(d => d.wma !== undefined && d.wma !== null).length,
-                macd: indicatorData.filter(d => d.macd !== undefined && d.macd !== null).length,
-                atr: indicatorData.filter(d => d.atr !== undefined && d.atr !== null && d.atr > 0).length,
-                obv: indicatorData.filter(d => d.obv !== undefined && d.obv !== null).length
-              });
-
-              // 🔍 DIAGNOSTIC: Check volume-related fields from backend
-              const volumeFields = ['volume', 'volume_sma', 'vol_sma', 'volume_ma', 'vol_ma', 'sma_volume', 'vwap', 'obv'];
-              const foundVolumeFields = {};
-              volumeFields.forEach(field => {
-                const count = indicatorData.filter(d => d[field] !== undefined && d[field] !== null).length;
-                if (count > 0) foundVolumeFields[field] = count;
-              });
-              console.log('🔍 Volume-related fields from backend:', foundVolumeFields);
-              if (indicatorData[0]) {
-                console.log('🔍 Sample volume data from first point:', {
-                  volume: indicatorData[0].volume,
-                  volume_sma: indicatorData[0].volume_sma,
-                  vol_sma: indicatorData[0].vol_sma,
-                  vwap: indicatorData[0].vwap,
-                  obv: indicatorData[0].obv
-                });
-              }
-
               // Create a map of indicators by date (normalized to date-only format)
               const indicatorMap = new Map();
               indicatorData.forEach(item => {
@@ -999,9 +842,6 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                   indicatorMap.set(normalizedDate, item);
                 }
               });
-
-              console.log('🔍 Indicator map size:', indicatorMap.size);
-              console.log('🔍 Sample indicator map key:', Array.from(indicatorMap.keys())[0]);
 
               // Merge price data with indicators
               indicatorData = priceResponse.data.map(priceItem => {
@@ -1020,22 +860,6 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
                   volume: priceItem.volume
                 };
               });
-
-              console.log('✓ Merged price data with indicators:', indicatorData.length, 'points');
-              console.log('🔍 Sample merged data:', indicatorData[0]);
-              console.log('🔍 Merged data has indicators:', {
-                hasRSI: indicatorData[0]?.rsi !== undefined,
-                hasMACD: indicatorData[0]?.macd !== undefined,
-                hasSMA: indicatorData[0]?.sma_20 !== undefined,
-                keys: Object.keys(indicatorData[0] || {})
-              });
-
-              // Check RSI data specifically
-              const rsiDataPoints = indicatorData.filter(d => d.rsi !== undefined && d.rsi !== null && !isNaN(d.rsi));
-              console.log('🔍 RSI data points:', rsiDataPoints.length, 'out of', indicatorData.length);
-              if (rsiDataPoints.length > 0) {
-                console.log('🔍 Sample RSI values:', rsiDataPoints.slice(0, 5).map(d => ({ date: d.date, rsi: d.rsi, rsi_signal: d.rsi_signal })));
-              }
             } else {
               console.error('❌ Failed to load historical prices');
               setError('Indicator service returned no price data and historical prices unavailable');
@@ -1053,26 +877,6 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
           // Calculate volume color based on price change
           const prevClose = index > 0 ? array[index - 1].close : item.close;
           const volumeColor = item.close >= prevClose ? '#26a69a' : '#ef5350';
-
-          // 🔍 DIAGNOSTIC: Log first item to verify all fields
-          if (index === 0) {
-            console.log('🔍 CHART DATA MAPPING - First item from backend:', JSON.stringify(item, null, 2));
-            console.log('🔍 Available fields:', Object.keys(item));
-            console.log('🔍 Field values:', {
-              close: item.close,
-              actual_price: item.actual_price,
-              predicted_price: item.predicted_price,
-              validation_price: item.validation_price,
-              sma_20: item.sma_20,
-              sma_50: item.sma_50,
-              ema_12: item.ema_12,
-              rsi: item.rsi,
-              macd: item.macd,
-              macd_signal: item.macd_signal,
-              atr: item.atr,
-              obv: item.obv
-            });
-          }
 
           return {
             date: item.date,
@@ -1117,38 +921,11 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
           };
         });
 
-        console.log('✓ Successfully loaded indicator chart data:', chartData.length, 'points');
-        console.log('🔍 DIAGNOSTIC - First 3 chart points:', JSON.stringify(chartData.slice(0, 3), null, 2));
-        console.log('🔍 DIAGNOSTIC - Sample actual values:', chartData.slice(0, 5).map(d => ({ date: d.date, actual: d.actual, close: d.close })));
-
         // Merge with existing predictions if preservePredictions is true
         let finalChartData = chartData;
         if (preservePredictions && currentChartData.length > 0) {
-          console.log('🔄 Merging indicator data with existing training predictions...');
           finalChartData = mergeChartData(currentChartData, chartData);
-          const predictionCount = finalChartData.filter(d => d.predicted !== undefined && d.predicted !== null).length;
-          console.log('✓ Merged data contains', predictionCount, 'predictions');
         }
-
-        // 🔍 FINAL DIAGNOSTIC: Verify all series data
-        console.log('🔍 FINAL CHART DATA VERIFICATION:');
-        console.log('  - Total points:', finalChartData.length);
-        console.log('  - Points with actual:', finalChartData.filter(d => d.actual !== undefined && d.actual !== null).length);
-        console.log('  - Points with predicted:', finalChartData.filter(d => d.predicted !== undefined && d.predicted !== null).length);
-        console.log('  - Points with validation:', finalChartData.filter(d => d.validation !== undefined && d.validation !== null).length);
-        console.log('  - Points with sma_20:', finalChartData.filter(d => d.sma_20 !== undefined && d.sma_20 !== null).length);
-        console.log('  - Points with sma_50:', finalChartData.filter(d => d.sma_50 !== undefined && d.sma_50 !== null).length);
-        console.log('  - Points with ema_12:', finalChartData.filter(d => d.ema_12 !== undefined && d.ema_12 !== null).length);
-        console.log('  - Points with wma:', finalChartData.filter(d => d.wma !== undefined && d.wma !== null).length);
-        console.log('  - Points with macd:', finalChartData.filter(d => d.macd !== undefined && d.macd !== null).length);
-        console.log('  - Points with bb_upper:', finalChartData.filter(d => d.bb_upper !== undefined && d.bb_upper !== null).length);
-        console.log('  - Points with bb_middle:', finalChartData.filter(d => d.bb_middle !== undefined && d.bb_middle !== null).length);
-        console.log('  - Points with bb_lower:', finalChartData.filter(d => d.bb_lower !== undefined && d.bb_lower !== null).length);
-        console.log('  - Points with atr (>0):', finalChartData.filter(d => d.atr !== undefined && d.atr !== null && d.atr > 0).length);
-        console.log('  - Points with volume:', finalChartData.filter(d => d.volume !== undefined && d.volume !== null).length);
-        console.log('  - Points with volume_sma:', finalChartData.filter(d => d.volume_sma !== undefined && d.volume_sma !== null).length);
-        console.log('  - Points with obv:', finalChartData.filter(d => d.obv !== undefined && d.obv !== null).length);
-        console.log('🔍 Sample final data (first 2 points):', JSON.stringify(finalChartData.slice(0, 2), null, 2));
 
         setIndicatorChartData(finalChartData);
         setSuccess(`Loaded ${finalChartData.length} data points with indicators`);
@@ -1158,7 +935,6 @@ const SolutionModal = ({ show, onHide, solution, onSave }) => {
       }
     } catch (err) {
       console.error('❌ Failed to load indicator chart data:', err);
-      console.log('Attempting historical price data fallback...');
       await loadHistoricalPriceData();
     }
   };
