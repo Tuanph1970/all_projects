@@ -27,6 +27,7 @@ from chart_decomp.infrastructure.swings.swing_extractor import SwingExtractor
 from chart_decomp.infrastructure.validation.null_fpr import (
     annotate_significance,
     null_detection_distribution,
+    null_fpr,
 )
 from chart_decomp.infrastructure.validation.surrogates import estimate_volatility
 
