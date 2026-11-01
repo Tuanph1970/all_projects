@@ -376,7 +376,8 @@ async def test_get_historical_data_uses_db_when_prices_present():
     repo.get_historical_prices = AsyncMock(return_value=prices)
 
     svc = _make_service(repo)
-    out = await svc.get_historical_data("VNM")
+    # The range ends at the last stored bar, so no #114 top-up is due.
+    out = await svc.get_historical_data("VNM", end_date=date(2026, 5, 1))
 
     assert out is not None
     assert out.symbol == "VNM"

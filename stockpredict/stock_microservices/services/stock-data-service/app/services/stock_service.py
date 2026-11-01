@@ -354,6 +354,36 @@ def price_board_is_stale(updated_at: Optional[datetime], now: datetime, max_age:
     return updated_at + MARKET_TZ_OFFSET < last_close
 
 
+def last_completed_session(now: datetime) -> date:
+    """The most recent session that has CLOSED at ``now`` (naive UTC).
+
+    Before 15:00 ICT today's bar is still forming, so it is yesterday's.
+    Weekends are skipped; holidays are not modelled (see MARKET_TZ_OFFSET).
+    """
+    local_now = now + MARKET_TZ_OFFSET
+    day = local_now.date()
+    if local_now.time() < MARKET_CLOSE:
+        day -= timedelta(days=1)
+    while day.weekday() >= 5:
+        day -= timedelta(days=1)
+    return day
+
+
+def price_history_target(end_date: date, now: datetime) -> date:
+    """The last bar a request ending at ``end_date`` should contain at ``now``."""
+    target = min(end_date, last_completed_session(now))
+    while target.weekday() >= 5:
+        target -= timedelta(days=1)
+    return target
+
+
+#: Backlog #114 — at most one on-read top-up attempt per symbol per interval.
+#: A symbol with nothing new to give (suspended, delisted, or a holiday the
+#: calendar does not model) would otherwise cost a vendor call on every read.
+PRICE_TOPUP_MIN_INTERVAL = timedelta(minutes=30)
+_price_topup_attempted: dict = {}
+
+
 # One refresh per group at a time; concurrent readers wait, then see fresh rows.
 _price_board_locks: dict = {}
 _price_board_lock_loop: Optional[asyncio.AbstractEventLoop] = None
@@ -1535,6 +1565,19 @@ class StockService:
                 end_date=end_date,
             )
 
+            # Backlog #114: rows existing is not rows being current. Only the
+            # VN30 is synced in the background (and only weekly), so any other
+            # symbol froze at the day it was first added. Close the tail gap.
+            if prices:
+                latest = max(p.date for p in prices)
+                target = price_history_target(end_date, _utcnow())
+                if latest < target and await self._top_up_prices(company.symbol, latest, target):
+                    prices = await self.repository.get_historical_prices(
+                        company_id=company.id,
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+
             if prices:
                 # Sort by date ascending
                 prices.sort(key=lambda x: x.date)
@@ -1566,6 +1609,35 @@ class StockService:
         # Fallback: Fetch live data directly from vnstock
         logger.info(f"Database empty for {symbol}, fetching live historical data from vnstock")
         return await self._get_historical_data_live(symbol, start_date, end_date)
+
+    async def _top_up_prices(self, symbol: str, latest: date, target: date) -> bool:
+        """Fetch and store bars after ``latest`` up to ``target``; True if any were saved.
+
+        ``target`` is a completed session, so an intraday bar is never stored
+        as a daily close. Never raises: on failure the caller serves what it has.
+        """
+        now = _utcnow()
+        attempted = _price_topup_attempted.get(symbol)
+        if attempted is not None and now - attempted < PRICE_TOPUP_MIN_INTERVAL:
+            return False
+        _price_topup_attempted[symbol] = now
+
+        try:
+            count = await self.fetch_and_save_historical_data(
+                symbol=symbol,
+                start_date=latest + timedelta(days=1),
+                end_date=target,
+            )
+        except Exception as e:
+            logger.warning(f"Price top-up failed for {symbol} ({latest} -> {target}): {e}")
+            try:
+                await self.repository.session.rollback()
+            except Exception:
+                pass
+            return False
+
+        logger.info(f"Price top-up for {symbol}: {count} bars after {latest} (target {target})")
+        return count > 0
 
     async def _get_historical_data_live(
         self,
