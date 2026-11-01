@@ -1,87 +1,60 @@
 import React, { useState, useEffect } from "react";
-import { useTable } from "react-table";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import httpClient from "../../services/httpClient";
 import { API_ENDPOINTS } from "../../constants/api";
 
-const defaultPropGetter = () => ({});
-// Expose some prop getters for headers, rows and cells, or more if you want!
-function Table({
-  columns,
-  data,
-  getHeaderProps = defaultPropGetter,
-  getColumnProps = defaultPropGetter,
-  getRowProps = defaultPropGetter,
-  getCellProps = defaultPropGetter
-}) {
+// The board is a fixed two-row header (Bid / Matched / Ask over their
+// price/qty columns) with no sorting or paging, so it is rendered directly
+// rather than through a table library. Column definitions keep the
+// { Header, accessor, Cell, columns } shape; Cell gets { value, row: { original } }.
+const leafColumns = (columns) => columns.flatMap((column) => column.columns || [column]);
+
+function Table({ columns, data, rowStyle }) {
   const navigate = useNavigate();
-  const handleCellClicked = (cell) => {
-    if (cell.column.id === 'symbol') {
-      navigate('/company/' + cell.value);
-    }
-  };
-  const {
-    getTableProps,
-    getTableBodyProps,
-    headerGroups,
-    rows,
-    prepareRow
-  } = useTable({
-    columns,
-    data
-  });
+  const leaves = leafColumns(columns);
 
   return (
-    <table {...getTableProps()} className="custom-table">
+    <table role="table" className="custom-table">
       <thead>
-        {headerGroups.map((headerGroup) => (
-          <tr {...headerGroup.getHeaderGroupProps()}>
-            {headerGroup.headers.map((column) => (
-              <th
-                // Return an array of prop objects and react-table will merge them appropriately
-                {...column.getHeaderProps([
-                  {
-                    className: "custom-header",
-                    style: column.style
-                  },
-                  getColumnProps(column),
-                  getHeaderProps(column)
-                ])}
-              >
-                {column.render("Header")}
-              </th>
-            ))}
+        <tr role="row">
+          {columns.map((column, i) => (
+            <th
+              key={i}
+              colSpan={column.columns ? column.columns.length : 1}
+              role="columnheader"
+              className="custom-header"
+            >
+              {column.columns ? column.Header : " "}
+            </th>
+          ))}
+        </tr>
+        <tr role="row">
+          {leaves.map((column) => (
+            <th key={column.accessor} colSpan={1} role="columnheader" className="custom-header">
+              {column.Header}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      {/* Explicit roles match the markup react-table emitted. */}
+      {/* eslint-disable-next-line jsx-a11y/no-redundant-roles */}
+      <tbody role="rowgroup">
+        {data.map((original, i) => (
+          <tr key={original.symbol || i} role="row" style={rowStyle}>
+            {leaves.map((column) => {
+              const value = original[column.accessor];
+              const onClick = column.accessor === "symbol"
+                ? () => navigate("/company/" + value)
+                : undefined;
+              return (
+                <td key={column.accessor} role="cell" onClick={onClick}>
+                  {column.Cell ? column.Cell({ value, row: { original } }) : value}
+                </td>
+              );
+            })}
           </tr>
         ))}
-      </thead>
-      <tbody {...getTableBodyProps()}>
-        {rows.map((row, i) => {
-          prepareRow(row);
-          return (
-            // Merge user row props in
-            <tr {...row.getRowProps(getRowProps(row)) } >
-              
-              {row.cells.map((cell) => {
-                return (
-                  <td onClick={() => handleCellClicked(cell)}
-                    // Return an array of prop objects and react-table will merge them appropriately
-                    {...cell.getCellProps([
-                      {
-                        className: cell.column.className,
-                        style: cell.column.style
-                      },
-                      getColumnProps(cell.column),
-                      getCellProps(cell)
-                    ])}
-                  >
-                    {cell.render("Cell")}
-                  </td>
-                );
-              })}
-            </tr>
-          );
-        })}
       </tbody>
     </table>
   );
@@ -383,11 +356,7 @@ function getFontColorFromProps(colorValue, cellProps, displayValue = null) {
           <Table
             columns={columns}
             data={data}
-            getRowProps={row => ({
-                style: {
-                  background: "#0F0F0F",
-                },
-              })}
+            rowStyle={{ background: "#0F0F0F" }}
           />
         </div>
       );
