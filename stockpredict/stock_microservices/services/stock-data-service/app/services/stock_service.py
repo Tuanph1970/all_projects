@@ -1731,6 +1731,13 @@ class StockService:
         if not start_date:
             start_date = end_date - timedelta(days=365)
 
+        # Never store a bar whose session has not closed: during trading the
+        # vendor serves today's bar as it forms, and once stored it reads as
+        # the day's close until something re-fetches that date (#114).
+        end_date = min(end_date, last_completed_session(_utcnow()))
+        if start_date > end_date:
+            return 0
+
         try:
             # Fetch from VNStock (run in thread to avoid blocking event loop)
             stock = self.vnstock.stock(symbol=symbol, source=settings.VNSTOCK_DATA_SOURCE)
@@ -2288,7 +2295,7 @@ class StockService:
         rather than aborting the batch — losing four indices because one had
         a hiccup would be the wrong trade.
         """
-        end = date.today()
+        end = last_completed_session(_utcnow())  # no forming bar (#114)
         start = end - timedelta(days=max(1, days))
         records: List[dict] = []
 

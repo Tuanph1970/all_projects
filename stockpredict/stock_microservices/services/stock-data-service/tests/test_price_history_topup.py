@@ -12,6 +12,7 @@ All times are naive UTC, as _utcnow() returns them; ICT = UTC+7.
 from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pandas as pd
 import pytest
 
 from app.models.domain import Company, StockPrice
@@ -177,3 +178,77 @@ async def test_repeat_reads_within_the_interval_try_once():
         with patch.object(svc, "fetch_and_save_historical_data", fetch):
             await svc.get_historical_data("DPG", date(2026, 8, 1), date(2026, 10, 31))
     assert fetch.await_count == 2
+
+
+# ---------------------------------------------------------------------------
+# Every stored write stops at the last closed session
+# ---------------------------------------------------------------------------
+
+def _recording_vnstock(svc: StockService):
+    """Patch svc.vnstock with a fake whose history() records its window."""
+    calls = []
+
+    def history(start, end, **_):
+        calls.append((start, end))
+        return pd.DataFrame()
+
+    fake = MagicMock()
+    fake.stock.return_value.quote.history = history
+    patcher = patch.object(type(svc), "vnstock", new_callable=lambda: property(lambda self: fake))
+    return patcher, calls
+
+
+def _fetch_service() -> StockService:
+    repo = MagicMock()
+    repo.get_company_by_symbol = AsyncMock(return_value=_company())
+    repo.save_prices = AsyncMock()
+    repo.update_company = AsyncMock()
+    return StockService(repo)
+
+
+@pytest.mark.asyncio
+async def test_fetch_in_session_does_not_request_the_forming_bar():
+    """Thu 10:00 ICT, asked for 'up to today': the stored window ends Wednesday."""
+    svc = _fetch_service()
+    patcher, calls = _recording_vnstock(svc)
+
+    with patcher, patch.object(svc_mod, "_utcnow", return_value=THU_IN_SESSION):
+        await svc.fetch_and_save_historical_data("DPG", date(2026, 10, 1), date(2026, 10, 29))
+
+    assert calls == [("2026-10-01", "2026-10-28")]
+
+
+@pytest.mark.asyncio
+async def test_fetch_after_close_includes_today():
+    svc = _fetch_service()
+    patcher, calls = _recording_vnstock(svc)
+
+    with patcher, patch.object(svc_mod, "_utcnow", return_value=THU_AFTER_CLOSE):
+        await svc.fetch_and_save_historical_data("DPG", date(2026, 10, 1), date(2026, 10, 29))
+
+    assert calls == [("2026-10-01", "2026-10-29")]
+
+
+@pytest.mark.asyncio
+async def test_fetch_with_nothing_closed_yet_skips_the_vendor():
+    """Asked only for today, in session: there is no closed bar to store."""
+    svc = _fetch_service()
+    patcher, calls = _recording_vnstock(svc)
+
+    with patcher, patch.object(svc_mod, "_utcnow", return_value=THU_IN_SESSION):
+        n = await svc.fetch_and_save_historical_data("DPG", date(2026, 10, 29), date(2026, 10, 29))
+
+    assert n == 0
+    assert calls == []
+    svc.repository.save_prices.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_index_sync_in_session_stops_at_yesterday():
+    svc = StockService(MagicMock())
+    patcher, calls = _recording_vnstock(svc)
+
+    with patcher, patch.object(svc_mod, "_utcnow", return_value=THU_IN_SESSION):
+        await svc.sync_market_indices(days=7)
+
+    assert calls and all(end == "2026-10-28" for _, end in calls)
