@@ -29,6 +29,23 @@ def _require_vmdpy():
         ) from exc
 
 
+def run_vmd(x: np.ndarray, alpha, tau, K, DC, init, tol):
+    """vmdpy.VMD, returning modes as long as ``x``.
+
+    vmdpy silently drops the LAST sample of an odd-length input
+    (vmdpy.py: ``if len(f)%2: f = f[:-1]``), so its modes stop one step
+    short and a right-edge read is one step staler than intended. Pad an odd
+    input by repeating its last value — already known at t, so causal (C1) —
+    and trim the modes back to ``len(x)``.
+    """
+    from vmdpy import VMD  # type: ignore
+
+    n = len(x)
+    padded = np.append(x, x[-1]) if n % 2 else x
+    u, u_hat, omega = VMD(padded, alpha, tau, K, DC, init, tol)
+    return u[:, :n], u_hat, omega
+
+
 class VMDDecomposer:
     """Implements IVMDDecomposer using vmdpy.
 
@@ -50,14 +67,13 @@ class VMDDecomposer:
         VMDResult with modes sorted by ascending center_frequency.
         """
         _require_vmdpy()
-        from vmdpy import VMD  # type: ignore
 
         x = series.values
         mu = float(x.mean())
         x_centered = x - mu
 
         try:
-            u, u_hat, omega = VMD(
+            u, u_hat, omega = run_vmd(
                 x_centered,
                 params.alpha,
                 params.tau,

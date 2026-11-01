@@ -27,6 +27,7 @@ from chart_decomp.domain.exceptions import (
     MissingDependencyError,
 )
 from chart_decomp.domain.value_objects import VMDHARParams
+from chart_decomp.infrastructure.decomposition.vmd_decomposer import run_vmd
 from chart_decomp.infrastructure.forecasting.har_forecaster import HARForecaster
 
 
@@ -157,9 +158,7 @@ class VMDHARForecaster:
         params: VMDHARParams,
     ) -> tuple[np.ndarray, int]:
         """Run VMD on x_window; return (modes sorted by center freq, window_lo)."""
-        from vmdpy import VMD  # type: ignore
-
-        u, _, omega = VMD(
+        u, _, omega = run_vmd(
             x_window,
             params.alpha,
             0.0,       # tau
@@ -193,8 +192,6 @@ class VMDHARForecaster:
         feature_names: list[str],
     ) -> Ridge | None:
         """Build training set up to t_current and fit Ridge."""
-        from vmdpy import VMD  # type: ignore
-
         K = params.K
         X_rows, y_rows = [], []
 

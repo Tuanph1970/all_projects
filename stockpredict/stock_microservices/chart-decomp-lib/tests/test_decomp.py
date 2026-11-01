@@ -110,6 +110,24 @@ class TestVMD:
         result = cd.vmd(x, K=3)
         assert result.modes.shape == (3, N)
 
+    def test_odd_length_keeps_the_newest_sample(self, rng):
+        """vmdpy drops the last sample of an odd-length input; run_vmd must not.
+
+        If the newest observation were discarded, moving it could not change
+        the modes at all — the staleness that misaligned VMD-HAR's right-edge
+        features on every odd-length window.
+        """
+        pytest.importorskip("vmdpy")
+        from chart_decomp.infrastructure.decomposition.vmd_decomposer import run_vmd
+
+        x = rng.normal(0, 1, 257)
+        bumped = x.copy()
+        bumped[-1] += 5.0
+        u, _, _ = run_vmd(x, 2000, 0.0, 3, 0, 1, 1e-7)
+        u_bumped, _, _ = run_vmd(bumped, 2000, 0.0, 3, 0, 1, 1e-7)
+        assert u.shape == (3, 257)
+        assert not np.allclose(u.sum(axis=0)[-1], u_bumped.sum(axis=0)[-1])
+
 
 # ── EMD ───────────────────────────────────────────────────────────────────────
 
