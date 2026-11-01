@@ -1,0 +1,115 @@
+# CI for stockpredict/ — lint + unit tests + frontend build on every push/PR
+# that touches it. Lives at the REPO ROOT because GitHub only reads
+# .github/workflows/ there; the older files under stockpredict/.github/ date
+# from when stockpredict was its own repository and never ran here.
+#
+# Backend install/test logic is in stockpredict/stock_microservices/scripts/
+# ci-unit-tests.sh so a failure can be reproduced locally in a clean
+# python:3.11 container with the exact same steps.
+name: stockpredict-ci
+
+on:
+  push:
+    branches: [main, stockpredict]
+    paths:
+      - 'stockpredict/stock_microservices/**'
+      - 'stockpredict/stock_react_javascript/**'
+      - '.github/workflows/stockpredict-ci.yml'
+  pull_request:
+    paths:
+      - 'stockpredict/stock_microservices/**'
+      - 'stockpredict/stock_react_javascript/**'
+      - '.github/workflows/stockpredict-ci.yml'
+  workflow_dispatch:
+
+# A newer push to the same branch supersedes a run still in progress.
+concurrency:
+  group: stockpredict-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend-lint:
+    name: Backend lint (ruff)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: stockpredict/stock_microservices
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      # Pinned so a ruff release with new default rules cannot turn CI red
+      # on unchanged code. Bump deliberately.
+      - run: pip install ruff==0.17.3
+      - run: ruff check services stock-common tests chart-decomp-lib event-reaction-lib
+
+  backend-tests:
+    name: Unit tests · ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - stock-common
+          - chart-decomp-lib
+          - event-reaction-lib
+          - ai-insights-service
+          - analysis-service
+          - auth-service
+          - chart-decomp-service
+          - chatbot-service
+          - decision-helper-service
+          - event-reaction-service
+          - journal-service
+          - knowledge-qa-service
+          - news-service
+          - portfolio-service
+          - prediction-service
+          - stock-data-service
+    defaults:
+      run:
+        working-directory: stockpredict/stock_microservices
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            stockpredict/stock_microservices/services/*/requirements.txt
+            stockpredict/stock_microservices/*/pyproject.toml
+      - run: scripts/ci-unit-tests.sh ${{ matrix.target }}
+
+  frontend:
+    name: Frontend lint, tests, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: stockpredict/stock_react_javascript/stock-react-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'   # matches the Dockerfile's node:20-alpine
+          cache: npm
+          cache-dependency-path: stockpredict/stock_react_javascript/stock-react-app/package-lock.json
+      # --legacy-peer-deps exactly as the Dockerfile does (react-financial-charts
+      # declares an older React peer).
+      - run: npm ci --legacy-peer-deps --no-audit --no-fund
+      # Application code must stay at zero warnings. Test files are excluded:
+      # they carry Testing Library style findings, not defects.
+      - name: ESLint (app code, zero warnings)
+        run: npx eslint src --ext .js,.jsx --ignore-pattern "**/*.test.js" --max-warnings 0
+      - name: Jest
+        env:
+          CI: 'true'
+        run: npm test -- --watchAll=false
+      - name: Production build
+        env:
+          CI: 'true'   # CRA turns build warnings into errors
+        run: npm run build
