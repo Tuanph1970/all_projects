@@ -310,4 +310,7 @@ async def test_unauthenticated_access(unauthenticated_client: AsyncClient):
     response = await unauthenticated_client.get(
         "/stock_helper/api/v2/portfolio/portfolios"
     )
-    assert response.status_code == 403  # Forbidden without Bearer token
+    # 401, not 403: FastAPI's HTTPBearer answers a missing token with 401
+    # Unauthorized in current releases (the deployed image runs 0.141), and
+    # 401 is what this service already returns for a bad or expired token.
+    assert response.status_code == 401
