@@ -92,6 +92,23 @@ async def _run_sync():
         except Exception as e:
             logger.error(f"Market index refresh failed: {e}", exc_info=True)
 
+        # Backlog #114 follow-up — bring EVERY stored symbol's prices up to the
+        # last closed session, not just the VN30. The on-read top-up already
+        # guarantees a read is never stale, so this is purely about moving that
+        # vendor call out of the trading day: measured 2026-11-02, 30 of 32
+        # stored symbols sat three sessions behind because nobody had read them.
+        # Placed last in the cycle so the profile/financial/index work above
+        # cannot be delayed by it, and capped so it cannot run unbounded.
+        if settings.ENABLE_DAILY_PRICE_REFRESH:
+            try:
+                stats = await service.refresh_all_prices(
+                    max_symbols=settings.PRICE_REFRESH_MAX_SYMBOLS,
+                    pause_seconds=settings.PRICE_REFRESH_PAUSE_SECONDS,
+                )
+                logger.info(f"Daily price refresh: {stats}")
+            except Exception as e:
+                logger.error(f"Daily price refresh failed: {e}", exc_info=True)
+
 
 async def _background_company_sync():
     """Background task: sync on startup if stale, then daily at 1:00 AM."""

@@ -252,3 +252,189 @@ async def test_index_sync_in_session_stops_at_yesterday():
         await svc.sync_market_indices(days=7)
 
     assert calls and all(end == "2026-10-28" for _, end in calls)
+
+
+# ---------------------------------------------------------------------------
+# Backlog #114 follow-up — the DAILY ALL-SYMBOLS price refresh.
+#
+# The on-read top-up fixed correctness: a read never serves a frozen tail. It
+# did not fix SPEED — the first reader of a stale symbol pays a vendor call,
+# and only the VN30 is touched by the background sync. Measured on 2026-11-02:
+# 30 of 32 stored symbols sat at 2026-10-27, three sessions behind, because
+# nobody had read them. This runs once a day and brings them all current.
+#
+# SCOPE, deliberately: only symbols that ALREADY have stored history. A symbol
+# with none is absent rather than stale, and backfilling five years for it is
+# ensure_company_and_sync's job, on demand — a different and far heavier
+# operation that should not ride along on a nightly top-up.
+# ---------------------------------------------------------------------------
+
+def _refresh_service(pairs, top_up=None):
+    """A service whose repository reports `pairs` as (symbol, newest_date)."""
+    repo = MagicMock()
+    repo.get_latest_price_dates = AsyncMock(return_value=list(pairs))
+    repo.session = MagicMock()
+    repo.session.rollback = AsyncMock()
+    svc = StockService(repo)
+    svc._top_up_prices = AsyncMock(side_effect=top_up if top_up else (lambda *a, **k: True))
+    return svc
+
+
+@pytest.mark.asyncio
+async def test_only_stale_symbols_are_refreshed():
+    """A symbol already at the target costs no vendor call."""
+    target = last_completed_session(MON_MORNING)          # Fri 2026-10-30
+    svc = _refresh_service([("ACB", target), ("DPG", date(2026, 10, 27))])
+    with patch.object(svc_mod, "_utcnow", return_value=MON_MORNING):
+        out = await svc.refresh_all_prices(pause_seconds=0)
+    assert out["checked"] == 2
+    assert out["stale"] == 1
+    assert out["refreshed"] == 1
+    assert [c.args[0] for c in svc._top_up_prices.await_args_list] == ["DPG"]
+
+
+@pytest.mark.asyncio
+async def test_nothing_to_do_when_every_symbol_is_current():
+    target = last_completed_session(MON_MORNING)
+    svc = _refresh_service([("ACB", target), ("VNM", target)])
+    with patch.object(svc_mod, "_utcnow", return_value=MON_MORNING):
+        out = await svc.refresh_all_prices(pause_seconds=0)
+    assert out["stale"] == 0 and out["refreshed"] == 0
+    svc._top_up_prices.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_it_tops_up_to_the_last_completed_session_not_today():
+    """Mid-session, today's bar is still forming. Storing it as a close is the
+    defect the #114 follow-up fixed, so the target must stay behind it."""
+    svc = _refresh_service([("DPG", date(2026, 10, 20))])
+    with patch.object(svc_mod, "_utcnow", return_value=THU_IN_SESSION):
+        await svc.refresh_all_prices(pause_seconds=0)
+    _sym, latest, target = svc._top_up_prices.await_args_list[0].args
+    assert target == last_completed_session(THU_IN_SESSION)
+    assert target < date(2026, 10, 29), "an in-session day must not be the target"
+    assert latest == date(2026, 10, 20)
+
+
+@pytest.mark.asyncio
+async def test_one_symbol_failing_does_not_stop_the_rest():
+    """Never raises: a suspended or delisted symbol must not abort the night."""
+    async def flaky(symbol, *_a, **_k):
+        if symbol == "BAD":
+            raise RuntimeError("vendor exploded")
+        return True
+    svc = _refresh_service(
+        [("AAA", date(2026, 10, 1)), ("BAD", date(2026, 10, 1)), ("ZZZ", date(2026, 10, 1))],
+        top_up=flaky)
+    with patch.object(svc_mod, "_utcnow", return_value=MON_MORNING):
+        out = await svc.refresh_all_prices(pause_seconds=0)
+    assert out["refreshed"] == 2
+    assert len(out["errors"]) == 1 and "BAD" in out["errors"][0]
+
+
+@pytest.mark.asyncio
+async def test_the_run_is_capped_so_a_large_database_cannot_run_unbounded():
+    pairs = [(f"S{i:03d}", date(2026, 10, 1)) for i in range(50)]
+    svc = _refresh_service(pairs)
+    with patch.object(svc_mod, "_utcnow", return_value=MON_MORNING):
+        out = await svc.refresh_all_prices(max_symbols=5, pause_seconds=0)
+    assert out["refreshed"] == 5
+    assert svc._top_up_prices.await_count == 5
+    assert out["skipped_over_cap"] == 45
+
+
+@pytest.mark.asyncio
+async def test_interactive_requests_keep_priority_over_the_nightly_run():
+    """vnstock_call spaces background work so a user request is not queued
+    behind 30 nightly calls."""
+    seen = {}
+
+    async def record(symbol, *_a, **_k):
+        seen[symbol] = svc_mod.vnstock_background.get()
+        return True
+    svc = _refresh_service([("DPG", date(2026, 10, 1))], top_up=record)
+    with patch.object(svc_mod, "_utcnow", return_value=MON_MORNING):
+        await svc.refresh_all_prices(pause_seconds=0)
+    assert seen["DPG"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_symbol_ahead_of_the_target_is_left_alone():
+    """Defensive: a stored bar newer than the computed target (clock skew, or a
+    manually synced range) must not trigger a backwards fetch."""
+    svc = _refresh_service([("ACB", date(2026, 11, 20))])
+    with patch.object(svc_mod, "_utcnow", return_value=MON_MORNING):
+        out = await svc.refresh_all_prices(pause_seconds=0)
+    assert out["stale"] == 0
+    svc._top_up_prices.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_symbols_with_no_stored_history_are_not_in_scope():
+    """The repository only reports symbols that have bars; a None date would
+    mean a first-time backfill, which is ensure_company_and_sync's job."""
+    svc = _refresh_service([("ACB", None), ("DPG", date(2026, 10, 1))])
+    with patch.object(svc_mod, "_utcnow", return_value=MON_MORNING):
+        out = await svc.refresh_all_prices(pause_seconds=0)
+    assert [c.args[0] for c in svc._top_up_prices.await_args_list] == ["DPG"]
+    assert out["checked"] == 2 and out["stale"] == 1
+
+
+@pytest.mark.asyncio
+async def test_the_stalest_symbols_are_refreshed_first():
+    """If the cap bites, the symbols furthest behind should be the ones that
+    get fixed, not whichever the database happened to list first."""
+    svc = _refresh_service([
+        ("FRESH", date(2026, 10, 29)),
+        ("OLDEST", date(2026, 1, 5)),
+        ("MIDDLE", date(2026, 9, 1)),
+    ])
+    with patch.object(svc_mod, "_utcnow", return_value=MON_MORNING):
+        await svc.refresh_all_prices(max_symbols=2, pause_seconds=0)
+    assert [c.args[0] for c in svc._top_up_prices.await_args_list] == ["OLDEST", "MIDDLE"]
+
+
+# --- the nightly cycle actually calls it ------------------------------------
+
+@pytest.mark.asyncio
+async def test_the_nightly_cycle_runs_the_price_refresh():
+    """The method is worthless if nothing schedules it. Guards the wiring, not
+    the logic, so a future reshuffle of _run_sync cannot silently drop it."""
+    import app.main as main_mod
+    svc = MagicMock()
+    svc.is_company_data_stale = AsyncMock(return_value=False)
+    svc.refresh_price_board = AsyncMock(return_value=0)
+    svc.sync_market_indices = AsyncMock(return_value=0)
+    svc.refresh_all_prices = AsyncMock(return_value={"refreshed": 3})
+
+    class _Ctx:
+        async def __aenter__(self): return MagicMock()
+        async def __aexit__(self, *a): return False
+
+    with patch("app.api.dependencies.async_session_factory", return_value=_Ctx()), \
+         patch("app.repositories.stock_repository.StockRepository", return_value=MagicMock()), \
+         patch("app.services.stock_service.StockService", return_value=svc), \
+         patch.object(main_mod.settings, "ENABLE_DAILY_PRICE_REFRESH", True):
+        await main_mod._run_sync()
+    svc.refresh_all_prices.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_the_price_refresh_can_be_switched_off():
+    import app.main as main_mod
+    svc = MagicMock()
+    svc.is_company_data_stale = AsyncMock(return_value=False)
+    svc.refresh_price_board = AsyncMock(return_value=0)
+    svc.sync_market_indices = AsyncMock(return_value=0)
+    svc.refresh_all_prices = AsyncMock(return_value={})
+
+    class _Ctx:
+        async def __aenter__(self): return MagicMock()
+        async def __aexit__(self, *a): return False
+
+    with patch("app.api.dependencies.async_session_factory", return_value=_Ctx()), \
+         patch("app.repositories.stock_repository.StockRepository", return_value=MagicMock()), \
+         patch("app.services.stock_service.StockService", return_value=svc), \
+         patch.object(main_mod.settings, "ENABLE_DAILY_PRICE_REFRESH", False):
+        await main_mod._run_sync()
+    svc.refresh_all_prices.assert_not_awaited()

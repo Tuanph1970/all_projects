@@ -93,6 +93,20 @@ class Settings(BaseSettings):
     # Company data sync
     COMPANY_SYNC_STALE_DAYS: int = 7
 
+    # Backlog #114 follow-up — the nightly all-symbols price top-up.
+    # On by default because it REPLACES work rather than adding it: without it
+    # the first reader of each stale symbol pays the vendor call during the
+    # trading day, which is exactly when quota is most contended. Measured
+    # 2026-11-02: 30 of 32 stored symbols were three sessions behind.
+    ENABLE_DAILY_PRICE_REFRESH: bool = True
+    # A ceiling on vendor calls per nightly run, so a universe that grows to
+    # thousands cannot turn a top-up into an all-night job. Symbols are taken
+    # stalest-first, and whatever is left over is picked up the next night (or
+    # on read, which still works).
+    PRICE_REFRESH_MAX_SYMBOLS: int = 200
+    # Spacing between symbols, on top of vnstock_call's own quota pacing.
+    PRICE_REFRESH_PAUSE_SECONDS: float = 2.0
+
     # Backlog #48 — during trading hours a price board row older than this is
     # refetched on read (one Vietcap POST; not vnstock, so no quota cost).
     PRICE_BOARD_MAX_AGE_SECONDS: int = 60

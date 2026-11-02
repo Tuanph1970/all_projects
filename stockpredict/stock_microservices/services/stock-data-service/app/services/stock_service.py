@@ -1476,6 +1476,83 @@ class StockService:
         )
         return results
 
+    async def refresh_all_prices(
+        self, *, max_symbols: Optional[int] = None, pause_seconds: float = 2.0
+    ) -> dict:
+        """Bring every stored symbol's price history up to the last closed session.
+
+        Backlog #114 follow-up. The on-read top-up fixed CORRECTNESS — a read
+        never serves a frozen tail — but not SPEED: the first reader of a stale
+        symbol pays the vendor call, and the background sync only ever touched
+        the VN30. Measured on 2026-11-02, 30 of 32 stored symbols sat three
+        sessions behind simply because nobody had read them.
+
+        SCOPE IS DELIBERATELY NARROW: only symbols that already have bars. One
+        with none is absent rather than stale, and backfilling five years for it
+        is ensure_company_and_sync's job, on demand — far heavier work that
+        should not ride along on a nightly top-up.
+
+        STALEST FIRST, so that if `max_symbols` bites, the symbols furthest
+        behind are the ones that get fixed rather than whichever the database
+        happened to list first.
+
+        Reuses `_top_up_prices`, which brings three properties worth keeping: the
+        target is a CLOSED session so no forming bar is stored as a close, the
+        per-symbol throttle means a read that just topped a symbol up is not
+        repeated here, and it never raises. A symbol that fails is recorded and
+        the run continues — one suspended ticker must not abort the night.
+        """
+        target = last_completed_session(_utcnow())
+        pairs = await self.repository.get_latest_price_dates()
+
+        stale = sorted(
+            ((sym, latest) for sym, latest in pairs if latest is not None and latest < target),
+            key=lambda pair: pair[1],
+        )
+        results = {
+            "target": target.isoformat(),
+            "checked": len(pairs),
+            "stale": len(stale),
+            "refreshed": 0,
+            "skipped_over_cap": 0,
+            "errors": [],
+        }
+        if max_symbols is not None and len(stale) > max_symbols:
+            results["skipped_over_cap"] = len(stale) - max_symbols
+            stale = stale[:max_symbols]
+
+        if not stale:
+            logger.info("Daily price refresh: all %d symbols current to %s",
+                        len(pairs), target)
+            return results
+
+        # Let interactive requests take quota slots ahead of this run.
+        vnstock_background.set(True)
+        try:
+            for symbol, latest in stale:
+                try:
+                    if await self._top_up_prices(symbol, latest, target):
+                        results["refreshed"] += 1
+                except Exception as e:  # noqa: BLE001 — one symbol must not end the run
+                    logger.warning("Daily price refresh failed for %s: %s", symbol, e)
+                    results["errors"].append(f"{symbol}: {e}")
+                    try:
+                        await self.repository.session.rollback()
+                    except Exception:
+                        pass
+                if pause_seconds:
+                    await asyncio.sleep(pause_seconds)
+        finally:
+            vnstock_background.set(False)
+
+        logger.info(
+            "Daily price refresh: %d/%d symbols were behind %s, %d refreshed, "
+            "%d over the cap, %d errors",
+            results["stale"], results["checked"], target, results["refreshed"],
+            results["skipped_over_cap"], len(results["errors"]),
+        )
+        return results
+
     # ==================== Ensure Company & Sync ====================
 
     async def ensure_company_and_sync(self, symbol: str) -> dict:

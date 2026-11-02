@@ -140,6 +140,23 @@ class StockRepository:
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
+    async def get_latest_price_dates(self) -> List[tuple]:
+        """`(symbol, newest_bar_date)` for every company that has stored bars.
+
+        Backlog #114 follow-up. One grouped query rather than a query per
+        symbol: the nightly refresh asks "who is behind?" about the whole table
+        at once, and doing that symbol-by-symbol would be 32 round trips today
+        and worse as the universe grows. Companies with no bars are simply
+        absent from the result — a first-time backfill is
+        ensure_company_and_sync's job, not a top-up's.
+        """
+        result = await self.session.execute(
+            select(Company.symbol, func.max(StockPrice.date))
+            .join(StockPrice, StockPrice.company_id == Company.id)
+            .group_by(Company.symbol)
+        )
+        return [(row[0], row[1]) for row in result.all()]
+
     async def get_latest_price(self, company_id: int) -> Optional[StockPrice]:
         """Get latest price for a company"""
         result = await self.session.execute(
