@@ -73,26 +73,23 @@ def test_the_code_default_jwt_secret_is_still_refused():
         assert_no_placeholder_secrets(s, service_name="svc")
 
 
-def test_the_database_password_that_compose_injects_is_WARNED_not_refused(caplog):
-    """The one deliberate exception, and it is not a weakening — it is a
-    measurement.
+def test_the_database_password_that_compose_injects_is_refused():
+    """`stockpass` is the compose default for DATABASE_PASSWORD, and it is now
+    refused outright.
 
-    `stockpass` is the compose default for DATABASE_PASSWORD, and measured
-    2026-11-02 it is ALSO the owner's real MySQL password: every running service
-    has DATABASE_PASSWORD=stockpass with ENVIRONMENT=production, and .env sets
-    MYSQL_PASSWORD=stockpass. Refusing it would not improve security, it would
-    refuse to start all 13 services — an outage dressed as a fix. So it warns at
-    every startup until the credential is rotated, at which point it moves into
-    the refusing list. Tracked on Backlog #24.
+    It could not be, until 2026-11-02. It was simultaneously the compose default
+    AND the owner's real MySQL password — every running service had
+    DATABASE_PASSWORD=stockpass with ENVIRONMENT=production — so refusing it
+    would have refused to start all 13 services: an outage dressed as a security
+    fix. It sat in WARN_ONLY_SECRET_FIELDS, reported at every startup, until the
+    credential was actually rotated (stockuser and both root accounts now carry
+    40 generated hex characters). Rotating first and promoting second is the
+    order this guard is designed around.
     """
-    import logging
-
     s = _ok()
     s.DATABASE_PASSWORD = "stockpass"
-    with caplog.at_level(logging.WARNING):
-        assert_no_placeholder_secrets(s, service_name="svc")   # must NOT raise
-    assert "DATABASE_PASSWORD" in caplog.text
-    assert "rotate" in caplog.text.lower()
+    with pytest.raises(RuntimeError, match="DATABASE_PASSWORD"):
+        assert_no_placeholder_secrets(s, service_name="svc")
 
 
 def test_the_mysql_root_default_is_still_refused():
@@ -240,11 +237,16 @@ def test_every_secret_default_compose_injects_is_on_the_list():
     )
 
 
-def test_the_only_tolerated_default_is_the_one_still_in_real_use():
-    """Guards the exception itself. WARN_ONLY is a measured, temporary carve-out,
-    not a place to quietly park anything inconvenient — if it grows, that should
-    require saying so here."""
-    assert WARN_ONLY_SECRET_FIELDS == {"DATABASE_PASSWORD": frozenset({"stockpass"})}
+def test_nothing_is_merely_tolerated_any_more():
+    """Guards the exception mechanism itself.
+
+    WARN_ONLY is a measured, temporary carve-out for a default found to be live,
+    not a place to quietly park anything inconvenient. It is EMPTY as of
+    2026-11-02, and anything added to it should have to change this line and say
+    why — a carve-out that can grow silently is how the original guard came to
+    accept the value it was built to refuse.
+    """
+    assert WARN_ONLY_SECRET_FIELDS == {}
 
 
 def test_a_warn_only_value_is_not_also_on_the_refusing_list():

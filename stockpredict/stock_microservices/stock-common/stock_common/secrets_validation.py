@@ -45,9 +45,12 @@ REQUIRED_SECRET_FIELDS: dict[str, frozenset[str]] = {
     "DATABASE_PASSWORD": frozenset({
         "Mysql_2025",      # ${MYSQL_ROOT_PASSWORD:-Mysql_2025}
         "password", "root", "changeme",
-        # NOTE: "stockpass" is deliberately NOT here. See
-        # WARN_ONLY_SECRET_FIELDS below — it is the owner's real MySQL password
-        # today, so refusing it would refuse to start every service.
+        # Promoted from WARN_ONLY on 2026-11-02, once the credential was
+        # actually rotated: MYSQL_PASSWORD was "stockpass" (the compose default)
+        # on every running service, so refusing it before the rotation would
+        # have been an outage rather than a fix. stockuser and both root
+        # accounts now carry 40 hex characters generated per-deployment.
+        "stockpass",
     }),
     "RABBITMQ_PASSWORD": frozenset({
         "stockpass",       # ${RABBITMQ_PASSWORD:-stockpass}
@@ -57,21 +60,17 @@ REQUIRED_SECRET_FIELDS: dict[str, frozenset[str]] = {
 }
 
 #: Placeholders that are STILL IN LEGITIMATE USE and therefore warn rather than
-#: refuse. Measured 2026-11-02: every running service has
-#: DATABASE_PASSWORD=stockpass with ENVIRONMENT=production, and the owner's .env
-#: sets MYSQL_PASSWORD=stockpass — so this compose default is also the real
-#: credential. Promoting it to REQUIRED_SECRET_FIELDS would refuse to start all
-#: 13 services on the next deploy, which is not a security improvement, it is an
-#: outage.
+#: refuse — a credential that is simultaneously a repo default AND the real value
+#: in use, where refusing it would be an outage rather than a fix.
 #:
-#: THE FIX IS A ROTATION, NOT A CODE CHANGE: set MYSQL_PASSWORD in .env to
-#: something not in this file, recreate the MySQL user with it, then move
-#: "stockpass" up into REQUIRED_SECRET_FIELDS and delete it here. Tracked as an
-#: owner decision on Backlog #24. Until then the value is reported at every
-#: startup so it cannot be forgotten.
-WARN_ONLY_SECRET_FIELDS: dict[str, frozenset[str]] = {
-    "DATABASE_PASSWORD": frozenset({"stockpass"}),
-}
+#: EMPTY AS OF 2026-11-02, and that is the point: its one entry,
+#: DATABASE_PASSWORD="stockpass", was promoted into REQUIRED_SECRET_FIELDS after
+#: the credential was actually rotated (stockuser and both root accounts now
+#: carry 40 generated hex characters). The mechanism stays because the situation
+#: recurs: when a default is found to be live, warn here first, rotate, then
+#: promote. Refusing before rotating takes the system down, which is not a
+#: security improvement.
+WARN_ONLY_SECRET_FIELDS: dict[str, frozenset[str]] = {}
 
 #: Environments in which a placeholder is tolerated. Only development: a
 #: developer running the compose defaults must not be locked out of their own
