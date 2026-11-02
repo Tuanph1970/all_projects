@@ -256,3 +256,32 @@ async def test_stop_alert_consumer_is_idempotent_when_not_started(monkeypatch):
     """Calling stop without a prior start should not raise."""
     monkeypatch.setattr(handler, "_event_bus", None)
     await handler.stop_alert_consumer()
+
+
+# ---------------------------------------------------------------------------
+# The binding, which is the half that was broken
+# ---------------------------------------------------------------------------
+
+def test_the_consumer_binds_the_pattern_the_publisher_actually_sends():
+    """This handler had tests, a durable queue and a live consumer, and received
+    nothing for its entire life: it bound `stock.price.updated` while
+    stock-data-service publishes `stock.price.updated.<SYMBOL>`, which a topic
+    exchange does not match. Both sides now take the convention from
+    stock_common.events.routing; this asserts the consumer still uses it."""
+    import inspect
+
+    from stock_common.events.routing import (
+        PRICE_UPDATED_PATTERN,
+        price_updated_routing_key,
+        topic_matches,
+    )
+
+    import app.services.alert_event_handler as mod
+
+    src = inspect.getsource(mod.start_alert_consumer)
+    assert "PRICE_UPDATED_PATTERN" in src, (
+        "the consumer no longer binds the shared pattern; a bare event name here "
+        "silently receives nothing"
+    )
+    # And the shared pattern really does match what the publisher sends.
+    assert topic_matches(PRICE_UPDATED_PATTERN, price_updated_routing_key("ACB"))

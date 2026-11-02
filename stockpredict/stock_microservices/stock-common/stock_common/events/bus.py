@@ -145,15 +145,36 @@ class EventBus:
 
         queue_name = queue_name or f"{self.service_name}.{event_pattern.replace('*', 'all').replace('#', 'wildcard')}"
 
-        # Declare queue with dead letter exchange
-        queue = await self._channel.declare_queue(
-            queue_name,
-            durable=durable,
-            arguments={
-                "x-dead-letter-exchange": f"{self.config.exchange}.dlx",
-                "x-dead-letter-routing-key": f"dead.{event_pattern}",
-            },
-        )
+        # Declare queue with dead letter exchange.
+        #
+        # x-dead-letter-routing-key embeds the pattern, so CHANGING a
+        # subscription's pattern changes this queue's arguments — and RabbitMQ
+        # rejects a re-declare of an existing durable queue whose arguments
+        # differ. That is a real migration step, not a transient error, and it
+        # surfaced when the price-alert pattern was corrected on 2026-11-02. The
+        # queue is NOT deleted automatically: it may hold messages on a
+        # deployment this code knows nothing about, and discarding those to
+        # save an operator one command is not a trade worth making.
+        try:
+            queue = await self._channel.declare_queue(
+                queue_name,
+                durable=durable,
+                arguments={
+                    "x-dead-letter-exchange": f"{self.config.exchange}.dlx",
+                    "x-dead-letter-routing-key": f"dead.{event_pattern}",
+                },
+            )
+        except Exception as e:
+            if "PRECONDITION_FAILED" not in str(e) and "inequivalent" not in str(e).lower():
+                raise
+            raise RuntimeError(
+                f"queue '{queue_name}' already exists with different arguments, so "
+                f"the subscription pattern '{event_pattern}' cannot be bound to it. "
+                f"This happens when a pattern changes, because the dead-letter "
+                f"routing key is derived from it. Drain the queue if it holds "
+                f"anything, then delete it so it is re-declared: "
+                f"rabbitmqctl delete_queue -p {self.config.vhost} {queue_name}"
+            ) from e
 
         # Bind queue to exchange with pattern
         await queue.bind(self._exchange, routing_key=event_pattern)

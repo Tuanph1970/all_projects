@@ -443,7 +443,7 @@ techdebt = [
     ("Schema",          "prediction-service double schema source (SQLAlchemy + inline SQL)", "services/prediction-service/app/main.py", "Drift: change one, forget the other", "Pick one source; if SQL is for legacy, document and freeze", "Not Started"),
     ("Ops",             "No CI", "(not present)", "Tests run by hand; quality regresses silently", "GitHub Actions: lint + pytest + npm test on PR", "Not Started"),
     ("Ops",             "Default secrets in .env.example", ".env.example, docker-compose.yml", "Easy to ship insecure defaults", "Generate JWT_SECRET on first run; fail fast if default", "Not Started"),
-    ("Docs",            "Multiple status docs (WORK_IN_PROGRESS.md, FIXES_APPLIED.md, PREDICTION_UPDATE_SUMMARY.md, CHATBOT_IMPLEMENTATION_SUMMARY.md)", "repo root + microservices/", "Drift; new readers don't know what's current", "This Excel + CLAUDE.md become the source; archive old docs", "Not Started"),
+    ("Docs",            "Multiple status docs (WORK_IN_PROGRESS.md, FIXES_APPLIED.md, PREDICTION_UPDATE_SUMMARY.md, CHATBOT_IMPLEMENTATION_SUMMARY.md)", "repo root + microservices/", "Drift; new readers don't know what's current", "This Excel + CLAUDE.md become the source; archive old docs", "Done"),  # 2026-11-02: moved to docs/archive/ with a README; CLAUDE.md updated
 ]
 write_rows(ws, td_headers, techdebt)
 autosize(ws, [22, 60, 50, 38, 50, 14])

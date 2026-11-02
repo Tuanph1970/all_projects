@@ -12,6 +12,7 @@ from typing import Optional
 from stock_common.config import RabbitMQConfig
 from stock_common.events import Event, EventBus
 from stock_common.events.models import DomainEvents
+from stock_common.events.routing import price_updated_routing_key
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,10 @@ async def publish_price_updates(records: list[dict]) -> None:
                         "exchange": rec.get("exchange"),
                     },
                 ),
-                routing_key=f"{DomainEvents.STOCK_PRICE_UPDATED}.{symbol}",
+                # Shared with the consumer's subscription pattern via
+                # stock_common.events.routing, so the two cannot disagree by a
+                # word again — which is exactly how this path stayed silent.
+                routing_key=price_updated_routing_key(symbol),
             )
         except Exception as e:
             logger.error("Failed to publish price update for %s: %s", symbol, e)

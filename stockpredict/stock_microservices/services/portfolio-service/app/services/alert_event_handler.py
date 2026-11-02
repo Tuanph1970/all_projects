@@ -16,6 +16,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from stock_common.config import RabbitMQConfig
+from stock_common.events.routing import PRICE_UPDATED_PATTERN
 from stock_common.events import Event, EventBus
 from stock_common.events.models import DomainEvents
 
@@ -41,14 +42,22 @@ async def start_alert_consumer(service_name: str = "portfolio-service") -> Optio
         config = RabbitMQConfig()
         bus = EventBus(config, service_name=service_name)
         await bus.connect()
+        # The pattern comes from stock_common.events.routing, the same module the
+        # publisher takes its routing key from. It used to be
+        # DomainEvents.STOCK_PRICE_UPDATED — the bare event name — while the
+        # publisher sends `stock.price.updated.<SYMBOL>`. On a topic exchange the
+        # extra word means NO MATCH, so this consumer received nothing for its
+        # entire life: a live consumer on a healthy queue that never saw a
+        # message. Measured against the broker 2026-11-02, the old binding took
+        # 0 of 1 published messages.
         await bus.subscribe(
-            event_pattern=DomainEvents.STOCK_PRICE_UPDATED,
+            event_pattern=PRICE_UPDATED_PATTERN,
             handler=_handle_price_update,
             queue_name=f"{service_name}.alerts.price_updated",
             durable=True,
         )
         _event_bus = bus
-        logger.info("Alert consumer subscribed to %s", DomainEvents.STOCK_PRICE_UPDATED)
+        logger.info("Alert consumer subscribed to %s", PRICE_UPDATED_PATTERN)
         return bus
     except Exception as e:
         logger.warning("Could not start alert consumer (RabbitMQ unavailable?): %s", e)

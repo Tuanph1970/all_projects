@@ -24,7 +24,7 @@ This repo is a polyglot monorepo for a Vietnamese stock-market platform. Three t
 - `stock_react_javascript/stock-react-app/` — Create-React-App frontend (React 19) consuming the gateway.
 - `deploy.sh` + `docker-compose.full-stack.yml` (repo root) — full-stack orchestration that wires the React app, the microservices stack, MySQL, and monitoring together.
 
-`PHASE2_IMPLEMENTATION_PLAN.md`, `PHASE3_IMPLEMENTATION_PLAN.md`, and `WORK_IN_PROGRESS.md` (inside `stock_microservices/`) capture the migration story from a prior Django monolith. Read them when a task touches migration scripts, cutover, or "WebAPI-compatible" tables — they explain why some tables/seed data live alongside SQLAlchemy models.
+`PHASE2_IMPLEMENTATION_PLAN.md` and `PHASE3_IMPLEMENTATION_PLAN.md` (inside `stock_microservices/`) capture the migration story from a prior Django monolith. Read them when a task touches migration scripts, cutover, or "WebAPI-compatible" tables — they explain why some tables/seed data live alongside SQLAlchemy models. The running commentary that used to sit beside them — `WORK_IN_PROGRESS.md`, plus `FIXES_APPLIED.md`, `PREDICTION_UPDATE_SUMMARY.md` and `CHATBOT_IMPLEMENTATION_SUMMARY.md` — moved to `docs/archive/` on 2026-11-02: it was last updated 2026-06-01 and parts of it are now wrong, so it is history rather than status. `ROADMAP.xlsx` and this file are the source of truth.
 
 ## Architecture (big picture)
 
