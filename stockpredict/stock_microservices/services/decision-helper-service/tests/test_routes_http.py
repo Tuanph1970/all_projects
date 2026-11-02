@@ -1293,3 +1293,102 @@ async def test_watched_tickers_distinct_upper_sorted(client, mock_db):
     r = await client.get(f"{PREFIX}/watched-tickers")
     assert r.status_code == 200
     assert r.json() == {"tickers": ["ACB", "FPT", "HPG"]}
+
+
+# ---------------------------------------------------------------------------
+# Backlog #63 / #101 — /backtest exposes trailing_stop_mode, default unchanged.
+#
+# The class default moved to BASING_POINT on #86/#101's out-of-sample evidence
+# (61 unseen symbols, net t=+8.97, 54/61 positive), but this endpoint stayed
+# pinned to "ATR" because what /backtest RETURNS is a user-visible surface and
+# flipping it is a separate owner decision. These tests pin the middle ground:
+# the caller may now ASK for the basing-point trail, and a caller who does not
+# ask gets exactly what they got before.
+# ---------------------------------------------------------------------------
+
+def _stub_backtest():
+    """A MagicMock result whose `config` echoes back whatever ran."""
+    mc = MagicMock()
+    mc.fetch_ohlcv = AsyncMock(return_value=_bars(120, date(2025, 12, 1)))
+    captured = {}
+
+    def _run(config, bars):
+        captured["mode"] = config.trailing_stop_mode
+        res = MagicMock()
+        res.ticker = config.ticker
+        res.start_date = config.start_date
+        res.end_date = config.end_date
+        res.config = {"trailing_stop_mode": config.trailing_stop_mode}
+        res.trade_ledger = []
+        res.equity_curve = []
+        st = MagicMock()
+        st.__dict__.update(dict(
+            num_trades=0, num_wins=0, win_rate=0.0, total_gross_pnl=0.0,
+            total_commission=0.0, total_net_pnl=0.0, max_drawdown_pct=0.0,
+            expectancy=0.0, sharpe_ratio=None, profit_factor=None))
+        res.stats = st
+        return res
+    return mc, captured, _run
+
+
+async def _post_backtest(client, **extra):
+    mc, captured, run = _stub_backtest()
+    with patch("app.api.routes.get_market_client", return_value=mc), \
+         patch("app.services.backtest.harness.run_backtest_on_bars", side_effect=run):
+        r = await client.post(f"{PREFIX}/backtest", json={
+            "ticker": "VCB", "start_date": "2026-01-01", "end_date": "2026-03-01",
+            **extra,
+        })
+    return r, captured
+
+
+@pytest.mark.asyncio
+async def test_backtest_still_defaults_to_the_atr_trail(client: AsyncClient):
+    """The whole point of making this additive: an existing caller who sends no
+    trailing_stop_mode must get the same answer as before the field existed."""
+    r, captured = await _post_backtest(client)
+    assert r.status_code == 200
+    assert captured["mode"] == "ATR"
+
+
+@pytest.mark.asyncio
+async def test_backtest_honours_an_explicit_basing_point_request(client: AsyncClient):
+    r, captured = await _post_backtest(client, trailing_stop_mode="BASING_POINT")
+    assert r.status_code == 200
+    assert captured["mode"] == "BASING_POINT"
+    # The caller can confirm from the response which rule actually ran.
+    assert r.json()["config"]["trailing_stop_mode"] == "BASING_POINT"
+
+
+@pytest.mark.asyncio
+async def test_backtest_honours_the_long_only_arm(client: AsyncClient):
+    """#86 kept BASING_POINT_LONG_ONLY as a separate arm because the short-side
+    mirror is our translation, not a rule E&M validate."""
+    r, captured = await _post_backtest(client, trailing_stop_mode="BASING_POINT_LONG_ONLY")
+    assert r.status_code == 200
+    assert captured["mode"] == "BASING_POINT_LONG_ONLY"
+
+
+@pytest.mark.asyncio
+async def test_a_misspelled_mode_is_rejected_not_silently_run_as_atr(client: AsyncClient):
+    """basing_point_applies() returns False for anything it does not recognise,
+    so without validation 'BASEING_POINT' would quietly run the ATR trail and
+    report success — the silent-substitution defect #109 and #112 were about."""
+    r, captured = await _post_backtest(client, trailing_stop_mode="BASEING_POINT")
+    assert r.status_code == 422
+    assert captured == {}, "the backtest must not run at all on a bad mode"
+
+
+@pytest.mark.asyncio
+async def test_mode_is_case_insensitive(client: AsyncClient):
+    """A case difference is not a typo; normalise it rather than 422."""
+    r, captured = await _post_backtest(client, trailing_stop_mode="basing_point")
+    assert r.status_code == 200
+    assert captured["mode"] == "BASING_POINT"
+
+
+@pytest.mark.asyncio
+async def test_an_empty_mode_falls_back_to_the_default(client: AsyncClient):
+    r, captured = await _post_backtest(client, trailing_stop_mode="")
+    assert r.status_code == 200
+    assert captured["mode"] == "ATR"

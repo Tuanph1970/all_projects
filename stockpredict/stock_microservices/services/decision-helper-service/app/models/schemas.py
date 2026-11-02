@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -241,6 +241,16 @@ class SignalAnalysisRequest(BaseModel):
 # F-050..F-054 — Phase F: Backtest / Walk-Forward schemas
 # ---------------------------------------------------------------------------
 
+#: EM-3 / Backlog #63, #101. The trail rules the harness knows. "ATR" is the
+#: original 2xATR trail; "BASING_POINT" is E&M Ch 28's procedure applied to both
+#: directions; "BASING_POINT_LONG_ONLY" applies it to longs only, because the
+#: short-side mirror is our translation rather than a rule the book validates
+#: (harness.basing_point_applies). Validated here rather than left to the
+#: harness, which returns False for anything it does not recognise and would
+#: therefore run the ATR trail under a misspelled name and report success.
+TRAILING_STOP_MODES = ("ATR", "BASING_POINT", "BASING_POINT_LONG_ONLY")
+
+
 class BacktestRequest(BaseModel):
     ticker: str = Field(..., max_length=16)
     start_date: date
@@ -270,6 +280,37 @@ class BacktestRequest(BaseModel):
         default=0.10, ge=0.0,
         description="Transfer tax as a percent of proceeds, charged on disposals only (VN: 0.1).",
     )
+    trailing_stop_mode: str = Field(
+        default="ATR",
+        description=(
+            "Which trailing-stop rule to run: ATR (default), BASING_POINT, or "
+            "BASING_POINT_LONG_ONLY. Backlog #63/#101 — the BacktestConfig class "
+            "default is BASING_POINT on the evidence of #86/#101 (61 unseen "
+            "symbols, net clustered t=+8.97, 54/61 positive), but THIS default "
+            "stays ATR because what /backtest returns is a user-visible surface "
+            "and moving it is a separate owner decision. Ask for the "
+            "basing-point trail explicitly to compare the two."
+        ),
+    )
+
+    @field_validator("trailing_stop_mode", mode="before")
+    @classmethod
+    def _known_trailing_stop_mode(cls, v):
+        """Normalise case; reject anything unrecognised.
+
+        A case difference is not a typo, so it is normalised. A misspelling IS,
+        and it must 422 rather than fall through to the ATR trail under another
+        name — reporting a result as BASING_POINT when ATR produced it is the
+        silent-substitution defect #109 and #112 were about.
+        """
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return "ATR"
+        mode = str(v).strip().upper()
+        if mode not in TRAILING_STOP_MODES:
+            raise ValueError(
+                f"trailing_stop_mode must be one of {', '.join(TRAILING_STOP_MODES)}"
+            )
+        return mode
     reentry_cooldown_bars: int = Field(
         default=1, ge=0,
         description=(

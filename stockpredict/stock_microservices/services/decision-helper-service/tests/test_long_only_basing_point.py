@@ -13,6 +13,8 @@ asserted directly cannot drift that way.
 """
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
 from app.services.backtest.harness import (
@@ -175,26 +177,51 @@ def test_the_backtest_default_is_the_basing_point_trail():
     ).trailing_stop_mode == "BASING_POINT"
 
 
-def test_the_live_backtest_endpoint_still_pins_the_ATR_trail():
+def test_the_live_backtest_endpoint_still_defaults_to_the_ATR_trail():
     """The #83 gate, asserted rather than trusted to a comment.
 
     #101 moved the *class* default but NOT the user-visible surface: changing
     what `POST /backtest` returns is a separate owner decision that has not
-    been taken. The endpoint therefore passes `trailing_stop_mode="ATR"`
-    explicitly, and this test fails if that pin is ever dropped — at which
-    point the default would silently take over a live response.
+    been taken.
 
-    Read as source rather than exercised through HTTP because the pin is a
-    property of the call site, and a request-level test would need the market
-    client, bars and a DB to say the same thing less directly.
+    REWRITTEN 2026-11-02. This asserted the source contained the literal
+    `trailing_stop_mode="ATR"`, which was true while the endpoint hardcoded it.
+    The endpoint now takes the mode from the request so the two rules can be
+    COMPARED through the real API, with the request default still ATR — so the
+    guard's intent is intact but its old form could only read the implementation
+    it happened to be written against. It now asserts the property: a caller who
+    does not ask cannot inherit the class default.
     """
-    import inspect
+    from app.models.schemas import BacktestRequest
+    from app.services.backtest.harness import BacktestConfig
 
-    from app.api import routes
-
-    source = inspect.getsource(routes)
-    assert 'trailing_stop_mode="ATR"' in source, (
-        "the /backtest endpoint no longer pins the ATR trail; the class "
+    req = BacktestRequest(ticker="VCB", start_date=date(2026, 1, 1),
+                          end_date=date(2026, 3, 1))
+    assert req.trailing_stop_mode == "ATR", (
+        "an unflagged /backtest request no longer runs the ATR trail; the class "
         "default (BASING_POINT since #101) would now govern a user-visible "
         "response — that is the #83 gate and needs an owner decision"
     )
+
+    # And the guard must stay MEANINGFUL: it only says something while the two
+    # defaults genuinely differ. If the class default were also ATR the
+    # assertion above would pass while testing nothing — the vacuous-guard
+    # shape this project has hit three times (#104/#105, #112, #109).
+    class_default = BacktestConfig(
+        ticker="T", start_date=None, end_date=None).trailing_stop_mode
+    assert class_default == "BASING_POINT", (
+        "the class default is no longer BASING_POINT, so the assertion above "
+        "no longer distinguishes anything; re-read #101 before changing this"
+    )
+
+
+def test_the_endpoint_lets_a_caller_ask_for_the_basing_point_trail():
+    """The other half of the #63 middle ground: the rule is reachable through
+    the real endpoint, so it can be compared without flipping anyone's
+    baseline. Without this, the only way to see it was to edit the source."""
+    from app.models.schemas import BacktestRequest
+
+    for mode in ("BASING_POINT", "BASING_POINT_LONG_ONLY"):
+        req = BacktestRequest(ticker="VCB", start_date=date(2026, 1, 1),
+                              end_date=date(2026, 3, 1), trailing_stop_mode=mode)
+        assert req.trailing_stop_mode == mode

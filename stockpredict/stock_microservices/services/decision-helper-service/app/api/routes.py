@@ -457,12 +457,15 @@ async def run_backtest(
         reentry_cooldown_bars=req.reentry_cooldown_bars,
         failed_signal_grace_bars=req.failed_signal_grace_bars,
         failed_signal_enabled=req.failed_signal_enabled,
-        # Pinned, Backlog #101. The class default moved to "BASING_POINT" on
-        # the evidence of #86/#101, but this endpoint is a USER-VISIBLE
-        # surface: changing what /backtest returns is the #83 gate and a
-        # separate owner decision, which has not been taken. Exposing this as
-        # a request field is the natural follow-up if that decision is made.
-        trailing_stop_mode="ATR",
+        # Backlog #63/#101. The class default is "BASING_POINT" on the
+        # evidence of #86/#101, but what /backtest RETURNS is a user-visible
+        # surface, so its default stays "ATR" and flipping it remains an owner
+        # decision. What changed (2026-11-02) is that the caller may now ASK:
+        # the request carries the mode, defaulting to "ATR", so the two rules
+        # can be compared through the real endpoint without redefining anyone's
+        # baseline. The response echoes config.trailing_stop_mode, so a result
+        # always names the rule that produced it.
+        trailing_stop_mode=req.trailing_stop_mode,
     )
 
     result = run_backtest_on_bars(config, bars)
