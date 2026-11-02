@@ -152,3 +152,114 @@ def test_a_failed_news_fetch_fails_the_run_rather_than_training_without_it():
     src = inspect.getsource(sr._run_training)
     assert 'NewsCovariateError' in src
     assert 'could not' in src
+
+
+# ---------------------------------------------------------------------------
+# Backlog #109 — naming honesty on the TABULAR path.
+#
+# The darts engine (now the default) builds the architecture a solution names.
+# The tabular engine cannot: it resolves 'TFT' through DARTS_TO_ML_MAP to
+# LightGBM. Its result payload used to report neither the engine nor the model,
+# so a stored result was indistinguishable from a real TFT. Two fixes: CatBoost
+# becomes genuine (the package is installed, so that substitution is obsolete
+# rather than necessary), and every remaining substitution is DISCLOSED.
+# ---------------------------------------------------------------------------
+
+def test_catboost_is_no_longer_substituted_by_xgboost():
+    """catboost has shipped in the image since #109; mapping it to xgboost was
+    the single substitution that had stopped being necessary."""
+    assert sr.DARTS_TO_ML_MAP['CatBoost'] == 'catboost'
+
+
+@pytest.mark.parametrize('name,backend', [
+    ('XGBoost', 'xgboost'),
+    ('LightGBM', 'lightgbm'),
+    ('RandomForest', 'random_forest'),
+    ('CatBoost', 'catboost'),
+    ('LinearRegression', 'linear_regression'),
+])
+def test_a_genuine_tabular_model_is_not_reported_as_substituted(name, backend):
+    d = sr.describe_tabular_backend(name)
+    assert d['actual_backend'] == backend
+    assert d['backend_substituted'] is False
+    assert d['model_type'] == name
+
+
+@pytest.mark.parametrize('name', [
+    'BlockRNN', 'RNN', 'TCN', 'Transformer', 'TFT',
+    'NBeats', 'NHits', 'DLinear', 'NLinear', 'TiDE',
+])
+def test_every_torch_architecture_is_reported_as_substituted(name):
+    """These have no tabular equivalent, so disclosure is the honest option —
+    renaming the catalogue would be wrong now that the darts engine builds the
+    real thing under the same name."""
+    d = sr.describe_tabular_backend(name)
+    assert d['backend_substituted'] is True
+    assert d['model_type'] == name
+    assert d['actual_backend'] in ('xgboost', 'lightgbm', 'random_forest')
+    assert d['actual_backend'] != name.lower()
+
+
+def test_the_disclosure_names_both_the_asked_for_and_the_actual_model():
+    d = sr.describe_tabular_backend('TFT')
+    assert d['actual_backend'] == 'lightgbm'
+    assert 'TFT' in d['note'] and 'lightgbm' in d['note']
+    assert 'darts' in d['note'].lower(), "the note must say how to get the real model"
+
+
+def test_a_genuine_model_carries_no_note_to_explain_away():
+    assert sr.describe_tabular_backend('LightGBM').get('note') in (None, '')
+
+
+def test_an_unknown_model_type_is_substituted_not_silently_accepted():
+    """DARTS_TO_ML_MAP falls back to xgboost for anything unrecognised, which is
+    still a substitution and must be reported as one."""
+    d = sr.describe_tabular_backend('SomeFutureModel')
+    assert d['backend_substituted'] is True
+    assert d['actual_backend'] == 'xgboost'
+
+
+def test_the_disclosure_states_which_engine_produced_it():
+    assert sr.describe_tabular_backend('TFT')['engine'] == 'tabular'
+
+
+def test_every_catalogue_name_resolves_to_a_backend_the_factory_can_build():
+    """A name in the catalogue that maps to a backend _create_ml_model has no
+    branch for would fall through to its final else — the #110/#111 defect."""
+    from app.api.routes import MODEL_TYPE_MAP
+    buildable = {'xgboost', 'lightgbm', 'random_forest', 'catboost', 'linear_regression'}
+    for name in MODEL_TYPE_MAP.values():
+        d = sr.describe_tabular_backend(name)
+        assert d['actual_backend'] in buildable, f"{name} -> {d['actual_backend']}"
+
+
+def _tabular_blocks():
+    """The two places the disclosure has to appear, isolated.
+
+    An earlier version of these tests asserted only that
+    `describe_tabular_backend` appeared ANYWHERE in _run_training. Because it is
+    called twice, deleting the call from the result payload left the string
+    present via the metrics block and the test stayed green — a mutation proved
+    it. Third instance of this shape in a week (#104/#105, #112), so the blocks
+    are now separated and asserted independently.
+    """
+    src = inspect.getsource(sr._run_training)
+    m_at = src.index('metrics_json = json.dumps(')
+    r_at = src.index('"result": {')
+    assert m_at < r_at, "block order changed; this test needs rewriting"
+    return src[m_at:r_at], src[r_at:]
+
+
+def test_the_tabular_result_payload_discloses_the_backend():
+    """What the UI reads. Without this, a stored tabular result is
+    indistinguishable from a real TFT."""
+    _metrics, result = _tabular_blocks()
+    assert 'describe_tabular_backend' in result
+
+
+def test_the_persisted_metrics_also_carry_the_disclosure():
+    """model_instances.training_metrics_json outlives the in-memory status, so
+    the disclosure has to survive there too — otherwise reopening an old
+    solution shows numbers with no indication of what produced them."""
+    metrics, _result = _tabular_blocks()
+    assert 'describe_tabular_backend' in metrics

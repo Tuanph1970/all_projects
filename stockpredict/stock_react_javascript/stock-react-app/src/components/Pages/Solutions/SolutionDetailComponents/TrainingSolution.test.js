@@ -114,3 +114,54 @@ describe('TrainingSolution news covariates (#106)', () => {
     expect(screen.queryByRole('combobox')).toBeNull();
   });
 });
+
+describe('TrainingSolution backend disclosure (#109)', () => {
+  const completed = (result) => {
+    httpClient.post.mockResolvedValue({ success: true, data: { status: 'training' } });
+    httpClient.get.mockResolvedValue({ success: true, data: { status: 'completed', result } });
+  };
+
+  it('warns when the engine did not train the model the solution names', async () => {
+    completed({
+      rmse: 0.41, model_type: 'TFT', actual_backend: 'lightgbm',
+      backend_substituted: true, note: 'Asked for TFT; ...',
+    });
+    render(<TrainingSolution solution={solution} models={[]} />);
+    fireEvent.click(screen.getByRole('button', { name: /train/i }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('solutions.backend_substituted');
+  });
+
+  it('stays silent when the model that ran is the model that was asked for', async () => {
+    // The darts engine builds what it names, so it never sets these fields.
+    completed({ rmse: 0.41, engine: 'darts', model_type: 'TFT' });
+    render(<TrainingSolution solution={solution} models={[]} />);
+    fireEvent.click(screen.getByRole('button', { name: /train/i }));
+    await waitFor(() => expect(httpClient.get).toHaveBeenCalled());
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('does not warn merely because a result arrived', async () => {
+    // Kills "render the banner whenever model_type is present" — the flag is
+    // what matters, not the presence of a name.
+    completed({ rmse: 0.41, model_type: 'LightGBM', actual_backend: 'lightgbm',
+                backend_substituted: false });
+    render(<TrainingSolution solution={solution} models={[]} />);
+    fireEvent.click(screen.getByRole('button', { name: /train/i }));
+    await waitFor(() => expect(httpClient.get).toHaveBeenCalled());
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('shows the warning above the RMSE, so it is read first', async () => {
+    completed({
+      rmse: 0.41, model_type: 'BlockRNN', actual_backend: 'xgboost',
+      backend_substituted: true,
+    });
+    render(<TrainingSolution solution={solution} models={[]} />);
+    fireEvent.click(screen.getByRole('button', { name: /train/i }));
+    const alert = await screen.findByRole('alert');
+    const rmse = await screen.findByText(/RMSE/);
+    // compareDocumentPosition: 4 === alert precedes rmse in document order
+    expect(alert.compareDocumentPosition(rmse) & 4).toBeTruthy();
+  });
+});

@@ -45,6 +45,11 @@ const TrainingSolution = (props)=>{
     const [includeNews,setIncludeNews] = useState(false)
     const [newsHalflife,setNewsHalflife] = useState(NEWS_HALFLIFE_DEFAULT)
     const [rmseValue,setRmseValue] = useState(null)
+    // Backlog #109 — naming honesty. The tabular engine has no torch, so it
+    // trains a gradient booster and labels it with whatever architecture the
+    // solution named. The backend reports that in the result; this surfaces it,
+    // because otherwise a stored RMSE is indistinguishable from a real TFT's.
+    const [backendInfo,setBackendInfo] = useState(null)
     const [trainingStatus,setTrainingStatus] = useState('')
     const [trainingProgress, setTrainingProgress] = useState(0)
     const [isPolling, setIsPolling] = useState(false)
@@ -97,6 +102,17 @@ const TrainingSolution = (props)=>{
                     setRmseValue(trainingResult.rmse);
                 } else if (trainingResult && trainingResult.RMSE !== undefined) {
                     setRmseValue(trainingResult.RMSE);
+                }
+                // #109: only the tabular engine substitutes, and it is the only
+                // one that sets these fields.
+                if (trainingResult && trainingResult.backend_substituted) {
+                    setBackendInfo({
+                        asked: trainingResult.model_type,
+                        actual: trainingResult.actual_backend,
+                        note: trainingResult.note,
+                    });
+                } else {
+                    setBackendInfo(null);
                 }
                 setTrainingStatus(t('solutions.training_complete'));
 
@@ -160,6 +176,7 @@ const TrainingSolution = (props)=>{
         setTrainingStatus(t('solutions.training_in_progress'))
         setTrainingProgress(0)
         setRmseValue(null)
+        setBackendInfo(null)
         setIsPolling(true)
         pollAttemptsRef.current = 0;
 
@@ -353,6 +370,25 @@ const TrainingSolution = (props)=>{
                                         />
                                     </div>
                                 )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Backlog #109 — if the engine did not train the model the
+                        solution names, say so before showing its RMSE. role=alert
+                        because a metric read as a TFT's when it is a LightGBM's
+                        is a wrong conclusion, not a cosmetic detail. */}
+                    {backendInfo && (
+                        <div className="row mb-3">
+                            <div className="col-md-12">
+                                <div className="alert alert-warning py-2 mb-0" role="alert">
+                                    <small>
+                                        &#9888; {t('solutions.backend_substituted', {
+                                            asked: backendInfo.asked,
+                                            actual: backendInfo.actual,
+                                        })}
+                                    </small>
+                                </div>
                             </div>
                         </div>
                     )}

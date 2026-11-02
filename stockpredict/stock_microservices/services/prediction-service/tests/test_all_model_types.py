@@ -7,8 +7,15 @@ touching the database or a real solution.
 
 What this pins, and why it is not obvious from reading the code: the catalogue
 advertises Darts architectures but `DARTS_TO_ML_MAP` resolves each one to an
-INSTALLED backend — xgboost, lightgbm, random_forest or linear_regression —
-with its own hyperparameter profile. So "BlockRNN" trains as an XGBRegressor.
+INSTALLED backend — xgboost, lightgbm, random_forest, catboost or
+linear_regression — with its own hyperparameter profile. So "BlockRNN" trains as
+an XGBRegressor.
+
+NOT EVERY ENTRY IS A SURROGATE. XGBoost, LightGBM, RandomForest, CatBoost and
+LinearRegression train as themselves; the ten torch architectures cannot, and
+`describe_tabular_backend` discloses that in the result (#109). CatBoost joined
+the genuine set on 2026-11-02: the package has shipped in the image since #109,
+so resolving it to xgboost had stopped being necessary.
 Nothing imports darts and nothing needs to. These tests fail if a catalogue
 entry ever loses its mapping or its profile and silently degrades to the
 fallback.
@@ -25,6 +32,25 @@ from app.api.solution_routes import DARTS_TO_ML_MAP, _create_ml_model
 ALL_TYPES = sorted(set(MODEL_TYPE_MAP.values()))
 
 
+#: Backend -> the import it needs. A backend whose package is absent locally is
+#: SKIPPED rather than failed: CI installs the service's requirements.txt and
+#: runs these for real, and the same `importorskip` pattern already guards the
+#: darts tests. Failing here would only report "this machine lacks catboost".
+_BACKEND_IMPORTS = {"catboost": "catboost"}
+
+
+def _require_backend(model_type: str) -> None:
+    mod = _BACKEND_IMPORTS.get(DARTS_TO_ML_MAP.get(model_type))
+    if mod:
+        pytest.importorskip(mod)
+
+
+#: Backends whose constructor does not expose `n_estimators`. catboost calls the
+#: same knob `iterations`, so the profile test asks for whichever the backend
+#: actually uses instead of pretending the names are shared.
+_ESTIMATOR_PARAM = {"catboost": "iterations", "linear_regression": None}
+
+
 def _synthetic(n=180, k=5, seed=0):
     """A small, learnable regression problem — enough to prove `fit` works."""
     rng = np.random.default_rng(seed)
@@ -37,6 +63,7 @@ def _synthetic(n=180, k=5, seed=0):
 def test_every_catalogue_type_builds_and_fits(model_type):
     """The question the owner asked — do all the models work? — answered without
     creating fourteen solutions."""
+    _require_backend(model_type)
     model = _create_ml_model(model_type, "", None)
     assert model is not None, model_type
 
@@ -54,7 +81,7 @@ def test_every_catalogue_type_resolves_to_an_installed_backend(model_type):
     assert model_type in DARTS_TO_ML_MAP, (
         f"{model_type} has no backend mapping and would silently become xgboost")
     assert DARTS_TO_ML_MAP[model_type] in {
-        "xgboost", "lightgbm", "random_forest", "linear_regression"}
+        "xgboost", "lightgbm", "random_forest", "catboost", "linear_regression"}
 
 
 #: Keys kept for rows that may carry the older Darts class names, plus
@@ -124,16 +151,23 @@ def test_the_three_registries_agree_on_the_catalogue():
 def test_each_type_gets_a_distinct_hyperparameter_profile(model_type):
     """The catalogue's whole justification: different selections must produce
     genuinely different models rather than fourteen identical XGBRegressors."""
+    _require_backend(model_type)
     model = _create_ml_model(model_type, "", None)
     params = model.get_params()
     assert params, model_type
-    # The profiles differ on n_estimators, which every backend exposes.
-    assert "n_estimators" in params or DARTS_TO_ML_MAP[model_type] == "linear_regression"
+    # The profiles differ on the tree-count knob. Most backends call it
+    # `n_estimators`; catboost calls it `iterations`, so the expected name comes
+    # from the backend rather than being assumed shared (#109).
+    backend = DARTS_TO_ML_MAP[model_type]
+    knob = _ESTIMATOR_PARAM.get(backend, "n_estimators")
+    if knob is not None:
+        assert knob in params, f"{model_type} ({backend}) exposes no {knob}: {sorted(params)}"
 
 
 def test_distinct_types_on_the_same_backend_are_not_identical():
-    """BlockRNN, TCNModel, NHits, TiDE and CatBoost all resolve to xgboost. If
-    their profiles collapsed, the UI's model choice would be cosmetic."""
+    """BlockRNN, TCN, NHits and TiDE all resolve to xgboost (CatBoost did too
+    until 2026-11-02, when it became genuine). If their profiles collapsed, the
+    UI's model choice would be cosmetic."""
     xgb_types = [t for t in ALL_TYPES if DARTS_TO_ML_MAP.get(t) == "xgboost"]
     assert len(xgb_types) >= 3, xgb_types
     profiles = set()

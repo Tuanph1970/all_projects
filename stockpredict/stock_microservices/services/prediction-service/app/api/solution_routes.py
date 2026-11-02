@@ -153,9 +153,66 @@ DARTS_TO_ML_MAP = {
     'XGBoost': 'xgboost',
     'LightGBM': 'lightgbm',
     'RandomForest': 'random_forest',
-    'CatBoost': 'xgboost',
+    'CatBoost': 'catboost',
     'LinearRegression': 'linear_regression',
 }
+
+
+# Backlog #109 — naming honesty on the tabular path.
+#
+# The darts engine, now the default, builds the architecture a solution NAMES:
+# a solution labelled 'TFT' trains a real TFTModel. The tabular engine cannot —
+# it has no torch — so it resolves the name through DARTS_TO_ML_MAP and trains a
+# gradient booster instead. Until now its result payload reported neither the
+# engine nor the model, so a stored tabular result was indistinguishable from a
+# real TFT to anyone reading it later.
+#
+# RENAMING THE CATALOGUE WOULD BE THE WRONG FIX. It was the obvious one while
+# every path was a surrogate, but the darts engine makes 'TFT' truthful, so
+# renaming would break the honest path to document the legacy one. Disclosure is
+# what is missing, not a rename.
+#
+# These are the catalogue names the tabular engine can train GENUINELY — the
+# model that runs is the model that was asked for. Everything else is a
+# substitution and says so. CatBoost joined this set on 2026-11-02: the package
+# has shipped in the image since #109, so mapping it to xgboost had stopped
+# being a necessity and was simply wrong.
+TABULAR_NATIVE_BACKENDS = {
+    'XGBoost': 'xgboost',
+    'LightGBM': 'lightgbm',
+    'RandomForest': 'random_forest',
+    'CatBoost': 'catboost',
+    'LinearRegression': 'linear_regression',
+}
+
+
+def describe_tabular_backend(model_type: str) -> dict:
+    """What the TABULAR engine actually trains for a catalogue model name.
+
+    Returned with every tabular result so the stored numbers carry the name of
+    the model that produced them. `backend_substituted` is the field that
+    matters: when it is true the result is a gradient booster wearing another
+    model's label, and the note says how to get the real one.
+
+    An unrecognised name is a substitution too — DARTS_TO_ML_MAP falls back to
+    xgboost — rather than being quietly treated as genuine.
+    """
+    backend = DARTS_TO_ML_MAP.get(model_type, 'xgboost')
+    substituted = model_type not in TABULAR_NATIVE_BACKENDS
+    out = {
+        'engine': 'tabular',
+        'model_type': model_type,
+        'actual_backend': backend,
+        'backend_substituted': substituted,
+    }
+    if substituted:
+        out['note'] = (
+            f"Asked for {model_type}; the tabular engine has no torch, so this "
+            f"result was produced by {backend} using a hyperparameter profile "
+            f"chosen for {model_type}. It is NOT a {model_type}. Train with "
+            f"engine='darts' (the default) to build the real architecture."
+        )
+    return out
 
 
 def _create_ml_model(model_type: str, model_sub_type: str = '', config_json=None):
@@ -243,6 +300,20 @@ def _create_ml_model(model_type: str, model_sub_type: str = '', config_json=None
             colsample_bytree=cfg.get('colsample_bytree', 0.8),
             random_state=42,
             verbose=-1
+        )
+    elif ml_type == 'catboost':
+        # Imported lazily: catboost costs ~300MB and a noticeable import, and
+        # only this one branch needs it. Before 2026-11-02 'CatBoost' resolved to
+        # xgboost — a substitution that had been unnecessary ever since #109 put
+        # the package in the image (#109 naming honesty).
+        from catboost import CatBoostRegressor
+        return CatBoostRegressor(
+            iterations=cfg.get('n_estimators', 200),
+            depth=min(int(cfg.get('max_depth', 6)), 16),  # catboost caps depth at 16
+            learning_rate=cfg.get('learning_rate', 0.1),
+            random_seed=42,
+            verbose=False,
+            allow_writing_files=False,  # no catboost_info/ litter in the container
         )
     elif ml_type == 'random_forest':
         return RandomForestRegressor(
@@ -620,6 +691,9 @@ async def _run_training(solution_id: int, train_params: dict):
             metrics_json = json.dumps({
                 'rmse': rmse, 'mae': mae, 'r2': r2,
                 'direction_accuracy': direction_accuracy,
+                # #109: model_instances.training_metrics_json outlives the
+                # in-memory status, so the disclosure has to be stored with it.
+                **describe_tabular_backend(model_type),
                 'training_samples': int(len(X_train)),
                 'validation_samples': int(len(X_val)),
                 'features_used': len(feature_cols),
@@ -757,6 +831,12 @@ async def _run_training(solution_id: int, train_params: dict):
                     "prediction_dates": prediction_dates,
                     "training_status": "completed",
                     "model_id": model_id,
+                    # Backlog #109. The result carries the name of the model that
+                    # actually produced it. On this path 'TFT' is a LightGBM with
+                    # a TFT-shaped hyperparameter profile, and a reader of these
+                    # numbers has to be able to see that.
+                    **describe_tabular_backend(model_type),
+                    "news_covariates": news_coverage_report,
                     "training_samples": int(len(X_train)),
                     "validation_samples": int(len(X_val)),
                 }
