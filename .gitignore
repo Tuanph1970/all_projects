@@ -244,3 +244,25 @@ packages/
 # Obsidian volatile UI state (pane/tab layout churns constantly)
 **/.obsidian/workspace.json
 **/.obsidian/workspace-mobile.json
+
+# mercai/ — a separate project that merely lives in this working tree.
+#
+# Owner decision 2026-11-02. Its real source is tracked on the `rename/mercai`
+# branch (524 files) and it is deployed from another machine, so the copy here is
+# a working checkout rather than the record. Ignoring it is NOT a loss of source.
+#
+# WHY IT HAD TO BE IGNORED rather than left untracked: the repo root is
+# all_projects, mercai/ carries no .gitignore of its own (only the pre-rename
+# ceramic_mobile_app/ does), and it holds 105,082 node_modules files. So every
+# sweeping git command took the lot — one `git stash -u` left 7,685 unreachable
+# loose objects and 259 MiB of cruft, and the resulting .git/gc.log then blocked
+# all automatic cleanup. `git add -A` would have done the same thing permanently,
+# in history.
+#
+# Measured before ignoring: of 3,861 real files here (node_modules aside), 3,789
+# were already ignored by existing rules and only 72 were visible — Expo prebuild
+# output (android/, MainActivity.kt, launcher icons, debug.keystore), .expo/ build
+# caches, and Appium screenshots. All regenerable except
+# mobile_automation_test/package-lock.json, which belongs on the mercai branch
+# rather than here.
+mercai/
