@@ -41,27 +41,6 @@ WEBAPI_TABLES_SQL = [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     """,
     """
-    CREATE TABLE IF NOT EXISTS tbl_all_models (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(100) UNIQUE NOT NULL,
-        description TEXT,
-        has_sub_models BOOLEAN DEFAULT FALSE,
-        is_active BOOLEAN DEFAULT TRUE,
-        display_order INT DEFAULT 0
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS tbl_model_sub_types (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        model_id INT NOT NULL,
-        name VARCHAR(100) NOT NULL,
-        description TEXT,
-        is_active BOOLEAN DEFAULT TRUE,
-        display_order INT DEFAULT 0,
-        FOREIGN KEY (model_id) REFERENCES tbl_all_models(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    """,
-    """
     CREATE TABLE IF NOT EXISTS tbl_model_field (
         id INT AUTO_INCREMENT PRIMARY KEY,
         model_type_ VARCHAR(100) NOT NULL,
@@ -505,6 +484,52 @@ PREDICTION_COUNT = Counter(
 )
 
 
+#: Backlog #103. Two tables that WEBAPI_TABLES_SQL used to create, which held 0
+#: rows and were read by nothing: tbl_all_models appeared only in its own CREATE
+#: and as the FK target of tbl_model_sub_types.model_id. The CREATEs are gone, so
+#: a fresh deployment never grows them — but an EXISTING database still has them,
+#: and this removes them there.
+#:
+#: CHILD FIRST: tbl_model_sub_types.model_id references tbl_all_models, so the
+#: reverse order is rejected by the foreign key.
+DEAD_MODEL_TABLES = ("tbl_model_sub_types", "tbl_all_models")
+
+
+async def _drop_dead_model_tables(conn) -> None:
+    """Drop the #103 pair, but ONLY while they are empty.
+
+    The guard is the point. Both were measured at 0 rows on 2026-11-02 and the
+    owner's instruction was explicitly conditional — "if it is empty tables and
+    does not use anywhere". But PRODUCTION RUNS ON ANOTHER MACHINE whose
+    contents cannot be inspected from here, and a bare `DROP TABLE IF EXISTS`
+    in the startup path would run there too and take whatever it found. So the
+    condition travels with the code instead of being assumed from one database's
+    state: a non-empty table is left alone and reported, loudly enough to be
+    acted on rather than silently skipped.
+
+    Never raises — a deployment must not fail over a cleanup.
+    """
+    for table in DEAD_MODEL_TABLES:
+        try:
+            result = await conn.execute(text(f"SELECT COUNT(*) FROM {table}"))
+            rows = result.scalar()
+        except Exception:
+            continue          # already gone, or never existed on this database
+        if rows:
+            logger.warning(
+                "Backlog #103: %s holds %s rows, so it was NOT dropped. It was "
+                "measured empty and unused before removal; investigate what "
+                "wrote to it before cleaning up by hand.", table, rows,
+            )
+            continue
+        try:
+            await conn.execute(text(f"DROP TABLE IF EXISTS {table}"))
+            logger.info("Backlog #103: dropped empty, unused table %s", table)
+        except Exception as e:
+            logger.warning("Backlog #103: could not drop %s: %s", table, e)
+
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
@@ -532,6 +557,12 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 logger.debug(f"Migration note (may already exist): {e}")
     logger.info("Database migrations applied")
+
+    # Backlog #103 — remove the dead pair from databases that already have it.
+    # After the migrations, so an ALTER aimed at either table would still have
+    # run (none does; asserted in tests/test_schema_sources.py).
+    async with engine.begin() as conn:
+        await _drop_dead_model_tables(conn)
 
     # Seed model parameter data (INSERT IGNORE = skip if already exists)
     async with engine.begin() as conn:

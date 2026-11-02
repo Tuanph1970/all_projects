@@ -5,11 +5,13 @@ source (SQLAlchemy + inline SQL) — Drift: change one, forget the other"*, and
 CLAUDE.md says to "keep both in sync". Measured 2026-10-28, that framing is
 wrong in a way worth recording:
 
-    inline SQL in app/main.py  (9)  model_instances, solution_indicators,
-                                    tbl_all_models, tbl_model_defaul_value,
-                                    tbl_model_field, tbl_model_sub_types,
+    inline SQL in app/main.py  (7)  model_instances, solution_indicators,
+                                    tbl_model_defaul_value, tbl_model_field,
                                     tbl_param_option, tbl_solution,
                                     technical_indicators
+                                    (was 9; tbl_all_models and
+                                    tbl_model_sub_types removed under #103 —
+                                    empty, created-but-never-read)
     SQLAlchemy models (4)           ml_models, predictions,
                                     model_training_logs, prediction_requests
 
@@ -96,7 +98,10 @@ def test_the_two_schema_sources_define_disjoint_tables():
 def test_both_sources_are_actually_populated():
     """Guards the guard: an extractor that silently returns nothing would make
     the disjointness test pass forever."""
-    assert len(inline_sql_tables()) >= 9, sorted(inline_sql_tables())
+    # Was >= 9. Backlog #103 removed tbl_all_models and tbl_model_sub_types
+    # (empty, unreferenced), so the legacy family is seven. This is a floor
+    # against a broken extractor, not a count of the schema.
+    assert len(inline_sql_tables()) >= 7, sorted(inline_sql_tables())
     assert len(sqlalchemy_tables()) >= 4, sorted(sqlalchemy_tables())
 
 
@@ -189,3 +194,120 @@ def test_no_table_is_queried_that_neither_source_creates():
 
 #: Owned by other services; prediction-service reads them cross-service.
 EXTERNALLY_OWNED_TABLES = {"portfolios", "portfolio_holdings"}
+
+
+# ---------------------------------------------------------------------------
+# 4. Backlog #103 — the dead pair is gone, and its removal cannot destroy data
+# ---------------------------------------------------------------------------
+
+DEAD_PAIR = ("tbl_all_models", "tbl_model_sub_types")
+
+
+@pytest.mark.parametrize("table", DEAD_PAIR)
+def test_the_dead_model_tables_are_no_longer_created(table):
+    """Backlog #103. Both were created by WEBAPI_TABLES_SQL, held 0 rows, and
+    were read by nothing — tbl_all_models appeared only in its own CREATE and
+    as the FK target of tbl_model_sub_types.model_id. Verified empty and
+    unreferenced on 2026-11-02, then removed on the owner's instruction."""
+    assert table not in inline_sql_tables()
+
+
+@pytest.mark.parametrize("table", DEAD_PAIR)
+def test_nothing_alters_seeds_or_queries_the_dead_tables(table):
+    """Removing a CREATE while something still names the table would move the
+    failure to startup, against a live database — exactly the class of defect
+    test_every_altered_or_seeded_table_is_also_created exists to catch."""
+    for stmt in _sql_literals(MAIN):
+        assert table not in stmt.lower(), stmt[:160]
+
+
+class _FakeConn:
+    """Records the SQL it is handed and answers COUNT(*) with `rows`."""
+
+    def __init__(self, rows=0, fail_on=()):
+        self.rows = rows
+        self.fail_on = fail_on
+        self.executed = []
+
+    async def execute(self, clause):
+        sql = str(clause)
+        self.executed.append(sql)
+        for frag in self.fail_on:
+            if frag in sql:
+                raise RuntimeError("table missing")
+        if "COUNT(*)" in sql:
+            class _R:
+                def __init__(self, n): self._n = n
+                def scalar(self): return self._n
+            return _R(self.rows)
+        return None
+
+
+@pytest.mark.asyncio
+async def test_an_empty_pair_is_dropped_child_first():
+    """The FK is tbl_model_sub_types.model_id -> tbl_all_models, so the parent
+    cannot go first — MySQL rejects it."""
+    import app.main as main_mod
+
+    conn = _FakeConn(rows=0)
+    await main_mod._drop_dead_model_tables(conn)
+    drops = [s for s in conn.executed if s.startswith("DROP TABLE")]
+    assert len(drops) == 2, conn.executed
+    assert "tbl_model_sub_types" in drops[0]
+    assert "tbl_all_models" in drops[1]
+
+
+@pytest.mark.asyncio
+async def test_a_NON_empty_table_is_never_dropped():
+    """The guard that makes this safe to ship rather than merely safe here.
+
+    Both were measured at 0 rows on 2026-11-02, but PRODUCTION RUNS ON ANOTHER
+    MACHINE whose contents cannot be inspected from here. A bare
+    `DROP TABLE IF EXISTS` in the startup path would run there too and take
+    whatever it found. The owner's instruction was conditional — "if it is
+    empty tables and does not use anywhere" — so the condition is enforced in
+    code rather than inferred from one database's state.
+    """
+    import app.main as main_mod
+
+    conn = _FakeConn(rows=3)
+    await main_mod._drop_dead_model_tables(conn)
+    assert not [s for s in conn.executed if s.startswith("DROP TABLE")], conn.executed
+
+
+@pytest.mark.asyncio
+async def test_a_missing_table_is_not_an_error():
+    """A fresh deployment never had them; startup must not fail over that."""
+    import app.main as main_mod
+
+    conn = _FakeConn(rows=0, fail_on=("COUNT(*)",))
+    await main_mod._drop_dead_model_tables(conn)   # must not raise
+    assert not [s for s in conn.executed if s.startswith("DROP TABLE")]
+
+
+@pytest.mark.asyncio
+async def test_a_failing_drop_does_not_fail_the_deployment():
+    import app.main as main_mod
+
+    conn = _FakeConn(rows=0, fail_on=("DROP TABLE",))
+    await main_mod._drop_dead_model_tables(conn)   # must not raise
+
+
+def test_the_drop_order_is_the_foreign_key_order():
+    """Asserted on the real tuple rather than on source text — an earlier
+    version of this test grepped the function body, where the names do not
+    appear at all because it iterates over this constant."""
+    import app.main as main_mod
+
+    order = list(main_mod.DEAD_MODEL_TABLES)
+    assert order.index("tbl_model_sub_types") < order.index("tbl_all_models")
+
+
+def test_the_lifespan_runs_the_guarded_drop():
+    """A cleanup nothing calls leaves the tables in place on every existing
+    deployment."""
+    import inspect
+
+    import app.main as main_mod
+
+    assert "_drop_dead_model_tables" in inspect.getsource(main_mod.lifespan)
