@@ -198,7 +198,7 @@ def main():
             all_success = False
             print(f"\n❌ Script failed: {script_name}")
             if result["errors"]:
-                print(f"Errors: {result["errors"]}")
+                print(f"Errors: {result['errors']}")
 
             # Stop on failure for non-dry-run
             if args.mode != "dry_run":
