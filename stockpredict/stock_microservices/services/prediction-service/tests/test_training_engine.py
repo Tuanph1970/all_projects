@@ -263,3 +263,23 @@ def test_the_persisted_metrics_also_carry_the_disclosure():
     solution shows numbers with no indication of what produced them."""
     metrics, _result = _tabular_blocks()
     assert 'describe_tabular_backend' in metrics
+
+
+# ---------------------------------------------------------------------------
+# Backlog #116 — the coverage report must describe the split the trainer uses
+# ---------------------------------------------------------------------------
+
+def test_news_coverage_is_computed_after_the_warmup_drop():
+    """The split is int(len(frame) * train_ratio) on the POST-dropna frame, so a
+    report built before the drop would describe a boundary nothing uses — and
+    the point of the report is which side of that boundary the coverage is on."""
+    src = inspect.getsource(sr._run_training)
+    assert src.index('feature_df.dropna()') < src.index('news_coverage(feature_df'), \
+        "news_coverage must be computed after the warm-up drop"
+
+
+def test_news_coverage_is_given_the_train_ratio():
+    """Without it the report cannot split train from validation, which is the
+    whole of #116."""
+    src = inspect.getsource(sr._run_training)
+    assert 'news_coverage(feature_df, train_ratio=' in src

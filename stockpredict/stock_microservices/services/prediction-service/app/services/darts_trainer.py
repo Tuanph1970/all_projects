@@ -304,6 +304,40 @@ def chronological_split(
     )
 
 
+def constant_in_train_only(
+    frame: pd.DataFrame, columns: Sequence[str], split: int
+) -> List[str]:
+    """Columns the model cannot learn from AND will be actively hurt by.
+
+    Backlog #116. A column that never varies in `[:split]` but holds a different
+    value later is worse than useless. The scaler is fitted on the training span
+    only (C1), so it sees a zero-RANGE column; sklearn's MinMax leaves such a
+    column unscaled, and a later value of 50 then arrives among features scaled
+    into [0, 1] and saturates the first layer. Measured on POW with #106's news
+    covariates: rmse 0.4323 -> 0.9601, r2 +0.605 -> -0.948.
+
+    NOT a variance test on the training span alone, which would miss the case
+    where validation is ALSO constant, just at a different value — equally
+    harmful, since training still never sees that value.
+
+    A column constant across BOTH spans at the SAME value is deliberately NOT
+    reported: it is dead weight the scaler leaves alone, so refusing a whole
+    training run over it would cost the operator something and buy nothing.
+    """
+    offenders: List[str] = []
+    for col in columns:
+        if col not in frame.columns:
+            continue
+        train_values = frame[col].iloc[:split].dropna().unique()
+        if len(train_values) != 1:
+            continue                      # varies in training (or is all-NaN)
+        constant = train_values[0]
+        rest = frame[col].iloc[split:].dropna()
+        if len(rest) and (rest != constant).any():
+            offenders.append(col)
+    return offenders
+
+
 def evaluate(actual: Sequence[float], predicted: Sequence[float]) -> Dict[str, float]:
     """RMSE / MAE / R² / direction accuracy on the held-out slice.
 
@@ -593,6 +627,24 @@ def run_darts_training(
     split, train_end, val_start = chronological_split(frame.index, train_ratio)
     window.train_rows, window.validation_rows = split, len(frame) - split
     window.train_end, window.validation_start = train_end, val_start
+
+    # Backlog #116. Refuse a covariate that is constant across the whole
+    # training span and different afterwards, for the same reason
+    # MIN_TRAINING_WINDOWS refuses too few windows: the run would return numbers
+    # that look like results. Checked AFTER the split is known and BEFORE
+    # anything is built or scaled, so nothing is wasted.
+    dead = constant_in_train_only(frame, list(covariate_types), split)
+    if dead:
+        raise DartsTrainingError(
+            "these covariates never vary during the training span ("
+            + train_end + " and earlier) but do afterwards: "
+            + ", ".join(dead)
+            + ". The model cannot learn from a feature it only ever sees one "
+              "value of while training, and the value it meets later arrives "
+              "unscaled — which degrades the forecast rather than leaving it "
+              "unchanged. Shorten the date range so the feature varies inside "
+              "the training span, or remove it from the solution."
+        )
 
     if window.validation_rows <= window.output_chunk_length:
         raise DartsTrainingError(

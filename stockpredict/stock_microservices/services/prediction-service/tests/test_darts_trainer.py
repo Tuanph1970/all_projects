@@ -665,6 +665,13 @@ def test_training_survives_market_holiday_gaps(model_type):
     assert out["metrics"]["rmse"] >= 0
 
 
+# A real XGBoost fit over the full fixture, which takes ~38s on an idle machine
+# against pytest.ini's 30s global limit — so it passed only when nothing else was
+# running and failed under load on UNMODIFIED code (verified by stashing, 2026-11-02).
+# A latent CI flake rather than a logic risk, and GitHub runners are slower than
+# this box. Given room instead of being marked `slow`, because it guards the #110
+# date-alignment fix and is worth running on every CI pass.
+@pytest.mark.timeout(180)
 def test_output_rows_still_carry_real_dates_despite_positional_indexing():
     """The index is positional; the REPORT must still be dated, or a reader
     cannot line predictions up against anything."""
@@ -782,3 +789,116 @@ def test_scaled_fit_tracks_a_series_a_constant_cannot():
     const_rmse = float(np.sqrt(np.mean((actual - actual.mean()) ** 2)))
     model_rmse = float(np.sqrt(np.mean((actual - predicted) ** 2)))
     assert model_rmse < const_rmse
+
+
+# ---------------------------------------------------------------------------
+# Backlog #116 — a covariate that is constant in the training span but not in
+# validation is not merely weak, it is HARMFUL, and must be refused.
+#
+# Measured on POW with #106's news covariates: the news corpus began after the
+# 80/20 boundary, so news_intensity was zero in all 545 training bars and peaked
+# at 50.0 in validation. The scaler is fitted on [:split] only (correctly, C1),
+# so it sees a zero-RANGE column; sklearn's MinMax leaves such a column
+# unscaled, and a validation value of 50 then arrives among features scaled into
+# [0,1] and saturates layer one. rmse 0.4323 -> 0.9601, r2 +0.605 -> -0.948.
+#
+# Same class of guard as MIN_TRAINING_WINDOWS: refuse rather than return numbers
+# that look like results. Not news-specific — any sparse covariate can do this.
+# ---------------------------------------------------------------------------
+
+def _frame_with(col_values, n=100):
+    idx = pd.bdate_range("2024-01-01", periods=n)
+    return pd.DataFrame({"close": np.linspace(10, 20, n), "feat": col_values}, index=idx)
+
+
+def test_a_column_constant_in_training_and_varying_in_validation_is_refused():
+    from app.services.darts_trainer import constant_in_train_only
+    vals = [0.0] * 80 + list(np.linspace(1, 50, 20))
+    assert constant_in_train_only(_frame_with(vals), ["feat"], 80) == ["feat"]
+
+
+def test_a_column_constant_in_training_and_constant_elsewhere_is_still_refused():
+    """The variance test alone misses this: validation is constant too, just at
+    a different value. Training still never sees 50, so it still saturates."""
+    from app.services.darts_trainer import constant_in_train_only
+    vals = [0.0] * 80 + [50.0] * 20
+    assert constant_in_train_only(_frame_with(vals), ["feat"], 80) == ["feat"]
+
+
+def test_a_column_that_varies_in_training_is_fine():
+    from app.services.darts_trainer import constant_in_train_only
+    vals = list(np.linspace(0, 5, 80)) + list(np.linspace(5, 50, 20))
+    assert constant_in_train_only(_frame_with(vals), ["feat"], 80) == []
+
+
+def test_a_column_constant_everywhere_at_one_value_is_not_an_offender():
+    """Dead weight, not a trap: the scaler leaves it alone and it degrades
+    nothing. Refusing here would block a training run for no benefit."""
+    from app.services.darts_trainer import constant_in_train_only
+    assert constant_in_train_only(_frame_with([0.0] * 100), ["feat"], 80) == []
+
+
+def test_a_sparse_but_present_training_signal_is_fine():
+    """A feature that fires rarely in training is weak, not harmful — the model
+    has at least seen its range."""
+    from app.services.darts_trainer import constant_in_train_only
+    vals = [0.0] * 78 + [30.0, 12.0] + [0.0] * 10 + [50.0] * 10
+    assert constant_in_train_only(_frame_with(vals), ["feat"], 80) == []
+
+
+def test_only_the_named_columns_are_checked():
+    from app.services.darts_trainer import constant_in_train_only
+    f = _frame_with([0.0] * 80 + [9.0] * 20)
+    assert constant_in_train_only(f, [], 80) == []
+    assert constant_in_train_only(f, ["missing_column"], 80) == []
+
+
+def test_every_offender_is_named_not_just_the_first():
+    from app.services.darts_trainer import constant_in_train_only
+    idx = pd.bdate_range("2024-01-01", periods=100)
+    f = pd.DataFrame({
+        "close": np.linspace(10, 20, 100),
+        "a": [0.0] * 80 + [5.0] * 20,
+        "ok": np.linspace(1, 2, 100),
+        "b": [0.0] * 80 + [7.0] * 20,
+    }, index=idx)
+    assert constant_in_train_only(f, ["a", "ok", "b"], 80) == ["a", "b"]
+
+
+def test_training_refuses_a_train_constant_covariate_and_says_what_to_do():
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import DartsTrainingError, run_darts_training
+    n = 400
+    idx = pd.bdate_range("2024-01-01", periods=n)
+    close = 25.0 + 5.0 * np.sin(2.0 * np.pi * np.arange(n) / 20.0)
+    # Mirrors the POW shape: the feature only ever fires after the split.
+    news = np.zeros(n)
+    news[int(n * 0.8) + 5:] = 50.0
+    frame = pd.DataFrame({"close": close, "news_intensity": news}, index=idx)
+    with pytest.raises(DartsTrainingError) as exc:
+        run_darts_training(frame, model_type="LightGBM",
+                           indicator_columns=["news_intensity"],
+                           covariate_types={"news_intensity": "past"},
+                           train_ratio=0.8, price_column="close")
+    msg = str(exc.value)
+    assert "news_intensity" in msg
+    assert "training" in msg.lower()
+    # It must tell the operator how to proceed, not merely refuse.
+    assert "range" in msg.lower() or "remove" in msg.lower()
+
+
+def test_training_still_runs_when_the_covariate_varies_in_training():
+    """The guard must not block a legitimate run — the counterpart that stops it
+    from being a blanket refusal."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import run_darts_training
+    n = 400
+    idx = pd.bdate_range("2024-01-01", periods=n)
+    close = 25.0 + 5.0 * np.sin(2.0 * np.pi * np.arange(n) / 20.0)
+    rng = np.random.default_rng(0)
+    frame = pd.DataFrame({"close": close, "news_intensity": rng.random(n)}, index=idx)
+    out = run_darts_training(frame, model_type="LightGBM",
+                             indicator_columns=["news_intensity"],
+                             covariate_types={"news_intensity": "past"},
+                             train_ratio=0.8, price_column="close")
+    assert out["metrics"]["rmse"] > 0

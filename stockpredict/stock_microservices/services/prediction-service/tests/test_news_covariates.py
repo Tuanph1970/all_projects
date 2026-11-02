@@ -223,3 +223,68 @@ async def test_fetch_raises_when_the_payload_has_no_data_list():
             _Client(_Resp(200, {"oops": 1})), base_url="http://n",
             api_prefix="stock_helper", symbol="ACB", start="2026-09-01",
             end="2026-09-30", halflife_days=5)
+
+
+# ---------------------------------------------------------------------------
+# Backlog #116 — coverage has to be reported PER SPLIT.
+#
+# "36 of 703 bars covered (5.1%)" reads as sparse-but-usable and hides the only
+# thing that mattered on the real corpus: all 36 were in the validation span, so
+# the model trained on an identically-zero column. Measured on POW: rmse 0.4323
+# -> 0.9601 and r2 +0.605 -> -0.948 from adding the two columns.
+# ---------------------------------------------------------------------------
+
+def _dated(n, start="2026-01-01"):
+    idx = pd.bdate_range(start, periods=n)
+    return pd.DataFrame({"close": np.arange(len(idx), dtype=float)}, index=idx)
+
+
+def test_coverage_splits_train_and_validation():
+    df = _dated(10)
+    rows = [{"date": d.strftime("%Y-%m-%d"), "intensity": 1.0, "polarity": 0.2}
+            for d in df.index[:4]]
+    cov = news_coverage(attach_news_features(df, rows), train_ratio=0.8)
+    assert cov["train_rows"] == 8
+    assert cov["validation_rows"] == 2
+    assert cov["train_rows_with_coverage"] == 4
+    assert cov["validation_rows_with_coverage"] == 0
+
+
+def test_coverage_flags_a_feature_the_model_cannot_learn_from():
+    """The POW case: every covered bar falls in validation, so training sees a
+    constant. This is the field that had to exist."""
+    df = _dated(10)
+    rows = [{"date": d.strftime("%Y-%m-%d"), "intensity": 50.0, "polarity": 0.1}
+            for d in df.index[8:]]
+    cov = news_coverage(attach_news_features(df, rows), train_ratio=0.8)
+    assert cov["train_rows_with_coverage"] == 0
+    assert cov["trainable"] is False
+    assert "training" in cov["warning"].lower()
+
+
+def test_coverage_is_trainable_when_the_training_span_sees_news():
+    df = _dated(10)
+    rows = [{"date": d.strftime("%Y-%m-%d"), "intensity": 2.0, "polarity": 0.3}
+            for d in df.index[:6]]
+    cov = news_coverage(attach_news_features(df, rows), train_ratio=0.8)
+    assert cov["train_rows_with_coverage"] == 6
+    assert cov["trainable"] is True
+    assert cov.get("warning") in (None, "")
+
+
+def test_a_corpus_with_no_coverage_at_all_is_not_flagged_as_harmful():
+    """Zero everywhere is dead weight, not a trap: the scaler leaves a column
+    that is constant on BOTH sides alone, so it degrades nothing. Only a
+    train-constant/validation-varying column saturates the network."""
+    cov = news_coverage(attach_news_features(_dated(10), []), train_ratio=0.8)
+    assert cov["train_rows_with_coverage"] == 0
+    assert cov["validation_rows_with_coverage"] == 0
+    assert cov["trainable"] is False
+    assert "no coverage" in cov["warning"].lower()
+
+
+def test_coverage_without_a_train_ratio_keeps_the_old_shape():
+    """Callers that do not know the split still get the overall numbers."""
+    cov = news_coverage(attach_news_features(_dated(10), []))
+    assert cov["attached"] is True
+    assert "train_rows" not in cov

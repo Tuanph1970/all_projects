@@ -74,12 +74,20 @@ def attach_news_features(
     return out
 
 
-def news_coverage(feature_df: pd.DataFrame) -> dict:
+def news_coverage(feature_df: pd.DataFrame, train_ratio: Optional[float] = None) -> dict:
     """What the news columns actually contribute, for the training payload.
 
     Reported rather than assumed: on a corpus covering four symbols over seven
     weeks, these columns are zero for almost every bar, and a model trained on
     them should say so instead of implying a feature that carries signal.
+
+    Backlog #116 — WHY `train_ratio` MATTERS. The overall figure alone is
+    actively misleading. On POW this reported "36 of 703 bars covered (5.1%)",
+    which reads as sparse-but-usable, while every one of those 36 bars sat in
+    the VALIDATION span: the news corpus began months after the 80/20 boundary.
+    The model therefore trained on an identically-zero column and was then shown
+    values up to 50 — rmse 0.4323 -> 0.9601, r2 +0.605 -> -0.948. Pass the
+    train_ratio and the split is reported, along with a `trainable` verdict.
     """
     if not all(c in feature_df.columns for c in NEWS_FEATURE_COLUMNS):
         return {"attached": False}
@@ -87,7 +95,7 @@ def news_coverage(feature_df: pd.DataFrame) -> dict:
     polarity = feature_df["news_polarity"]
     n = int(len(feature_df))
     nonzero = int((intensity > 0).sum())
-    return {
+    out = {
         "attached": True,
         "rows": n,
         "rows_with_coverage": nonzero,
@@ -103,6 +111,36 @@ def news_coverage(feature_df: pd.DataFrame) -> dict:
             "but its tone is not trustworthy — see Backlog #113."
         ),
     }
+
+    if train_ratio is None or not n:
+        return out
+
+    # The same floor the trainers use, so the boundary reported here is the one
+    # the model actually sees (darts_trainer.chronological_split and the tabular
+    # path both do int(n * train_ratio)).
+    split = int(n * float(train_ratio))
+    train_nonzero = int((intensity.iloc[:split] > 0).sum())
+    val_nonzero = int((intensity.iloc[split:] > 0).sum())
+    out.update({
+        "train_ratio": float(train_ratio),
+        "train_rows": split,
+        "validation_rows": n - split,
+        "train_rows_with_coverage": train_nonzero,
+        "validation_rows_with_coverage": val_nonzero,
+        # The verdict that the overall percentage could not express.
+        "trainable": train_nonzero > 0,
+    })
+    if train_nonzero == 0:
+        out["warning"] = (
+            "NO coverage in the training span"
+            + (f" ({val_nonzero} covered bars, all in validation)"
+               if val_nonzero else " and none in validation either — no coverage at all")
+            + ". The model cannot learn from a feature it never varies on during "
+              "training; worse, a value it has never seen arrives unscaled at "
+              "validation time. Shorten the date range so the news window falls "
+              "inside the training span, or train without news covariates."
+        )
+    return out
 
 
 async def fetch_news_features(

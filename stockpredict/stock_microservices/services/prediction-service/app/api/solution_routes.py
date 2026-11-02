@@ -548,6 +548,7 @@ async def _run_training(solution_id: int, train_params: dict):
             # absent dates with 0.0 precisely so that dropna cannot delete every
             # bar outside the news window (the #110 trap, in a new place).
             news_coverage_report = {"attached": False}
+            news_halflife_used = None
             if bool(train_params.get('include_news', NEWS_FEATURES_DEFAULT)):
                 halflife = resolve_news_halflife(
                     train_params.get('news_halflife_days', NEWS_HALFLIFE_DEFAULT))
@@ -574,12 +575,7 @@ async def _run_training(solution_id: int, train_params: dict):
                     }
                     return
                 feature_df = attach_news_features(feature_df, news_rows)
-                news_coverage_report = news_coverage(feature_df)
-                news_coverage_report["halflife_days"] = halflife
-                logger.info(
-                    "solution %s: news covariates attached, %s/%s bars with coverage",
-                    solution_id, news_coverage_report.get("rows_with_coverage"),
-                    news_coverage_report.get("rows"))
+                news_halflife_used = halflife
 
             # Target: next day's close price
             feature_df['target'] = feature_df['close'].shift(-1)
@@ -594,6 +590,29 @@ async def _run_training(solution_id: int, train_params: dict):
             rows_before_warmup = int(len(feature_df))
             feature_df = feature_df.dropna()
             rows_after_warmup = int(len(feature_df))
+
+            # Backlog #116. The coverage report is built HERE, not where the
+            # columns were attached, because the train/validation boundary is
+            # int(len(frame) * train_ratio) on the POST-dropna frame — the frame
+            # the trainers actually split. Computing it before the warm-up drop
+            # would report a boundary nothing uses, and the whole point of this
+            # report is that the overall coverage percentage hid which side of
+            # that boundary the covered bars fell on.
+            if news_coverage_report.get("attached") or news_halflife_used is not None:
+                news_coverage_report = news_coverage(feature_df, train_ratio=train_ratio)
+                news_coverage_report["halflife_days"] = news_halflife_used
+                if news_coverage_report.get("warning"):
+                    logger.warning("solution %s: news covariates — %s",
+                                   solution_id, news_coverage_report["warning"])
+                else:
+                    logger.info(
+                        "solution %s: news covariates attached, %s/%s training bars "
+                        "and %s/%s validation bars with coverage",
+                        solution_id,
+                        news_coverage_report.get("train_rows_with_coverage"),
+                        news_coverage_report.get("train_rows"),
+                        news_coverage_report.get("validation_rows_with_coverage"),
+                        news_coverage_report.get("validation_rows"))
 
             if len(feature_df) < 30:
                 training_status[solution_id] = {
