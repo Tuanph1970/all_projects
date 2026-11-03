@@ -2784,14 +2784,15 @@
       "start_date": "Từ ngày",
       "end_date": "Đến ngày",
       "dates_inverted": "Ngày bắt đầu muộn hơn ngày kết thúc. Hãy sửa lại khoảng thời gian, hệ thống sẽ không tự ý đảo thứ tự.",
-      "date_hint": "Để trống hai ngày để xem 180 phiên gần nhất. Khi chọn ngày kết thúc, đồ thị được phân tích TÍNH ĐẾN ngày đó — kết quả không thể nhìn thấy dữ liệu sau ngày này.",
+      "date_hint": "Đã điền sẵn theo phiên mới nhất có trong dữ liệu, và lùi về đủ xa để bao trọn đường trung bình dài nhất trên đồ thị (MA{{bars}}). Khi chọn ngày kết thúc, đồ thị được phân tích TÍNH ĐẾN ngày đó — kết quả không thể nhìn thấy dữ liệu sau ngày này.",
       "watchlist_failed": "Không tải được danh sách theo dõi. Vui lòng thử lại.",
       "data_warning_banner": "Cửa sổ dữ liệu này có một sự kiện doanh nghiệp chưa được điều chỉnh, nên các đường MA, chỉ số biến động và vùng giá bên dưới đều bị nhiễu. Hệ thống không đưa ra kế hoạch giao dịch.",
       "no_chart_data": "Không có dữ liệu để vẽ đồ thị.",
       "series_close": "Giá đóng cửa",
       "series_volume": "Khối lượng",
       "level_support": "Hỗ trợ",
-      "level_resistance": "Kháng cự"
+      "level_resistance": "Kháng cự",
+      "reset_dates": "Đặt lại ngày"
     },
     "section": {
       "data": "Chất lượng dữ liệu",

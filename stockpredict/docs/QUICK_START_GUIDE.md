@@ -119,8 +119,14 @@ answers from an ingested document base.
 
 **VI.** Bảy trang. **Phân tích đồ thị** là trang mới của 0.9:
 
-- **Phân tích đồ thị (MỚI)** — chọn một mã **đang theo dõi**, chọn khoảng ngày
-  nếu muốn, bấm **Phân tích**. Ứng dụng viết ra bằng lời những gì đồ thị đang
+- **Phân tích đồ thị (MỚI)** — chọn một mã **đang theo dõi** rồi bấm
+  **Phân tích**. Hai ô ngày đã được **điền sẵn**: ngày kết thúc là phiên mới
+  nhất có trong dữ liệu (không phải "hôm nay" — hôm nay có thể là ngày nghỉ),
+  và ngày bắt đầu lùi về đủ xa để bao trọn đường trung bình dài nhất trên đồ
+  thị, tức MA200. Lưu ý 200 **phiên** không phải 200 **ngày**: thị trường Việt
+  Nam giao dịch khoảng năm ngày trong bảy, nên khoảng mặc định là ~320 ngày
+  (khoảng 216 phiên). Bạn vẫn đổi được hai ngày này, và có nút **Đặt lại ngày**
+  để quay về mặc định. Ứng dụng viết ra bằng lời những gì đồ thị đang
   nói: xu hướng và trạng thái các đường MA, hỗ trợ/kháng cự kèm lịch sử phá vỡ
   và đổi vai, RSI/MACD/Bollinger/khối lượng, mẫu nến đảo chiều, phân kỳ RSI,
   kênh giá, mẫu hình nhiều tuần, và một kế hoạch cụ thể (điểm vào, cắt lỗ,
@@ -144,8 +150,13 @@ answers from an ingested document base.
 
 **EN.** Seven pages. **Chart analyst** is the 0.9 addition:
 
-- **Chart analyst (NEW)** — pick a **watched** symbol, optionally set a date
-  range, press **Analysis**. The app says in words what the chart is saying:
+- **Chart analyst (NEW)** — pick a **watched** symbol and press **Analysis**.
+  Both date fields are **prefilled**: the end date is the newest session the
+  data actually holds (not "today" — today may be a holiday), and the start
+  date reaches back far enough to cover the longest average on the chart,
+  MA200. Note that is 200 **bars**, not 200 **days**: the VN market trades
+  about five days in seven, so the default span is ~320 days (about 216 bars).
+  You can still change either date, and **Reset dates** returns to the default. The app says in words what the chart is saying:
   trend and MA stack, support/resistance with break and role-reversal history,
   RSI/MACD/Bollinger/volume, reversal candles, RSI divergence, the price
   channel, multi-week formations, and a concrete plan (entry, stop, target,

@@ -1,14 +1,14 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Area, Bar, CartesianGrid, ComposedChart, Legend, Line, ReferenceLine,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import {
-  AlertTriangle, BarChart2, CheckCircle2, Info, Play,
+  AlertTriangle, BarChart2, CheckCircle2, Info, Play, RotateCcw,
   TrendingDown, TrendingUp,
 } from 'lucide-react';
-import { analysisAPI } from '../../../services/api';
+import { analysisAPI, stockAPI } from '../../../services/api';
 import useWatchedTickers from '../../../hooks/useWatchedTickers';
 
 /**
@@ -24,6 +24,61 @@ import useWatchedTickers from '../../../hooks/useWatchedTickers';
  * rather than as a plausible English sentence, which is the failure mode we
  * want to be loud.
  */
+
+/**
+ * THE LONGEST INDICATOR WINDOW ON THIS PAGE, in trading bars.
+ *
+ * MA200 is the binding one at 200 bars. MACD — the obvious candidate — needs
+ * only 26 + 9 = 35, and RSI/ATR/Stochastic 14, so none of them constrains the
+ * default window.
+ *
+ * Note the backend does NOT need this to compute MA200: it fetches 200 warmup
+ * bars BEFORE start_date, so the line is correct even on a one-month window.
+ * What a short window costs is VISIBILITY — you see the MA200 value without
+ * seeing where it came from. Defaulting the range to the longest window means
+ * every line drawn has its own history on screen.
+ */
+const MAX_INDICATOR_BARS = 200;
+
+/**
+ * Calendar days per trading bar, matching the backend's own constant
+ * (analysis_service.CALENDAR_DAYS_PER_BAR). The VN market trades about five
+ * days in seven, minus holidays, so 200 BARS is roughly 320 CALENDAR DAYS —
+ * subtracting 200 days from the end date would give only ~140 bars and quietly
+ * cut a quarter off the window the default is meant to cover.
+ */
+const CALENDAR_DAYS_PER_BAR = 1.6;
+
+const DEFAULT_WINDOW_DAYS = Math.ceil(MAX_INDICATOR_BARS * CALENDAR_DAYS_PER_BAR);
+
+/** `YYYY-MM-DD` for a Date, in local terms (the input[type=date] format). */
+function isoDate(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/**
+ * A real calendar date, not merely a `YYYY-MM-DD`-shaped string.
+ *
+ * The shape check alone is not enough, and the gap is not theoretical:
+ * "2026-13-99" matches /^\d{4}-\d{2}-\d{2}$/ perfectly while being month 13
+ * and day 99. `new Date()` returns Invalid Date for it, and the subtraction
+ * below then produced a literal "NaN-NaN-NaN" in the date input. Round-tripping
+ * through isoDate is what rejects month 13, day 99 and 30 February alike.
+ */
+function isRealDate(value) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const d = new Date(`${value}T00:00:00`);
+  return !Number.isNaN(d.getTime()) && isoDate(d) === value;
+}
+
+/** The default range: `end` back by the longest indicator window. */
+export function defaultRange(endIso) {
+  const end = isRealDate(endIso) ? endIso : isoDate(new Date());
+  const start = new Date(`${end}T00:00:00`);
+  start.setDate(start.getDate() - DEFAULT_WINDOW_DAYS);
+  return { startDate: isoDate(start), endDate: end };
+}
 
 const SEVERITY_STYLE = {
   bullish: { row: 'border-l-4 border-emerald-500 bg-emerald-50', text: 'text-emerald-900', Icon: TrendingUp },
@@ -41,9 +96,24 @@ export default function ChartNarrator() {
   const [symbol, setSymbol] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [datesReady, setDatesReady] = useState(false);
   const [result, setResult] = useState(null);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState(null);
+
+  // Prefill the range from the newest session the data actually holds, not from
+  // `today` — today is wrong on a weekend, a holiday, and before the close.
+  // Falls back to today if the lookup fails, which the backend then clamps to
+  // the last bar at or before it, so a too-late end date is harmless.
+  const applyDefaults = useCallback(async () => {
+    const latest = await stockAPI.getLatestSessionDate();
+    const { startDate: s, endDate: e } = defaultRange(latest);
+    setStartDate(s);
+    setEndDate(e);
+    setDatesReady(true);
+  }, []);
+
+  useEffect(() => { applyDefaults(); }, [applyDefaults]);
 
   const run = useCallback(async () => {
     if (!symbol) return;
@@ -128,7 +198,7 @@ export default function ChartNarrator() {
 
           <button
             type="button" onClick={run}
-            disabled={!symbol || running || datesInverted}
+            disabled={!symbol || running || datesInverted || !datesReady}
             className="px-5 py-2 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
           >
             <Play className="w-4 h-4" />
@@ -139,7 +209,18 @@ export default function ChartNarrator() {
         {datesInverted && (
           <p className="text-xs text-rose-600 mt-2">{t('narrative.ui.dates_inverted')}</p>
         )}
-        <p className="text-xs text-gray-400 mt-2">{t('narrative.ui.date_hint')}</p>
+        <div className="flex items-center gap-3 mt-2 flex-wrap">
+          <p className="text-xs text-gray-400">
+            {t('narrative.ui.date_hint', { bars: MAX_INDICATOR_BARS })}
+          </p>
+          <button
+            type="button" onClick={applyDefaults}
+            className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
+          >
+            <RotateCcw className="w-3 h-3" />
+            {t('narrative.ui.reset_dates')}
+          </button>
+        </div>
 
         {!tickersLoading && tickersError && (
           <p className="text-xs text-rose-600 mt-2">{t('narrative.ui.watchlist_failed')}</p>

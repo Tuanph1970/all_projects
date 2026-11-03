@@ -2784,14 +2784,15 @@
       "start_date": "From",
       "end_date": "To",
       "dates_inverted": "The start date is after the end date. Fix the range rather than have it silently reordered.",
-      "date_hint": "Leave the dates empty for the last 180 sessions. An end date analyses the chart AS OF that day — the reading cannot see past it.",
+      "date_hint": "Prefilled to the newest session in the data, going back far enough to cover the longest average on the chart (MA{{bars}}). An end date analyses the chart AS OF that day — the reading cannot see past it.",
       "watchlist_failed": "Could not load your watchlist. Try again.",
       "data_warning_banner": "This window contains an unadjusted corporate action, so the moving averages, volatility and levels below are contaminated. No trading plan is offered.",
       "no_chart_data": "No bars to draw.",
       "series_close": "Close",
       "series_volume": "Volume",
       "level_support": "Support",
-      "level_resistance": "Resistance"
+      "level_resistance": "Resistance",
+      "reset_dates": "Reset dates"
     },
     "section": {
       "data": "Data health",

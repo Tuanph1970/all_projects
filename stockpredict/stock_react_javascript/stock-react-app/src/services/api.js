@@ -761,6 +761,37 @@ export const stockAPI = {
     return response.json();
   },
 
+  /**
+   * The newest session the data actually has, as YYYY-MM-DD.
+   *
+   * Used to prefill the Chart analyst's date range. NOT `today`: today is wrong
+   * on a weekend, a holiday, and before the market has closed — and a user who
+   * sees "To: today" on a Saturday reasonably concludes the app has Saturday
+   * data. The market-index rows carry the real session date, and this is the
+   * cheapest endpoint that exposes it.
+   *
+   * Returns null rather than guessing if the call fails; the caller falls back.
+   */
+  getLatestSessionDate: async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.MARKET_INDICES_LATEST, {
+        method: 'GET', headers: getAuthHeaders(),
+      });
+      if (!response.ok) return null;
+      const rows = await response.json();
+      const dates = (Array.isArray(rows) ? rows : [])
+        .map((r) => r && r.date)
+        .filter(Boolean)
+        .map((d) => String(d).slice(0, 10));
+      if (dates.length === 0) return null;
+      // Indices can settle at slightly different times; the latest is the one
+      // that reflects how current the data is.
+      return dates.sort().slice(-1)[0];
+    } catch (e) {
+      return null;
+    }
+  },
+
   getMyFeedback: async () => {
     const response = await fetch(API_ENDPOINTS.FEEDBACK_MINE, {
       method: 'GET', headers: getAuthHeaders(),
