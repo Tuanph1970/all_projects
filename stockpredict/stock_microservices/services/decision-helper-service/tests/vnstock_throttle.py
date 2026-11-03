@@ -163,6 +163,50 @@ def min_interval(env: Optional[dict] = None) -> float:
     return KEYED_INTERVAL_SECONDS if has_api_key(env) else GUEST_INTERVAL_SECONDS
 
 
+#: vnai's rate-limit handler calls `sys.exit()`, not `raise`.
+#:
+#: `vnai/beam/quota.py` contains literally
+#:     sys.exit(f"Rate limit exceeded. {str(exc_val)} Process terminated.")
+#: so a quota breach does not raise something a caller can catch and retry — it
+#: terminates the interpreter. stock-data-service has guarded this since #48 by
+#: monkeypatching `CleanErrorContext.__exit__` in its `main.py`; these host-side
+#: dump scripts never did, and they are the LONGEST-running vnstock consumers in
+#: the project (#86/#90/#101 each spent about an hour of wall-clock pulling).
+#: Losing an hour-long dump to a bare `sys.exit` is the worst version of this
+#: failure, because the partial work is gone and the cause is a one-line message
+#: with no traceback.
+#:
+#: Applied by `activate()`. Idempotent, and a no-op where vnai is absent or has
+#: no such context manager (vnstock 5 ships no vnai at all).
+def _disarm_vnai_process_kill() -> bool:
+    """Turn vnai's `sys.exit()` on rate-limit back into a catchable exception.
+
+    Returns True if the patch was applied or already in place.
+    """
+    try:
+        import vnai.beam.quota as _quota
+    except Exception:
+        return False                      # no vnai (vnstock 5, or not installed)
+    ctx = getattr(_quota, "CleanErrorContext", None)
+    rate_limit = getattr(_quota, "RateLimitExceeded", None)
+    if ctx is None or rate_limit is None:
+        return False
+    if getattr(ctx, "_stockpredict_disarmed", False):
+        return True
+
+    class _Catchable(ctx):                # type: ignore[misc,valid-type]
+        _stockpredict_disarmed = True
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            # Let RateLimitExceeded propagate to the caller instead of being
+            # converted into process death.
+            if exc_type is rate_limit:
+                return False
+            return super().__exit__(exc_type, exc_val, exc_tb)
+
+    _quota.CleanErrorContext = _Catchable
+    return True
+
 def activate() -> float:
     """Export the key into the environment, then return the call spacing.
 
@@ -173,14 +217,25 @@ def activate() -> float:
     called every 1.05s (~57/min) — a quota breach ending in
     `RateLimitExceeded` partway through an hour-long pull.
 
-    On the host (vnstock 3.3.1, kept by owner decision) this is a no-op for
-    quota: that vnai has no tiers and allows a flat 60/min for VCI either way.
+    THE HOST IS NO LONGER ON 3.3.1. This docstring said "vnstock 3.3.1, kept by
+    owner decision", and that stopped being true on 2026-11-03: running
+    `scripts/ci-unit-tests.sh stock-data-service` on the host does
+    `pip install --find-links=vendor/wheels -r requirements.txt`, which upgraded
+    the host to the pinned 4.0.7 and vnai 2.2.6 -> 2.5.9 as a side effect. 3.3.1
+    is withdrawn from PyPI and was in no local cache, so it cannot be restored
+    from here. Measured after the change: has_api_key() True, spacing 1.05s,
+    tier "free/Community key" — so the SPACING is unaffected, and the host now
+    matches the container rather than diverging from it.
+
     It is kept because these scripts are also runnable inside the container,
     where omitting it would be exactly the breach described above.
 
     An existing environment variable is never overwritten, so a shell export
     still wins. Returns the interval so a caller can do both in one line.
     """
+    # Disarm vnai's sys.exit() on rate-limit before any call is made.
+    _disarm_vnai_process_kill()
+
     key = (env_file_values().get("VNSTOCK_API_KEY") or "").strip()
     if key and not (os.environ.get("VNSTOCK_API_KEY") or "").strip():
         os.environ["VNSTOCK_API_KEY"] = key

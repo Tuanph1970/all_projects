@@ -270,3 +270,129 @@ def test_the_keyed_interval_respects_the_hosts_HOUR_cap_for_short_jobs():
     assert dump_calls < 3000                          # so a dump cannot trip it
     assert min_interval({"VNSTOCK_MIN_INTERVAL_SECONDS": "1.2"}) == pytest.approx(1.2)
     assert 60 / 1.2 <= 3000 / 60                      # the documented long-job value
+
+
+# ---------------------------------------------------------------------------
+# vnai kills the process on a rate limit; these scripts run for an hour
+# ---------------------------------------------------------------------------
+
+import contextlib
+
+
+@contextlib.contextmanager
+def _fake_vnai_quota(ctx_cls, rate_limit_cls):
+    """Install a stand-in for `vnai.beam.quota`, and put the real one back.
+
+    BOTH sys.modules AND the parent module's attribute are swapped, which is
+    the part that is easy to miss: `import vnai.beam.quota as q` resolves
+    through `getattr(vnai.beam, "quota")` once the real submodule has been
+    imported, so patching sys.modules alone is bypassed by anything that
+    imported it earlier. That made the first version of these tests pass in
+    isolation and fail in the suite — an order-dependent test, which is worse
+    than no test.
+    """
+    import sys, types
+    fake = types.ModuleType("vnai.beam.quota")
+    fake.CleanErrorContext = ctx_cls
+    fake.RateLimitExceeded = rate_limit_cls
+
+    saved_mod = sys.modules.get("vnai.beam.quota")
+    parent = sys.modules.get("vnai.beam")
+    saved_attr = getattr(parent, "quota", None) if parent is not None else None
+
+    sys.modules["vnai.beam.quota"] = fake
+    if parent is not None:
+        parent.quota = fake
+    try:
+        yield fake
+    finally:
+        if saved_mod is None:
+            sys.modules.pop("vnai.beam.quota", None)
+        else:
+            sys.modules["vnai.beam.quota"] = saved_mod
+        if parent is not None:
+            if saved_attr is None:
+                with contextlib.suppress(AttributeError):
+                    del parent.quota
+            else:
+                parent.quota = saved_attr
+
+
+def test_the_rate_limit_handler_no_longer_terminates_the_process():
+    """vnai's quota guard calls `sys.exit()`, not `raise`.
+
+    `vnai/beam/quota.py` contains literally
+        sys.exit(f"Rate limit exceeded. {str(exc_val)} Process terminated.")
+    so a quota breach ends the interpreter rather than raising something a
+    caller can catch. stock-data-service has monkeypatched this since #48; the
+    host-side dump scripts never did, and they are the longest-running vnstock
+    consumers here (#86/#90/#101 each spent about an hour pulling). Losing an
+    hour of work to a bare sys.exit with no traceback is the worst form of it.
+    """
+    import sys
+    from tests import vnstock_throttle as t
+
+    exits = []
+
+    class _RateLimit(Exception):
+        pass
+
+    class _Ctx:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            if exc_type is _RateLimit:
+                exits.append(str(exc_val))
+                sys.exit("Process terminated.")   # what vnai really does
+            return False
+
+    with _fake_vnai_quota(_Ctx, _RateLimit) as fake:
+        assert t._disarm_vnai_process_kill() is True
+        with pytest.raises(_RateLimit):
+            with fake.CleanErrorContext():
+                raise _RateLimit("20/min exceeded")
+        assert exits == [], "vnai's sys.exit path still ran"
+
+
+def test_the_guard_is_idempotent():
+    """activate() may be called more than once; re-patching a patched class
+    would nest subclasses without bound."""
+    from tests import vnstock_throttle as t
+
+    class _RateLimit(Exception):
+        pass
+
+    class _Ctx:
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            return False
+
+    with _fake_vnai_quota(_Ctx, _RateLimit) as fake:
+        assert t._disarm_vnai_process_kill() is True
+        first = fake.CleanErrorContext
+        assert t._disarm_vnai_process_kill() is True
+        assert fake.CleanErrorContext is first, "the guard re-wrapped itself"
+
+
+def test_no_vnai_is_not_an_error():
+    """vnstock 5 ships no vnai at all, and a missing module must not break a
+    dump script that otherwise works."""
+    import sys
+    from tests import vnstock_throttle as t
+
+    saved = sys.modules.get("vnai.beam.quota")
+    sys.modules["vnai.beam.quota"] = None   # import raises ImportError
+    try:
+        assert t._disarm_vnai_process_kill() is False
+    finally:
+        if saved is None:
+            sys.modules.pop("vnai.beam.quota", None)
+        else:
+            sys.modules["vnai.beam.quota"] = saved
+
+
+def test_activate_applies_the_guard():
+    """A guard that exists but is never called protects nothing."""
+    import inspect
+    from tests import vnstock_throttle as t
+    assert "_disarm_vnai_process_kill()" in inspect.getsource(t.activate)
