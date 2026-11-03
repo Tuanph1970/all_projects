@@ -14,6 +14,11 @@ class AlertType(str, Enum):
     ABOVE = "above"
     BELOW = "below"
     CHANGE_PERCENT = "change_percent"
+    #: Backlog #117. Must mirror domain.AlertType — this is the API-facing copy,
+    #: and a value missing here is rejected at the boundary no matter what the
+    #: database can store. `target_percent` carries the MULTIPLE of the symbol's
+    #: own trailing median volume (3.0 = three times normal), not a percentage.
+    VOLUME_UNUSUAL = "volume_unusual"
 
 
 # Portfolio Schemas

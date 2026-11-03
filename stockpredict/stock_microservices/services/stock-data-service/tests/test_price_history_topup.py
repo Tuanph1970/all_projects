@@ -438,3 +438,160 @@ async def test_the_price_refresh_can_be_switched_off():
          patch.object(main_mod.settings, "ENABLE_DAILY_PRICE_REFRESH", False):
         await main_mod._run_sync()
     svc.refresh_all_prices.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# Backlog #117 — the relative-volume reading attached to each price event
+#
+# The ratio is computed HERE because this is the only service holding both
+# today's volume and the symbol's history. The alert consumer in
+# portfolio-service sees one event at a time with no trailing window, so a ratio
+# computed there would cost a round trip per symbol per refresh.
+# ---------------------------------------------------------------------------
+
+def _svc_with_history(history: dict) -> StockService:
+    repo = MagicMock()
+    repo.get_recent_volumes = AsyncMock(return_value=history)
+    return StockService(repo)
+
+
+@pytest.mark.asyncio
+async def test_a_spike_is_attached_as_its_multiple_of_the_median():
+    svc = _svc_with_history({"ACB": [100] * 60})
+    records = [{"symbol": "ACB", "matchQty": 420}]
+    await svc._attach_relative_volume(records)
+    assert records[0]["relVolume"] == pytest.approx(4.2)
+
+
+@pytest.mark.asyncio
+async def test_a_normal_bar_is_attached_near_one():
+    svc = _svc_with_history({"ACB": [100] * 60})
+    records = [{"symbol": "ACB", "matchQty": 105}]
+    await svc._attach_relative_volume(records)
+    assert records[0]["relVolume"] == pytest.approx(1.05)
+
+
+@pytest.mark.asyncio
+async def test_todays_bar_is_judged_against_history_not_against_itself():
+    """If today's volume were folded into its own baseline, a genuine spike
+    would read lower than it is — the error that makes a spike detector blind
+    to the very events it exists for.
+
+    THE HISTORY HERE IS DELIBERATELY UNEVEN. An earlier version of this test
+    used a FLAT history of forty 10s, and two real mutations survived it: both
+    "include the judged bar in its own baseline" and "use a mean instead of a
+    median" left the answer at exactly 100.0, because on a flat series the mean
+    equals the median and one extra value cannot move a median of forty. The
+    test passed for a reason unrelated to its name. An uneven baseline makes
+    both mutations change the number.
+    """
+    svc = _svc_with_history({"ACB": list(range(1, 11))})      # median 5.5, mean 5.5
+    records = [{"symbol": "ACB", "matchQty": 1000}]
+    await svc._attach_relative_volume(records)
+    # median(1..10) = 5.5 -> 1000/5.5. Folding today in gives median 6 -> 166.7.
+    assert records[0]["relVolume"] == pytest.approx(1000 / 5.5, rel=1e-4)
+
+
+@pytest.mark.asyncio
+async def test_the_baseline_is_a_median_so_one_climax_day_cannot_mask_the_next():
+    """The decision inherited from EM-1, asserted at this layer too because the
+    service is what a reader of this file will change.
+
+    A mean baseline absorbs an extreme day and understates the next one. The
+    fixture carries one enormous day inside the window, which moves a mean a
+    long way and a median not at all.
+    """
+    history = [100] * 40
+    history[20] = 10_000
+    svc = _svc_with_history({"ACB": history})
+    records = [{"symbol": "ACB", "matchQty": 300}]
+    await svc._attach_relative_volume(records)
+    # median stays 100 -> 3.0. A mean baseline would be ~347 -> about 0.86,
+    # i.e. a genuine 3x day would read as quieter than normal.
+    assert records[0]["relVolume"] == pytest.approx(3.0)
+
+
+@pytest.mark.asyncio
+async def test_too_little_history_attaches_NOTHING():
+    """An absent reading is an explicit unknown. Attaching 1.0 would look like
+    a measurement of 'normal' and would make a new listing permanently quiet."""
+    svc = _svc_with_history({"ACB": [100, 100, 100]})
+    records = [{"symbol": "ACB", "matchQty": 5000}]
+    await svc._attach_relative_volume(records)
+    assert "relVolume" not in records[0]
+
+
+@pytest.mark.asyncio
+async def test_a_symbol_with_no_history_at_all_attaches_nothing():
+    svc = _svc_with_history({})
+    records = [{"symbol": "NEWCO", "matchQty": 5000}]
+    await svc._attach_relative_volume(records)
+    assert "relVolume" not in records[0]
+
+
+@pytest.mark.asyncio
+async def test_a_record_without_a_volume_is_skipped_not_guessed():
+    svc = _svc_with_history({"ACB": [100] * 60})
+    records = [{"symbol": "ACB"}]
+    await svc._attach_relative_volume(records)
+    assert "relVolume" not in records[0]
+
+
+@pytest.mark.asyncio
+async def test_every_record_is_judged_against_its_OWN_symbol():
+    """Per-symbol by construction: E&M are explicit that 'high' volume means
+    high FOR THAT STOCK, so there is no cross-symbol share-count threshold.
+    A small-cap's 50,000 shares and a blue chip's 50,000 are not the same event.
+    """
+    svc = _svc_with_history({"BIG": [1_000_000] * 60, "SMALL": [1_000] * 60})
+    records = [
+        {"symbol": "BIG", "matchQty": 2_000_000},
+        {"symbol": "SMALL", "matchQty": 2_000},
+    ]
+    await svc._attach_relative_volume(records)
+    assert records[0]["relVolume"] == pytest.approx(2.0)
+    assert records[1]["relVolume"] == pytest.approx(2.0)
+
+
+@pytest.mark.asyncio
+async def test_the_history_is_fetched_in_ONE_query_for_all_symbols():
+    """30 round trips in the publish path is the kind of cost that gets a
+    feature switched off."""
+    svc = _svc_with_history({s: [100] * 60 for s in ("A", "B", "C")})
+    records = [{"symbol": s, "matchQty": 300} for s in ("A", "B", "C")]
+    await svc._attach_relative_volume(records)
+    svc.repository.get_recent_volumes.assert_awaited_once()
+    assert all(r["relVolume"] == pytest.approx(3.0) for r in records)
+
+
+@pytest.mark.asyncio
+async def test_a_failing_history_lookup_does_not_break_the_fan_out():
+    """A missing reading is a neutral absence; it must never stop the price
+    events, which is what the alert path depends on."""
+    repo = MagicMock()
+    repo.get_recent_volumes = AsyncMock(side_effect=RuntimeError("db down"))
+    records = [{"symbol": "ACB", "matchQty": 420}]
+    with pytest.raises(RuntimeError):
+        await StockService(repo)._attach_relative_volume(records)
+    # refresh_price_board wraps the call, so the records simply go out unenriched.
+    assert "relVolume" not in records[0]
+
+
+def test_refresh_price_board_attaches_before_publishing_and_survives_failure():
+    """Order matters: the reading must be attached BEFORE the fan-out, and a
+    failure there must be caught so the price events still go."""
+    import inspect
+
+    src = inspect.getsource(StockService.refresh_price_board)
+    assert src.index("_attach_relative_volume") < src.index("publish_price_updates")
+    assert "Could not attach relative volume" in src
+
+
+def test_the_published_payload_carries_volume_and_the_ratio():
+    import inspect
+
+    from app.services import event_publisher
+
+    src = inspect.getsource(event_publisher.publish_price_updates)
+    assert '"volume": rec.get("matchQty")' in src
+    assert '"rel_volume": rec.get("relVolume")' in src

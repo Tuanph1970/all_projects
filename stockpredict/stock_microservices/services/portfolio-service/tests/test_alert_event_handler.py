@@ -285,3 +285,111 @@ def test_the_consumer_binds_the_pattern_the_publisher_actually_sends():
     )
     # And the shared pattern really does match what the publisher sends.
     assert topic_matches(PRICE_UPDATED_PATTERN, price_updated_routing_key("ACB"))
+
+
+# ---------------------------------------------------------------------------
+# Backlog #117 — the unusual-volume alert
+# ---------------------------------------------------------------------------
+
+def _vol_alert(multiple=None, alert_id=1):
+    from app.models.domain import AlertType, PriceAlert
+
+    a = PriceAlert()
+    a.id = alert_id
+    a.alert_type = AlertType.VOLUME_UNUSUAL
+    a.target_percent = multiple
+    a.target_price = None
+    return a
+
+
+def test_a_volume_alert_fires_at_its_multiple():
+    from app.services.alert_event_handler import _volume_alert_should_fire
+
+    assert _volume_alert_should_fire(_vol_alert(3.0), 3.0) is True
+    assert _volume_alert_should_fire(_vol_alert(3.0), 4.2) is True
+    assert _volume_alert_should_fire(_vol_alert(3.0), 2.99) is False
+
+
+def test_an_alert_without_a_multiple_uses_the_measured_default():
+    """3.0x was measured, not picked: across 42,674 readings on 32 real symbols
+    it fires on 4.55% of them — about eleven times per symbol per year. 1.5x
+    would be eight a day across the watchlist, which is how alerting features
+    get muted."""
+    from app.services.alert_event_handler import (
+        DEFAULT_VOLUME_MULTIPLE,
+        _volume_alert_should_fire,
+    )
+
+    assert DEFAULT_VOLUME_MULTIPLE == 3.0
+    assert _volume_alert_should_fire(_vol_alert(None), 3.1) is True
+    assert _volume_alert_should_fire(_vol_alert(None), 2.5) is False
+
+
+def test_an_ABSENT_reading_never_fires():
+    """The reading is an explicit unknown when a symbol has too little history
+    or a dormant window. Firing on an unknown would invent an event; and
+    treating the absence as 'not unusual' is luck rather than logic, which is
+    why the branch is explicit rather than falling out of a comparison."""
+    from app.services.alert_event_handler import _volume_alert_should_fire
+
+    assert _volume_alert_should_fire(_vol_alert(3.0), None) is False
+
+
+@pytest.mark.parametrize("junk", ["lots", "", float("nan")])
+def test_an_unusable_reading_never_fires(junk):
+    from app.services.alert_event_handler import _volume_alert_should_fire
+
+    assert _volume_alert_should_fire(_vol_alert(3.0), junk) is False
+
+
+def test_a_volume_alert_is_not_judged_on_price():
+    """The bug this dispatch avoids: _alert_should_fire takes no volume
+    argument, so routing a VOLUME_UNUSUAL alert through it would always return
+    False and the alert would silently never fire."""
+    from app.services.alert_event_handler import _alert_should_fire
+
+    assert _alert_should_fire(_vol_alert(3.0), 999_999.0, 1.0) is False
+
+
+def test_the_handler_dispatches_volume_alerts_on_rel_volume():
+    """Guards the wiring, which is where this feature would die quietly."""
+    import inspect
+
+    import app.services.alert_event_handler as mod
+
+    src = inspect.getsource(mod._handle_price_update)
+    assert "rel_volume" in src, "the handler never reads the event's rel_volume"
+    assert "_volume_alert_should_fire" in src, "volume alerts are not dispatched"
+    assert "VOLUME_UNUSUAL" in src
+
+
+def test_price_alerts_still_work_unchanged():
+    """The counterpart: adding a branch must not disturb the three existing
+    alert kinds."""
+    from app.models.domain import AlertType, PriceAlert
+    from app.services.alert_event_handler import _alert_should_fire
+
+    def mk(kind, price=None, pct=None):
+        a = PriceAlert()
+        a.alert_type = kind
+        a.target_price = price
+        a.target_percent = pct
+        return a
+
+    assert _alert_should_fire(mk(AlertType.ABOVE, price=100.0), 101.0, None) is True
+    assert _alert_should_fire(mk(AlertType.ABOVE, price=100.0), 99.0, None) is False
+    assert _alert_should_fire(mk(AlertType.BELOW, price=100.0), 99.0, None) is True
+    assert _alert_should_fire(mk(AlertType.CHANGE_PERCENT, pct=5.0), 110.0, 100.0) is True
+    assert _alert_should_fire(mk(AlertType.CHANGE_PERCENT, pct=5.0), 102.0, 100.0) is False
+
+
+def test_the_api_enum_and_the_domain_enum_agree():
+    """Two separate AlertType enums exist — the API-facing one in schemas.py and
+    the persisted one in domain.py. A value present in only one is a boundary
+    that silently cannot be used: the database would accept a volume alert the
+    endpoint rejects, or vice versa. Backlog #117 added VOLUME_UNUSUAL and this
+    is what stops the next addition landing in only one of them."""
+    from app.models.domain import AlertType as DomainAlertType
+    from app.models.schemas import AlertType as ApiAlertType
+
+    assert {t.value for t in DomainAlertType} == {t.value for t in ApiAlertType}

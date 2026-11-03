@@ -79,6 +79,16 @@ async def publish_price_updates(records: list[dict]) -> None:
                         "ref_price": float(ref_price) if ref_price is not None else None,
                         "change_percent": rec.get("changePercent"),
                         "exchange": rec.get("exchange"),
+                        # Backlog #117. `volume` is today's traded quantity;
+                        # `rel_volume` is it over the median of this symbol's own
+                        # trailing history, attached upstream by
+                        # StockService._attach_relative_volume because only that
+                        # layer holds the history. BOTH MAY BE ABSENT — a symbol
+                        # with too little history has no measurable reading, and
+                        # a consumer must treat the absence as unknown rather
+                        # than as low volume.
+                        "volume": rec.get("matchQty"),
+                        "rel_volume": rec.get("relVolume"),
                     },
                 ),
                 # Shared with the consumer's subscription pattern via

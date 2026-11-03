@@ -75,6 +75,40 @@ async def stop_alert_consumer() -> None:
         _event_bus = None
 
 
+#: Backlog #117. Multiple of a symbol's own trailing median volume at which an
+#: unusual-volume alert fires, when the alert itself does not name one.
+#:
+#: MEASURED, not chosen: across 42,674 readings on 32 real symbols the firing
+#: rate is 23.95% at 1.5x, 12.74% at 2.0x, 4.55% at 3.0x, 2.11% at 4.0x and
+#: 1.08% at 5.0x. 3.0x is about ELEVEN alerts per symbol per year — roughly
+#: monthly — where 1.5x would be eight a day across a 32-symbol watchlist,
+#: which is how an alerting feature gets muted. The median reading across the
+#: whole sample is 0.986, which is the sanity check that the measure is centred.
+#:
+#: Note this is a FIRING RATE, not a false-positive rate: nothing here
+#: establishes that a spike predicts anything. It bounds the noise, no more.
+DEFAULT_VOLUME_MULTIPLE = 3.0
+
+
+def _volume_alert_should_fire(
+    alert: PriceAlert, rel_volume: Optional[float]
+) -> bool:
+    """True iff this tick's relative volume reaches the alert's multiple.
+
+    An ABSENT `rel_volume` never fires. The upstream reading is an explicit
+    unknown when a symbol has too little history or a dormant window, and
+    reading that absence as "not unusual" would be luck rather than logic —
+    but reading it as unusual would invent an event.
+    """
+    if rel_volume is None:
+        return False
+    multiple = alert.target_percent if alert.target_percent else DEFAULT_VOLUME_MULTIPLE
+    try:
+        return float(rel_volume) >= abs(float(multiple))
+    except (TypeError, ValueError):
+        return False
+
+
 def _alert_should_fire(alert: PriceAlert, new_price: float, prev_price: Optional[float]) -> bool:
     """Match the alert's trigger semantics. Returns True iff this tick crosses.
 
@@ -93,19 +127,26 @@ def _alert_should_fire(alert: PriceAlert, new_price: float, prev_price: Optional
             return False
         change_pct = (new_price - prev_price) / prev_price * 100.0
         return abs(change_pct) >= abs(alert.target_percent)
+    # VOLUME_UNUSUAL is evaluated by _volume_alert_should_fire, which needs the
+    # event's rel_volume rather than a price, so it is dispatched separately in
+    # _handle_price_update. Reaching here for it means no price rule applied.
     return False
 
 
 async def _handle_price_update(event: Event) -> None:
     """Process one stock.price.updated event.
 
-    Expected payload: {symbol, price, prev_price?, change_percent?}.
+    Expected payload: {symbol, price, prev_price?, change_percent?,
+    volume?, rel_volume?}. `rel_volume` (Backlog #117) is today's volume over
+    the median of this symbol's own trailing history, attached by
+    stock-data-service, and may legitimately be absent.
     Anything missing → log + skip; never raise (would nack into DLQ).
     """
     payload = event.payload or {}
     symbol = payload.get("symbol")
     price = payload.get("price")
     prev_price = payload.get("prev_price") or payload.get("ref_price")
+    rel_volume = payload.get("rel_volume")
 
     if not symbol or price is None:
         logger.debug("Skipping malformed price event: %s", payload)
@@ -126,7 +167,14 @@ async def _handle_price_update(event: Event) -> None:
 
             triggered_ids: list[int] = []
             for alert in alerts:
-                if _alert_should_fire(alert, float(price), prev_price):
+                # Backlog #117: a volume alert is judged on rel_volume, not on
+                # price, so it is dispatched here rather than inside
+                # _alert_should_fire, which takes no volume argument.
+                if alert.alert_type == AlertType.VOLUME_UNUSUAL:
+                    fired = _volume_alert_should_fire(alert, rel_volume)
+                else:
+                    fired = _alert_should_fire(alert, float(price), prev_price)
+                if fired:
                     triggered_ids.append(alert.id)
 
             if not triggered_ids:

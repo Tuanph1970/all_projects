@@ -140,6 +140,33 @@ class StockRepository:
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
+    async def get_recent_volumes(
+        self, symbols: List[str], days: int = 220
+    ) -> dict:
+        """`{symbol: [volume, ...]}` oldest-first, for the last `days` sessions.
+
+        Backlog #117. One grouped query for every symbol rather than one per
+        symbol: the price-board refresh needs a relative-volume reading for ~30
+        symbols at once, and 30 round trips in the publish path is the kind of
+        cost that gets a feature switched off. `days` is generous because the
+        reading's baseline window is 100 TRADING bars and this filter is in
+        CALENDAR days — 220 calendar days is comfortably more than 100 sessions.
+        """
+        if not symbols:
+            return {}
+        cutoff = date.today() - timedelta(days=days)
+        result = await self.session.execute(
+            select(Company.symbol, StockPrice.volume)
+            .join(StockPrice, StockPrice.company_id == Company.id)
+            .where(Company.symbol.in_([s.upper() for s in symbols]))
+            .where(StockPrice.date >= cutoff)
+            .order_by(Company.symbol, StockPrice.date)
+        )
+        out: dict = {}
+        for symbol, volume in result.all():
+            out.setdefault(symbol, []).append(volume)
+        return out
+
     async def get_latest_price_dates(self) -> List[tuple]:
         """`(symbol, newest_bar_date)` for every company that has stored bars.
 

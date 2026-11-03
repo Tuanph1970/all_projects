@@ -1476,6 +1476,45 @@ class StockService:
         )
         return results
 
+    async def _attach_relative_volume(self, records: list) -> None:
+        """Add `relVolume` to each priceboard record, in place (Backlog #117).
+
+        The reading is today's volume over the median of that symbol's own
+        trailing history — per-symbol by construction, because E&M are explicit
+        that "high" volume means high FOR THAT STOCK, so there is no
+        cross-symbol share-count threshold anywhere in this system.
+
+        The algorithm is `stock_common.analytics.volume.relative_volume`, shared
+        with ai-insights' EM-1 original and held identical by
+        ai-insights-service/tests/test_shared_volume_agreement.py.
+
+        A symbol with too little history, a missing volume, or a dormant window
+        simply gets no `relVolume` key — an absent reading is an explicit
+        unknown and must not be mistaken for low volume.
+        """
+        from stock_common.analytics.volume import relative_volume
+
+        symbols = [r.get("symbol") for r in records if r.get("symbol")]
+        history = await self.repository.get_recent_volumes(symbols)
+        attached = 0
+        for rec in records:
+            symbol = rec.get("symbol")
+            today = rec.get("matchQty") or rec.get("totalVolume") or rec.get("volume")
+            if not symbol or today is None:
+                continue
+            series = list(history.get(symbol) or [])
+            # Today's bar may not be stored yet (the board is a live snapshot),
+            # so it is appended and judged at the end of its own history. The
+            # baseline is strictly the bars BEFORE it either way.
+            series.append(today)
+            reading = relative_volume(series, len(series) - 1)
+            if reading.known:
+                rec["relVolume"] = round(reading.value, 4)
+                attached += 1
+        logger.info(
+            "Relative volume attached to %d/%d priceboard records", attached, len(records)
+        )
+
     async def refresh_all_prices(
         self, *, max_symbols: Optional[int] = None, pause_seconds: float = 2.0
     ) -> dict:
@@ -2653,6 +2692,18 @@ class StockService:
 
         await session.commit()
         logger.info(f"Refreshed price board for {group_upper}: {len(records)} records")
+
+        # Backlog #117 — attach each record's RELATIVE VOLUME before fanning
+        # out, because this is the only place that has both today's volume and
+        # the symbol's history. The alert consumer in portfolio-service sees one
+        # event at a time and has no trailing window of its own, so a ratio
+        # computed there would need a round trip per symbol per refresh.
+        try:
+            await self._attach_relative_volume(records)
+        except Exception as e:
+            # A missing reading is a neutral absence, never a reason to drop the
+            # price fan-out: consumers treat an absent ratio as "unknown".
+            logger.warning(f"Could not attach relative volume: {e}")
 
         # Fan out price updates so portfolio-service alerts (and others)
         # can react. Best-effort — does not block or fail the refresh.

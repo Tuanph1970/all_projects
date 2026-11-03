@@ -19,6 +19,12 @@ class AlertType(enum.Enum):
     ABOVE = "above"
     BELOW = "below"
     CHANGE_PERCENT = "change_percent"
+    #: Backlog #117. Fires when a symbol's volume is a multiple of its own
+    #: trailing MEDIAN volume — `target_percent` carries the multiple (3.0 =
+    #: three times normal), reusing the existing column rather than adding one.
+    #: Per-symbol by construction: E&M are explicit that "high" volume means
+    #: high FOR THAT STOCK, so there is no absolute share-count threshold.
+    VOLUME_UNUSUAL = "volume_unusual"
 
 
 class Portfolio(Base):
