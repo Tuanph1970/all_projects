@@ -1252,6 +1252,17 @@ class AnalysisService:
     #: Minimum reward-to-risk before a plan is worth stating at all. Below
     #: this, the narrator says so instead of dressing up a bad setup.
     NARRATIVE_MIN_RR = 1.0
+    #: Hard ceiling on one position as a percent of the account.
+    #:
+    #: Found live on the repaired TCB: a 1% risk budget with a stop 2.33% away
+    #: sizes to 42.9% OF THE ACCOUNT. That arithmetic is correct -- 1.0/2.33 is
+    #: 43% -- and it is still terrible advice. Pure risk-parity sizing has no
+    #: opinion about concentration, so the tighter the stop the larger the
+    #: position, without limit. A single adverse gap through a tight stop
+    #: inflicts far more than the 1% that was "risked". So the position is
+    #: capped and the narration SAYS it was capped, rather than quietly
+    #: reporting a smaller number than the risk rule implies.
+    NARRATIVE_MAX_POSITION_PCT = 20.0
 
     async def get_narrative(
         self,
@@ -1706,12 +1717,22 @@ class AnalysisService:
             "rr": round(rr, 2),
         }, "info"))
         shares = int((capital * (risk_pct / 100.0)) // risk) if risk > 0 else 0
+        capped = False
+        if shares > 0 and capital > 0 and entry > 0:
+            max_shares = int((capital * (self.NARRATIVE_MAX_POSITION_PCT / 100.0)) // entry)
+            if max_shares < shares:
+                shares, capped = max_shares, True
         if shares > 0:
             out.append(_F("narrative.strategy.sizing", {
                 "risk_budget_pct": round(risk_pct, 2), "shares": shares,
                 "capital_pct": round(shares * entry / capital * 100.0, 1) if capital else 0.0,
                 "entry": round(entry, 2),
             }, "info"))
+            if capped:
+                out.append(_F("narrative.strategy.size_capped", {
+                    "max_pct": self.NARRATIVE_MAX_POSITION_PCT,
+                    "risk_budget_pct": round(risk_pct, 2),
+                }, "warning"))
         return out
 
 

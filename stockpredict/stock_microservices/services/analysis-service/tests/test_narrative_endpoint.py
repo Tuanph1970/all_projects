@@ -232,9 +232,14 @@ async def test_position_size_scales_with_the_risk_budget():
     # The first version of this test skipped itself when no plan appeared,
     # which meant it could pass for ever without once exercising sizing -- a
     # conditionally-skipped assertion is not an assertion.
+    # The budgets are SMALL on purpose. At 1% and 2% both results now hit the
+    # 20%-of-account concentration cap, so both returned the identical share
+    # count and this test correctly failed -- the cap, not the risk rule, was
+    # setting the size. Below the cap the risk rule governs, which is the
+    # relationship being asserted here; the cap has its own test.
     df = _bars(drift=0.0, seed=1)
-    one = await _svc(df).get_narrative("TEST", capital=100_000_000, risk_pct=1.0)
-    two = await _svc(df).get_narrative("TEST", capital=100_000_000, risk_pct=2.0)
+    one = await _svc(df).get_narrative("TEST", capital=100_000_000, risk_pct=0.05)
+    two = await _svc(df).get_narrative("TEST", capital=100_000_000, risk_pct=0.10)
     f1, f2 = _find(one, "narrative.strategy.sizing"), _find(two, "narrative.strategy.sizing")
     assert f1 is not None and f2 is not None, (
         f"the fixture stopped producing a plan: {_codes(one)}")
@@ -248,8 +253,8 @@ async def test_position_size_scales_with_the_risk_budget():
 @pytest.mark.asyncio
 async def test_a_bigger_account_buys_more_of_the_same_setup():
     df = _bars(drift=0.0, seed=1)
-    small = await _svc(df).get_narrative("TEST", capital=50_000_000, risk_pct=1.0)
-    big = await _svc(df).get_narrative("TEST", capital=200_000_000, risk_pct=1.0)
+    small = await _svc(df).get_narrative("TEST", capital=50_000_000, risk_pct=0.05)
+    big = await _svc(df).get_narrative("TEST", capital=200_000_000, risk_pct=0.05)
     fs, fb = _find(small, "narrative.strategy.sizing"), _find(big, "narrative.strategy.sizing")
     assert fs and fb
     assert fb.params["shares"] > fs.params["shares"]
@@ -494,3 +499,29 @@ async def test_the_recency_window_is_the_displayed_chart_not_a_fixed_number():
     assert _find(wide, "narrative.pattern.noteworthy") is not None, "in view but not narrated"
     assert _find(narrow, "narrative.pattern.noteworthy") is None, "out of view but narrated"
     assert _find(narrow, "narrative.pattern.none_recent") is not None
+
+
+@pytest.mark.asyncio
+async def test_a_position_is_capped_and_the_cap_is_declared():
+    """Found live on the repaired TCB: a 1% risk budget with a 2.33% stop sizes
+    to 42.9% of the account. The arithmetic is right and the advice is awful --
+    risk-parity sizing has no opinion about concentration, so a tight stop grows
+    the position without limit. The cap must bind AND be stated, because a
+    silently smaller number would contradict the risk rule printed beside it."""
+    df = _bars(drift=0.0, seed=1)
+    resp = await _svc(df).get_narrative("TEST", capital=100_000_000, risk_pct=50.0)
+    sizing = _find(resp, "narrative.strategy.sizing")
+    assert sizing is not None, _codes(resp)
+    assert sizing.params["capital_pct"] <= AnalysisService.NARRATIVE_MAX_POSITION_PCT + 0.1
+    note = _find(resp, "narrative.strategy.size_capped")
+    assert note is not None, "the position was capped without saying so"
+    assert note.severity == "warning"
+
+
+@pytest.mark.asyncio
+async def test_a_modest_position_is_not_capped_and_says_nothing_about_it():
+    """Non-vacuity: the cap must bind only when it binds."""
+    df = _bars(drift=0.0, seed=1)
+    resp = await _svc(df).get_narrative("TEST", capital=100_000_000, risk_pct=0.05)
+    if _find(resp, "narrative.strategy.sizing"):
+        assert _find(resp, "narrative.strategy.size_capped") is None

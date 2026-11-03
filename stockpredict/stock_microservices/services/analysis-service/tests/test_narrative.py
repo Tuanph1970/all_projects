@@ -522,6 +522,7 @@ ALL_CODES = [
     "narrative.pattern.none",
     "narrative.pattern.none_recent",
     "narrative.pattern.unavailable",
+    "narrative.strategy.size_capped",
 ]
 
 

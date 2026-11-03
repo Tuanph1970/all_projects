@@ -2859,7 +2859,8 @@
       "sizing": "Với mức rủi ro {{risk_budget_pct}}% tổng vốn, tương ứng {{shares}} cổ phiếu, chiếm khoảng {{capital_pct}}% tài khoản tại giá {{entry}}.",
       "rr_too_thin": "Kháng cự gần nhất quá sát hỗ trợ gần nhất nên không đủ bù rủi ro ({{rr}}:1). Một kế hoạch cần có không gian, và ở đây thì không còn.",
       "against_trend": "Đây sẽ là lệnh đi ngược xu hướng chính, tức là cách dùng mọi dữ kiện ở trên với xác suất thắng thấp nhất.",
-      "contaminated": "Không đưa ra kế hoạch: dữ liệu giá trong cửa sổ này có một sự kiện doanh nghiệp chưa được điều chỉnh, nên các vùng giá và chỉ số biến động dùng để lập kế hoạch đều không đáng tin."
+      "contaminated": "Không đưa ra kế hoạch: dữ liệu giá trong cửa sổ này có một sự kiện doanh nghiệp chưa được điều chỉnh, nên các vùng giá và chỉ số biến động dùng để lập kế hoạch đều không đáng tin.",
+      "size_capped": "Đã giới hạn ở {{max_pct}}% tài khoản. Nếu chỉ áp quy tắc rủi ro {{risk_budget_pct}}% thì khối lượng sẽ lớn hơn, vì khi điểm cắt lỗ càng gần thì cách tính theo rủi ro càng đẩy vị thế phình ra không có giới hạn — và một phiên giá nhảy xuyên qua điểm cắt lỗ sẽ khiến bạn mất nhiều hơn con số phần trăm tưởng như đang chấp nhận rủi ro."
     },
     "disclaimer": "Đây là cách đọc dữ liệu giá và khối lượng trong quá khứ, không phải dự báo và không phải lời khuyên đầu tư. Mọi vùng giá nêu ở trên đều hiển thị trên đồ thị bên cạnh — hãy tự kiểm tra lại trước khi hành động.",
     "divergence": {

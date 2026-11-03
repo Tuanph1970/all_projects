@@ -34,6 +34,11 @@ from typing import Any, Dict, List, Optional, Sequence
 import numpy as np
 import pandas as pd
 
+from stock_common.analytics.corporate_actions import (
+    MAX_BELIEVABLE_DAILY_MOVE_PCT as _SHARED_MAX_MOVE_PCT,
+    find_price_seams,
+)
+
 # ---------------------------------------------------------------------------
 # Finding
 # ---------------------------------------------------------------------------
@@ -62,18 +67,11 @@ class Finding:
 # 1. The honesty gate (Backlog #119)
 # ---------------------------------------------------------------------------
 
-#: Default ceiling for a single session's move before we stop believing it was
-#: trading. Vietnam's boards cap daily moves: HOSE +/-7%, HNX +/-10%, UPCoM
-#: +/-15%. We do NOT know a symbol's board here, so the default is the LOOSEST
-#: of the three. A tighter 7% would flag every legitimate HNX and UPCoM limit
-#: day as a corporate action, and a narrator that cries "stock dividend" on real
-#: limit moves would be ignored — which costs more than the misses.
-#:
-#: The comparison is strictly `>`, so a UPCoM limit-up of exactly +15.0% is NOT
-#: flagged. All four real gaps in this database clear 15% comfortably: TCB
-#: -33.8% (2026-10-27), HDB -26.6% (2021-07-19), TPB -17.7% (2021-07-09), VPB
-#: -17.5% (2021-07-01) — every one a bank stock dividend.
-MAX_BELIEVABLE_DAILY_MOVE_PCT = 15.0
+#: Re-exported from the shared detector so the #118 narrator and the
+#: stock-data-service repair path cannot disagree about what counts as an
+#: impossible move. See stock_common.analytics.corporate_actions for the
+#: reasoning and the measured VN board limits.
+MAX_BELIEVABLE_DAILY_MOVE_PCT = _SHARED_MAX_MOVE_PCT
 
 
 def find_corporate_action_gaps(
@@ -81,48 +79,32 @@ def find_corporate_action_gaps(
     *,
     max_move_pct: float = MAX_BELIEVABLE_DAILY_MOVE_PCT,
 ) -> List[Dict[str, Any]]:
-    """Overnight moves too large to have been trading.
+    """Overnight moves too large to have been trading (Backlog #119).
 
-    Backlog #119: this price history is NOT adjusted for corporate actions, and
-    the column that looks like the fix (`adj_close`) is a byte-for-byte copy of
-    `close` on all 42,994 rows. So a stock dividend appears as a vertical crash.
-    TCB fell 33.80 -> 22.37 overnight on 2026-10-27; the holder's value did not
-    change at all.
+    A thin DataFrame adapter over `stock_common.analytics.find_price_seams`.
+    The detection logic lives in stock-common because TWO services need it and
+    they must agree: analysis-service narrates the seam, stock-data-service
+    repairs it. A second local copy is how the two drift.
 
-    An analyst that reads that as a breakdown gives a stop-loss on a non-event,
-    and every derived number inherits it silently: MA200 stays contaminated for
-    200 bars, ATR and Bollinger width spike, RSI reads deeply oversold, and the
-    #117 relative-volume baseline sees a surge on the ex-date. So the narrator
-    finds these FIRST and says so, rather than narrating the gap as a price move.
+    WHAT THE SEAM ACTUALLY IS, since it changes what the narrator should say.
+    The stored TCB series falls -33.8% overnight on 2026-10-27, which no VN
+    board permits. But vnstock/VCI returns a CONTINUOUS series across that date
+    -- the provider restates the whole prior history on a share-count event.
+    The discontinuity is our own ingestion: `_top_up_prices` appends only bars
+    after the last stored date, so restated history never lands on rows already
+    held. So this is a DATA FAULT we introduced, not an unadjusted provider
+    feed, and the fix is to re-pull the symbol rather than to compute a local
+    adjustment.
 
-    Returns one entry per gap, oldest first. An empty list means the window is
-    clean — which is the common case: only four such gaps exist in five years.
+    Returns dicts (not PriceSeam) because the narrator's params go straight out
+    as JSON.
     """
     closes = _column(ohlc, "close")
     if closes is None or len(closes) < 2:
         return []
-
-    out: List[Dict[str, Any]] = []
-    dates = _dates(ohlc)
-    values = closes.to_numpy(dtype=float)
-    for i in range(1, len(values)):
-        prev, cur = values[i - 1], values[i]
-        if not np.isfinite(prev) or not np.isfinite(cur) or prev <= 0:
-            continue
-        move = (cur - prev) / prev * 100.0
-        if abs(move) > max_move_pct:
-            # A stock dividend or bonus issue multiplies the share count, so the
-            # price divides. The ratio is the informative number: 33.80/22.37 is
-            # about 1.51, i.e. roughly a 3-for-2 issue.
-            out.append({
-                "date": dates[i],
-                "prev_close": round(float(prev), 4),
-                "close": round(float(cur), 4),
-                "move_pct": round(float(move), 2),
-                "ratio": round(float(prev / cur), 4) if cur > 0 else None,
-                "bar_index": i,
-            })
-    return out
+    seams = find_price_seams(
+        closes.tolist(), _dates(ohlc), max_move_pct=max_move_pct)
+    return [s.as_dict() for s in seams]
 
 
 def gap_findings(gaps: Sequence[Dict[str, Any]]) -> List[Finding]:

@@ -602,3 +602,26 @@ async def sync_stock_data(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to sync data: {str(e)}",
         )
+
+@router.post("/stocks/{symbol}/repair-history")
+async def repair_price_history(
+    symbol: str,
+    dry_run: bool = Query(default=True,
+                          description="Detect only; do not re-fetch. Default TRUE."),
+    stock_service: StockService = Depends(get_stock_service),
+    _user: dict = Depends(require_admin),
+):
+    """Backlog #119 — find impossible overnight moves and re-pull to fix them.
+
+    A stored series can contain a move no Vietnamese board permits (HOSE 7%,
+    HNX 10%, UPCoM 15%). That is not a crash and not an unadjusted provider
+    feed: vnstock/VCI restates a symbol's whole history on a share-count event,
+    but `_top_up_prices` appends only bars after the last stored date, so the
+    restated rows never land and the old and new scales meet at a seam.
+
+    The repair re-fetches the full history and lets the upsert restate every
+    row. `dry_run` DEFAULTS TO TRUE because the live path spends a vnstock call
+    against a 20-request-per-minute quota and rewrites every bar the symbol
+    has; writing that much should be asked for explicitly.
+    """
+    return await stock_service.repair_price_seams(symbol, dry_run=dry_run)

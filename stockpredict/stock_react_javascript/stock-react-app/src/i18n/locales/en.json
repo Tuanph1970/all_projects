@@ -2859,7 +2859,8 @@
       "sizing": "At {{risk_budget_pct}}% of capital at risk, that is {{shares}} shares, about {{capital_pct}}% of the account at {{entry}}.",
       "rr_too_thin": "The nearest resistance is too close to the nearest support to pay for the risk here ({{rr}}:1). A plan needs room, and this one has none.",
       "against_trend": "This would be a trade against the dominant trend, which is the lowest-probability way to use any of the readings above.",
-      "contaminated": "No plan is offered: the price history in this window contains an unadjusted corporate action, so the levels and volatility it would be built on are not trustworthy."
+      "contaminated": "No plan is offered: the price history in this window contains an unadjusted corporate action, so the levels and volatility it would be built on are not trustworthy.",
+      "size_capped": "Capped at {{max_pct}}% of the account. The {{risk_budget_pct}}% risk rule on its own would have bought more, because a tight stop makes risk-based sizing grow without limit — and a gap straight through that stop costs far more than the percentage nominally being risked."
     },
     "disclaimer": "This is a reading of past price and volume, not a forecast and not investment advice. Every level named above is visible on the chart beside it — check it yourself before acting.",
     "divergence": {

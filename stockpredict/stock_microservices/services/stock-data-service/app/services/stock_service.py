@@ -42,6 +42,14 @@ from app.models.schemas import (
     CashFlowData,
 )
 from app.repositories.stock_repository import StockRepository
+#: Upper bound on bars scanned for seams. Well above any symbol's history
+#: (the longest here is 1345 bars) so the scan is never silently partial.
+SEAM_SCAN_MAX_BARS = 100_000
+
+from stock_common.analytics.corporate_actions import (
+    MAX_BELIEVABLE_DAILY_MOVE_PCT as SEAM_MAX_MOVE_PCT,
+    find_price_seams,
+)
 
 
 settings = get_settings()
@@ -1725,6 +1733,116 @@ class StockService:
         # Fallback: Fetch live data directly from vnstock
         logger.info(f"Database empty for {symbol}, fetching live historical data from vnstock")
         return await self._get_historical_data_live(symbol, start_date, end_date)
+
+    async def repair_price_seams(
+        self,
+        symbol: str,
+        *,
+        max_move_pct: float = SEAM_MAX_MOVE_PCT,
+        dry_run: bool = False,
+    ) -> dict:
+        """Find impossible overnight moves in stored history and re-pull to fix them.
+
+        Backlog #119. WHAT THE BUG ACTUALLY IS, because the obvious diagnosis is
+        wrong and leads to the wrong fix.
+
+        Stored TCB fell 33.80 -> 22.37 overnight on 2026-10-27, which is -33.8%.
+        No Vietnamese board permits that in one session (HOSE 7%, HNX 10%, UPCoM
+        15%), so it cannot be trading. The tempting conclusion is "our prices are
+        not adjusted for the stock dividend, so compute an adjustment factor".
+
+        That would have been wrong. Asked directly on 2026-11-03, vnstock/VCI
+        returns a CONTINUOUS series across that date -- 22.80, 22.53, 22.37 --
+        because the provider restates the entire prior history when a share-count
+        event changes the scale. Backlog #56 documented this and verified it
+        against TCB's June 2024 bonus issue; that documentation was correct.
+
+        The discontinuity is OURS. `_top_up_prices` fetches only bars after the
+        last stored date, so when the provider restates history our already-stored
+        pre-event rows keep the old scale while the appended rows arrive on the
+        new one. The seam is the join between two scales.
+
+        So the repair is to RE-FETCH the symbol's full history and let the upsert
+        restate every row -- never to apply a local adjustment factor, which would
+        diverge from the provider the next time the symbol were re-pulled and
+        leave two different "adjusted" series in one database.
+
+        Returns a report; never raises. `dry_run` detects without re-fetching.
+        """
+        company = await self.repository.get_company_by_symbol(symbol)
+        if not company:
+            return {"symbol": symbol.upper(), "error": "company not found"}
+
+        def _report(seams, **extra):
+            return {
+                "symbol": symbol.upper(),
+                "seams": [s.as_dict() for s in seams],
+                **extra,
+            }
+
+        # limit is EXPLICIT and large: get_historical_prices defaults to 1000
+        # and TCB alone holds 1345 bars, so the default would silently drop
+        # the oldest history and with it any seam living there -- the 2021
+        # HDB/TPB/VPB seams are exactly that old.
+        rows = await self.repository.get_historical_prices(
+            company.id, None, None, limit=SEAM_SCAN_MAX_BARS)
+        if not rows or len(rows) < 2:
+            return _report([], repaired=False, reason="not enough stored history")
+
+        rows = sorted(rows, key=lambda r: r.date)
+        before = find_price_seams(
+            [r.close for r in rows],
+            [r.date.isoformat() for r in rows],
+            max_move_pct=max_move_pct,
+        )
+        if not before:
+            return _report([], repaired=False, reason="no seams found")
+        if dry_run:
+            return _report(before, repaired=False, reason="dry run")
+
+        first, last = rows[0].date, rows[-1].date
+        try:
+            saved = await self.fetch_and_save_historical_data(
+                symbol=symbol, start_date=first, end_date=date.today(),
+            )
+        except Exception as exc:
+            logger.warning("Seam repair re-fetch failed for %s: %s", symbol, exc)
+            try:
+                await self.repository.session.rollback()
+            except Exception:
+                pass
+            return _report(before, repaired=False, reason=f"re-fetch failed: {exc}")
+
+        # EXPIRE BEFORE RE-READING, or the verification is a lie.
+        #
+        # The session factory sets expire_on_commit=False, so after the upsert
+        # commits the identity map still holds the pre-repair StockPrice
+        # objects. Reading again returned those, and the result was worse than
+        # a plain stale read: the re-fetch also inserted bars OLDER than
+        # anything stored (TCB gained history back to 2021-03-15), so the
+        # second read mixed FRESH rows at the new scale with CACHED rows at the
+        # old one and manufactured a brand-new seam at the old first date --
+        # +50.31% on 2021-06-14, a discontinuity that exists nowhere but in
+        # that session's memory. Observed on all four symbols on 2026-11-03,
+        # while the database itself was already correct.
+        self.repository.session.expire_all()
+        after_rows = await self.repository.get_historical_prices(
+            company.id, None, None, limit=SEAM_SCAN_MAX_BARS)
+        after_rows = sorted(after_rows or [], key=lambda r: r.date)
+        after = find_price_seams(
+            [r.close for r in after_rows],
+            [r.date.isoformat() for r in after_rows],
+            max_move_pct=max_move_pct,
+        )
+        # Reported honestly: a re-fetch that did not actually close the seam is a
+        # failed repair, not a successful one. A genuine corporate action the
+        # provider has NOT restated would land here and must stay visible.
+        logger.info(
+            "Seam repair %s: %s -> %s seam(s), %s bars restated (%s..%s)",
+            symbol.upper(), len(before), len(after), saved, first, last,
+        )
+        return _report(after, repaired=not after, seams_before=[s.as_dict() for s in before],
+                       bars_restated=saved, range=[first.isoformat(), last.isoformat()])
 
     async def _top_up_prices(self, symbol: str, latest: date, target: date) -> bool:
         """Fetch and store bars after ``latest`` up to ``target``; True if any were saved.
