@@ -212,3 +212,16 @@ __marimo__/
 # stock-data-service cannot be built from scratch. See vendor/wheels/README.md.
 !vendor/wheels/
 !vendor/wheels/**
+
+# Backlog note, 2026-11-03: written by vnstock's `vnai` package on
+# `import vnstock` (versions <= 2.6.1), so it reappears in this directory
+# whenever the test suite runs here. It was swept into commit 73ac38e6 by a
+# `git add -A` and removed again immediately after.
+#
+# Ignored rather than kept for one specific reason: AGENTS.md is a conventional
+# AGENT-INSTRUCTIONS filename, so a checked-in copy would be read by future
+# agent sessions as though it were this project's own guidance. The content
+# itself is benign vendor install documentation that explicitly grants no
+# permissions — but third-party text must not occupy the slot reserved for
+# ours. CLAUDE.md and ROADMAP.xlsx are the source of truth in this repo.
+AGENTS.md
