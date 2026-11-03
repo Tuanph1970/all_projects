@@ -516,6 +516,12 @@ ALL_CODES = [
     "narrative.divergence.bullish_rsi",
     "narrative.channel.broken_below",
     "narrative.channel.broken_above",
+    "narrative.pattern.noteworthy",
+    "narrative.pattern.not_noteworthy",
+    "narrative.pattern.unvalidated",
+    "narrative.pattern.none",
+    "narrative.pattern.none_recent",
+    "narrative.pattern.unavailable",
 ]
 
 

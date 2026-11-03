@@ -2799,7 +2799,8 @@
       "indicators": "Indicators",
       "patterns": "Candles & patterns",
       "channel": "Price channel",
-      "strategy": "A concrete plan"
+      "strategy": "A concrete plan",
+      "chart_patterns": "Chart formations"
     },
     "data": {
       "corporate_action_gap": "Unadjusted data: on {{date}} the close went from {{prev_close}} to {{close}} ({{move_pct}}%). That is beyond the daily trading limit, so it is almost certainly a stock dividend or split (ratio about {{ratio}}:1) and not a real fall — the value of the holding did not change. Treat the moving averages, ATR, Bollinger width and RSI as contaminated until the window clears it.",
@@ -2865,6 +2866,14 @@
       "bearish_rsi": "Bearish RSI divergence: price made a higher high, from {{from_price}} on {{from_date}} to {{to_price}} on {{to_date}}, but RSI fell from {{from_rsi}} to {{to_rsi}}. The new high was made with less force than the one before it.",
       "bullish_rsi": "Bullish RSI divergence: price made a lower low, from {{from_price}} on {{from_date}} to {{to_price}} on {{to_date}}, but RSI rose from {{from_rsi}} to {{to_rsi}}. The new low came with less selling pressure behind it than the one before.",
       "none": "Price and RSI agree across the last two swings — no divergence to report."
+    },
+    "pattern": {
+      "noteworthy": "{{name}} completed {{bars_ago}} sessions ago, and it clears the bar: its score sits at the {{percentile}}th percentile of what the same detector finds in random-walk charts, above the {{threshold}}th-percentile threshold. For scale, this shape turns up {{expected_in_noise}} times in an average random chart of this length.",
+      "not_noteworthy": "{{count}} shape(s) were detected — {{names}} — but NONE of them is stronger than chance. The best, {{best_name}}, scores at only the {{best_percentile}}th percentile of the same detector's results on random-walk charts, where {{threshold}} is the bar, and that shape appears {{expected_in_noise}} times in an average random chart of this length. Shapes like these are what a coin-flip chart looks like, so they are reported and not acted on.",
+      "unvalidated": "{{count}} shape(s) detected ({{names}}), but the random-walk benchmark could not be computed, so there is no way to tell them from chance. Treated as unmeasured rather than as signals.",
+      "none": "No multi-week chart formation was detected in this window.",
+      "none_recent": "{{count}} formation(s) exist earlier in the history but none finished within the last {{recent_bars}} sessions, so none of them is about the present.",
+      "unavailable": "The pattern service could not be reached, so chart formations were not examined this time. Everything else above is unaffected."
     }
   }
 }

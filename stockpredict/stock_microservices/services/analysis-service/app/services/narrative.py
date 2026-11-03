@@ -423,3 +423,134 @@ def _dates(df: pd.DataFrame) -> List[Optional[str]]:
         except (TypeError, ValueError):
             out.append(None)
     return out
+
+
+# ---------------------------------------------------------------------------
+# 5. Chart patterns, read from chart-decomp-service (Backlog #118)
+# ---------------------------------------------------------------------------
+
+#: Percentile of the random-walk null a detection's score must exceed before
+#: chart-decomp calls it `noteworthy` (FR-FPR-2, NullFPRParams.noteworthy_pct).
+#: Duplicated here only to STATE it in the narration; the flag itself always
+#: comes from the service, never recomputed.
+NOTEWORTHY_PERCENTILE = 95.0
+
+#: Fallback recency window for direct callers. `get_narrative` overrides it
+#: with THE LENGTH OF THE DISPLAYED CHART, which is the principled rule: the
+#: text describes what the reader can see, exactly as the named S/R levels do.
+#:
+#: This default was the whole window at first and that was measurably wrong.
+#: On real FPT bars the pattern service returned six formations and the most
+#: recent ended 106 bars (about five months) back -- narrating those beside
+#: today's RSI invites them to be read as live signals. But a fixed 60 is just
+#: as arbitrary in the other direction: it would hide a formation plainly
+#: visible on a 180-bar chart. Tying it to the display resolves both.
+PATTERN_RECENT_BARS = 60
+
+#: Conventional direction per pattern. THIS MAPPING IS OURS, not the detector's
+#: -- chart-decomp reports the SHAPE and (at multi-scale) a `directional_bias`,
+#: and where it supplies one we use it. The fallback below is the standard
+#: Edwards & Magee reading, and a symmetric triangle is deliberately neutral
+#: because the book is explicit that it resolves either way.
+PATTERN_DIRECTION = {
+    "Head & Shoulders": "bearish",
+    "Inverse Head & Shoulders": "bullish",
+    "Double Top": "bearish",
+    "Double Bottom": "bullish",
+    "Bear Flag": "bearish",
+    "Bull Flag": "bullish",
+    "Bear Pennant": "bearish",
+    "Bull Pennant": "bullish",
+    "Ascending Triangle": "bullish",
+    "Descending Triangle": "bearish",
+    "Symmetric Triangle": "info",
+}
+
+
+def pattern_direction(name: str, reported_bias: Optional[str] = None) -> str:
+    """Severity for a pattern: the service's bias if it gave one, else the map."""
+    if reported_bias:
+        b = str(reported_bias).strip().lower()
+        if b in ("bullish", "bearish"):
+            return b
+        if b in ("neutral", "none", "info"):
+            return "info"
+    return PATTERN_DIRECTION.get(name, "info")
+
+
+def chart_pattern_findings(
+    detections: Sequence[Dict[str, Any]],
+    fpr_by_pattern: Optional[Dict[str, float]] = None,
+    *,
+    bars_total: int,
+    recent_bars: int = PATTERN_RECENT_BARS,
+) -> List[Finding]:
+    """Narrate chart patterns ONLY as strongly as the null benchmark allows.
+
+    This is the part of #118 most likely to mislead, so it is the part most
+    constrained. `chart-decomp-service` detects eleven shapes and, when asked
+    for the C4 null benchmark, reports two numbers that matter far more than
+    the detection itself:
+
+      * `noteworthy` -- whether the score beat the 95th percentile of scores
+        the SAME detector produces on random walks of the same length and
+        volatility;
+      * `fpr_by_pattern` -- detections per random-walk series. Note this is a
+        RATE, not a probability: measured on FPT it was 1.25 for Descending
+        Triangle, meaning an average coin-flip chart contains more than one.
+
+    Measured on real FPT bars, six patterns were detected and NOT ONE was
+    noteworthy -- Head & Shoulders scored at the 6.1st percentile of the null.
+    Announcing "Head & Shoulders detected" on that evidence is exactly the
+    fluent-invention failure this feature avoids by not using an LLM, so:
+
+      * a noteworthy pattern is narrated as a finding with its direction;
+      * patterns that are NOT noteworthy produce ONE finding saying shapes are
+        present but no stronger than chance -- never a list that reads like
+        signals;
+      * with no null benchmark available, patterns are reported as UNVALIDATED
+        rather than silently promoted to signals.
+    """
+    rows = [d for d in (detections or []) if isinstance(d, dict)]
+    if not rows:
+        return [Finding("narrative.pattern.none", {}, "info")]
+
+    cutoff = max(0, int(bars_total) - max(1, int(recent_bars)))
+    recent = [d for d in rows if int(d.get("end_index") or 0) >= cutoff]
+    if not recent:
+        return [Finding("narrative.pattern.none_recent", {
+            "count": len(rows), "recent_bars": int(recent_bars)}, "info")]
+
+    rates = fpr_by_pattern or {}
+    graded = [d for d in recent if d.get("noteworthy") is not None]
+    if not graded:
+        names = sorted({str(d.get("pattern")) for d in recent})
+        return [Finding("narrative.pattern.unvalidated", {
+            "count": len(recent), "names": ", ".join(names)}, "warning")]
+
+    out: List[Finding] = []
+    noteworthy = [d for d in graded if d.get("noteworthy")]
+    for d in sorted(noteworthy, key=lambda x: -(x.get("score") or 0.0)):
+        name = str(d.get("pattern"))
+        out.append(Finding("narrative.pattern.noteworthy", {
+            "name": name,
+            "score": round(float(d.get("score") or 0.0), 2),
+            "percentile": round(float(d.get("null_percentile") or 0.0), 1),
+            "threshold": NOTEWORTHY_PERCENTILE,
+            "expected_in_noise": round(float(rates.get(name, 0.0)), 2),
+            "bars_ago": max(0, int(bars_total) - 1 - int(d.get("end_index") or 0)),
+        }, pattern_direction(name, d.get("directional_bias"))))
+
+    unremarkable = [d for d in graded if not d.get("noteworthy")]
+    if unremarkable:
+        best = max(unremarkable, key=lambda x: float(x.get("null_percentile") or 0.0))
+        names = sorted({str(d.get("pattern")) for d in unremarkable})
+        out.append(Finding("narrative.pattern.not_noteworthy", {
+            "count": len(unremarkable),
+            "names": ", ".join(names),
+            "best_name": str(best.get("pattern")),
+            "best_percentile": round(float(best.get("null_percentile") or 0.0), 1),
+            "threshold": NOTEWORTHY_PERCENTILE,
+            "expected_in_noise": round(float(rates.get(str(best.get("pattern")), 0.0)), 2),
+        }, "info"))
+    return out

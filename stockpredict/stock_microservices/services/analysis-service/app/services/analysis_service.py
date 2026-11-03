@@ -1290,8 +1290,8 @@ class AnalysisService:
             NarrativeSection,
         )
         from app.services.narrative import (
-            detect_candles, detect_rsi_divergence, find_corporate_action_gaps,
-            gap_findings, price_channel,
+            chart_pattern_findings, detect_candles, detect_rsi_divergence,
+            find_corporate_action_gaps, gap_findings, price_channel,
         )
 
         period = max(60, min(int(period), 1000))
@@ -1478,6 +1478,36 @@ class AnalysisService:
             pats.append(_F("narrative.candle.none", {}, "info"))
         _sec("patterns", pats)
 
+        # The display window is needed BEFORE the pattern section: a formation
+        # is narrated when it is visible on the chart the reader is looking at,
+        # which is the same rule the named S/R levels follow.
+        display_first = max(0, len(df) - period)
+        if start_date:
+            try:
+                _begin = pd.Timestamp(start_date[:10])
+                _hits = df.index[df["date"] >= _begin]
+                if len(_hits):
+                    display_first = int(_hits[0])
+            except (TypeError, ValueError):
+                pass
+
+        # --- chart patterns, from chart-decomp-service ----------------------
+        # A SEPARATE SECTION from the candles above, deliberately. Candlesticks
+        # are one- and two-bar shapes computed here; these are multi-week
+        # formations detected by another service and graded against a
+        # random-walk null. Mixing them would hide that only one of the two
+        # carries a measured reliability.
+        pattern_payload = await self._fetch_chart_patterns(closes.tolist())
+        if pattern_payload is None:
+            _sec("chart_patterns", [_F("narrative.pattern.unavailable", {}, "info")])
+        else:
+            _sec("chart_patterns", chart_pattern_findings(
+                pattern_payload.get("detections") or [],
+                pattern_payload.get("fpr_by_pattern") or {},
+                bars_total=len(df),
+                recent_bars=max(1, len(df) - display_first),
+            ))
+
         # --- channel --------------------------------------------------------
         ch = price_channel(df)
         if ch is None:
@@ -1510,16 +1540,7 @@ class AnalysisService:
             data_ok=data_ok, capital=capital, risk_pct=risk_pct))
 
         # --- the chart the text refers to ----------------------------------
-        first = max(0, len(df) - period)
-        if start_date:
-            try:
-                begin = pd.Timestamp(start_date[:10])
-                hits = df.index[df["date"] >= begin]
-                if len(hits):
-                    first = int(hits[0])
-            except (TypeError, ValueError):
-                pass
-        tail = slice(first, len(df))
+        tail = slice(display_first, len(df))
         chart = [
             NarrativeBar(
                 date=dates[i],
@@ -1572,6 +1593,50 @@ class AnalysisService:
             return str(getattr(name, "value", name)), float(conf), float(adx)
         except Exception as exc:                       # pragma: no cover
             logger.warning("narrative: regime failed: %s", exc)
+            return None
+
+    async def _fetch_chart_patterns(self, closes: List[float]) -> Optional[dict]:
+        """Ask chart-decomp-service for chart patterns AND the null benchmark.
+
+        Patterns are not detected here. chart-decomp-service owns eleven
+        detectors behind `/patterns/pipeline`, validated against a random-walk
+        null (C4); growing a second detector in this service would produce two
+        answers to the same question, which is the thing this codebase keeps
+        paying for.
+
+        `compute_fpr=True` is NOT optional. Without it every detection comes
+        back with `noteworthy=None`, and the narrator would have no basis for
+        saying whether a head-and-shoulders is a signal or a shape a coin-flip
+        chart produces just as often. The seed is fixed so the same bars give
+        the same verdict twice -- a reading that changes on refresh is not a
+        reading.
+
+        FAILS SOFT. Returns None if the service is down, slow or unhappy; the
+        narrator then says patterns are unavailable rather than failing the
+        whole analysis over one optional section.
+        """
+        url = (f"{settings.CHART_DECOMP_SERVICE_URL}/{settings.API_PREFIX}"
+               f"/api/v2/chart-decomp/patterns/pipeline")
+        payload = {
+            "series": [float(c) for c in closes],
+            "compute_fpr": True,
+            "n_null": int(getattr(settings, "NARRATIVE_PATTERN_NULL_N", 300)),
+            "fpr_seed": 118,
+        }
+        try:
+            async with httpx.AsyncClient() as client:
+                # 20s, not 45. This sits behind a button press, and the
+                # section is optional -- a slow pattern service should degrade
+                # the page, not hold the whole reading hostage. Measured at
+                # ~0.8s for 300 surrogates on 454 bars.
+                r = await client.post(url, json=payload, timeout=20.0)
+            if r.status_code != 200:
+                logger.warning("narrative: patterns HTTP %s: %s",
+                               r.status_code, r.text[:200])
+                return None
+            return r.json()
+        except Exception as exc:
+            logger.warning("narrative: chart patterns unavailable: %s", exc)
             return None
 
     def _relative_volume_last(self, df: "pd.DataFrame") -> Optional[float]:

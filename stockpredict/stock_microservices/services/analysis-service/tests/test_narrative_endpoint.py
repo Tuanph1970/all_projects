@@ -37,9 +37,19 @@ def _bars(n=320, start=50.0, drift=0.0, seed=118, last_close=None, gap_at=None,
     return df
 
 
-def _svc(df):
+def _svc(df, patterns=None):
+    """A service with its two outbound calls stubbed.
+
+    `_fetch_chart_patterns` is stubbed to None by DEFAULT, and that is not
+    laziness: it reaches chart-decomp-service over HTTP, and leaving it live
+    made this suite hang -- `http://chart-decomp-service:8011` does not resolve
+    outside the compose network, so every test sat on the connect timeout. A
+    unit suite that depends on another service being up is not a unit suite.
+    Returning None also exercises the fail-soft path on every test.
+    """
     svc = AnalysisService(AsyncMock())
     svc._fetch_historical_data = AsyncMock(return_value=df)
+    svc._fetch_chart_patterns = AsyncMock(return_value=patterns)
     return svc
 
 
@@ -205,7 +215,8 @@ async def test_every_section_is_present_even_when_it_has_nothing_to_say():
     "nothing here" is the honest version."""
     resp = await _svc(_bars()).get_narrative("TEST")
     assert [s.key for s in resp.sections] == [
-        "data", "trend", "levels", "indicators", "patterns", "channel", "strategy"]
+        "data", "trend", "levels", "indicators", "patterns", "chart_patterns",
+        "channel", "strategy"]
     for s in resp.sections:
         assert s.findings, f"section {s.key} is empty"
 
@@ -414,3 +425,72 @@ async def test_a_price_inside_the_channel_is_not_reported_as_broken():
              _find(resp, "narrative.channel.flat")
         if ch and 0 < ch.params["position_pct"] < 100:
             assert inside, "a price inside the rails was called a break"
+
+
+# ---------------------------------------------------------------------------
+# Chart patterns reach the response, and their absence is survivable
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_the_narrator_survives_the_pattern_service_being_down():
+    """Fail-soft. One optional section must not take the whole analysis with it."""
+    resp = await _svc(_bars(), patterns=None).get_narrative("TEST")
+    assert resp is not None
+    sec = next(s for s in resp.sections if s.key == "chart_patterns")
+    assert [f.code for f in sec.findings] == ["narrative.pattern.unavailable"]
+    # ...and everything else still rendered.
+    assert _find(resp, "narrative.data.clean") is not None
+
+
+@pytest.mark.asyncio
+async def test_a_noteworthy_formation_reaches_the_response():
+    payload = {
+        "detections": [{
+            "pattern": "Double Bottom", "start_index": 290, "end_index": 318,
+            "score": 0.93, "null_percentile": 97.5, "noteworthy": True,
+            "directional_bias": None,
+        }],
+        "fpr_by_pattern": {"Double Bottom": 0.163},
+    }
+    resp = await _svc(_bars(n=320), patterns=payload).get_narrative("TEST")
+    f = _find(resp, "narrative.pattern.noteworthy")
+    assert f is not None, _codes(resp)
+    assert f.severity == "bullish"
+    assert f.params["name"] == "Double Bottom"
+
+
+@pytest.mark.asyncio
+async def test_an_unremarkable_formation_is_not_promoted_in_the_response():
+    """The end-to-end form of the rule: chart-decomp says 'not noteworthy' and
+    the response must not contain a signal."""
+    payload = {
+        "detections": [{
+            "pattern": "Head & Shoulders", "start_index": 290, "end_index": 318,
+            "score": 0.55, "null_percentile": 6.1, "noteworthy": False,
+        }],
+        "fpr_by_pattern": {"Head & Shoulders": 0.49},
+    }
+    resp = await _svc(_bars(n=320), patterns=payload).get_narrative("TEST")
+    assert _find(resp, "narrative.pattern.noteworthy") is None
+    assert _find(resp, "narrative.pattern.not_noteworthy") is not None
+
+
+@pytest.mark.asyncio
+async def test_the_recency_window_is_the_displayed_chart_not_a_fixed_number():
+    """A formation visible on the chart is narrated; one scrolled off is not.
+
+    The same detection is passed twice with different display windows, so the
+    only thing that can change the answer is the window.
+    """
+    payload = {
+        "detections": [{
+            "pattern": "Double Bottom", "start_index": 150, "end_index": 190,
+            "score": 0.93, "null_percentile": 97.5, "noteworthy": True,
+        }],
+        "fpr_by_pattern": {},
+    }
+    wide = await _svc(_bars(n=320), patterns=payload).get_narrative("TEST", period=200)
+    narrow = await _svc(_bars(n=320), patterns=payload).get_narrative("TEST", period=60)
+    assert _find(wide, "narrative.pattern.noteworthy") is not None, "in view but not narrated"
+    assert _find(narrow, "narrative.pattern.noteworthy") is None, "out of view but narrated"
+    assert _find(narrow, "narrative.pattern.none_recent") is not None

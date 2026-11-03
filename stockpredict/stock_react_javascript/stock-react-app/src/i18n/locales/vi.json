@@ -2799,7 +2799,8 @@
       "indicators": "Chỉ báo",
       "patterns": "Nến & mô hình",
       "channel": "Kênh giá",
-      "strategy": "Kế hoạch cụ thể"
+      "strategy": "Kế hoạch cụ thể",
+      "chart_patterns": "Mẫu hình giá"
     },
     "data": {
       "corporate_action_gap": "Dữ liệu chưa điều chỉnh: ngày {{date}}, giá đóng cửa đi từ {{prev_close}} về {{close}} ({{move_pct}}%). Mức này vượt biên độ giao dịch trong ngày, nên gần như chắc chắn là cổ tức bằng cổ phiếu hoặc chia tách (tỷ lệ khoảng {{ratio}}:1) chứ không phải giảm giá thật — giá trị khoản nắm giữ không hề thay đổi. Hãy tạm coi các đường MA, ATR, độ rộng Bollinger và RSI là đã bị nhiễu cho đến khi phiên này ra khỏi cửa sổ tính toán.",
@@ -2865,6 +2866,14 @@
       "bearish_rsi": "Phân kỳ giảm của RSI: giá tạo đỉnh cao hơn, từ {{from_price}} ngày {{from_date}} lên {{to_price}} ngày {{to_date}}, nhưng RSI lại tụt từ {{from_rsi}} xuống {{to_rsi}}. Đỉnh mới được tạo ra bằng lực yếu hơn đỉnh trước đó.",
       "bullish_rsi": "Phân kỳ tăng của RSI: giá tạo đáy thấp hơn, từ {{from_price}} ngày {{from_date}} xuống {{to_price}} ngày {{to_date}}, nhưng RSI lại nhích từ {{from_rsi}} lên {{to_rsi}}. Đáy mới hình thành với áp lực bán nhẹ hơn đáy trước đó.",
       "none": "Giá và RSI đồng thuận ở hai nhịp đảo chiều gần nhất — không có phân kỳ nào để nêu."
+    },
+    "pattern": {
+      "noteworthy": "{{name}} hoàn thiện cách đây {{bars_ago}} phiên, và mẫu hình này đạt chuẩn: điểm số của nó nằm ở phân vị {{percentile}} so với những gì cùng bộ nhận dạng tìm thấy trên các đồ thị bước đi ngẫu nhiên, cao hơn ngưỡng phân vị {{threshold}}. Để so sánh: dạng hình này xuất hiện {{expected_in_noise}} lần trong một đồ thị ngẫu nhiên có độ dài tương đương.",
+      "not_noteworthy": "Phát hiện {{count}} dạng hình — {{names}} — nhưng KHÔNG mẫu nào mạnh hơn mức ngẫu nhiên. Mẫu tốt nhất, {{best_name}}, chỉ đạt phân vị {{best_percentile}} trong kết quả của cùng bộ nhận dạng trên các đồ thị bước đi ngẫu nhiên, trong khi ngưỡng là {{threshold}}; và dạng hình đó xuất hiện tới {{expected_in_noise}} lần trong một đồ thị ngẫu nhiên cùng độ dài. Những dạng hình như vậy chính là hình ảnh của một đồ thị tung đồng xu, nên chỉ nêu ra để biết chứ không dùng để ra quyết định.",
+      "unvalidated": "Phát hiện {{count}} dạng hình ({{names}}), nhưng không tính được mốc so sánh ngẫu nhiên, nên chưa thể phân biệt chúng với sự tình cờ. Tạm coi là chưa được kiểm chứng, không phải tín hiệu.",
+      "none": "Không phát hiện mẫu hình giá nhiều tuần nào trong cửa sổ này.",
+      "none_recent": "Có {{count}} mẫu hình ở giai đoạn trước trong lịch sử, nhưng không mẫu nào kết thúc trong {{recent_bars}} phiên gần nhất, nên không mẫu nào nói về hiện tại.",
+      "unavailable": "Không kết nối được tới dịch vụ nhận dạng mẫu hình, nên lần này chưa xét các mẫu hình giá. Mọi phần khác ở trên không bị ảnh hưởng."
     }
   }
 }

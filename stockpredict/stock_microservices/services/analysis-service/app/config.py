@@ -40,6 +40,14 @@ class Settings(BaseSettings):
 
     # Service URLs
     STOCK_DATA_SERVICE_URL: str = "http://stock-data-service:8001"
+    # Backlog #118: chart patterns (head-and-shoulders, flags, triangles) are
+    # detected by chart-decomp-service, not here. The narrator asks it rather
+    # than growing a second detector that would disagree with the first.
+    CHART_DECOMP_SERVICE_URL: str = "http://chart-decomp-service:8011"
+    # Random-walk surrogates used for the C4 null benchmark. 300 costs well
+    # under a second and is enough to place a score against the null; it is a
+    # setting because a slower box may want fewer.
+    NARRATIVE_PATTERN_NULL_N: int = 300
 
     # Tracing
     TRACING_ENABLED: bool = True

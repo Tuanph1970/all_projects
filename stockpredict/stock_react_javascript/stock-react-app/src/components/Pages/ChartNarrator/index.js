@@ -32,7 +32,7 @@ const SEVERITY_STYLE = {
   info: { row: 'border-l-4 border-slate-300 bg-slate-50', text: 'text-slate-700', Icon: Info },
 };
 
-const SECTION_ORDER = ['data', 'trend', 'levels', 'indicators', 'patterns', 'channel', 'strategy'];
+const SECTION_ORDER = ['data', 'trend', 'levels', 'indicators', 'patterns', 'chart_patterns', 'channel', 'strategy'];
 
 export default function ChartNarrator() {
   const { t } = useTranslation();

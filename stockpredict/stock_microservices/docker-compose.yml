@@ -503,6 +503,7 @@ services:
       - REDIS_PORT=6379
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production}
       - STOCK_DATA_SERVICE_URL=http://stock-data-service:8001
+      - CHART_DECOMP_SERVICE_URL=http://chart-decomp-service:8011
       - TRACING_ENABLED=true
       - TRACING_JAEGER_HOST=jaeger
       - TRACING_JAEGER_PORT=6831

@@ -33,7 +33,7 @@ const flatVi = flatten(vi);
 const literalKeys = [...source.matchAll(/\bt\(\s*'([^']+)'/g)].map((m) => m[1]);
 
 /** Template t(`narrative.section.${...}`) keys, expanded from the known lists. */
-const SECTIONS = ['data', 'trend', 'levels', 'indicators', 'patterns', 'channel', 'strategy'];
+const SECTIONS = ['data', 'trend', 'levels', 'indicators', 'patterns', 'chart_patterns', 'channel', 'strategy'];
 const LEVEL_KINDS = ['support', 'resistance'];
 
 describe('ChartNarrator i18n coverage', () => {
