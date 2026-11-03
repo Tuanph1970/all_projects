@@ -393,3 +393,104 @@ def test_the_api_enum_and_the_domain_enum_agree():
     from app.models.schemas import AlertType as ApiAlertType
 
     assert {t.value for t in DomainAlertType} == {t.value for t in ApiAlertType}
+
+
+def test_the_alert_type_enum_column_is_widened_at_startup():
+    """Backlog #117. The Python enum gaining a member does nothing to the MySQL
+    column: create_all() does not ALTER an existing table, so price_alerts
+    kept enum('ABOVE','BELOW','CHANGE_PERCENT') and an insert failed with
+    "Data truncated for column 'alert_type'".
+
+    That failure appears ONLY against a real MySQL — every Python-side test in
+    this file passes without it, which is exactly why this guard reads the
+    startup SQL instead of trusting them.
+    """
+    import inspect
+
+    import app.main as main_mod
+
+    src = inspect.getsource(main_mod.lifespan)
+    assert "price_alerts MODIFY COLUMN alert_type" in src, (
+        "nothing widens the alert_type column, so VOLUME_UNUSUAL cannot be stored"
+    )
+    # Uppercase member NAMES, because SQLAlchemy Enum persists the name.
+    assert "'VOLUME_UNUSUAL'" in src
+    for existing in ("'ABOVE'", "'BELOW'", "'CHANGE_PERCENT'"):
+        assert existing in src, f"{existing} dropped from the member set — MODIFY replaces it"
+
+
+# ---------------------------------------------------------------------------
+# Backlog #117 — what the notification SAYS
+#
+# The first live firing produced "Your alert for POW fired at 20000.0" — a true
+# sentence about the wrong quantity. A volume alert must state the MULTIPLE, and
+# must not state a verdict: volume is attention, not direction.
+# ---------------------------------------------------------------------------
+
+def _vol_payload(rel_volume=5.0, multiple=3.0):
+    return {
+        "alert_id": 1, "user_id": 1, "symbol": "POW",
+        "alert_type": "volume_unusual",
+        "target_price": None, "target_percent": multiple,
+        "trigger_price": 20000.0, "rel_volume": rel_volume,
+    }
+
+
+def test_the_in_app_notification_states_the_multiple_not_the_price():
+    from app.services.notification_consumer import _format_alert_triggered
+
+    title, body, meta = _format_alert_triggered(_vol_payload())
+    text = f"{title} {body}"
+    assert "5.0x" in text
+    assert "median volume" in text
+    assert "20000" not in text, "the price leaked into a volume alert's message"
+
+
+def test_the_email_states_the_multiple_and_refuses_a_verdict():
+    from app.services.email_service import format_alert_email
+
+    subject, text_body, html_body = format_alert_email(_vol_payload())
+    assert "5.0x" in subject and "POW" in subject
+    assert "median volume" in text_body
+    assert "20000" not in text_body, "the price leaked into a volume alert's email"
+    # It must not claim the news is good or bad — volume is attention only.
+    lowered = text_body.lower()
+    for forbidden in ("good news", "bad news", "bullish", "bearish", "buy", "sell"):
+        assert forbidden not in lowered, forbidden
+    assert "not direction" in lowered
+
+
+def test_the_push_notification_states_the_multiple():
+    from app.services.push_service import format_alert_push
+    out = format_alert_push(_vol_payload())
+    assert "5.0x" in out["title"] or "5.0x" in out["body"]
+    assert "median volume" in out["body"]
+
+
+def test_an_absent_reading_degrades_to_words_not_to_a_fake_number():
+    from app.services.email_service import format_alert_email
+
+    subject, text_body, _ = format_alert_email(_vol_payload(rel_volume=None))
+    assert "unusually high" in subject or "unusually high" in text_body
+    assert "None" not in text_body and "0.0x" not in text_body
+
+
+def test_price_alert_wording_is_unchanged():
+    """Adding a branch must not disturb the three existing kinds."""
+    from app.services.email_service import format_alert_email
+
+    for kind, expect in (("above", "above"), ("below", "below"), ("change_percent", "%")):
+        payload = dict(_vol_payload(), alert_type=kind, target_price=25000.0, target_percent=5.0)
+        subject, body, _ = format_alert_email(payload)
+        assert "POW" in subject
+        assert expect in (subject + body).lower() or expect in (subject + body)
+
+
+def test_the_triggered_event_carries_the_reading():
+    """Without rel_volume on the event the consumers can only quote a price."""
+    import inspect
+
+    import app.services.alert_event_handler as mod
+
+    src = inspect.getsource(mod._handle_price_update)
+    assert '"rel_volume": rel_volume' in src

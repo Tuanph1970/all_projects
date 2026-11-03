@@ -123,6 +123,16 @@ def format_alert_email(payload: dict) -> tuple[str, str, str]:
             f"Your alert for {symbol} fired: price hit {trigger_price}, "
             f"a move greater than {target_percent}%."
         )
+    elif alert_type == "volume_unusual":
+        rel_volume = payload.get("rel_volume")
+        multiple = f"{rel_volume:.1f}x" if rel_volume is not None else "unusually high"
+        subject = f"[Stock Helper] {symbol} volume {multiple} normal"
+        intro = (
+            f"{symbol} traded {multiple} its median volume"
+            + (f", past your {target_percent}x alert." if target_percent else ".")
+            + " Unusual volume says attention, not direction — it does not say"
+            + " whether the news behind it is good or bad."
+        )
     else:
         subject = f"[Stock Helper] Alert triggered for {symbol}"
         intro = f"Your alert for {symbol} fired at {trigger_price}."

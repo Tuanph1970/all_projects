@@ -49,6 +49,14 @@ def format_alert_push(payload: dict) -> dict:
     elif alert_type == "change_percent":
         title = f"{symbol} moved {target_percent}%+"
         body = f"Price hit {trigger_price} — change exceeded {target_percent}%."
+    elif alert_type == "volume_unusual":
+        rel_volume = payload.get("rel_volume")
+        multiple = f"{rel_volume:.1f}x" if rel_volume is not None else "unusually high"
+        title = f"{symbol} volume {multiple} normal"
+        body = (
+            f"{symbol} traded {multiple} its median volume"
+            + (f", past your {target_percent}x alert." if target_percent else ".")
+        )
     else:
         title = f"Alert triggered for {symbol}"
         body = f"Price hit {trigger_price}."

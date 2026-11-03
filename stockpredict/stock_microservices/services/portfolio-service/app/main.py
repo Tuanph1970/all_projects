@@ -102,6 +102,29 @@ async def lifespan(app: FastAPI):
             except Exception as e:  # noqa: BLE001
                 logger.warning("notifications.type enum migration skipped: %s", e)
 
+    # Backlog #117: widen the price_alerts.alert_type ENUM to include
+    # VOLUME_UNUSUAL on existing MySQL databases. Same shape as the notifications
+    # migration above, and necessary for the same reason: create_all() does NOT
+    # alter an existing table, so adding a member to the Python enum leaves the
+    # column holding only the three it was created with. Measured before writing
+    # this — the column read enum('ABOVE','BELOW','CHANGE_PERCENT') and an insert
+    # failed with "Data truncated for column 'alert_type'", which is the ONLY
+    # place that failure appears: every Python-side test passes, because none of
+    # them touches MySQL.
+    #
+    # The member NAMES are uppercase because SQLAlchemy's Enum persists the
+    # member name, not its value — verified against the live column, not assumed.
+    # MODIFY sets the full member set, so re-running is a no-op.
+    if engine.dialect.name == "mysql":
+        async with engine.begin() as conn:
+            try:
+                await conn.execute(text(
+                    "ALTER TABLE price_alerts MODIFY COLUMN alert_type "
+                    "ENUM('ABOVE','BELOW','CHANGE_PERCENT','VOLUME_UNUSUAL') NOT NULL"
+                ))
+            except Exception as e:  # noqa: BLE001
+                logger.warning("price_alerts.alert_type enum migration skipped: %s", e)
+
     # Idempotent: add the watchlist proposal columns to an existing MySQL database
     # (create_all already has them on a fresh one). Each column is checked in
     # information_schema first, so a reboot is a no-op.

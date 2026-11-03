@@ -206,6 +206,13 @@ async def _handle_price_update(event: Event) -> None:
                                 "target_price": alert.target_price,
                                 "target_percent": alert.target_percent,
                                 "trigger_price": float(price),
+                                # Backlog #117. Without this a volume alert's
+                                # notification can only quote a PRICE, which says
+                                # nothing about why it fired — the first live
+                                # firing read "Your alert for POW fired at
+                                # 20000.0", a true sentence about the wrong
+                                # quantity.
+                                "rel_volume": rel_volume,
                             },
                         ).with_causation(event.metadata.event_id)
                     )
