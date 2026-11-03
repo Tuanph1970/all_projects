@@ -5,6 +5,24 @@ from typing import Optional
 
 
 class Settings(BaseSettings):
+    # v0.9 — who may read the feedback inbox.
+    #
+    # WHY AN EMAIL ALLOWLIST AND NOT A ROLE. The deployed `users` table has NO
+    # role or is_admin column: auth-service's JWT sets
+    # `role = payload.get("role", "user")`, so in practice EVERY token says
+    # "user" and nothing can grant admin. An endpoint gated on a role nobody
+    # can hold is unreachable — measured when the stock-data-service
+    # repair-history endpoint refused the owner's own token on 2026-11-03.
+    #
+    # The `email` claim IS present and is signed with JWT_SECRET_KEY, so it is
+    # exactly as trustworthy as the user_id already relied on. Comma-separated,
+    # empty by default: an unset allowlist means nobody reads the inbox through
+    # the API, which is a safe default rather than an open one.
+    #
+    # A real role column is the proper fix and belongs with auth-service; this
+    # is deliberately the small version, and it is written down so the next
+    # person does not mistake it for the design.
+    FEEDBACK_ADMIN_EMAILS: str = ""
     SERVICE_NAME: str = "portfolio-service"
     SERVICE_VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"

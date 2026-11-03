@@ -1,7 +1,7 @@
 """Pydantic Schemas for Portfolio Service"""
 from datetime import date, datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from enum import Enum
 
 
@@ -283,3 +283,73 @@ class PushSubscriptionResponse(BaseModel):
 
 class VapidPublicKeyResponse(BaseModel):
     public_key: str
+
+# ---------------------------------------------------------------------------
+# User feedback (v0.9)
+# ---------------------------------------------------------------------------
+
+class FeedbackCategory(str, Enum):
+    IDEA = "idea"
+    PROBLEM = "problem"
+    CONFUSING = "confusing"
+    PRAISE = "praise"
+    OTHER = "other"
+
+
+class FeedbackStatus(str, Enum):
+    NEW = "new"
+    TRIAGED = "triaged"
+    DONE = "done"
+    DECLINED = "declined"
+
+
+class FeedbackCreate(BaseModel):
+    """What the form submits.
+
+    `message` carries a MINIMUM length, not just a maximum. A one-character
+    submission is an accident or a test, and letting it through fills the inbox
+    with rows that cost the owner attention and carry no information.
+    """
+    category: FeedbackCategory = FeedbackCategory.IDEA
+    message: str = Field(..., min_length=4, max_length=4000)
+    rating: Optional[int] = Field(None, ge=1, le=5)
+    #: Filled by the UI from the current route, so the owner knows WHERE the
+    #: user was. Client-supplied, therefore bounded and never trusted as a path.
+    page: Optional[str] = Field(None, max_length=120)
+    app_version: Optional[str] = Field(None, max_length=32)
+    contact_ok: bool = False
+
+    @field_validator("message")
+    @classmethod
+    def _not_only_whitespace(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("message cannot be only whitespace")
+        return v.strip()
+
+
+class FeedbackResponse(BaseModel):
+    id: int
+    category: FeedbackCategory
+    message: str
+    rating: Optional[int] = None
+    page: Optional[str] = None
+    app_version: Optional[str] = None
+    contact_ok: bool = False
+    status: FeedbackStatus = FeedbackStatus.NEW
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class FeedbackAdminResponse(FeedbackResponse):
+    """Adds the fields only the owner should see."""
+    user_id: int
+    user_agent: Optional[str] = None
+    owner_note: Optional[str] = None
+
+
+class FeedbackUpdate(BaseModel):
+    """Owner-side triage."""
+    status: Optional[FeedbackStatus] = None
+    owner_note: Optional[str] = Field(None, max_length=4000)

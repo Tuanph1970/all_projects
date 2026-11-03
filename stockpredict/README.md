@@ -52,3 +52,15 @@ Gateway: <http://localhost:8004>
 Grafana: <http://localhost:3100>
 
 For development details (commands per service, test runners, conventions), see `CLAUDE.md`.
+
+## Tài liệu người dùng / User documentation
+
+| Tài liệu / Document | Nội dung / Covers |
+|---|---|
+| [`docs/QUICK_START_GUIDE.md`](docs/QUICK_START_GUIDE.md) | **Bắt đầu ở đây.** Hướng dẫn nhanh toàn bộ ứng dụng, song ngữ Việt/Anh, 12 nhóm menu. / **Start here.** Whole-application quick guide, bilingual, all twelve menu groups. |
+| [`docs/USER_GUIDE_portfolio_journal_ai_insights.md`](docs/USER_GUIDE_portfolio_journal_ai_insights.md) | Chuyên sâu: danh mục, nhật ký giao dịch, phân tích AI. / Deep dive: portfolio, trade journal, AI insights. |
+| [`docs/USER_GUIDE_chart_decomp_and_decision_tools.md`](docs/USER_GUIDE_chart_decomp_and_decision_tools.md) | Chuyên sâu: phân rã biểu đồ và Decision Helper. / Deep dive: chart decomposition and Decision Helper. |
+| [`docs/ANNOUNCEMENT_COPY.md`](docs/ANNOUNCEMENT_COPY.md) | Nội dung giới thiệu sẵn dùng cho LinkedIn / Facebook. / Ready-to-post announcement copy. |
+
+Góp ý trong ứng dụng: menu **Góp ý & ý tưởng**.
+In-app feedback: the **Ideas & feedback** menu.

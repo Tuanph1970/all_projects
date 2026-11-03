@@ -729,6 +729,46 @@ export const stockAPI = {
     }
   },
 
+  /**
+   * v0.9 — submit an idea or a problem about the application.
+   *
+   * `page` and `app_version` are filled HERE rather than asked of the user:
+   * "the numbers look wrong" is a different report depending on which screen
+   * it came from, and people almost never say which.
+   */
+  submitFeedback: async (payload) => {
+    const response = await fetch(API_ENDPOINTS.FEEDBACK, {
+      method: 'POST',
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...payload,
+        page: payload.page || (typeof window !== 'undefined'
+          ? window.location.pathname : null),
+        app_version: payload.app_version
+          || process.env.REACT_APP_VERSION || '0.9.0',
+      }),
+    });
+    if (!response.ok) {
+      let detail = '';
+      try {
+        const body = await response.json();
+        detail = Array.isArray(body.detail)
+          ? body.detail.map((d) => d.msg).join('; ')
+          : (body.detail || '');
+      } catch (e) { /* no JSON body */ }
+      throw new Error(detail || 'Failed to send feedback');
+    }
+    return response.json();
+  },
+
+  getMyFeedback: async () => {
+    const response = await fetch(API_ENDPOINTS.FEEDBACK_MINE, {
+      method: 'GET', headers: getAuthHeaders(),
+    });
+    if (!response.ok) return [];
+    return response.json();
+  },
+
   getWatchlist: async () => {
     try {
       const response = await fetch(API_ENDPOINTS.WATCHLIST, {

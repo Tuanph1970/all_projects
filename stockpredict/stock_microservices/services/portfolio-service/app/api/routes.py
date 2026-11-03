@@ -1,6 +1,6 @@
 """Portfolio Service API Routes"""
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_db, get_current_user
@@ -11,7 +11,9 @@ from app.models.schemas import (
     TransactionCreate, TransactionResponse,
     AlertCreate, AlertUpdate, AlertResponse,
     BulkTransactionCreate, BulkTransactionResponse,
-    WatchlistAdd
+    WatchlistAdd,
+    FeedbackCreate, FeedbackResponse, FeedbackAdminResponse,
+    FeedbackUpdate, FeedbackStatus,
 )
 
 router = APIRouter()
@@ -511,6 +513,161 @@ async def refresh_default(
 
 
 # Dynamic route - MUST be LAST to not shadow static routes
+# ---------------------------------------------------------------------------
+# User feedback (v0.9)
+# ---------------------------------------------------------------------------
+#
+# WHY THIS LIVES IN portfolio-service. Feedback is not portfolio data, so this
+# is a judgement rather than an obvious fit: it is here because this is the
+# user-scoped service the frontend already authenticates against, and standing
+# up a separate service for one form would cost more to run and secure than the
+# form is worth. Kept in its own section with its own table so it can be lifted
+# out later without untangling it from holdings or alerts.
+
+
+def _owner_emails() -> set:
+    """Addresses allowed to read the inbox, from FEEDBACK_ADMIN_EMAILS."""
+    from app.config import get_settings
+    raw = getattr(get_settings(), "FEEDBACK_ADMIN_EMAILS", "") or ""
+    return {e.strip().lower() for e in raw.split(",") if e.strip()}
+
+
+def _require_owner(current_user: dict) -> None:
+    """Gate the inbox. Reading other people's feedback is an owner action.
+
+    Accepts an admin/owner ROLE, or an address on the configured allowlist.
+    The allowlist exists because the deployed `users` table has no role column
+    at all — every JWT therefore says `role=user`, and a role-only gate would
+    make this endpoint unreachable by anyone, which is how the stock-data
+    repair endpoint locked out the owner's own token. The `email` claim is
+    signed with the same secret as `sub`, so it is no weaker a basis than the
+    user_id this service already trusts.
+    """
+    role = str(current_user.get("role", "user")).lower()
+    if role in ("admin", "owner"):
+        return
+    email = str(current_user.get("email") or "").strip().lower()
+    if email and email in _owner_emails():
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Reading all feedback requires the owner role or an allowlisted address",
+    )
+
+
+@router.post("/feedback", response_model=FeedbackResponse,
+             status_code=status.HTTP_201_CREATED)
+async def submit_feedback(
+    data: FeedbackCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Submit an idea, a problem, or anything else about the application.
+
+    The response echoes the stored row so the UI can confirm with something the
+    server actually saved, rather than claiming success from a 201 alone.
+    """
+    from app.models.domain import (
+        FeedbackCategory as DomainCategory,
+        FeedbackStatus as DomainStatus,
+        UserFeedback,
+    )
+
+    row = UserFeedback(
+        user_id=current_user["user_id"],
+        # The schema enum carries the lowercase VALUE; the SQLAlchemy enum
+        # column stores the member NAME. Converting by name here rather than
+        # passing the string through is what keeps those two from drifting —
+        # the same trap #117's AlertType hit.
+        category=DomainCategory(data.category.value),
+        message=data.message,
+        rating=data.rating,
+        page=data.page,
+        app_version=data.app_version,
+        user_agent=(request.headers.get("user-agent") or "")[:255] or None,
+        contact_ok=bool(data.contact_ok),
+        status=DomainStatus.NEW,
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    return row
+
+
+@router.get("/feedback/mine", response_model=List[FeedbackResponse])
+async def list_my_feedback(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """What this user has already sent, newest first.
+
+    Exists so the form is not a void: a user who cannot see that their last
+    note arrived tends to send it again, or stop sending.
+    """
+    from sqlalchemy import select
+    from app.models.domain import UserFeedback
+
+    result = await db.execute(
+        select(UserFeedback)
+        .where(UserFeedback.user_id == current_user["user_id"])
+        .order_by(UserFeedback.created_at.desc())
+        .limit(50)
+    )
+    return list(result.scalars().all())
+
+
+@router.get("/feedback", response_model=List[FeedbackAdminResponse])
+async def list_all_feedback(
+    status_filter: Optional[FeedbackStatus] = Query(
+        None, alias="status", description="Only rows in this triage state"),
+    limit: int = Query(200, ge=1, le=1000),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """The owner's inbox. Admin only."""
+    from sqlalchemy import select
+    from app.models.domain import FeedbackStatus as DomainStatus, UserFeedback
+
+    _require_owner(current_user)
+    query = select(UserFeedback).order_by(UserFeedback.created_at.desc())
+    if status_filter is not None:
+        query = query.where(UserFeedback.status == DomainStatus(status_filter.value))
+    result = await db.execute(query.limit(limit))
+    return list(result.scalars().all())
+
+
+@router.patch("/feedback/{feedback_id}", response_model=FeedbackAdminResponse)
+async def triage_feedback(
+    feedback_id: int,
+    data: FeedbackUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Owner-side triage: move the status, keep a private note."""
+    from app.models.domain import FeedbackStatus as DomainStatus, UserFeedback
+
+    _require_owner(current_user)
+    row = await db.get(UserFeedback, feedback_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Feedback not found")
+    if data.status is not None:
+        row.status = DomainStatus(data.status.value)
+    if data.owner_note is not None:
+        row.owner_note = data.owner_note
+    await db.commit()
+    await db.refresh(row)
+    return row
+
+
+# NOTE ON ORDER: everything below this line that begins with a PATH
+# PARAMETER — `GET /{portfolio_id}` in particular — will swallow any
+# literal path registered after it. FastAPI matches routes in
+# declaration order, so `GET /feedback` declared later resolved to
+# `GET /{portfolio_id}` and returned 422 trying to read "feedback" as
+# an int. The feedback section is therefore placed HERE, before the
+# parameterised routes, and a test pins the behaviour rather than the
+# line number.
 @router.get("/{portfolio_id}", response_model=PortfolioWithHoldings)
 async def get_portfolio_alias(
     portfolio_id: int,

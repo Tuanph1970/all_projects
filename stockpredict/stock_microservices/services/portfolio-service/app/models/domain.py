@@ -27,6 +27,29 @@ class AlertType(enum.Enum):
     VOLUME_UNUSUAL = "volume_unusual"
 
 
+class FeedbackCategory(enum.Enum):
+    """What kind of thing the user is telling us.
+
+    The point of asking is TRIAGE: "the chart is wrong" and "please add X" need
+    different responses, and a single free-text inbox makes that distinction
+    the reader's problem. Kept deliberately short — a long list makes people
+    pick "other".
+    """
+    IDEA = "idea"            # a feature or improvement they want
+    PROBLEM = "problem"      # something is broken or wrong
+    CONFUSING = "confusing"  # it works, but they could not tell how
+    PRAISE = "praise"        # what to keep; the easiest signal to lose
+    OTHER = "other"
+
+
+class FeedbackStatus(enum.Enum):
+    """The owner's triage state. Not shown to the submitter."""
+    NEW = "new"
+    TRIAGED = "triaged"
+    DONE = "done"
+    DECLINED = "declined"
+
+
 class Portfolio(Base):
     """User portfolio model"""
     __tablename__ = "portfolios"
@@ -164,4 +187,46 @@ class PushSubscription(Base):
     auth_key = Column(String(255), nullable=False)
     user_agent = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class UserFeedback(Base):
+    """One piece of feedback from a user (v0.9).
+
+    WHY `page` AND `app_version` ARE COLUMNS AND NOT OPTIONAL EXTRAS. Feedback
+    without context is nearly unusable: "the numbers look wrong" is a different
+    report depending on whether it came from the Chart analyst, the Backtest
+    Studio or the Risk Dashboard, and the submitter almost never says. The
+    frontend fills `page` from the current route automatically, so the useful
+    half costs the user nothing. `app_version` ties a report to a release, which
+    is what makes "did 0.9 fix it?" answerable later.
+
+    `user_agent` is kept for the same reason the push-subscription table keeps
+    it: a rendering complaint is often a device complaint.
+
+    NOT ANONYMOUS, deliberately. The endpoint requires a token, so every row
+    carries user_id — that is what allows a follow-up question, and this is an
+    invited-user application rather than a public site. `contact_ok` records
+    whether the user actually wants that follow-up, so the permission is
+    explicit rather than assumed from the fact that we know who they are.
+    """
+    __tablename__ = "user_feedback"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    category = Column(SQLEnum(FeedbackCategory), nullable=False, index=True)
+    message = Column(Text, nullable=False)
+    #: Optional 1-5 overall rating. Separate from `category` on purpose: someone
+    #: can love the app and still report a bug, and forcing one number to carry
+    #: both would lose whichever they cared about less.
+    rating = Column(Integer, nullable=True)
+    #: The route the user was on when they opened the form, filled by the UI.
+    page = Column(String(120), nullable=True, index=True)
+    app_version = Column(String(32), nullable=True, index=True)
+    user_agent = Column(String(255), nullable=True)
+    contact_ok = Column(Boolean, nullable=False, default=False)
+    status = Column(SQLEnum(FeedbackStatus), nullable=False,
+                    default=FeedbackStatus.NEW, index=True)
+    #: The owner's private note while triaging. Never returned to the submitter.
+    owner_note = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

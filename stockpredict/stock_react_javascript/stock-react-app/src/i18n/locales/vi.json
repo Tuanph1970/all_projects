@@ -76,7 +76,8 @@
     "event_reaction": "Phản ứng sự kiện",
     "news": "Tin tức",
     "tcb_news": "Tin TCB",
-    "chart_narrator": "Phân tích đồ thị"
+    "chart_narrator": "Phân tích đồ thị",
+    "feedback": "Góp ý & ý tưởng"
   },
   "page_titles": {
     "dashboard": {
@@ -2875,6 +2876,46 @@
       "none": "Không phát hiện mẫu hình giá nhiều tuần nào trong cửa sổ này.",
       "none_recent": "Có {{count}} mẫu hình ở giai đoạn trước trong lịch sử, nhưng không mẫu nào kết thúc trong {{recent_bars}} phiên gần nhất, nên không mẫu nào nói về hiện tại.",
       "unavailable": "Không kết nối được tới dịch vụ nhận dạng mẫu hình, nên lần này chưa xét các mẫu hình giá. Mọi phần khác ở trên không bị ảnh hưởng."
+    }
+  },
+  "feedback": {
+    "title": "Góp ý & ý tưởng",
+    "subtitle": "Hãy cho chúng tôi biết nên làm gì tiếp theo, hoặc điều gì đang gây khó cho bạn. Mọi góp ý đều được đọc.",
+    "category_label": "Đây là loại góp ý nào?",
+    "category": {
+      "idea": "Một ý tưởng",
+      "problem": "Có chỗ bị sai",
+      "confusing": "Chỗ này gây khó hiểu",
+      "praise": "Phần này dùng tốt",
+      "other": "Nội dung khác"
+    },
+    "category_hint": {
+      "idea": "Một tính năng bạn muốn có, hoặc một thay đổi giúp ứng dụng hữu ích hơn.",
+      "problem": "Một con số trông có vẻ sai, một trang bị lỗi, bất cứ thứ gì không chạy đúng. Nếu bạn nói rõ bạn mong đợi điều gì thì càng tốt.",
+      "confusing": "Nó vẫn chạy, nhưng bạn không hiểu phải dùng thế nào. Đây là loại góp ý giá trị nhất và cũng ít gặp nhất.",
+      "praise": "Điều gì nên giữ nguyên. Người dùng thường quên nói ra, và vì vậy rất dễ bị thay đổi mất.",
+      "other": "Bất cứ điều gì không thuộc các nhóm ở trên."
+    },
+    "message_label": "Nội dung góp ý",
+    "message_placeholder": "Ví dụ: ở trang Phân tích đồ thị, tôi muốn so sánh hai mã cạnh nhau...",
+    "message_hint": "Cụ thể quan trọng hơn lịch sự — một ví dụ hoặc các bước bạn đã làm có giá trị hơn một bản tóm tắt chung chung.",
+    "too_short": "Vui lòng viết ít nhất {{min}} ký tự.",
+    "rating_label": "Nhìn chung, ứng dụng đang phục vụ bạn thế nào?",
+    "rating_optional": "không bắt buộc",
+    "rating_star": "{{n}} trên 5",
+    "contact_ok": "Bạn có thể liên hệ lại với tôi nếu cần thêm thông tin.",
+    "send": "Gửi góp ý",
+    "sending": "Đang gửi...",
+    "context_note": "Trang bạn đang xem sẽ được gửi kèm tự động.",
+    "sent_title": "Cảm ơn bạn — góp ý đã được lưu.",
+    "sent_body": "Mã tham chiếu #{{id}}. Góp ý xuất hiện trong danh sách bên dưới.",
+    "failed": "Không gửi được góp ý. {{reason}}",
+    "mine_title": "Các góp ý bạn đã gửi",
+    "status": {
+      "new": "Đã nhận",
+      "triaged": "Đang xem xét",
+      "done": "Đã xử lý",
+      "declined": "Chưa đưa vào kế hoạch"
     }
   }
 }

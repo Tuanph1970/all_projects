@@ -12,6 +12,7 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import Dashboard from '../Dashboard/Dashboard';
 import PriceBoard from '../Pages/PriceBoard';
+import Feedback from '../Pages/Feedback';
 import ChartNarrator from '../Pages/ChartNarrator';
 import { TechnicalAnalysis } from '../Pages/TechnicalAnalysis';
 import { FundamentalAnalysis } from '../Pages/FundamentalAnalysis';
@@ -151,6 +152,7 @@ const MainLayout = () => {
 
             {/* Analysis */}
             <Route path="/chart-narrator" element={<ChartNarrator />} />
+            <Route path="/feedback" element={<Feedback />} />
             <Route path="/technical" element={<div className="chart-dense chart-tall"><TechnicalAnalysis /></div>} />
             <Route path="/fundamental" element={<FundamentalAnalysis />} />
             <Route path="/ai-insights" element={<div className="chart-dense"><AIInsights /></div>} />

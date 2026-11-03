@@ -1,22 +1,23 @@
 // src/components/Layout/Sidebar.js
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  X,
-  ChevronDown,
-  ChevronRight,
-  ChevronLeft,
-  TrendingUp,
-  LayoutDashboard,
-  Table2,
   Activity,
-  BrainCircuit,
-  PlayCircle,
-  MessageCircle,
-  SearchCode,
-  Wallet,
   BookOpen,
+  BrainCircuit,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Crosshair,
+  LayoutDashboard,
+  MessageCircle,
+  MessageSquarePlus,
   Newspaper,
+  PlayCircle,
+  SearchCode,
+  Table2,
+  TrendingUp,
+  Wallet,
+  X,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -175,6 +176,12 @@ const Sidebar = ({ isOpen, onClose, isCollapsed, onToggleCollapse }) => {
         { key: 'outcomes',          labelKey: 'sidebar.outcomes',          route: 'outcomes' },
         { key: 'risk-dashboard',    labelKey: 'sidebar.risk_dashboard',    route: 'risk-dashboard' }
       ]
+    },
+    {
+      key: 'feedback',
+      labelKey: 'sidebar.feedback',
+      icon: MessageSquarePlus,
+      route: 'feedback',
     },
   ];
 

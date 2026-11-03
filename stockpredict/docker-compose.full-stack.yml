@@ -404,6 +404,9 @@ services:
       - DATABASE_USER=${MYSQL_USER:-stockuser}
       - DATABASE_PASSWORD=${MYSQL_PASSWORD:-stockpass}
       - DATABASE_NAME=${MYSQL_DATABASE:-defaultdb}
+      # v0.9 feedback inbox: comma-separated addresses allowed to read
+      # ALL feedback. Empty by default; the real value lives in .env.
+      - FEEDBACK_ADMIN_EMAILS=${FEEDBACK_ADMIN_EMAILS:-}
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
       - RABBITMQ_USER=${RABBITMQ_USER:-stockuser}

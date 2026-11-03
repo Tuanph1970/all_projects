@@ -114,6 +114,11 @@ export const API_ENDPOINTS = {
   PORTFOLIO_TRANSACTIONS: (id) => `${API_BASE_URLS.PORTFOLIO_API}/portfolios/${id}/transactions`,
   PORTFOLIO_TRANSACTIONS_BULK: (id) => `${API_BASE_URLS.PORTFOLIO_API}/portfolios/${id}/transactions/bulk`,
 
+  // Feedback (v0.9) — ideas and problems about the APPLICATION.
+  // Distinct from CHATBOT_FEEDBACK below, which rates one chatbot answer.
+  FEEDBACK: `${API_BASE_URLS.PORTFOLIO_API}/feedback`,
+  FEEDBACK_MINE: `${API_BASE_URLS.PORTFOLIO_API}/feedback/mine`,
+
   // Watchlist endpoints
   WATCHLIST: `${API_BASE_URLS.PORTFOLIO_API}/watchlist`,
   WATCHLIST_REMOVE: (symbol) => `${API_BASE_URLS.PORTFOLIO_API}/watchlist/${symbol}`,

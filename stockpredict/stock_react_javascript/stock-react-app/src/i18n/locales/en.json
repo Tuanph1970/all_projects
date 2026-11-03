@@ -76,7 +76,8 @@
     "event_reaction": "Event Reaction",
     "news": "News",
     "tcb_news": "TCB News",
-    "chart_narrator": "Chart analyst"
+    "chart_narrator": "Chart analyst",
+    "feedback": "Ideas & feedback"
   },
   "page_titles": {
     "dashboard": {
@@ -2875,6 +2876,46 @@
       "none": "No multi-week chart formation was detected in this window.",
       "none_recent": "{{count}} formation(s) exist earlier in the history but none finished within the last {{recent_bars}} sessions, so none of them is about the present.",
       "unavailable": "The pattern service could not be reached, so chart formations were not examined this time. Everything else above is unaffected."
+    }
+  },
+  "feedback": {
+    "title": "Ideas & feedback",
+    "subtitle": "Tell us what to build next, or what is getting in your way. Every note is read.",
+    "category_label": "What kind of feedback is this?",
+    "category": {
+      "idea": "An idea",
+      "problem": "Something is wrong",
+      "confusing": "This confused me",
+      "praise": "This works well",
+      "other": "Something else"
+    },
+    "category_hint": {
+      "idea": "A feature you want, or a change that would make the app more useful.",
+      "problem": "A number that looks wrong, a page that fails, anything broken. Saying what you expected helps most.",
+      "confusing": "It works, but you could not tell how. These are the most valuable reports and the rarest.",
+      "praise": "What should not change. Easy to forget to say, and easy to lose by accident.",
+      "other": "Anything that does not fit the boxes above."
+    },
+    "message_label": "Your message",
+    "message_placeholder": "For example: on the Chart analyst, I would like to compare two symbols side by side...",
+    "message_hint": "Concrete beats polite — an example or the steps you took is worth more than a careful summary.",
+    "too_short": "Please write at least {{min}} characters.",
+    "rating_label": "Overall, how is the app working for you?",
+    "rating_optional": "optional",
+    "rating_star": "{{n}} of 5",
+    "contact_ok": "You may contact me about this if you need more detail.",
+    "send": "Send feedback",
+    "sending": "Sending...",
+    "context_note": "The page you are on is attached automatically.",
+    "sent_title": "Thank you — this has been saved.",
+    "sent_body": "Reference #{{id}}. It appears in your list below.",
+    "failed": "Could not send your feedback. {{reason}}",
+    "mine_title": "What you have sent",
+    "status": {
+      "new": "Received",
+      "triaged": "Being looked at",
+      "done": "Done",
+      "declined": "Not planned"
     }
   }
 }
