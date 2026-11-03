@@ -110,6 +110,30 @@ async def _run_sync():
                 logger.error(f"Daily price refresh failed: {e}", exc_info=True)
 
 
+        # Backlog #119 — sweep for price seams AFTER the price refresh above,
+        # and the order is the point: the refresh is what APPENDS new bars, so
+        # it is also what opens a seam when the provider has restated history
+        # in the meantime. Scanning afterwards catches it the same night it
+        # appears, instead of a day later.
+        #
+        # Detection is DB-only and costs no vendor call, so this is free on
+        # every night that finds nothing — which is every night, historically.
+        if settings.ENABLE_NIGHTLY_SEAM_SCAN:
+            try:
+                report = await service.scan_and_repair_seams(
+                    max_repairs=settings.SEAM_SCAN_MAX_REPAIRS,
+                    recent_days=settings.SEAM_SCAN_RECENT_DAYS,
+                )
+                if report.get("with_seams"):
+                    logger.warning("Price seam sweep: %s", report)
+                else:
+                    logger.info(
+                        "Price seam sweep: %s symbols clean",
+                        report.get("scanned", 0))
+            except Exception as e:
+                logger.error(f"Price seam sweep failed: {e}", exc_info=True)
+
+
 async def _background_company_sync():
     """Background task: sync on startup if stale, then daily at 1:00 AM."""
     from datetime import datetime as dt, timedelta

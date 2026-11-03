@@ -45,6 +45,10 @@ from app.repositories.stock_repository import StockRepository
 #: Upper bound on bars scanned for seams. Well above any symbol's history
 #: (the longest here is 1345 bars) so the scan is never silently partial.
 SEAM_SCAN_MAX_BARS = 100_000
+#: Upper bound on symbols swept for seams. get_all_companies defaults to 100;
+#: this is deliberately far above any plausible universe so the sweep is never
+#: silently partial. The scan is DB-only, so a large number costs nothing.
+SEAM_SCAN_MAX_SYMBOLS = 10_000
 
 from stock_common.analytics.corporate_actions import (
     MAX_BELIEVABLE_DAILY_MOVE_PCT as SEAM_MAX_MOVE_PCT,
@@ -1733,6 +1737,118 @@ class StockService:
         # Fallback: Fetch live data directly from vnstock
         logger.info(f"Database empty for {symbol}, fetching live historical data from vnstock")
         return await self._get_historical_data_live(symbol, start_date, end_date)
+
+    async def scan_and_repair_seams(
+        self,
+        *,
+        max_repairs: int = 3,
+        recent_days: int = 30,
+        dry_run: bool = False,
+    ) -> dict:
+        """Sweep every stored symbol for price seams; repair the fresh ones.
+
+        Backlog #119's CAUSE rather than its symptom. The four known seams were
+        repaired by hand, but `_top_up_prices` still only appends bars after the
+        last stored date, so the next share-count event on any symbol opens a
+        new seam exactly the same way. This closes that loop.
+
+        WHY THIS IS CHEAP ENOUGH TO RUN EVERY NIGHT: detection reads stored
+        closes and costs NO vendor call. Sweeping the whole universe spends zero
+        quota in the normal case, which is every night — only four seams existed
+        across five years and ~43,000 rows. A call is spent only when a seam is
+        actually found, and then only for that symbol.
+
+        TWO BOUNDS, both load-bearing. `max_repairs` caps calls per run, because
+        one repair re-pulls a symbol's entire history (~1,400 bars) and a bad
+        night could otherwise eat the quota the price refresh needs.
+        `recent_days` is the loop guard: a GENUINE seam, one the provider itself
+        never adjusted, survives a re-pull, and a scan with no memory would
+        re-pull it every night for ever. Bounding by the seam's own date makes
+        that self-limiting with nothing to persist.
+
+        Never raises; one symbol's failure does not stop the sweep.
+        """
+        from datetime import date as _date, timedelta as _timedelta
+
+        report: dict = {
+            "scanned": 0, "with_seams": 0, "repaired": [], "failed": [],
+            "skipped_old": [], "skipped_cap": [], "errors": 0,
+        }
+        try:
+            # TWO TRAPS IN ONE CALL, both the silent kind:
+            #   * it returns a TUPLE (rows, total), not a list -- iterating the
+            #     bare result would walk [list, int] and treat the whole list
+            #     as one company;
+            #   * `limit` defaults to 100, so the universe would be truncated
+            #     without a word the moment it grows past that. Same shape as
+            #     get_historical_prices' 1000-row default, which would have
+            #     hidden the 2021 seams.
+            companies, total = await self.repository.get_all_companies(
+                limit=SEAM_SCAN_MAX_SYMBOLS)
+            report["universe"] = int(total or 0)
+            if total and total > len(companies or []):
+                logger.warning(
+                    "Seam sweep saw %s of %s companies; raise SEAM_SCAN_MAX_SYMBOLS",
+                    len(companies or []), total)
+        except Exception as exc:
+            logger.warning("Seam sweep could not list companies: %s", exc)
+            return report
+
+        cutoff = _date.today() - _timedelta(days=max(0, int(recent_days)))
+        for company in companies or []:
+            symbol = getattr(company, "symbol", None)
+            if not symbol:
+                continue
+            try:
+                rows = await self.repository.get_historical_prices(
+                    company.id, None, None, limit=SEAM_SCAN_MAX_BARS)
+                if not rows or len(rows) < 2:
+                    continue
+                report["scanned"] += 1
+                rows = sorted(rows, key=lambda r: r.date)
+                seams = find_price_seams(
+                    [r.close for r in rows],
+                    [r.date.isoformat() for r in rows],
+                )
+                if not seams:
+                    continue
+                report["with_seams"] += 1
+
+                # Freshest seam decides: if the newest one is already outside
+                # the window, re-pulling has had its chance.
+                newest = max(seams, key=lambda sm: sm.date or "")
+                seam_date = None
+                try:
+                    seam_date = _date.fromisoformat((newest.date or "")[:10])
+                except ValueError:
+                    pass
+                if seam_date is None or seam_date < cutoff:
+                    report["skipped_old"].append(
+                        {"symbol": symbol, "date": newest.date,
+                         "move_pct": newest.move_pct})
+                    continue
+                if len(report["repaired"]) + len(report["failed"]) >= max_repairs:
+                    report["skipped_cap"].append(
+                        {"symbol": symbol, "date": newest.date})
+                    continue
+                if dry_run:
+                    report["skipped_cap"].append(
+                        {"symbol": symbol, "date": newest.date, "dry_run": True})
+                    continue
+
+                outcome = await self.repair_price_seams(symbol)
+                entry = {"symbol": symbol, "date": newest.date,
+                         "move_pct": newest.move_pct,
+                         "bars_restated": outcome.get("bars_restated")}
+                if outcome.get("repaired"):
+                    report["repaired"].append(entry)
+                else:
+                    entry["reason"] = outcome.get("reason")
+                    report["failed"].append(entry)
+            except Exception as exc:
+                report["errors"] += 1
+                logger.warning("Seam sweep failed on %s: %s", symbol, exc)
+        return report
 
     async def repair_price_seams(
         self,

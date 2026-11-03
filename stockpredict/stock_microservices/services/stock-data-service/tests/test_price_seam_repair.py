@@ -191,3 +191,241 @@ async def test_nothing_is_expired_when_no_repair_was_attempted():
     svc = _svc(_rows(CLEAN))
     await svc.repair_price_seams("TCB")
     svc.repository.session.expire_all.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# The nightly sweep — #119's cause, not its symptom
+# ---------------------------------------------------------------------------
+
+def _sweep_svc(symbols, *, total=None, repair=None):
+    """A service whose universe is `symbols` -> {symbol: closes}."""
+    svc = StockService(AsyncMock())
+    repo = AsyncMock()
+    companies = [SimpleNamespace(id=i, symbol=s) for i, s in enumerate(symbols, 1)]
+    repo.get_all_companies = AsyncMock(
+        return_value=(companies, total if total is not None else len(companies)))
+
+    def _hist(company_id, *a, **kw):
+        sym = symbols[company_id - 1]
+        return _rows(symbols[sym] if isinstance(symbols, dict) else CLEAN)
+
+    by_id = {c.id: symbols[c.symbol] for c in companies} if isinstance(symbols, dict) else {}
+
+    async def hist(company_id, start=None, end=None, limit=None):
+        return _rows(by_id.get(company_id, CLEAN))
+
+    repo.get_historical_prices = AsyncMock(side_effect=hist)
+    repo.session = MagicMock()
+    repo.session.rollback = AsyncMock()
+    svc.repository = repo
+    svc.repair_price_seams = AsyncMock(
+        return_value=repair if repair is not None
+        else {"repaired": True, "bars_restated": 1408, "seams": []})
+    return svc
+
+
+def _recent_rows(closes):
+    """Rows ending TODAY, so a seam in them falls inside the recency window."""
+    from datetime import date as _d, timedelta as _td
+    start = _d.today() - _td(days=len(closes) - 1)
+    return [SimpleNamespace(date=start + _td(days=i), close=c)
+            for i, c in enumerate(closes)]
+
+
+@pytest.mark.asyncio
+async def test_a_clean_universe_spends_no_vendor_call():
+    """The property that makes a nightly sweep affordable.
+
+    Detection reads stored closes only. Historically there were four seams in
+    five years, so almost every night finds nothing and must therefore cost
+    nothing — otherwise the sweep competes with the price refresh for quota.
+    """
+    svc = _sweep_svc({"AAA": CLEAN, "BBB": CLEAN, "CCC": CLEAN})
+    rep = await svc.scan_and_repair_seams()
+    assert rep["scanned"] == 3
+    assert rep["with_seams"] == 0
+    svc.repair_price_seams.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_fresh_seam_is_repaired():
+    svc = _sweep_svc({"AAA": CLEAN, "TCB": SEAMED})
+    svc.repository.get_historical_prices = AsyncMock(
+        side_effect=lambda cid, *a, **k: _recent_rows(SEAMED if cid == 2 else CLEAN))
+    rep = await svc.scan_and_repair_seams()
+    assert rep["with_seams"] == 1
+    assert [e["symbol"] for e in rep["repaired"]] == ["TCB"]
+    svc.repair_price_seams.assert_awaited_once_with("TCB")
+
+
+@pytest.mark.asyncio
+async def test_an_old_seam_is_left_alone_so_the_sweep_cannot_loop():
+    """THE LOOP GUARD, and the reason the sweep is safe unattended.
+
+    A GENUINE seam — one the provider itself never adjusted — survives a
+    re-pull. With no memory and no date bound, the sweep would re-pull that
+    symbol's whole history every single night for ever, burning ~1,400 bars of
+    quota nightly to achieve nothing.
+    """
+    svc = _sweep_svc({"TCB": SEAMED})          # _rows() dates start 2026-01-01
+    rep = await svc.scan_and_repair_seams(recent_days=30)
+    assert rep["with_seams"] == 1
+    assert rep["repaired"] == []
+    assert [e["symbol"] for e in rep["skipped_old"]] == ["TCB"]
+    svc.repair_price_seams.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_the_recency_window_is_read_and_not_baked_in():
+    """Non-vacuity for the test above: the same seam IS repaired when the
+    window is wide enough to include it, so the skip is the window and not a
+    broken scan."""
+    svc = _sweep_svc({"TCB": SEAMED})
+    rep = await svc.scan_and_repair_seams(recent_days=100_000)
+    assert [e["symbol"] for e in rep["repaired"]] == ["TCB"]
+
+
+@pytest.mark.asyncio
+async def test_repairs_are_capped_per_run():
+    """One repair re-pulls ~1,400 bars. Without a cap, a bad night across many
+    symbols would eat the quota the price refresh needs."""
+    svc = _sweep_svc({s: SEAMED for s in ("AAA", "BBB", "CCC", "DDD", "EEE")})
+    svc.repository.get_historical_prices = AsyncMock(
+        side_effect=lambda cid, *a, **k: _recent_rows(SEAMED))
+    rep = await svc.scan_and_repair_seams(max_repairs=2)
+    assert len(rep["repaired"]) == 2
+    assert len(rep["skipped_cap"]) == 3
+    assert svc.repair_price_seams.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_a_failed_repair_is_recorded_as_failed_not_repaired():
+    svc = _sweep_svc(
+        {"TCB": SEAMED},
+        repair={"repaired": False, "reason": "re-fetch failed: quota", "seams": [{}]})
+    svc.repository.get_historical_prices = AsyncMock(
+        side_effect=lambda cid, *a, **k: _recent_rows(SEAMED))
+    rep = await svc.scan_and_repair_seams()
+    assert rep["repaired"] == []
+    assert [e["symbol"] for e in rep["failed"]] == ["TCB"]
+    assert "quota" in rep["failed"][0]["reason"]
+
+
+@pytest.mark.asyncio
+async def test_a_failed_repair_still_counts_against_the_cap():
+    """Otherwise a symbol that cannot be fixed would be retried until the cap
+    was reached by successes alone, spending calls on a known-hopeless case."""
+    svc = _sweep_svc(
+        {s: SEAMED for s in ("AAA", "BBB", "CCC")},
+        repair={"repaired": False, "reason": "nope", "seams": [{}]})
+    svc.repository.get_historical_prices = AsyncMock(
+        side_effect=lambda cid, *a, **k: _recent_rows(SEAMED))
+    rep = await svc.scan_and_repair_seams(max_repairs=1)
+    assert len(rep["failed"]) == 1
+    assert svc.repair_price_seams.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_the_whole_universe_is_listed_not_the_first_hundred():
+    """get_all_companies defaults to limit=100 and returns a TUPLE.
+
+    Both are silent: iterating the bare result walks [list, int] and treats the
+    list as one company, and the default limit truncates the universe without a
+    word once it grows past 100 — the same shape as get_historical_prices'
+    1000-row default, which would have hidden the 2021 seams.
+    """
+    svc = _sweep_svc({"AAA": CLEAN})
+    await svc.scan_and_repair_seams()
+    _, kwargs = svc.repository.get_all_companies.await_args
+    assert kwargs.get("limit", 0) >= 10_000
+
+
+@pytest.mark.asyncio
+async def test_a_truncated_universe_is_reported_rather_than_hidden():
+    svc = _sweep_svc({"AAA": CLEAN}, total=5000)
+    rep = await svc.scan_and_repair_seams()
+    assert rep["universe"] == 5000
+
+
+@pytest.mark.asyncio
+async def test_dry_run_scans_without_repairing():
+    svc = _sweep_svc({"TCB": SEAMED})
+    svc.repository.get_historical_prices = AsyncMock(
+        side_effect=lambda cid, *a, **k: _recent_rows(SEAMED))
+    rep = await svc.scan_and_repair_seams(dry_run=True)
+    assert rep["with_seams"] == 1
+    assert rep["repaired"] == []
+    svc.repair_price_seams.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_one_bad_symbol_does_not_stop_the_sweep():
+    svc = _sweep_svc({"AAA": CLEAN, "BAD": CLEAN, "CCC": CLEAN})
+    calls = {"n": 0}
+
+    async def flaky(cid, start=None, end=None, limit=None):
+        calls["n"] += 1
+        if cid == 2:
+            raise RuntimeError("table locked")
+        return _rows(CLEAN)
+
+    svc.repository.get_historical_prices = AsyncMock(side_effect=flaky)
+    rep = await svc.scan_and_repair_seams()
+    assert rep["errors"] == 1
+    assert rep["scanned"] == 2, "the sweep stopped at the first failure"
+
+
+@pytest.mark.asyncio
+async def test_an_unlistable_universe_returns_a_report_not_an_exception():
+    svc = _sweep_svc({"AAA": CLEAN})
+    svc.repository.get_all_companies = AsyncMock(side_effect=RuntimeError("db down"))
+    rep = await svc.scan_and_repair_seams()
+    assert rep["scanned"] == 0 and rep["repaired"] == []
+
+
+@pytest.mark.asyncio
+async def test_symbols_with_too_little_history_are_skipped_silently():
+    svc = _sweep_svc({"NEW": CLEAN})
+    svc.repository.get_historical_prices = AsyncMock(
+        side_effect=lambda cid, *a, **k: _rows([22.0]))
+    rep = await svc.scan_and_repair_seams()
+    assert rep["scanned"] == 0 and rep["errors"] == 0
+
+
+# ---------------------------------------------------------------------------
+# The wiring: a sweep nothing calls protects nothing
+# ---------------------------------------------------------------------------
+
+def test_the_nightly_cycle_actually_calls_the_sweep():
+    """#117 shipped an EventBus binding that never delivered a message because
+    both halves existed and disagreed. A flag-gated step that is never invoked
+    is the same class of bug, so the call site is asserted directly."""
+    import inspect
+    import app.main as main
+    src = inspect.getsource(main._run_sync)
+    assert "scan_and_repair_seams" in src
+    assert "ENABLE_NIGHTLY_SEAM_SCAN" in src
+
+
+def test_the_sweep_runs_after_the_price_refresh_that_creates_seams():
+    """ORDER IS THE POINT, not a detail.
+
+    `refresh_all_prices` is what APPENDS new bars, so it is also what opens a
+    seam when the provider has restated history in the meantime. Sweeping
+    before it would find yesterday's state and miss the seam the refresh just
+    introduced, delaying the repair by a full day.
+    """
+    import inspect
+    import app.main as main
+    src = inspect.getsource(main._run_sync)
+    assert src.index("refresh_all_prices") < src.index("scan_and_repair_seams")
+
+
+def test_the_flags_have_safe_defaults():
+    from app.config import get_settings
+    s = get_settings()
+    assert s.ENABLE_NIGHTLY_SEAM_SCAN is True
+    # Bounded: a repair re-pulls a whole history, so the cap must be small.
+    assert 1 <= s.SEAM_SCAN_MAX_REPAIRS <= 10
+    # And the loop guard must be a real window, not "forever".
+    assert 1 <= s.SEAM_SCAN_RECENT_DAYS <= 365

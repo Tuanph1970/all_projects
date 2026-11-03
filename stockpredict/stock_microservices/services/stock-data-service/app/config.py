@@ -107,6 +107,35 @@ class Settings(BaseSettings):
     # Spacing between symbols, on top of vnstock_call's own quota pacing.
     PRICE_REFRESH_PAUSE_SECONDS: float = 2.0
 
+    # Backlog #119 — nightly sweep for price seams (overnight moves no VN board
+    # permits, left behind when the provider restates history and our
+    # incremental top-up only appends).
+    #
+    # SCANNING IS FREE. Detection reads stored closes and costs no vendor call,
+    # so sweeping the whole universe every night spends nothing in the normal
+    # case — which is every night, since only four seams existed across five
+    # years. Only an actual repair costs a call, and only for the one symbol.
+    ENABLE_NIGHTLY_SEAM_SCAN: bool = True
+    # A hard cap on repairs per run. A repair re-pulls a symbol's ENTIRE
+    # history (~1,400 bars), so without this a bad night across many symbols
+    # could eat the daily quota that the price refresh needs.
+    SEAM_SCAN_MAX_REPAIRS: int = 3
+    # Only seams whose date falls within this window are auto-repaired.
+    #
+    # THIS IS THE LOOP GUARD, and it is the whole reason the sweep is safe to
+    # run unattended. A seam appears when the provider restates history at a
+    # corporate action, and re-pulling fixes it. But if a seam is GENUINE —
+    # the provider itself never adjusted — a re-pull changes nothing, and a
+    # scan with no memory would re-pull that symbol every single night for
+    # ever. Bounding by the seam's own date makes the sweep self-limiting with
+    # no state to persist: a fresh seam gets one repair attempt, and one that
+    # has survived long enough to fall outside the window is left alone.
+    # Known limitation: on a brand-new deployment an OLD seam is therefore
+    # never auto-repaired. That is deliberate — POST
+    # /stocks/{symbol}/repair-history covers it, and #118's narrator keeps
+    # warning about it meanwhile.
+    SEAM_SCAN_RECENT_DAYS: int = 30
+
     # Backlog #48 — during trading hours a price board row older than this is
     # refetched on read (one Vietcap POST; not vnstock, so no quota cost).
     PRICE_BOARD_MAX_AGE_SECONDS: int = 60
