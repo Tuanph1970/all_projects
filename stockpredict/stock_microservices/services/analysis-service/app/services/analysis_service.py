@@ -23,6 +23,8 @@ from app.models.schemas import (
     AtrPoint, AtrResponse, SwingType, SwingPivot, SwingsResponse,
     SRLevelType, SRTouch, SRLevel, SRBreak, SRResponse,
     Regime, RegimeFeatures, RegimeResponse,
+    NarrativeBar, NarrativeFinding, NarrativeLevel, NarrativeResponse,
+    NarrativeSection,
 )
 from app.services.sr_volume import (
     adjusted_level_strength,
@@ -1273,7 +1275,7 @@ class AnalysisService:
         end_date: Optional[str] = None,
         capital: float = 100_000_000.0,
         risk_pct: float = NARRATIVE_DEFAULT_RISK_PCT,
-    ) -> Optional["NarrativeResponse"]:
+    ) -> Optional[NarrativeResponse]:
         """The #118 chart reading: every section derived from ONE set of bars.
 
         WHY ONE FETCH AND NOT FIVE. `get_technical_analysis`, `get_sr_levels`,
@@ -1296,10 +1298,6 @@ class AnalysisService:
         DISPLAY; the 200 warmup bars before it are still fetched and still feed
         MA200, which is why a short window does not produce a blank MA200.
         """
-        from app.models.schemas import (
-            NarrativeBar, NarrativeFinding, NarrativeLevel, NarrativeResponse,
-            NarrativeSection,
-        )
         from app.services.narrative import (
             chart_pattern_findings, detect_candles, detect_rsi_divergence,
             find_corporate_action_gaps, gap_findings, price_channel,
@@ -1593,7 +1591,6 @@ class AnalysisService:
             adx = self._calculate_adx(df, period=14)
             atr_s = self._calculate_atr(df, period=14).dropna()
             latest_atr = float(atr_s.iloc[-1]) if not atr_s.empty else 0.0
-            from app.models.schemas import RegimeFeatures
             feats = RegimeFeatures(
                 slope=round(slope, 6),
                 hh_hl_count=self._count_hh_hl(pivots[-12:] if len(pivots) > 12 else pivots),
