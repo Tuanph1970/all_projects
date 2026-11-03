@@ -177,42 +177,54 @@ def test_the_backtest_default_is_the_basing_point_trail():
     ).trailing_stop_mode == "BASING_POINT"
 
 
-def test_the_live_backtest_endpoint_still_defaults_to_the_ATR_trail():
-    """The #83 gate, asserted rather than trusted to a comment.
+def test_the_endpoint_and_the_class_now_agree_on_the_basing_point_trail():
+    """Backlog #101, both decisions, now taken.
 
-    #101 moved the *class* default but NOT the user-visible surface: changing
-    what `POST /backtest` returns is a separate owner decision that has not
-    been taken.
+    HISTORY THIS TEST HAS CARRIED, because it is the point of it. It began as
+    "the endpoint still pins the ATR trail" and asserted the literal
+    `trailing_stop_mode="ATR"` appeared in routes.py — true only while the
+    endpoint hardcoded it. On 2026-11-02 the mode became a request field and
+    this became a property test: an unflagged request resolved to ATR, so the
+    class default could not reach a user-visible response. On 2026-11-03 the
+    owner took decision (2) and the request default moved to BASING_POINT too.
 
-    REWRITTEN 2026-11-02. This asserted the source contained the literal
-    `trailing_stop_mode="ATR"`, which was true while the endpoint hardcoded it.
-    The endpoint now takes the mode from the request so the two rules can be
-    COMPARED through the real API, with the request default still ATR — so the
-    guard's intent is intact but its old form could only read the implementation
-    it happened to be written against. It now asserts the property: a caller who
-    does not ask cannot inherit the class default.
+    So the two defaults now AGREE, which means the old non-vacuity trick —
+    asserting they differ — no longer says anything. What keeps this meaningful
+    instead is the pair below: the default is the measured rule, AND the old
+    rule is still reachable, so the flip is recoverable rather than final.
     """
     from app.models.schemas import BacktestRequest
     from app.services.backtest.harness import BacktestConfig
 
-    req = BacktestRequest(ticker="VCB", start_date=date(2026, 1, 1),
-                          end_date=date(2026, 3, 1))
-    assert req.trailing_stop_mode == "ATR", (
-        "an unflagged /backtest request no longer runs the ATR trail; the class "
-        "default (BASING_POINT since #101) would now govern a user-visible "
-        "response — that is the #83 gate and needs an owner decision"
-    )
-
-    # And the guard must stay MEANINGFUL: it only says something while the two
-    # defaults genuinely differ. If the class default were also ATR the
-    # assertion above would pass while testing nothing — the vacuous-guard
-    # shape this project has hit three times (#104/#105, #112, #109).
+    request_default = BacktestRequest(
+        ticker="VCB", start_date=date(2026, 1, 1), end_date=date(2026, 3, 1),
+    ).trailing_stop_mode
     class_default = BacktestConfig(
         ticker="T", start_date=None, end_date=None).trailing_stop_mode
-    assert class_default == "BASING_POINT", (
-        "the class default is no longer BASING_POINT, so the assertion above "
-        "no longer distinguishes anything; re-read #101 before changing this"
+
+    assert request_default == "BASING_POINT", (
+        "the /backtest default is no longer the basing-point trail; #101 "
+        "decision (2) adopted it on 61 held-out symbols at net t=+8.97"
     )
+    assert class_default == "BASING_POINT", (
+        "the BacktestConfig default diverged from the endpoint; #101 moved both "
+        "and they are meant to stay aligned"
+    )
+
+
+def test_the_old_atr_trail_remains_reachable():
+    """Adoption is not removal. Every published study pins its control arm
+    explicitly so earlier figures reproduce, and a regression stays one request
+    field away from being undone."""
+    from app.models.schemas import BacktestRequest
+    from app.services.backtest.harness import basing_point_applies
+
+    req = BacktestRequest(ticker="VCB", start_date=date(2026, 1, 1),
+                          end_date=date(2026, 3, 1), trailing_stop_mode="ATR")
+    assert req.trailing_stop_mode == "ATR"
+    # And ATR genuinely bypasses the basing-point rule rather than being a label.
+    assert basing_point_applies("ATR", "LONG") is False
+    assert basing_point_applies("ATR", "SHORT") is False
 
 
 def test_the_endpoint_lets_a_caller_ask_for_the_basing_point_trail():

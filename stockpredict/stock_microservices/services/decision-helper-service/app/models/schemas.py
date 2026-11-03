@@ -281,15 +281,21 @@ class BacktestRequest(BaseModel):
         description="Transfer tax as a percent of proceeds, charged on disposals only (VN: 0.1).",
     )
     trailing_stop_mode: str = Field(
-        default="ATR",
+        default="BASING_POINT",
         description=(
-            "Which trailing-stop rule to run: ATR (default), BASING_POINT, or "
-            "BASING_POINT_LONG_ONLY. Backlog #63/#101 — the BacktestConfig class "
-            "default is BASING_POINT on the evidence of #86/#101 (61 unseen "
-            "symbols, net clustered t=+8.97, 54/61 positive), but THIS default "
-            "stays ATR because what /backtest returns is a user-visible surface "
-            "and moving it is a separate owner decision. Ask for the "
-            "basing-point trail explicitly to compare the two."
+            "Which trailing-stop rule to run: BASING_POINT (default), "
+            "BASING_POINT_LONG_ONLY, or ATR. Backlog #101 decision (2), taken by "
+            "the owner on 2026-11-03: this USER-VISIBLE default moved from ATR to "
+            "BASING_POINT, so /backtest now answers with E&M's Ch 28 procedure "
+            "unless asked otherwise. Evidence is #86/#101 — 61 symbols no EM-3 "
+            "study had seen, +16,383 total NET P&L per symbol at clustered paired "
+            "t=+8.97, 54 of 61 positive, with 76% of the net advantage "
+            "attributable to the rule rather than to its 23% lower turnover. "
+            "Decision (1), the BacktestConfig class default, moved on 2026-10-27; "
+            "this is the second half, and the two are now aligned. Pass ATR "
+            "explicitly to run the original 2xATR trail: it stays reachable so a "
+            "regression is one flag away from being undone, and every published "
+            "study pins its control arm explicitly so earlier figures reproduce."
         ),
     )
 

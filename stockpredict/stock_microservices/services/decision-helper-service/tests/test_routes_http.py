@@ -1343,10 +1343,27 @@ async def _post_backtest(client, **extra):
 
 
 @pytest.mark.asyncio
-async def test_backtest_still_defaults_to_the_atr_trail(client: AsyncClient):
-    """The whole point of making this additive: an existing caller who sends no
-    trailing_stop_mode must get the same answer as before the field existed."""
+async def test_backtest_now_defaults_to_the_basing_point_trail(client: AsyncClient):
+    """Backlog #101 decision (2), taken 2026-11-03.
+
+    This asserted "ATR" from the day the field was added until the owner took
+    the decision: the class default had moved on #86/#101's evidence while this
+    USER-VISIBLE default was deliberately held back, because changing what
+    /backtest returns is a separate call from changing what a study runs. Both
+    halves are now BASING_POINT, on 61 held-out symbols at net clustered
+    t=+8.97, 54/61 positive, 76% of the advantage attributable to the rule.
+    """
     r, captured = await _post_backtest(client)
+    assert r.status_code == 200
+    assert captured["mode"] == "BASING_POINT"
+
+
+@pytest.mark.asyncio
+async def test_atr_is_still_reachable_so_the_flip_can_be_undone(client: AsyncClient):
+    """The counterpart that keeps the flip safe rather than final: the old trail
+    is one request field away, which is what makes a regression recoverable and
+    lets every published ATR-arm study still reproduce."""
+    r, captured = await _post_backtest(client, trailing_stop_mode="ATR")
     assert r.status_code == 200
     assert captured["mode"] == "ATR"
 

@@ -457,14 +457,15 @@ async def run_backtest(
         reentry_cooldown_bars=req.reentry_cooldown_bars,
         failed_signal_grace_bars=req.failed_signal_grace_bars,
         failed_signal_enabled=req.failed_signal_enabled,
-        # Backlog #63/#101. The class default is "BASING_POINT" on the
-        # evidence of #86/#101, but what /backtest RETURNS is a user-visible
-        # surface, so its default stays "ATR" and flipping it remains an owner
-        # decision. What changed (2026-11-02) is that the caller may now ASK:
-        # the request carries the mode, defaulting to "ATR", so the two rules
-        # can be compared through the real endpoint without redefining anyone's
-        # baseline. The response echoes config.trailing_stop_mode, so a result
-        # always names the rule that produced it.
+        # Backlog #101, both decisions taken. The class default moved to
+        # "BASING_POINT" on 2026-10-27 (decision 1) and this USER-VISIBLE
+        # default followed on 2026-11-03 (decision 2), so /backtest now answers
+        # with E&M's Ch 28 procedure unless the caller asks otherwise. The two
+        # are deliberately aligned; see BacktestRequest.trailing_stop_mode for
+        # the evidence. ATR stays reachable as an explicit request value, which
+        # is what makes the flip recoverable and keeps every published ATR-arm
+        # study reproducible. The response echoes config.trailing_stop_mode, so
+        # a result always names the rule that produced it.
         trailing_stop_mode=req.trailing_stop_mode,
     )
 
