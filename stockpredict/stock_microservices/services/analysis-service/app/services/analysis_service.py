@@ -1239,3 +1239,423 @@ class AnalysisService:
             features=features,
             generated_at=datetime.utcnow(),
         )
+
+    # -----------------------------------------------------------------------
+    # Backlog #118 — the chart narrator
+    # -----------------------------------------------------------------------
+
+    #: Risk budget per trade, as a percent of account equity, when the caller
+    #: does not say. 1% is the figure the owner's #118 requirements use and is
+    #: the conventional default; it is a PARAMETER because position sizing is
+    #: the one part of a plan that is purely the user's own risk tolerance.
+    NARRATIVE_DEFAULT_RISK_PCT = 1.0
+    #: Minimum reward-to-risk before a plan is worth stating at all. Below
+    #: this, the narrator says so instead of dressing up a bad setup.
+    NARRATIVE_MIN_RR = 1.0
+
+    async def get_narrative(
+        self,
+        symbol: str,
+        *,
+        period: int = 180,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        capital: float = 100_000_000.0,
+        risk_pct: float = NARRATIVE_DEFAULT_RISK_PCT,
+    ) -> Optional["NarrativeResponse"]:
+        """The #118 chart reading: every section derived from ONE set of bars.
+
+        WHY ONE FETCH AND NOT FIVE. `get_technical_analysis`, `get_sr_levels`,
+        `get_regime` and `get_atr` each call `_fetch_historical_data`
+        themselves. Composing this endpoint out of those four calls would hit
+        stock-data-service four times for the same bars — but the real problem
+        is not the latency. Four fetches can land on four different windows
+        (an intraday refresh between calls is enough), and then the trend
+        section and the levels section would describe different last prices in
+        the same paragraph. A narrator must be internally consistent above all
+        else, so the frame is fetched once here and every section reads it.
+
+        `start_date` / `end_date` bound the window the user asked about. The
+        important part is what `end_date` does: the frame is TRUNCATED there
+        before a single indicator is computed, so an analysis "as of" a past
+        date uses only bars that existed then. Slicing the chart while leaving
+        the indicators on today's data would produce a reading of March that
+        quietly knows how April turned out -- the leakage this repository's C1
+        rule exists to forbid. `start_date` only moves the left edge of the
+        DISPLAY; the 200 warmup bars before it are still fetched and still feed
+        MA200, which is why a short window does not produce a blank MA200.
+        """
+        from app.models.schemas import (
+            NarrativeBar, NarrativeFinding, NarrativeLevel, NarrativeResponse,
+            NarrativeSection,
+        )
+        from app.services.narrative import (
+            detect_candles, detect_rsi_divergence, find_corporate_action_gaps,
+            gap_findings, price_channel,
+        )
+
+        period = max(60, min(int(period), 1000))
+
+        # Reach back far enough to cover the requested window PLUS the warmup.
+        # `_fetch_historical_data` always ends at today, so an end_date in the
+        # past is handled by truncation below rather than by the fetch.
+        days = int((period + INDICATOR_WARMUP_BARS) * CALENDAR_DAYS_PER_BAR)
+        if start_date:
+            try:
+                span = (datetime.now() - datetime.strptime(start_date[:10], "%Y-%m-%d")).days
+                days = max(days, span + int(INDICATOR_WARMUP_BARS * CALENDAR_DAYS_PER_BAR))
+            except (TypeError, ValueError):
+                start_date = None
+        df = await self._fetch_historical_data(symbol, days)
+        if df is None or df.empty or not {"open", "high", "low", "close"}.issubset(df.columns):
+            return None
+        df = df.reset_index(drop=True)
+
+        # CAUSALITY (C1). Truncate BEFORE computing anything. An analysis as of
+        # a past end_date must not be able to see past it.
+        if end_date:
+            try:
+                cutoff = pd.Timestamp(end_date[:10])
+                df = df[df["date"] <= cutoff].reset_index(drop=True)
+            except (TypeError, ValueError):
+                end_date = None
+        if len(df) < 30:
+            return None
+
+        closes = df["close"].astype(float)
+        last = float(closes.iloc[-1])
+        dates = df["date"].dt.strftime("%Y-%m-%d").tolist()
+
+        # --- the honesty gate runs FIRST, over the whole fetched frame -----
+        # The warmup bars are included deliberately: SMA 200 reaches back into
+        # them, so a corporate action there contaminates today's reading even
+        # though it is off the displayed chart.
+        gaps = find_corporate_action_gaps(df)
+        data_ok = not gaps
+        sections: List[NarrativeSection] = []
+
+        def _sec(key: str, findings) -> None:
+            sections.append(NarrativeSection(
+                key=key,
+                findings=[NarrativeFinding(**f.as_dict()) if hasattr(f, "as_dict") else f
+                          for f in findings],
+            ))
+
+        from app.services.narrative import Finding as _F
+        _sec("data", gap_findings(gaps) or [_F("narrative.data.clean", {}, "info")])
+
+        # --- indicators, all from the single frame -------------------------
+        ma20 = closes.rolling(20).mean()
+        ma50 = closes.rolling(50).mean()
+        ma200 = closes.rolling(200).mean()
+        v20 = float(ma20.iloc[-1]) if pd.notna(ma20.iloc[-1]) else None
+        v50 = float(ma50.iloc[-1]) if pd.notna(ma50.iloc[-1]) else None
+        v200 = float(ma200.iloc[-1]) if pd.notna(ma200.iloc[-1]) else None
+
+        rsi_series = self._rsi_series(closes)
+        rsi = float(rsi_series.iloc[-1]) if pd.notna(rsi_series.iloc[-1]) else None
+        # NOTE THE RETURN ORDERS, both of which bit me here. _calculate_macd
+        # returns (macd, signal) -- two values, no histogram. And
+        # _calculate_bollinger returns (upper, LOWER, middle), not
+        # (upper, middle, lower): unpacking it in the natural visual order
+        # silently binds the SMA to `bb_l`, so every "price is at the lower
+        # band" reading would have fired at the middle band instead. That one
+        # does not raise, which is why it is spelled out here.
+        macd, macd_sig = self._calculate_macd(closes)
+        bb_u, bb_l, bb_m = self._calculate_bollinger(closes)
+        atr_series = self._calculate_atr(df, period=14).dropna()
+        atr = float(atr_series.iloc[-1]) if not atr_series.empty else None
+
+        # --- trend ---------------------------------------------------------
+        trend: List[_F] = []
+        p = {"price": round(last, 2), "ma20": _r(v20), "ma50": _r(v50), "ma200": _r(v200)}
+        if None not in (v20, v50, v200) and last > v20 > v50 > v200:
+            trend.append(_F("narrative.trend.up_full_stack", p, "bullish"))
+            bias = "long"
+        elif None not in (v20, v50, v200) and last < v20 < v50 < v200:
+            trend.append(_F("narrative.trend.down_full_stack", p, "bearish"))
+            bias = "short"
+        elif v200 is not None and last > v200:
+            trend.append(_F("narrative.trend.above_200_mixed", p, "info"))
+            bias = "long"
+        elif v200 is not None:
+            trend.append(_F("narrative.trend.below_200_mixed", p, "bearish"))
+            bias = "none"
+        else:
+            bias = "none"
+
+        regime = self._regime_from_frame(df)
+        if regime:
+            name, conf, adx = regime
+            code = ("narrative.trend.regime_trend" if name == "TREND"
+                    else "narrative.trend.regime_range")
+            trend.append(_F(code, {"confidence": round(conf, 2), "adx": round(adx, 1)}, "info"))
+        _sec("trend", trend)
+
+        # --- support & resistance ------------------------------------------
+        levels_out: List[NarrativeLevel] = []
+        lvl_findings: List[_F] = []
+        try:
+            sr_levels, _ = self._find_sr_levels(df, window=3, tolerance_pct=2.0)
+        except Exception as exc:                      # pragma: no cover
+            logger.warning("narrative: S/R failed for %s: %s", symbol, exc)
+            sr_levels = []
+
+        def _eff(lv) -> str:
+            return str(getattr(lv, "effective_type", None) or getattr(lv, "type", "") or "")
+
+        below = [lv for lv in sr_levels if float(lv.price) < last]
+        above = [lv for lv in sr_levels if float(lv.price) > last]
+        sup = max(below, key=lambda lv: float(lv.price)) if below else None
+        res = min(above, key=lambda lv: float(lv.price)) if above else None
+
+        for lv, code, kind in ((sup, "narrative.levels.nearest_support", "support"),
+                               (res, "narrative.levels.nearest_resistance", "resistance")):
+            if lv is None:
+                continue
+            price = float(lv.price)
+            lvl_findings.append(_F(code, {
+                "price": round(price, 2),
+                "distance_pct": round(abs(price - last) / last * 100.0, 2) if last else 0.0,
+                "touches": int(getattr(lv, "strength", 0) or 0),
+                "age_bars": int(getattr(lv, "age_bars", 0) or 0),
+            }, "info"))
+            levels_out.append(NarrativeLevel(
+                price=round(price, 2), kind=kind,
+                touches=int(getattr(lv, "strength", 0) or 0),
+                role_reversed=bool(getattr(lv, "role_reversed", False)),
+            ))
+            if getattr(lv, "role_reversed", False):
+                was = "resistance" if kind == "support" else "support"
+                lvl_findings.append(_F("narrative.levels.role_reversed", {
+                    "price": round(price, 2), "was": was, "now": kind}, "info"))
+            for br in (getattr(lv, "breaks", None) or [])[-1:]:
+                d = getattr(br, "direction", "") or ""
+                lvl_findings.append(_F(
+                    "narrative.levels.broke_down" if d == "down" else "narrative.levels.broke_up",
+                    {"price": round(price, 2), "date": str(getattr(br, "date", "") or ""),
+                     "penetration_atr": round(float(getattr(br, "penetration_atr", 0) or 0), 2)},
+                    "bearish" if d == "down" else "bullish"))
+        if not lvl_findings:
+            lvl_findings.append(_F("narrative.levels.none", {}, "info"))
+        _sec("levels", lvl_findings)
+
+        # --- indicators ----------------------------------------------------
+        ind: List[_F] = []
+        if rsi is not None:
+            if rsi <= 30:
+                ind.append(_F("narrative.indicator.rsi_oversold", {"value": round(rsi, 1)}, "bullish"))
+            elif rsi >= 70:
+                ind.append(_F("narrative.indicator.rsi_overbought", {"value": round(rsi, 1)}, "bearish"))
+            else:
+                ind.append(_F("narrative.indicator.rsi_neutral", {"value": round(rsi, 1)}, "info"))
+        if macd is not None and macd_sig is not None:
+            bullish = macd > macd_sig
+            ind.append(_F(
+                "narrative.indicator.macd_bullish" if bullish else "narrative.indicator.macd_bearish",
+                {"value": round(float(macd), 3), "signal": round(float(macd_sig), 3)},
+                "bullish" if bullish else "bearish"))
+        if bb_u and bb_l and bb_m:
+            width = (bb_u - bb_l) / bb_m * 100.0 if bb_m else 0.0
+            if last >= bb_u:
+                ind.append(_F("narrative.indicator.bb_upper", {"upper": round(bb_u, 2)}, "bearish"))
+            elif last <= bb_l:
+                ind.append(_F("narrative.indicator.bb_lower", {"lower": round(bb_l, 2)}, "bullish"))
+            if width and width < 8.0:
+                ind.append(_F("narrative.indicator.bb_squeeze", {"width": round(width, 1)}, "info"))
+
+        rel = self._relative_volume_last(df)
+        if rel is not None:
+            code = ("narrative.indicator.volume_surge" if rel >= 2.0
+                    else "narrative.indicator.volume_quiet")
+            ind.append(_F(code, {"rel_volume": round(rel, 2)}, "info"))
+        _sec("indicators", ind)
+
+        # --- candles and divergence ----------------------------------------
+        pats: List[_F] = list(detect_candles(df, lookback=3))
+        pats += detect_rsi_divergence(df, rsi_series.fillna(50.0).tolist())
+        if not pats:
+            pats.append(_F("narrative.candle.none", {}, "info"))
+        _sec("patterns", pats)
+
+        # --- channel --------------------------------------------------------
+        ch = price_channel(df)
+        if ch is None:
+            _sec("channel", [_F("narrative.channel.none", {}, "info")])
+        else:
+            key = ("rising" if ch.upper_slope > 0 and ch.lower_slope > 0
+                   else "falling" if ch.upper_slope < 0 and ch.lower_slope < 0
+                   else "flat")
+            chan = [_F(f"narrative.channel.{key}", ch.as_dict(), "info")]
+            # PRICE CAN BE OUTSIDE THE RAILS, and `position_pct` alone hides
+            # it: the figure is clamped to 0..100, so a stock trading well
+            # BELOW its lower rail reports "0% of the way up" -- which reads as
+            # "at the bottom of the channel" when the truth is "no longer in
+            # the channel at all". Observed live on both FPT and TCB.
+            if last < ch.lower_now:
+                chan.append(_F("narrative.channel.broken_below", {
+                    "lower": round(ch.lower_now, 2), "price": round(last, 2),
+                    "distance_pct": round((ch.lower_now - last) / ch.lower_now * 100.0, 1),
+                }, "bearish"))
+            elif last > ch.upper_now:
+                chan.append(_F("narrative.channel.broken_above", {
+                    "upper": round(ch.upper_now, 2), "price": round(last, 2),
+                    "distance_pct": round((last - ch.upper_now) / ch.upper_now * 100.0, 1),
+                }, "bullish"))
+            _sec("channel", chan)
+
+        # --- the plan -------------------------------------------------------
+        _sec("strategy", self._narrative_strategy(
+            last=last, bias=bias, sup=sup, res=res, atr=atr,
+            data_ok=data_ok, capital=capital, risk_pct=risk_pct))
+
+        # --- the chart the text refers to ----------------------------------
+        first = max(0, len(df) - period)
+        if start_date:
+            try:
+                begin = pd.Timestamp(start_date[:10])
+                hits = df.index[df["date"] >= begin]
+                if len(hits):
+                    first = int(hits[0])
+            except (TypeError, ValueError):
+                pass
+        tail = slice(first, len(df))
+        chart = [
+            NarrativeBar(
+                date=dates[i],
+                open=_r(df["open"].iloc[i]), high=_r(df["high"].iloc[i]),
+                low=_r(df["low"].iloc[i]), close=_r(df["close"].iloc[i]),
+                volume=_r(df["volume"].iloc[i]) if "volume" in df.columns else None,
+                ma20=_r(ma20.iloc[i]), ma50=_r(ma50.iloc[i]), ma200=_r(ma200.iloc[i]),
+            )
+            for i in range(tail.start, tail.stop)
+        ]
+
+        return NarrativeResponse(
+            symbol=symbol.upper(), as_of=dates[-1] if dates else None,
+            bars=len(chart), data_ok=data_ok, sections=sections,
+            levels=levels_out, chart=chart, generated_at=datetime.utcnow(),
+        )
+
+    # --- narrator helpers ---------------------------------------------------
+
+    def _rsi_series(self, prices: "pd.Series", period: int = 14) -> "pd.Series":
+        """Per-bar RSI, aligned to `prices`.
+
+        `_calculate_rsi` returns only the latest scalar, but divergence needs
+        the whole series. This is the same Wilder calculation; it is a series
+        accessor, not a second definition of RSI.
+        """
+        delta = prices.diff()
+        gain = delta.clip(lower=0).rolling(period).mean()
+        loss = (-delta.clip(upper=0)).rolling(period).mean()
+        rs = gain / loss.replace(0, float("nan"))
+        return (100 - (100 / (1 + rs))).fillna(50.0)
+
+    def _regime_from_frame(self, df: "pd.DataFrame"):
+        """(name, confidence, adx) or None — the regime without a second fetch."""
+        try:
+            prices = df["close"].astype(float)
+            slope = self._calculate_ma_slope(prices, ma_window=50, lookback=20)
+            pivots = self._find_swing_pivots(df, window=3)
+            adx = self._calculate_adx(df, period=14)
+            atr_s = self._calculate_atr(df, period=14).dropna()
+            latest_atr = float(atr_s.iloc[-1]) if not atr_s.empty else 0.0
+            from app.models.schemas import RegimeFeatures
+            feats = RegimeFeatures(
+                slope=round(slope, 6),
+                hh_hl_count=self._count_hh_hl(pivots[-12:] if len(pivots) > 12 else pivots),
+                adx=round(adx, 4),
+                range_atr_ratio=round(self._range_atr_ratio(df, atr=latest_atr, lookback=20), 4),
+            )
+            name, conf = self._classify_regime(feats)
+            return str(getattr(name, "value", name)), float(conf), float(adx)
+        except Exception as exc:                       # pragma: no cover
+            logger.warning("narrative: regime failed: %s", exc)
+            return None
+
+    def _relative_volume_last(self, df: "pd.DataFrame") -> Optional[float]:
+        """Last bar's volume over its trailing median, via the #117 shared lib.
+
+        Imported rather than reimplemented: `stock_common.analytics.volume` is
+        the measured definition (median, not mean, so one climax day cannot be
+        absorbed into its own baseline) and a third copy would be a third
+        answer to the same question.
+        """
+        if "volume" not in df.columns or df.empty:
+            return None
+        try:
+            from stock_common.analytics.volume import relative_volume
+            rv = relative_volume(df["volume"].tolist(), len(df) - 1)
+            return float(rv.value) if rv.value is not None else None
+        except Exception as exc:
+            logger.warning("narrative: relative volume unavailable: %s", exc)
+            return None
+
+    def _narrative_strategy(self, *, last, bias, sup, res, atr, data_ok,
+                            capital, risk_pct):
+        """Entry / stop / target / size — or an explicit refusal.
+
+        REFUSES in three situations, each of which a template would otherwise
+        paper over:
+          1. the window holds an unadjusted corporate action (#119) — the
+             levels a plan would be built on are not trustworthy;
+          2. there is no support below or no resistance above, so one leg of
+             the plan would have to be invented;
+          3. reward-to-risk is under `NARRATIVE_MIN_RR` — the setup does not
+             pay for its own risk, and saying so is the useful output.
+        """
+        from app.services.narrative import Finding as _F
+        if not data_ok:
+            return [_F("narrative.strategy.contaminated", {}, "warning")]
+
+        # THE TREND CAVEAT IS BUILT FIRST, ON PURPOSE. It used to be appended
+        # after the "no usable levels" early return, which meant the one case
+        # where it matters most lost it: in a steep decline there is often no
+        # resistance ABOVE price at all, so the function returned a bare "wait"
+        # and never mentioned that the setup was against the dominant trend. A
+        # caveat that disappears exactly when the chart is ugliest is worse
+        # than no caveat. Every return path below now carries it.
+        out: List[_F] = []
+        if bias in ("short", "none"):
+            out.append(_F("narrative.strategy.against_trend", {}, "warning"))
+
+        if sup is None or res is None or not atr:
+            return out + [_F("narrative.strategy.wait", {"reason": ""}, "info")]
+
+        entry = float(sup.price)
+        stop = entry - float(atr)
+        target = float(res.price)
+        risk, reward = entry - stop, target - entry
+        if risk <= 0 or reward <= 0:
+            return out + [_F("narrative.strategy.wait", {"reason": ""}, "info")]
+        rr = reward / risk
+        if rr < self.NARRATIVE_MIN_RR:
+            out.append(_F("narrative.strategy.rr_too_thin", {"rr": round(rr, 2)}, "info"))
+            return out
+
+        out.append(_F("narrative.strategy.long_pullback", {
+            "entry": round(entry, 2), "stop": round(stop, 2), "target": round(target, 2),
+            "risk_pct": round(risk / entry * 100.0, 2),
+            "reward_pct": round(reward / entry * 100.0, 2),
+            "rr": round(rr, 2),
+        }, "info"))
+        shares = int((capital * (risk_pct / 100.0)) // risk) if risk > 0 else 0
+        if shares > 0:
+            out.append(_F("narrative.strategy.sizing", {
+                "risk_budget_pct": round(risk_pct, 2), "shares": shares,
+                "capital_pct": round(shares * entry / capital * 100.0, 1) if capital else 0.0,
+                "entry": round(entry, 2),
+            }, "info"))
+        return out
+
+
+def _r(v, digits: int = 2):
+    """Round for JSON, mapping NaN/None to None rather than to a number."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    if f != f:          # NaN
+        return None
+    return round(f, digits)

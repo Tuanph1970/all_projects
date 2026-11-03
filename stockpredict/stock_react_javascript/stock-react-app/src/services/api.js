@@ -929,6 +929,35 @@ export const analysisAPI = {
     }
   },
 
+  /**
+   * Backlog #118 — a readable chart analysis for one symbol.
+   *
+   * Returns i18n CODES plus numbers, never prose: the backend cannot know
+   * whether this user is reading English or Vietnamese, so the sentences are
+   * rendered here from `narrative.*` keys.
+   *
+   * `endDate` is causal on the server — the bars are truncated there before a
+   * single indicator is computed, so an "as of" reading cannot see past it.
+   */
+  getNarrative: async (symbol, { startDate, endDate, period, capital, riskPct } = {}) => {
+    const qs = new URLSearchParams();
+    if (startDate) qs.set('start_date', startDate);
+    if (endDate) qs.set('end_date', endDate);
+    if (period) qs.set('period', String(period));
+    if (capital) qs.set('capital', String(capital));
+    if (riskPct) qs.set('risk_pct', String(riskPct));
+    const q = qs.toString();
+    const url = `${API_ENDPOINTS.ANALYSIS_NARRATIVE(symbol)}${q ? `?${q}` : ''}`;
+
+    const response = await fetch(url, { method: 'GET', headers: getAuthHeaders() });
+    if (!response.ok) {
+      let detail = '';
+      try { detail = (await response.json()).detail || ''; } catch (e) { /* no body */ }
+      throw new Error(detail || `Failed to analyse ${symbol}`);
+    }
+    return response.json();
+  },
+
   getTechnicalIndicators: async (symbol, indicators = 'rsi,macd,sma', period = 30) => {
     try {
       const response = await fetch(`${API_ENDPOINTS.ANALYSIS_TECHNICAL_INDICATORS(symbol)}?indicators=${indicators}&period=${period}`, {

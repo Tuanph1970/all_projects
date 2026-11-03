@@ -75,7 +75,8 @@
     "vol_forecast": "Dự báo & Backtest",
     "event_reaction": "Phản ứng sự kiện",
     "news": "Tin tức",
-    "tcb_news": "Tin TCB"
+    "tcb_news": "Tin TCB",
+    "chart_narrator": "Phân tích đồ thị"
   },
   "page_titles": {
     "dashboard": {
@@ -2765,5 +2766,105 @@
     "err_multiple_required": "Hãy nhập hệ số khối lượng, ví dụ 3.",
     "err_multiple_too_small": "Hệ số dưới 1.1 sẽ báo động cả những ngày bình thường. Hãy dùng từ 1.1 trở lên.",
     "err_multiple_too_large": "Hệ số trên 50 thì gần như không bao giờ báo động."
+  },
+  "narrative": {
+    "ui": {
+      "title": "Phân tích đồ thị",
+      "subtitle": "Chọn một mã bạn đang theo dõi và đọc xem đồ thị đang nói gì.",
+      "symbol_label": "Mã đang theo dõi",
+      "symbol_placeholder": "Chọn một mã...",
+      "analyse": "Phân tích",
+      "analysing": "Đang đọc đồ thị...",
+      "empty": "Hãy chọn một mã đang theo dõi rồi bấm Phân tích.",
+      "no_watched": "Bạn chưa theo dõi mã nào. Hãy thêm mã ở trang Danh mục theo dõi trước.",
+      "failed": "Không phân tích được {{symbol}}. {{reason}}",
+      "as_of": "Dữ liệu đến ngày {{date}} ({{bars}} phiên)",
+      "chart_title": "{{symbol}} — giá, khối lượng và các vùng giá được nêu bên dưới",
+      "start_date": "Từ ngày",
+      "end_date": "Đến ngày",
+      "dates_inverted": "Ngày bắt đầu muộn hơn ngày kết thúc. Hãy sửa lại khoảng thời gian, hệ thống sẽ không tự ý đảo thứ tự.",
+      "date_hint": "Để trống hai ngày để xem 180 phiên gần nhất. Khi chọn ngày kết thúc, đồ thị được phân tích TÍNH ĐẾN ngày đó — kết quả không thể nhìn thấy dữ liệu sau ngày này.",
+      "watchlist_failed": "Không tải được danh sách theo dõi. Vui lòng thử lại.",
+      "data_warning_banner": "Cửa sổ dữ liệu này có một sự kiện doanh nghiệp chưa được điều chỉnh, nên các đường MA, chỉ số biến động và vùng giá bên dưới đều bị nhiễu. Hệ thống không đưa ra kế hoạch giao dịch.",
+      "no_chart_data": "Không có dữ liệu để vẽ đồ thị.",
+      "series_close": "Giá đóng cửa",
+      "series_volume": "Khối lượng",
+      "level_support": "Hỗ trợ",
+      "level_resistance": "Kháng cự"
+    },
+    "section": {
+      "data": "Chất lượng dữ liệu",
+      "trend": "Xu hướng",
+      "levels": "Hỗ trợ & kháng cự",
+      "indicators": "Chỉ báo",
+      "patterns": "Nến & mô hình",
+      "channel": "Kênh giá",
+      "strategy": "Kế hoạch cụ thể"
+    },
+    "data": {
+      "corporate_action_gap": "Dữ liệu chưa điều chỉnh: ngày {{date}}, giá đóng cửa đi từ {{prev_close}} về {{close}} ({{move_pct}}%). Mức này vượt biên độ giao dịch trong ngày, nên gần như chắc chắn là cổ tức bằng cổ phiếu hoặc chia tách (tỷ lệ khoảng {{ratio}}:1) chứ không phải giảm giá thật — giá trị khoản nắm giữ không hề thay đổi. Hãy tạm coi các đường MA, ATR, độ rộng Bollinger và RSI là đã bị nhiễu cho đến khi phiên này ra khỏi cửa sổ tính toán.",
+      "clean": "Cửa sổ dữ liệu này không có khoảng nhảy giá bất thường; các đường MA và chỉ số biến động dùng được bình thường."
+    },
+    "trend": {
+      "up_full_stack": "Xu hướng tăng. Giá {{price}} nằm trên MA20 {{ma20}}, MA20 trên MA50 {{ma50}}, MA50 trên MA200 {{ma200}} — mọi khung thời gian đều đồng thuận.",
+      "down_full_stack": "Xu hướng giảm. Giá {{price}} nằm dưới MA20 {{ma20}}, dưới MA50 {{ma50}} và dưới MA200 {{ma200}} — mọi khung thời gian đều đồng thuận, và đây là trạng thái khó mua nhất.",
+      "above_200_mixed": "Trạng thái pha trộn nhưng còn tích cực: giá {{price}} vẫn giữ trên MA200 {{ma200}} trong khi các đường ngắn hạn đã cắt xuống. Đây là nhịp điều chỉnh trong một xu hướng tăng dài hơn, chưa phải đảo chiều.",
+      "below_200_mixed": "Trạng thái pha trộn và yếu: giá {{price}} nằm dưới MA200 {{ma200}}. Mọi nhịp hồi ở đây vẫn chỉ là hồi trong xu hướng giảm cho đến khi lấy lại được MA200.",
+      "regime_trend": "Kiểm định trạng thái cho kết quả CÓ XU HƯỚNG với độ tin cậy {{confidence}} (ADX {{adx}}), nên cách đọc theo xu hướng là phù hợp, còn chiến thuật đi ngang thì không.",
+      "regime_range": "Kiểm định trạng thái cho kết quả ĐI NGANG với độ tin cậy {{confidence}} (ADX {{adx}}), nên nên mua ở biên dưới — bán ở biên trên, và cần nghi ngờ các tín hiệu phá vỡ."
+    },
+    "levels": {
+      "nearest_support": "Hỗ trợ gần nhất {{price}}, thấp hơn giá hiện tại {{distance_pct}}%, hình thành từ {{touches}} lần kiểm định và lần gần nhất cách đây {{age_bars}} phiên.",
+      "nearest_resistance": "Kháng cự gần nhất {{price}}, cao hơn giá hiện tại {{distance_pct}}%, hình thành từ {{touches}} lần kiểm định và lần gần nhất cách đây {{age_bars}} phiên.",
+      "role_reversed": "Vùng {{price}} đã đổi vai: trước là {{was}}, nay đóng vai {{now}}. Một vùng giá bị phá vỡ không mất tác dụng — nó hoạt động theo chiều ngược lại.",
+      "broke_down": "Giá đã phá xuống khỏi {{price}} ngày {{date}}, xuyên sâu {{penetration_atr}} ATR. Đó là một cú phá vỡ dứt khoát, không phải chỉ chạm nhẹ.",
+      "broke_up": "Giá đã phá lên khỏi {{price}} ngày {{date}}, xuyên sâu {{penetration_atr}} ATR. Đó là một cú phá vỡ dứt khoát, không phải chỉ chạm nhẹ.",
+      "none": "Trong cửa sổ này chưa có vùng giá nào đủ số lần kiểm định để đáng nêu tên."
+    },
+    "indicator": {
+      "rsi_oversold": "RSI {{value}} đang ở vùng quá bán. Trong một xu hướng giảm, đây là lời cảnh báo rằng giá có thể giảm tiếp, chứ không phải tín hiệu mua đương nhiên.",
+      "rsi_overbought": "RSI {{value}} đang ở vùng quá mua. Trong một xu hướng tăng, điều này thể hiện sức mạnh cũng thường xuyên như thể hiện sự cạn kiệt.",
+      "rsi_neutral": "RSI {{value}} nằm giữa dải và chưa nói lên nhiều điều.",
+      "macd_bearish": "MACD {{value}} nằm dưới đường tín hiệu {{signal}} — động lượng đang hướng xuống.",
+      "macd_bullish": "MACD {{value}} nằm trên đường tín hiệu {{signal}} — động lượng đang hướng lên.",
+      "bb_squeeze": "Độ rộng Bollinger chỉ {{width}}%, hẹp một cách khác thường. Những giai đoạn tích luỹ im ắng như vậy thường kết thúc bằng một cú chuyển động mạnh hơn là tiếp tục im ắng.",
+      "bb_upper": "Giá đang ở dải Bollinger trên {{upper}} — đã căng so với biên độ gần đây của chính nó.",
+      "bb_lower": "Giá đang ở dải Bollinger dưới {{lower}} — đã căng về phía giảm so với biên độ gần đây của chính nó.",
+      "volume_surge": "Khối lượng gấp {{rel_volume}} lần trung vị. Khối lượng bất thường nói lên sự chú ý, không nói lên chiều hướng — nó không cho biết tin phía sau là tốt hay xấu.",
+      "volume_quiet": "Khối lượng {{rel_volume}} lần trung vị là mức bình thường, nên không có dấu hiệu dòng tiền đám đông ở đây."
+    },
+    "candle": {
+      "doji": "Nến Doji ngày {{date}} (cách đây {{bars_ago}} phiên): giá mở và đóng gần như bằng nhau, có bóng nến cả hai phía — phiên đó bên mua và bên bán giằng co, chưa phân định.",
+      "hammer": "Nến Búa ngày {{date}} (cách đây {{bars_ago}} phiên): trong phiên giá bị đẩy xuống sâu dưới thân nến rồi đóng cửa hồi lại gần vùng cao nhất — bên mua đã hấp thụ hết lực bán. Chỉ mang ý nghĩa đảo chiều nếu trước đó là một nhịp giảm.",
+      "shooting_star": "Nến Sao băng ngày {{date}} (cách đây {{bars_ago}} phiên): trong phiên giá tăng mạnh rồi bị đánh tụt về hết lúc đóng cửa — bên bán đã chặn được nhịp tăng. Chỉ mang ý nghĩa đảo chiều nếu trước đó là một nhịp tăng.",
+      "bullish_engulfing": "Nến Nhấn chìm tăng ngày {{date}} (cách đây {{bars_ago}} phiên): một phiên tăng trùm trọn thân nến giảm liền trước — bên mua lấy lại nhiều hơn những gì bên bán vừa giành được.",
+      "bearish_engulfing": "Nến Nhấn chìm giảm ngày {{date}} (cách đây {{bars_ago}} phiên): một phiên giảm trùm trọn thân nến tăng liền trước — bên bán xoá sạch nhiều hơn những gì bên mua vừa giành được.",
+      "none": "Vài phiên gần đây không có mẫu nến đảo chiều nào đáng nêu."
+    },
+    "channel": {
+      "rising": "Giá đang đi trong một kênh tăng: hai biên chạy từ {{lower}} lên {{upper}}, giá hiện ở mức {{position_pct}}% tính từ biên dưới, khớp từ {{pivots_used}} điểm đảo chiều.",
+      "falling": "Giá đang đi trong một kênh giảm giữa {{lower}} và {{upper}}, hiện ở mức {{position_pct}}% tính từ biên dưới, khớp từ {{pivots_used}} điểm đảo chiều.",
+      "flat": "Giá đang đi trong một kênh đi ngang giữa {{lower}} và {{upper}}, hiện ở mức {{position_pct}}% tính từ biên dưới.",
+      "none": "Chưa đủ điểm đảo chiều ở cả hai phía để vẽ kênh giá một cách trung thực — một đường thẳng kẻ qua đúng một điểm thì không phải đường xu hướng.",
+      "broken_below": "Giá {{price}} đã rơi ra khỏi kênh giá — thấp hơn {{distance_pct}}% so với biên dưới ở {{lower}}. Việc rời khỏi kênh theo hướng xuống là một sự thay đổi về bản chất, không chỉ đơn thuần là vị trí trong kênh.",
+      "broken_above": "Giá {{price}} đã vượt lên khỏi kênh giá — cao hơn {{distance_pct}}% so với biên trên ở {{upper}}. Việc rời khỏi kênh theo hướng lên là một sự thay đổi về bản chất, không chỉ đơn thuần là vị trí trong kênh."
+    },
+    "strategy": {
+      "heading": "Nếu bạn định giao dịch mã này",
+      "wait": "Chưa vào lệnh. {{reason}} Đứng ngoài cũng là một quyết định.",
+      "long_pullback": "Chỉ nên mua khi giá điều chỉnh về quanh {{entry}}, đặt cắt lỗ dưới {{stop}} và mục tiêu đầu tiên tại {{target}}. Tức là chịu rủi ro {{risk_pct}}% để kiếm {{reward_pct}}% — khoảng {{rr}}:1.",
+      "long_breakout": "Lệnh mua được kích hoạt khi đóng cửa vượt {{entry}} kèm khối lượng xác nhận, cắt lỗ dưới {{stop}}, mục tiêu đầu tiên {{target}} — tỷ lệ {{rr}}:1.",
+      "short_rally": "Chỉ nên bán khống khi giá hồi lên quanh {{entry}}, cắt lỗ trên {{stop}}, mục tiêu đầu tiên {{target}} — tỷ lệ {{rr}}:1.",
+      "sizing": "Với mức rủi ro {{risk_budget_pct}}% tổng vốn, tương ứng {{shares}} cổ phiếu, chiếm khoảng {{capital_pct}}% tài khoản tại giá {{entry}}.",
+      "rr_too_thin": "Kháng cự gần nhất quá sát hỗ trợ gần nhất nên không đủ bù rủi ro ({{rr}}:1). Một kế hoạch cần có không gian, và ở đây thì không còn.",
+      "against_trend": "Đây sẽ là lệnh đi ngược xu hướng chính, tức là cách dùng mọi dữ kiện ở trên với xác suất thắng thấp nhất.",
+      "contaminated": "Không đưa ra kế hoạch: dữ liệu giá trong cửa sổ này có một sự kiện doanh nghiệp chưa được điều chỉnh, nên các vùng giá và chỉ số biến động dùng để lập kế hoạch đều không đáng tin."
+    },
+    "disclaimer": "Đây là cách đọc dữ liệu giá và khối lượng trong quá khứ, không phải dự báo và không phải lời khuyên đầu tư. Mọi vùng giá nêu ở trên đều hiển thị trên đồ thị bên cạnh — hãy tự kiểm tra lại trước khi hành động.",
+    "divergence": {
+      "bearish_rsi": "Phân kỳ giảm của RSI: giá tạo đỉnh cao hơn, từ {{from_price}} ngày {{from_date}} lên {{to_price}} ngày {{to_date}}, nhưng RSI lại tụt từ {{from_rsi}} xuống {{to_rsi}}. Đỉnh mới được tạo ra bằng lực yếu hơn đỉnh trước đó.",
+      "bullish_rsi": "Phân kỳ tăng của RSI: giá tạo đáy thấp hơn, từ {{from_price}} ngày {{from_date}} xuống {{to_price}} ngày {{to_date}}, nhưng RSI lại nhích từ {{from_rsi}} lên {{to_rsi}}. Đáy mới hình thành với áp lực bán nhẹ hơn đáy trước đó.",
+      "none": "Giá và RSI đồng thuận ở hai nhịp đảo chiều gần nhất — không có phân kỳ nào để nêu."
+    }
   }
 }

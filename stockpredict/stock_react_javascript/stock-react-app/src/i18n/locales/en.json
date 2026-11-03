@@ -75,7 +75,8 @@
     "vol_forecast": "Forecast & Backtest",
     "event_reaction": "Event Reaction",
     "news": "News",
-    "tcb_news": "TCB News"
+    "tcb_news": "TCB News",
+    "chart_narrator": "Chart analyst"
   },
   "page_titles": {
     "dashboard": {
@@ -2765,5 +2766,105 @@
     "err_multiple_required": "Enter a volume multiple, for example 3.",
     "err_multiple_too_small": "A multiple below 1.1 would fire on ordinary days. Use 1.1 or more.",
     "err_multiple_too_large": "A multiple above 50 would almost never fire."
+  },
+  "narrative": {
+    "ui": {
+      "title": "Chart Analyst",
+      "subtitle": "Pick a symbol you watch and read what the chart is saying.",
+      "symbol_label": "Watched symbol",
+      "symbol_placeholder": "Select a symbol...",
+      "analyse": "Analysis",
+      "analysing": "Reading the chart...",
+      "empty": "Choose a watched symbol and press Analysis.",
+      "no_watched": "You are not watching any symbol yet. Add one from the Watchlist page first.",
+      "failed": "Could not analyse {{symbol}}. {{reason}}",
+      "as_of": "Bars through {{date}} ({{bars}} sessions)",
+      "chart_title": "{{symbol}} — price, volume and the levels named below",
+      "start_date": "From",
+      "end_date": "To",
+      "dates_inverted": "The start date is after the end date. Fix the range rather than have it silently reordered.",
+      "date_hint": "Leave the dates empty for the last 180 sessions. An end date analyses the chart AS OF that day — the reading cannot see past it.",
+      "watchlist_failed": "Could not load your watchlist. Try again.",
+      "data_warning_banner": "This window contains an unadjusted corporate action, so the moving averages, volatility and levels below are contaminated. No trading plan is offered.",
+      "no_chart_data": "No bars to draw.",
+      "series_close": "Close",
+      "series_volume": "Volume",
+      "level_support": "Support",
+      "level_resistance": "Resistance"
+    },
+    "section": {
+      "data": "Data health",
+      "trend": "Trend",
+      "levels": "Support & resistance",
+      "indicators": "Indicators",
+      "patterns": "Candles & patterns",
+      "channel": "Price channel",
+      "strategy": "A concrete plan"
+    },
+    "data": {
+      "corporate_action_gap": "Unadjusted data: on {{date}} the close went from {{prev_close}} to {{close}} ({{move_pct}}%). That is beyond the daily trading limit, so it is almost certainly a stock dividend or split (ratio about {{ratio}}:1) and not a real fall — the value of the holding did not change. Treat the moving averages, ATR, Bollinger width and RSI as contaminated until the window clears it.",
+      "clean": "No impossible gaps in this window; the moving averages and volatility readings can be taken at face value."
+    },
+    "trend": {
+      "up_full_stack": "Uptrend. Price {{price}} sits above MA20 {{ma20}}, which is above MA50 {{ma50}}, which is above MA200 {{ma200}} — every horizon agrees.",
+      "down_full_stack": "Downtrend. Price {{price}} is below MA20 {{ma20}}, below MA50 {{ma50}} and below MA200 {{ma200}} — every horizon agrees, and this is the hardest configuration to buy into.",
+      "above_200_mixed": "Mixed, but constructive: price {{price}} holds above MA200 {{ma200}} while the shorter averages have crossed over. That is a pullback inside a longer advance, not a reversal yet.",
+      "below_200_mixed": "Mixed and weak: price {{price}} is under MA200 {{ma200}}. Rallies here are rallies inside a downtrend until MA200 is reclaimed.",
+      "regime_trend": "The regime test calls this a TREND at {{confidence}} confidence (ADX {{adx}}), so trend-following reads apply and range tactics do not.",
+      "regime_range": "The regime test calls this a RANGE at {{confidence}} confidence (ADX {{adx}}), so buy-the-edge tactics apply and breakout signals should be distrusted."
+    },
+    "levels": {
+      "nearest_support": "Nearest support {{price}}, {{distance_pct}}% below, built from {{touches}} touches and last tested {{age_bars}} sessions ago.",
+      "nearest_resistance": "Nearest resistance {{price}}, {{distance_pct}}% above, built from {{touches}} touches and last tested {{age_bars}} sessions ago.",
+      "role_reversed": "{{price}} has changed sides: it was {{was}} and now acts as {{now}}. A level that has been broken is not spent — it works in the other direction.",
+      "broke_down": "Price broke down through {{price}} on {{date}}, penetrating {{penetration_atr}} ATR. That is a decisive break, not a brush.",
+      "broke_up": "Price broke up through {{price}} on {{date}}, penetrating {{penetration_atr}} ATR. That is a decisive break, not a brush.",
+      "none": "No level in this window has enough touches to be worth naming."
+    },
+    "indicator": {
+      "rsi_oversold": "RSI {{value}} is oversold. In a downtrend that is a warning that moves can keep going, not an automatic buy.",
+      "rsi_overbought": "RSI {{value}} is overbought. In an uptrend that signals strength as often as exhaustion.",
+      "rsi_neutral": "RSI {{value}} is in the middle of its range and is not saying much.",
+      "macd_bearish": "MACD {{value}} sits below its signal line {{signal}} — momentum is pointing down.",
+      "macd_bullish": "MACD {{value}} sits above its signal line {{signal}} — momentum is pointing up.",
+      "bb_squeeze": "Bollinger width is {{width}}%, unusually narrow. Quiet ranges like this tend to end in a move rather than continuing quietly.",
+      "bb_upper": "Price is at the upper Bollinger band {{upper}} — stretched relative to its own recent range.",
+      "bb_lower": "Price is at the lower Bollinger band {{lower}} — stretched to the downside relative to its own recent range.",
+      "volume_surge": "Volume is {{rel_volume}}x its median. Unusual volume says attention, not direction — it does not say whether the news behind it is good or bad.",
+      "volume_quiet": "Volume {{rel_volume}}x median is ordinary, so nothing here is being driven by a crowd."
+    },
+    "candle": {
+      "doji": "Doji on {{date}} ({{bars_ago}} sessions ago): open and close finished at nearly the same level with shadows on both sides — the session ended undecided.",
+      "hammer": "Hammer on {{date}} ({{bars_ago}} sessions ago): price was driven well below the body during the session and closed back near the high. Buyers absorbed the selling. It only means reversal if a decline came before it.",
+      "shooting_star": "Shooting star on {{date}} ({{bars_ago}} sessions ago): price ran up during the session and gave it all back by the close. Sellers met the advance. It only means reversal if a rally came before it.",
+      "bullish_engulfing": "Bullish engulfing on {{date}} ({{bars_ago}} sessions ago): an up session completely covered the previous down session's body — buyers took back more than sellers had just gained.",
+      "bearish_engulfing": "Bearish engulfing on {{date}} ({{bars_ago}} sessions ago): a down session completely covered the previous up session's body — sellers erased more than buyers had just gained.",
+      "none": "No reversal candle worth naming in the last few sessions."
+    },
+    "channel": {
+      "rising": "Price is in a rising channel: the rails run from {{lower}} up to {{upper}}, and price sits {{position_pct}}% of the way up, fitted to {{pivots_used}} swing points.",
+      "falling": "Price is in a falling channel between {{lower}} and {{upper}}, sitting {{position_pct}}% of the way up, fitted to {{pivots_used}} swing points.",
+      "flat": "Price is in a flat channel between {{lower}} and {{upper}}, sitting {{position_pct}}% of the way up.",
+      "none": "Not enough swing points on both sides to draw a channel honestly — a line through one pivot is not a trendline.",
+      "broken_below": "Price {{price}} has dropped out of the channel altogether — it is {{distance_pct}}% below the lower rail at {{lower}}. Leaving a channel on the downside is a change of character, not just a position within it.",
+      "broken_above": "Price {{price}} has pushed out above the channel — {{distance_pct}}% above the upper rail at {{upper}}. Leaving a channel on the upside is a change of character, not just a position within it."
+    },
+    "strategy": {
+      "heading": "If you were to trade this",
+      "wait": "No trade. {{reason}} Waiting is a position too.",
+      "long_pullback": "A long is only worth it on a pullback toward {{entry}}, with the stop under {{stop}} and the first target at {{target}}. That risks {{risk_pct}}% to make {{reward_pct}}% — about {{rr}}:1.",
+      "long_breakout": "A long triggers on a close above {{entry}} with volume behind it, stop under {{stop}}, first target {{target}} — {{rr}}:1.",
+      "short_rally": "A short is only worth it on a rally toward {{entry}}, stop above {{stop}}, first target {{target}} — {{rr}}:1.",
+      "sizing": "At {{risk_budget_pct}}% of capital at risk, that is {{shares}} shares, about {{capital_pct}}% of the account at {{entry}}.",
+      "rr_too_thin": "The nearest resistance is too close to the nearest support to pay for the risk here ({{rr}}:1). A plan needs room, and this one has none.",
+      "against_trend": "This would be a trade against the dominant trend, which is the lowest-probability way to use any of the readings above.",
+      "contaminated": "No plan is offered: the price history in this window contains an unadjusted corporate action, so the levels and volatility it would be built on are not trustworthy."
+    },
+    "disclaimer": "This is a reading of past price and volume, not a forecast and not investment advice. Every level named above is visible on the chart beside it — check it yourself before acting.",
+    "divergence": {
+      "bearish_rsi": "Bearish RSI divergence: price made a higher high, from {{from_price}} on {{from_date}} to {{to_price}} on {{to_date}}, but RSI fell from {{from_rsi}} to {{to_rsi}}. The new high was made with less force than the one before it.",
+      "bullish_rsi": "Bullish RSI divergence: price made a lower low, from {{from_price}} on {{from_date}} to {{to_price}} on {{to_date}}, but RSI rose from {{from_rsi}} to {{to_rsi}}. The new low came with less selling pressure behind it than the one before.",
+      "none": "Price and RSI agree across the last two swings — no divergence to report."
+    }
   }
 }

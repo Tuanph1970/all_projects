@@ -593,3 +593,64 @@ class QuickSummaryResponse(BaseModel):
     key_levels: Dict[str, float]
     one_liner: str
     generated_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Backlog #118 — the chart narrator
+# ---------------------------------------------------------------------------
+
+class NarrativeFinding(BaseModel):
+    """One reading the narrator can state.
+
+    Carries an i18n `code` and the `params` its template needs, NEVER a
+    sentence. The app ships English and Vietnamese and the #118 requirements
+    were written in Vietnamese; a server-rendered sentence would have to pick
+    one language and silently give the other locale the wrong text.
+    """
+    code: str
+    params: Dict[str, Any] = Field(default_factory=dict)
+    severity: str = "info"
+
+
+class NarrativeSection(BaseModel):
+    key: str
+    findings: List[NarrativeFinding] = Field(default_factory=list)
+
+
+class NarrativeLevel(BaseModel):
+    """A level named in the text AND drawn on the chart.
+
+    The same object feeds both so they cannot disagree. A narrator that talks
+    about support at 50.1 while the chart draws a line at 51.5 is worse than
+    one that draws nothing.
+    """
+    price: float
+    kind: str                      # "support" | "resistance"
+    touches: Optional[int] = None
+    role_reversed: bool = False
+
+
+class NarrativeBar(BaseModel):
+    date: str
+    open: Optional[float] = None
+    high: Optional[float] = None
+    low: Optional[float] = None
+    close: Optional[float] = None
+    volume: Optional[float] = None
+    ma20: Optional[float] = None
+    ma50: Optional[float] = None
+    ma200: Optional[float] = None
+
+
+class NarrativeResponse(BaseModel):
+    symbol: str
+    as_of: Optional[str] = None
+    bars: int = 0
+    #: False when the window contains an unadjusted corporate action
+    #: (Backlog #119). The strategy section refuses to produce a plan in that
+    #: case rather than building one on contaminated levels.
+    data_ok: bool = True
+    sections: List[NarrativeSection] = Field(default_factory=list)
+    levels: List[NarrativeLevel] = Field(default_factory=list)
+    chart: List[NarrativeBar] = Field(default_factory=list)
+    generated_at: datetime

@@ -14,6 +14,7 @@ from app.models.schemas import (
     IndustryAnalysisResponse, CombinedAnalysisResponse,
     TopSignalsResponse, SignalStock, QuickSummaryResponse, SignalType,
     AtrResponse, SwingsResponse, SRResponse, RegimeResponse,
+    NarrativeResponse,
 )
 
 router = APIRouter()
@@ -483,3 +484,40 @@ async def get_quick_summary(
         one_liner=one_liner,
         generated_at=datetime.utcnow()
     )
+
+@router.get("/narrative/{symbol}", response_model=NarrativeResponse)
+async def get_narrative(
+    symbol: str,
+    period: int = Query(default=180, ge=60, le=1000,
+                        description="Bars to display when no start_date is given"),
+    start_date: Optional[str] = Query(default=None,
+                                      description="Left edge of the window, YYYY-MM-DD"),
+    end_date: Optional[str] = Query(default=None,
+                                    description="Analyse as of this date, YYYY-MM-DD"),
+    capital: float = Query(default=100_000_000.0, gt=0,
+                           description="Account equity used for position sizing (VND)"),
+    risk_pct: float = Query(default=1.0, gt=0, le=100,
+                            description="Percent of equity risked on one trade"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Backlog #118 — a readable chart analysis, text plus the chart it describes.
+
+    Returns i18n CODES and numbers, never prose: the app is bilingual EN/VI and
+    the #118 requirements were written in Vietnamese, so the frontend renders
+    the sentences and neither locale can silently get the other's text.
+
+    The response is internally consistent by construction — one fetch of the
+    bars feeds every section and the chart, so the text cannot name a level the
+    chart does not draw.
+    """
+    service = AnalysisService(db)
+    result = await service.get_narrative(
+        symbol, period=period, start_date=start_date, end_date=end_date,
+        capital=capital, risk_pct=risk_pct,
+    )
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Not enough price history to analyse {symbol.upper()}",
+        )
+    return result

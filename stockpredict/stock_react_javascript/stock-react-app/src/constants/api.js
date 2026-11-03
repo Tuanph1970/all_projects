@@ -153,6 +153,8 @@ export const API_ENDPOINTS = {
   ANALYSIS_TECHNICAL: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/technical/${symbol}`,
   ANALYSIS_TECHNICAL_INDICATORS: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/technical/${symbol}/indicators`,
   ANALYSIS_TECHNICAL_INTRADAY: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/technical/${symbol}/intraday`,
+  // Backlog #118 — the chart narrator. Text findings + the chart they describe.
+  ANALYSIS_NARRATIVE: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/narrative/${symbol}`,
   ANALYSIS_FUNDAMENTAL: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/fundamental/${symbol}`,
   ANALYSIS_FUNDAMENTAL_STATEMENTS: (symbol) => `${API_BASE_URLS.ANALYSIS_API}/fundamental/${symbol}/statements`,
 
