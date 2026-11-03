@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import create_engine, inspect, select, text
+from sqlalchemy import bindparam, create_engine, inspect, select, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -69,7 +69,20 @@ class NewsRepository:
     # and skipped if present, so repeated deploys are no-ops (#112d).
     _ADDED_COLUMNS = (
         ("score_source", "VARCHAR(16) NULL"),
+        ("bulk_ingest", "TINYINT(1) NOT NULL DEFAULT 0"),
     )
+
+    #: A one-timestamp cluster of at least this many items for one symbol is a
+    #: backfill batch, not a day's news (Backlog #115).
+    #:
+    #: The upstream company feed returns `"publishDate": null`, so a symbol's
+    #: first poll writes its whole backlog under one timestamp. Measured
+    #: 2026-11-03: seven clusters of EXACTLY 50 (the feed's page size) against a
+    #: largest genuine same-second group of 2. Twenty sits far above anything
+    #: real and far below the page size, so the threshold is not load-bearing —
+    #: but it is a threshold, so the gap it sits in is recorded here rather than
+    #: left for someone to re-derive.
+    BULK_CLUSTER_MIN = 20
 
     def _ensure_added_columns(self) -> None:
         insp = inspect(self._engine)
@@ -84,6 +97,44 @@ class NewsRepository:
                     f"ALTER TABLE {NewsEvent.__tablename__} ADD COLUMN {name} {ddl}"
                 ))
             logger.info("added column %s.%s", NewsEvent.__tablename__, name)
+            if name == "bulk_ingest":
+                self._backfill_bulk_ingest()
+
+    def _backfill_bulk_ingest(self) -> int:
+        """Mark existing one-timestamp clusters, once, when the column appears.
+
+        Runs ONLY from the ALTER branch above, so it cannot re-run on a later
+        boot and cannot reclassify rows an operator has since corrected by
+        hand. Rows written after this are flagged at ingestion instead.
+
+        Not a guess about the past: these clusters are identifiable precisely
+        because a real feed cannot publish 50 items for one symbol in the same
+        second. The largest genuine same-second group in the corpus is 2.
+        """
+        try:
+            with self._engine.begin() as conn:
+                result = conn.execute(text(f"""
+                    UPDATE {NewsEvent.__tablename__} AS e
+                    JOIN (
+                        SELECT symbol, ts_utc
+                        FROM {NewsEvent.__tablename__}
+                        WHERE symbol IS NOT NULL AND symbol <> ''
+                        GROUP BY symbol, ts_utc
+                        HAVING COUNT(*) >= :n
+                    ) AS c ON c.symbol = e.symbol AND c.ts_utc = e.ts_utc
+                    SET e.bulk_ingest = 1
+                """), {"n": self.BULK_CLUSTER_MIN})
+            marked = int(result.rowcount or 0)
+            logger.info(
+                "bulk_ingest backfill: marked %s undated row(s) in clusters of >= %s",
+                marked, self.BULK_CLUSTER_MIN)
+            return marked
+        except Exception as exc:  # noqa: BLE001
+            # A failed backfill must not block startup: the column exists, new
+            # rows are flagged correctly, and the historical rows stay unflagged
+            # (which over-counts intensity on those dates, the status quo).
+            logger.warning("bulk_ingest backfill skipped: %s", exc)
+            return 0
 
     def _ensure_database(self) -> None:
         url = self._engine.url
@@ -138,6 +189,31 @@ class NewsRepository:
             s.commit()
             return True
 
+    def mark_bulk_ingest(self, news_ids: "list[str]") -> int:
+        """Flag these rows as ingestion-stamped rather than publication-stamped.
+
+        Backlog #115. Called by the poller when ONE symbol yielded a batch of
+        new items in a single fetch, which the upstream feed only does when it
+        is handing over a backlog — real company news does not arrive twenty at
+        once for one symbol, and the feed supplies no publishDate to tell them
+        apart.
+
+        Deliberately a post-pass rather than a flag threaded through `upsert`:
+        the batch size is only known once the whole fetch has been written, and
+        pre-counting would cost an existence check per item on every poll to
+        catch a condition that fires once per symbol in its lifetime.
+        """
+        if not news_ids:
+            return 0
+        with self._engine.begin() as conn:
+            result = conn.execute(
+                text(f"UPDATE {NewsEvent.__tablename__} "
+                     f"SET bulk_ingest = 1 WHERE news_id IN :ids")
+                .bindparams(bindparam("ids", expanding=True)),
+                {"ids": list(news_ids)},
+            )
+        return int(result.rowcount or 0)
+
     def mark_classified(
         self, news_id: str, *, sentiment: str | None, category: str | None,
         score: float | None, score_source: str | None = None
@@ -157,28 +233,31 @@ class NewsRepository:
 
     def feature_points(
         self, *, symbol: str, since: datetime, until: datetime
-    ) -> list[tuple[datetime, Optional[float], Optional[str]]]:
-        """(ts_utc, sentiment_score, score_source) for one symbol in a window.
+    ) -> list[tuple[datetime, Optional[float], Optional[str], bool]]:
+        """(ts_utc, sentiment_score, score_source, bulk_ingest) for one symbol.
 
         Backlog #106. Deliberately NOT `query()`: that one caps at `limit` rows
         and is ordered newest-first for the read API, so a feature series built
         on it would silently truncate the oldest part of the window — the half
         the decay needs most. This returns every matching row, oldest first, and
-        only the three columns the feature builder reads.
+        only the four columns the feature builder reads — the fourth being
+        `bulk_ingest` (#115), without which the builder cannot tell a published
+        date from an ingestion stamp.
 
         Dedup is already structural: news_id is the primary key and is derived
         from guid/url/(symbol‖title‖date) (FR-NEWS-DEDUP), so a republished
         story does not inflate intensity.
         """
         stmt = (
-            select(NewsEvent.ts_utc, NewsEvent.sentiment_score, NewsEvent.score_source)
+            select(NewsEvent.ts_utc, NewsEvent.sentiment_score,
+                   NewsEvent.score_source, NewsEvent.bulk_ingest)
             .where(NewsEvent.symbol == symbol)
             .where(NewsEvent.ts_utc >= since)
             .where(NewsEvent.ts_utc <= until)
             .order_by(NewsEvent.ts_utc.asc())
         )
         with self._Session() as s:
-            return [(r[0], r[1], r[2]) for r in s.execute(stmt).all()]
+            return [(r[0], r[1], r[2], bool(r[3])) for r in s.execute(stmt).all()]
 
     def mark_notified(self, news_id: str) -> None:
         self._stamp(news_id, "notified_at")

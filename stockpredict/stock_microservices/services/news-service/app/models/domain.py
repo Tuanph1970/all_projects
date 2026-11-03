@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, String, Text
+from sqlalchemy import Boolean, DateTime, Float, String, Text, text
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -50,6 +50,19 @@ class NewsEvent(Base):
     # before the field existed, which is honest: we do not know how they were
     # scored, and defaulting them to 'model' would assert something false.
     score_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Backlog #115. True when `ts_utc` is the INGESTION moment rather than the
+    # publication moment. The upstream company feed returns
+    # `"publishDate": null`, so a symbol's FIRST poll writes its entire backlog
+    # under a single timestamp: measured 2026-11-03, 350 of 360 stored items sat
+    # in seven such 50-item clusters, and the three symbols added to the
+    # watchlist that day each produced one.
+    #
+    # These rows are real news whose DATE is unknown. They stay readable in the
+    # API, but news_features excludes them from the decayed series — counting
+    # them would invent 50 news events on a day when nothing was published, and
+    # that series is a model covariate.
+    bulk_ingest: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("0"), default=False)
 
     # Pipeline stamps.
     ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

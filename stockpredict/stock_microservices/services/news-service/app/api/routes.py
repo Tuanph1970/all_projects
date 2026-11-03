@@ -113,8 +113,9 @@ def news_features(
     since = datetime.combine(start - timedelta(days=warmup_days), time.min, tzinfo=timezone.utc)
     until = datetime.combine(end, time.max, tzinfo=timezone.utc)
     points = [
-        NewsItemPoint(ts_utc=ts, sentiment_score=score, score_source=source)
-        for ts, score, source in repo.feature_points(
+        NewsItemPoint(ts_utc=ts, sentiment_score=score, score_source=source,
+                      bulk_ingest=bool(bulk))
+        for ts, score, source, bulk in repo.feature_points(
             symbol=symbol.upper(), since=since, until=until
         )
     ]
@@ -124,6 +125,10 @@ def news_features(
     )
     payload = rows_to_payload(rows)
     scored = sum(r["scored_count"] for r in payload)
+    # Backlog #115: said out loud, because a flat intensity on a date that
+    # holds 50 stored items otherwise reads as a broken feature rather than as
+    # 50 items whose publication date the upstream feed never supplied.
+    undated = sum(r["undated_count"] for r in payload)
     return {
         "symbol": symbol.upper(),
         "start": start.isoformat(),
@@ -132,6 +137,7 @@ def news_features(
         "warmup_days": warmup_days,
         "covariate_type": "past",
         "features": ["news_intensity", "news_polarity"],
+        "undated_items_excluded": undated,
         # Reported so a caller can see WHY polarity is flat rather than guessing.
         # articles_in_window counts coverage; scored_in_window counts the rows
         # whose tone is trustworthy after #112 — rows written before it carry

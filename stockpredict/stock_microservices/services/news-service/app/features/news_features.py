@@ -67,6 +67,14 @@ class NewsItemPoint:
     ts_utc: datetime
     sentiment_score: Optional[float] = None
     score_source: Optional[str] = None
+    #: True when the row's timestamp is its INGESTION moment rather than its
+    #: publication moment (Backlog #115). The upstream company feed returns
+    #: `"publishDate": null`, so a first poll for a symbol writes its whole
+    #: backlog under one timestamp — measured 2026-11-03, 350 of 360 stored
+    #: items sat in seven such 50-item clusters. Those items are real news, but
+    #: NOTHING IS KNOWN ABOUT WHEN THEY HAPPENED, so they cannot be attributed
+    #: to a session date and must not enter a time series.
+    bulk_ingest: bool = False
 
 
 @dataclass(frozen=True)
@@ -76,6 +84,11 @@ class NewsFeatureRow:
     scored_count: int       # of those, how many carried a trustworthy score
     intensity: float        # decayed article count
     polarity: float         # decayed mean trustworthy score, in [-1, 1]
+    #: Items stamped at ingestion rather than publication, excluded from the
+    #: decayed series above. Reported rather than silently dropped: without it,
+    #: a caller seeing intensity 0.0 on a date that holds 50 stored items would
+    #: conclude the feature was broken.
+    undated_count: int = 0
 
 
 def session_date_for(ts_utc: datetime, *, close_utc: time = VN_CLOSE_UTC) -> date:
@@ -129,9 +142,20 @@ def daily_news_features(
     counts: dict[date, int] = {}
     scored: dict[date, int] = {}
     sums: dict[date, float] = {}
+    undated: dict[date, int] = {}
     for it in items:
         d = session_date_for(it.ts_utc, close_utc=close_utc)
         if d < first or d > end:
+            continue
+        # THE DATE GATE, and it is stricter than the trust gate below because
+        # it rules out BOTH features, not just polarity. An item whose
+        # timestamp is its ingestion moment says nothing about when the news
+        # happened, so counting it as "news on date d" invents an event: the
+        # three symbols added to the watchlist on 2026-11-03 would each have
+        # read an intensity of ~50 on a day when nothing was published.
+        # Excluded from the series, counted separately so the gap is visible.
+        if it.bulk_ingest:
+            undated[d] = undated.get(d, 0) + 1
             continue
         counts[d] = counts.get(d, 0) + 1
         if is_trustworthy_score(it.sentiment_score, it.score_source):
@@ -159,6 +183,7 @@ def daily_news_features(
                 scored_count=scored.get(d, 0),
                 intensity=dec_count,
                 polarity=max(-1.0, min(1.0, polarity)),
+                undated_count=undated.get(d, 0),
             ))
         d += timedelta(days=1)
 
@@ -175,6 +200,7 @@ def rows_to_payload(rows: Sequence[NewsFeatureRow]) -> list[dict]:
             "scored_count": r.scored_count,
             "intensity": round(r.intensity, 6),
             "polarity": round(r.polarity, 6),
+            "undated_count": r.undated_count,
         }
         for r in rows
     ]

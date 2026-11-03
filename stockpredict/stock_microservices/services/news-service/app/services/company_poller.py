@@ -57,13 +57,34 @@ class CompanyPoller:
                 logger.warning("company fetch failed for %s: %s", symbol, exc)
                 stats["errors"] += 1
                 continue
+            written: list[str] = []
             for item in items:
                 stats["fetched"] += 1
                 try:
                     if self._repo.upsert(item):
                         stats["new"] += 1
+                        written.append(item.news_id())
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("store failed for %s: %s", symbol, exc)
+                    stats["errors"] += 1
+
+            # Backlog #115 — a single fetch that yields a BATCH of new items for
+            # one symbol is the feed handing over a backlog, not a day's news.
+            # The feed returns "publishDate": null, so every row in that batch
+            # carries the ingestion moment as its timestamp and nothing is known
+            # about when any of it was published. Flagged here so the feature
+            # builder can exclude it: counting it would have invented ~50 news
+            # events on the day each watchlist symbol was first polled.
+            if len(written) >= getattr(self._repo, "BULK_CLUSTER_MIN", 20):
+                try:
+                    marked = self._repo.mark_bulk_ingest(written)
+                    stats["undated"] = stats.get("undated", 0) + marked
+                    logger.info(
+                        "%s: %s new items arrived in one fetch; flagged as "
+                        "ingestion-stamped (no publishDate upstream)",
+                        symbol, marked)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("bulk flag failed for %s: %s", symbol, exc)
                     stats["errors"] += 1
 
         # ── Phase B: classify + notify (covers this tick's new rows and any
