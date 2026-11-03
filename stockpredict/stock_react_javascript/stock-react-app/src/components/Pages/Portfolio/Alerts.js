@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+// Backlog #117 — per-type behaviour lives in ./alertTypes so a new alert kind
+// is one module rather than five conditionals threaded through this file.
+import { ALERT_TYPES, getAlertType, needsField } from './alertTypes';
 import { useTranslation } from 'react-i18next';
 import { LoadingSpinner, ErrorMessage, DataTable, ConfirmDialog } from '../../ui';
 import { Bell, BellOff, Plus, Trash2, Edit, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
@@ -23,6 +26,7 @@ const Alerts = () => {
     companyName: '',
     alertType: 'price_above',
     targetPrice: '',
+    multiple: '',
     isActive: true,
     notes: ''
   });
@@ -65,13 +69,19 @@ const Alerts = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // #117: the type decides which field it needs and how it reaches the API.
+      const spec = getAlertType(formData.alertType);
+      const invalid = spec.validate(formData);
+      if (invalid) {
+        setError(t(invalid));
+        return;
+      }
       const alertData = {
         symbol: formData.symbol,
         companyName: formData.companyName,
-        alertType: formData.alertType,
-        targetPrice: parseFloat(formData.targetPrice),
         isActive: formData.isActive,
-        notes: formData.notes
+        notes: formData.notes,
+        ...spec.toRequest(formData)
       };
 
       if (editingAlert) {
@@ -108,6 +118,7 @@ const Alerts = () => {
       companyName: alert.companyName || '',
       alertType: alert.alertType || 'price_above',
       targetPrice: alert.targetPrice != null ? alert.targetPrice.toString() : '',
+      ...getAlertType(alert.alertType).fromAlert(alert),
       isActive: alert.isActive !== false,
       notes: alert.notes || ''
     });
@@ -164,6 +175,7 @@ const Alerts = () => {
       companyName: '',
       alertType: 'price_above',
       targetPrice: '',
+      multiple: '',
       isActive: true,
       notes: ''
     });
@@ -176,11 +188,11 @@ const Alerts = () => {
     if (!alert.isActive) return 'inactive';
     if (alert.triggered) return 'triggered';
     
-    const { alertType, targetPrice, currentPrice } = alert;
-    if (alertType === 'price_above' && currentPrice >= targetPrice) return 'triggered';
-    if (alertType === 'price_below' && currentPrice <= targetPrice) return 'triggered';
-    
-    return 'active';
+    // #117: each type knows how to judge itself. A volume alert CANNOT be
+    // recomputed here — its multiple is measured against history the browser
+    // does not hold — so it trusts the backend's flag rather than guessing from
+    // whatever price happens to be on screen.
+    return getAlertType(alert.alertType).status(alert);
   };
 
   const columns = [
@@ -458,21 +470,43 @@ const Alerts = () => {
                   onChange={(e) => setFormData({...formData, alertType: e.target.value})}
                   required
                 >
-                  <option value="price_above">{t('portfolio.alerts.price_above_option')}</option>
-                  <option value="price_below">{t('portfolio.alerts.price_below_option')}</option>
+                  {ALERT_TYPES.map((spec) => (
+                    <option key={spec.type} value={spec.type}>{t(spec.labelKey)}</option>
+                  ))}
                 </select>
               </div>
-              <div className="form-group">
-                <label>{t('portfolio.alerts.target_price_label')}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.targetPrice}
-                  onChange={(e) => setFormData({...formData, targetPrice: e.target.value})}
-                  min="0.01"
-                  required
-                />
-              </div>
+              {needsField(formData.alertType, 'targetPrice') && (
+                <div className="form-group">
+                  <label>{t('portfolio.alerts.target_price_label')}</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.targetPrice}
+                    onChange={(e) => setFormData({...formData, targetPrice: e.target.value})}
+                    min="0.01"
+                    required
+                  />
+                </div>
+              )}
+              {needsField(formData.alertType, 'multiple') && (
+                <div className="form-group">
+                  <label htmlFor="volumeMultiple">{t('alerts.multiple_label')}</label>
+                  <input
+                    id="volumeMultiple"
+                    type="number"
+                    step="0.5"
+                    min="1.1"
+                    max="50"
+                    value={formData.multiple}
+                    onChange={(e) => setFormData({...formData, multiple: e.target.value})}
+                    placeholder="3"
+                    required
+                  />
+                  <small className="text-muted d-block">
+                    {t('alerts.multiple_help')}
+                  </small>
+                </div>
+              )}
               <div className="form-group">
                 <label>{t('portfolio.alerts.notes_label')}</label>
                 <textarea

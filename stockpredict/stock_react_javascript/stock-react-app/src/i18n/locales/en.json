@@ -2751,5 +2751,19 @@
     "symbol_aria": "Ticker for the call TCBS wrote as {{symbol}}",
     "action_aria": "Action for {{symbol}}",
     "corrections_pending": "{{count}} correction(s) will be saved with this mail and recorded on the call."
+  },
+  "alerts": {
+    "type_price_above": "Price rises above",
+    "type_price_below": "Price falls below",
+    "type_volume_unusual": "Unusual volume",
+    "multiple_label": "Volume multiple (× its own median)",
+    "multiple_help": "Fires when the day's volume reaches this multiple of the symbol's own median volume. 3 is about one alert a month per symbol; 1.5 would be several a day. Unusual volume signals attention, not direction — it does not say whether the news is good or bad.",
+    "desc_price_above": "Above {{price}}",
+    "desc_price_below": "Below {{price}}",
+    "desc_volume_unusual": "Volume ≥ {{multiple}}× median",
+    "err_price_required": "Enter a target price greater than 0.",
+    "err_multiple_required": "Enter a volume multiple, for example 3.",
+    "err_multiple_too_small": "A multiple below 1.1 would fire on ordinary days. Use 1.1 or more.",
+    "err_multiple_too_large": "A multiple above 50 would almost never fire."
   }
 }

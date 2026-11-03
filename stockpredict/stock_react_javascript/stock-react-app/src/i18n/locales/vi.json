@@ -2751,5 +2751,19 @@
     "symbol_aria": "Mã cho khuyến nghị TCBS ghi là {{symbol}}",
     "action_aria": "Hành động cho {{symbol}}",
     "corrections_pending": "{{count}} chỉnh sửa sẽ được lưu cùng email này và ghi lại trên khuyến nghị."
+  },
+  "alerts": {
+    "type_price_above": "Giá tăng trên",
+    "type_price_below": "Giá giảm dưới",
+    "type_volume_unusual": "Khối lượng bất thường",
+    "multiple_label": "Hệ số khối lượng (× trung vị của chính mã đó)",
+    "multiple_help": "Báo động khi khối lượng trong ngày đạt mức này so với trung vị khối lượng của chính mã đó. Mức 3 tương đương khoảng một báo động mỗi tháng cho mỗi mã; mức 1.5 sẽ là vài lần mỗi ngày. Khối lượng bất thường cho biết sự CHÚ Ý, không cho biết chiều hướng — nó không nói tin tức là tốt hay xấu.",
+    "desc_price_above": "Trên {{price}}",
+    "desc_price_below": "Dưới {{price}}",
+    "desc_volume_unusual": "Khối lượng ≥ {{multiple}}× trung vị",
+    "err_price_required": "Hãy nhập giá mục tiêu lớn hơn 0.",
+    "err_multiple_required": "Hãy nhập hệ số khối lượng, ví dụ 3.",
+    "err_multiple_too_small": "Hệ số dưới 1.1 sẽ báo động cả những ngày bình thường. Hãy dùng từ 1.1 trở lên.",
+    "err_multiple_too_large": "Hệ số trên 50 thì gần như không bao giờ báo động."
   }
 }

@@ -996,6 +996,11 @@ const transformAlertCreateRequest = (alertData) => ({
   symbol: alertData.symbol,
   alert_type: alertData.alertType === 'price_above' ? 'above' : alertData.alertType === 'price_below' ? 'below' : alertData.alertType,
   target_price: parseFloat(alertData.targetPrice) || null,
+  // Backlog #117. target_percent was NOT sent at all, so a volume alert's
+  // multiple was silently dropped on the way to an API that accepts it — the
+  // alert would have been created at the backend's default rather than at the
+  // number the user typed, with nothing reporting the difference.
+  target_percent: alertData.targetPercent != null ? parseFloat(alertData.targetPercent) : null,
   is_active: alertData.isActive !== false,
   notes: alertData.notes || null
 });
@@ -1003,6 +1008,8 @@ const transformAlertCreateRequest = (alertData) => ({
 // Helper to transform alert UPDATE request (only allowed fields)
 const transformAlertUpdateRequest = (alertData) => ({
   target_price: parseFloat(alertData.targetPrice) || null,
+  // #117: an edit must be able to change the multiple, not just the price.
+  target_percent: alertData.targetPercent != null ? parseFloat(alertData.targetPercent) : null,
   is_active: alertData.isActive !== false,
   notes: alertData.notes || null
 });
