@@ -10,9 +10,10 @@ This replaces the prior "evaluate alerts on every API request" polling model.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta
 from typing import Optional
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from stock_common.config import RabbitMQConfig
@@ -90,6 +91,34 @@ async def stop_alert_consumer() -> None:
 DEFAULT_VOLUME_MULTIPLE = 3.0
 
 
+#: VN market clock. A session runs 09:00-15:00 ICT, so "today" for a daily
+#: volume reading is an ICT date. Taking it from the server's UTC clock would be
+#: right during the session and wrong for an after-hours refresh, so the offset
+#: is stated rather than inherited.
+MARKET_TZ_OFFSET = timedelta(hours=7)
+
+
+def _market_now() -> datetime:
+    """Naive market-local time, matching the naive UTC stored in triggered_at."""
+    return datetime.utcnow() + MARKET_TZ_OFFSET
+
+
+def _already_fired_today(alert: PriceAlert) -> bool:
+    """Has this alert already fired during the current market day?
+
+    Backlog #117. A volume alert RE-FIRES, unlike a price alert — unusual volume
+    recurs, and a one-shot volume alert goes quiet after its first day and never
+    speaks again. But it re-fires at most ONCE A DAY, because rel_volume is a
+    daily aggregate: once a spike happens, the reading stays above the multiple
+    for the rest of the session, and the priceboard refreshes many times. An
+    unconditional re-arm would send two dozen notifications for one event.
+    """
+    fired_at = getattr(alert, "triggered_at", None)
+    if fired_at is None:
+        return False
+    return (fired_at + MARKET_TZ_OFFSET).date() >= _market_now().date()
+
+
 def _volume_alert_should_fire(
     alert: PriceAlert, rel_volume: Optional[float]
 ) -> bool:
@@ -101,6 +130,8 @@ def _volume_alert_should_fire(
     but reading it as unusual would invent an event.
     """
     if rel_volume is None:
+        return False
+    if _already_fired_today(alert):
         return False
     multiple = alert.target_percent if alert.target_percent else DEFAULT_VOLUME_MULTIPLE
     try:
@@ -158,7 +189,17 @@ async def _handle_price_update(event: Event) -> None:
                 select(PriceAlert).where(
                     PriceAlert.symbol == symbol.upper(),
                     PriceAlert.is_active.is_(True),
-                    PriceAlert.is_triggered.is_(False),
+                    # Backlog #117. A triggered PRICE alert stays done — "above
+                    # 25,000" is a threshold crossed once. A triggered VOLUME
+                    # alert must still be loaded, because unusual volume recurs
+                    # and it re-arms on the next market day; the once-a-day gate
+                    # lives in _already_fired_today. Without this clause the
+                    # predicate could say "fire again" forever and the row would
+                    # never be read.
+                    or_(
+                        PriceAlert.is_triggered.is_(False),
+                        PriceAlert.alert_type == AlertType.VOLUME_UNUSUAL,
+                    ),
                 )
             )
             alerts = result.scalars().all()

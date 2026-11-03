@@ -7,6 +7,8 @@ on `_handle_price_update()` with stubbed Redis/SQL plumbing. We don't
 need a live RabbitMQ here — `_event_bus` is patched to None so the
 publish branch is exercised as a no-op.
 """
+from datetime import datetime, timedelta
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -494,3 +496,96 @@ def test_the_triggered_event_carries_the_reading():
 
     src = inspect.getsource(mod._handle_price_update)
     assert '"rel_volume": rel_volume' in src
+
+
+# ---------------------------------------------------------------------------
+# Backlog #117 — a volume alert RE-FIRES, but at most once per market day
+#
+# A price alert is rightly one-shot: "above 25,000" is a threshold crossed once.
+# Unusual volume RECURS, so a one-shot volume alert goes quiet after its first
+# day and never speaks again — which is why the owner asked for this.
+#
+# But an unconditional re-arm is the opposite mistake. rel_volume is a DAILY
+# aggregate: today's cumulative volume over the median of daily bars. The
+# priceboard refreshes repeatedly through a session, so an always-armed alert
+# would fire on every refresh while volume stayed above the multiple — roughly
+# two dozen notifications for ONE event. "POW traded unusually today" happens
+# once a day.
+# ---------------------------------------------------------------------------
+
+def _vol_alert_at(triggered_at, multiple=3.0):
+    from app.models.domain import AlertType, PriceAlert
+
+    a = PriceAlert()
+    a.id = 1
+    a.alert_type = AlertType.VOLUME_UNUSUAL
+    a.target_percent = multiple
+    a.target_price = None
+    a.is_triggered = triggered_at is not None
+    a.triggered_at = triggered_at
+    return a
+
+
+def test_a_volume_alert_that_never_fired_can_fire():
+    from app.services.alert_event_handler import _volume_alert_should_fire
+
+    assert _volume_alert_should_fire(_vol_alert_at(None), 5.0) is True
+
+
+def test_a_volume_alert_refires_on_a_LATER_day():
+    """The whole point: unusual volume recurs, so yesterday's firing must not
+    silence the alert forever."""
+    from app.services.alert_event_handler import _market_now, _volume_alert_should_fire
+
+    yesterday = _market_now() - timedelta(days=1)
+    assert _volume_alert_should_fire(_vol_alert_at(yesterday), 5.0) is True
+
+
+def test_a_volume_alert_does_NOT_refire_the_same_day():
+    """The counterpart, and the reason this is not an unconditional re-arm: the
+    priceboard refreshes many times a session, and rel_volume stays above the
+    multiple for the rest of the day once a spike happens."""
+    from app.services.alert_event_handler import _market_now, _volume_alert_should_fire
+
+    earlier_today = _market_now() - timedelta(minutes=30)
+    assert _volume_alert_should_fire(_vol_alert_at(earlier_today), 5.0) is False
+
+
+def test_the_day_boundary_is_the_MARKET_day_not_utc():
+    """A VN session is 09:00-15:00 ICT. Defining the day in UTC would be right
+    during the session and wrong for an after-hours refresh, so the boundary is
+    stated in market time rather than inherited from the server clock."""
+    from app.services.alert_event_handler import MARKET_TZ_OFFSET, _market_now
+
+    assert MARKET_TZ_OFFSET == timedelta(hours=7)
+    # _market_now is ahead of naive UTC by exactly the offset.
+    delta = _market_now() - datetime.utcnow()
+    assert timedelta(hours=6, minutes=59) < delta < timedelta(hours=7, minutes=1)
+
+
+def test_a_price_alert_is_still_one_shot():
+    """Re-firing is deliberately scoped to volume. "Above 25,000" is a threshold
+    crossed once; re-arming it daily would change a shipped behaviour nobody
+    asked to change."""
+    import inspect
+
+    import app.services.alert_event_handler as mod
+
+    src = inspect.getsource(mod._handle_price_update)
+    # The query must still exclude triggered alerts EXCEPT volume ones.
+    assert "is_triggered.is_(False)" in src
+    assert "VOLUME_UNUSUAL" in src
+    assert "or_" in src, "triggered volume alerts are never re-read from the DB"
+
+
+def test_the_query_re_reads_triggered_volume_alerts():
+    """Guards the half that is easy to miss: the predicate can say "fire again"
+    all it likes, but if the SELECT still filters is_triggered=False the alert
+    is never even loaded."""
+    import inspect
+
+    import app.services.alert_event_handler as mod
+
+    src = inspect.getsource(mod._handle_price_update)
+    where = src[src.index("select(PriceAlert)"):src.index("alerts = result")]
+    assert "or_" in where and "VOLUME_UNUSUAL" in where, where

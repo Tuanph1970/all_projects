@@ -32,6 +32,33 @@ export const DEFAULT_MULTIPLE = 3.0;
 export const MIN_MULTIPLE = 1.1;
 export const MAX_MULTIPLE = 50;
 
+/**
+ * Did `triggeredAt` fall on the current MARKET day (ICT, UTC+7)?
+ *
+ * A VN session is 09:00-15:00 ICT, and the backend re-arms a volume alert per
+ * market day using the same offset. Judging it in the browser's local timezone
+ * would disagree with the backend for any user not on ICT — the alert would
+ * read "armed" while the server still considered it fired, or the reverse.
+ *
+ * An absent or unparseable timestamp returns false, because the literal
+ * question "did it fire today" has no affirmative answer without one. Callers
+ * decide what to do with that: `status` below trusts the `triggered` FLAG when
+ * the timestamp is missing, since the flag is the primary signal and the
+ * timestamp only refines it. (The backend writes both together, so the
+ * combination should not arise — but reading a set flag as "not fired" would
+ * understate it, and that is the wrong way to be wrong about an alert.)
+ */
+const MARKET_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+export function firedToday(triggeredAt, now = new Date()) {
+  if (!triggeredAt) return false;
+  const fired = new Date(triggeredAt);
+  if (Number.isNaN(fired.getTime())) return false;
+  const marketDay = (d) =>
+    new Date(d.getTime() + MARKET_OFFSET_MS).toISOString().slice(0, 10);
+  return marketDay(fired) === marketDay(now);
+}
+
 export const volumeAlert = {
   type: VOLUME_ALERT_TYPE,
   labelKey: 'alerts.type_volume_unusual',
@@ -81,10 +108,20 @@ export const volumeAlert = {
    * browser: the multiple is measured against history the UI does not hold, so
    * the only truthful answer is the backend's own flag. Guessing from whatever
    * price happens to be on screen would invent a status.
+   *
+   * IT RE-ARMS DAILY, so `triggered` alone is not the answer. A price alert is
+   * one-shot — "above 25,000" is crossed once — but unusual volume recurs, so
+   * the backend re-fires a volume alert on the next market day. An alert that
+   * fired YESTERDAY is armed again today, and showing it as permanently
+   * "triggered" would tell the user it is spent when it is not.
    */
   status(alert) {
     if (alert.isActive === false) return 'inactive';
-    return alert.triggered ? 'triggered' : 'active';
+    if (!alert.triggered) return 'active';
+    // Flag set but no timestamp: trust the flag rather than silently downgrading
+    // a fired alert to "armed".
+    if (!alert.triggeredAt) return 'triggered';
+    return firedToday(alert.triggeredAt) ? 'triggered' : 'active';
   },
 };
 

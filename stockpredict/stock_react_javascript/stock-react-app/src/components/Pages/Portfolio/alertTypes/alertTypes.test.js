@@ -170,3 +170,64 @@ describe('the wire transform (services/api.js)', () => {
     expect(src).toContain("'price_below' ? 'below'");
   });
 });
+
+describe('a volume alert re-arms daily (#117)', () => {
+  const { firedToday } = require('./volumeAlert');
+  // Mid-session on 2026-11-03 ICT: 05:00 UTC = 12:00 ICT.
+  const now = new Date('2026-11-03T05:00:00Z');
+
+  it('reads as triggered when it fired earlier the same market day', () => {
+    const alert = { isActive: true, triggered: true, triggeredAt: '2026-11-03T02:30:00Z' };
+    expect(firedToday(alert.triggeredAt, now)).toBe(true);
+  });
+
+  it('reads as ARMED again when it fired on a previous day', () => {
+    // The whole point: a one-shot volume alert goes quiet forever after its
+    // first spike. Showing "triggered" would say it is spent when it is not.
+    expect(firedToday('2026-11-02T02:30:00Z', now)).toBe(false);
+  });
+
+  it('treats an absent or unparseable timestamp as armed', () => {
+    expect(firedToday(null, now)).toBe(false);
+    expect(firedToday(undefined, now)).toBe(false);
+    expect(firedToday('not-a-date', now)).toBe(false);
+  });
+
+  it('uses the MARKET day, so a late-UTC firing is still today in ICT', () => {
+    // 2026-11-02 19:00 UTC is 2026-11-03 02:00 ICT — the same market day as
+    // `now`. Judged in UTC this would look like yesterday and the alert would
+    // wrongly re-arm mid-session.
+    expect(firedToday('2026-11-02T19:00:00Z', now)).toBe(true);
+  });
+
+  it('status follows it: fired yesterday means active, fired today means triggered', () => {
+    const { volumeAlert } = require('./volumeAlert');
+    const base = { isActive: true, triggered: true };
+    // Uses the real clock, so build the timestamps relative to it.
+    const todayIso = new Date().toISOString();
+    const longAgoIso = new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString();
+    expect(volumeAlert.status({ ...base, triggeredAt: todayIso })).toBe('triggered');
+    expect(volumeAlert.status({ ...base, triggeredAt: longAgoIso })).toBe('active');
+    expect(volumeAlert.status({ isActive: false, triggered: true, triggeredAt: todayIso })).toBe('inactive');
+  });
+
+  it('a price alert stays one-shot', () => {
+    const { priceAboveAlert } = require('./priceAlert');
+    const longAgoIso = new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString();
+    expect(priceAboveAlert.status({
+      isActive: true, triggered: true, triggeredAt: longAgoIso,
+      alertType: 'price_above', targetPrice: 100, currentPrice: 1,
+    })).toBe('triggered');
+  });
+});
+
+describe('a set flag with no timestamp (#117)', () => {
+  it('is reported as triggered, not silently downgraded to armed', () => {
+    // The backend writes is_triggered and triggered_at together, so this should
+    // not arise — but reading a SET flag as "not fired" would understate it,
+    // and that is the wrong direction to be wrong about an alert.
+    const { volumeAlert } = require('./volumeAlert');
+    expect(volumeAlert.status({ isActive: true, triggered: true })).toBe('triggered');
+    expect(volumeAlert.status({ isActive: true, triggered: true, triggeredAt: null })).toBe('triggered');
+  });
+});
