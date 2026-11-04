@@ -89,6 +89,54 @@ const SEVERITY_STYLE = {
 
 const SECTION_ORDER = ['data', 'trend', 'levels', 'indicators', 'patterns', 'chart_patterns', 'channel', 'strategy'];
 
+/**
+ * Major and minor gridlines for a numeric axis.
+ *
+ * Returns `{ major, minor, domain }` in DATA space. The major values are round
+ * numbers chosen with the 1 / 2 / 2.5 / 5 / 10 progression, so the labels read
+ * as prices a person would say out loud rather than as whatever the data's
+ * extremes happen to divide into. The minor values subdivide each major
+ * interval and carry no labels.
+ *
+ * The domain is snapped OUTWARD to the enclosing major lines, which is what
+ * makes the top and bottom of the plot sit on a gridline instead of cutting one
+ * off mid-air.
+ */
+export function gridTicks(lo, hi, { target = 6, minorPer = 2 } = {}) {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) {
+    return { major: [], minor: [], domain: [lo, hi] };
+  }
+  const raw = (hi - lo) / Math.max(2, target);
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const norm = raw / mag;
+  // The classic "nice number" ladder; 2.5 is included because prices in the
+  // tens of thousands read far better in 2,500s than in 2,000s.
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
+  const first = Math.floor(lo / step) * step;
+  const last = Math.ceil(hi / step) * step;
+
+  const major = [];
+  // Accumulating with multiplication rather than repeated addition: adding a
+  // step like 0.1 twelve times drifts into 1.2000000000000002, which then
+  // renders as a label nobody wants to read.
+  for (let i = 0; first + i * step <= last + step / 1e6; i += 1) {
+    major.push(Number((first + i * step).toFixed(6)));
+  }
+  const minor = [];
+  for (let i = 0; i < major.length - 1; i += 1) {
+    for (let k = 1; k < minorPer; k += 1) {
+      minor.push(Number((major[i] + (step * k) / minorPer).toFixed(6)));
+    }
+  }
+  return { major, minor, domain: [major[0], major[major.length - 1]] };
+}
+
+/** Every nth date, for vertical gridlines on a categorical axis. */
+export function everyNth(values, n) {
+  if (!Array.isArray(values) || n < 1) return [];
+  return values.filter((_, i) => i % n === 0);
+}
+
 export default function ChartNarrator() {
   const { t } = useTranslation();
   const { tickers, loading: tickersLoading, error: tickersError } = useWatchedTickers();
@@ -322,15 +370,42 @@ export function NarratorChart({ data, levels, t }) {
   const lo = Math.min(...lows, ...levelPrices, ...closes);
   const hi = Math.max(...highs, ...levelPrices, ...closes);
   const pad = (hi - lo) * 0.06 || 1;
+  // Major lines on round prices, minor between them, and the domain snapped out
+  // to the enclosing majors so the plot edges land on a gridline.
+  const yGrid = gridTicks(lo - pad, hi + pad, { target: 6, minorPer: 2 });
+  const dates = data.map((d) => d.date);
+  // Roughly a dozen verticals whatever the window length, so a 60-bar chart and
+  // a 320-bar chart look like the same chart.
+  const xMajorEvery = Math.max(1, Math.round(dates.length / 10));
+  const xMajor = everyNth(dates, xMajorEvery);
+  const xMinor = everyNth(dates, Math.max(1, Math.round(xMajorEvery / 2)))
+    .filter((d) => !xMajor.includes(d));
 
   return (
     <div className="space-y-2">
       <ResponsiveContainer width="100%" height={320}>
         <ComposedChart data={data} margin={{ top: 5, right: 16, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
-          <XAxis dataKey="date" tick={{ fontSize: 10 }} minTickGap={48} />
-          <YAxis domain={[lo - pad, hi + pad]} tick={{ fontSize: 10 }} width={52}
-                 tickFormatter={(v) => v.toFixed(0)} />
+          {/* MINOR gridlines first, so the major ones and the data draw over
+              them. Built from ReferenceLine rather than a second CartesianGrid:
+              a grid aligns itself to the axis ticks, which are the MAJORS, so it
+              cannot express a subdivision. ReferenceLine also renders
+              identically across recharts versions, and this chart already
+              depends on it for the support and resistance levels. */}
+          {yGrid.minor.map((v) => (
+            <ReferenceLine key={`ym-${v}`} y={v} stroke="#f1f4f8" strokeWidth={1} />
+          ))}
+          {xMinor.map((d) => (
+            <ReferenceLine key={`xm-${d}`} x={d} stroke="#f1f4f8" strokeWidth={1} />
+          ))}
+          {/* MAJOR grid: aligned to the round-number ticks below. */}
+          <CartesianGrid stroke="#dde4ec" strokeDasharray="4 4" />
+          <XAxis dataKey="date" tick={{ fontSize: 10 }} minTickGap={48}
+                 ticks={xMajor} />
+          <YAxis domain={yGrid.domain} ticks={yGrid.major}
+                 tick={{ fontSize: 10 }} width={52}
+                 tickFormatter={(v) => (Math.abs(v) >= 1000
+                   ? v.toLocaleString('en-US', { maximumFractionDigits: 0 })
+                   : v.toFixed(Math.abs(v) < 10 ? 1 : 0))} />
           <Tooltip contentStyle={{ fontSize: 12 }} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Area type="monotone" dataKey="close" name={t('narrative.ui.series_close')}
@@ -358,8 +433,14 @@ export function NarratorChart({ data, levels, t }) {
 
       <ResponsiveContainer width="100%" height={90}>
         <ComposedChart data={data} margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" />
-          <XAxis dataKey="date" tick={{ fontSize: 9 }} minTickGap={64} />
+          {/* The volume panel shares the price panel's vertical lines, so the
+              two read as one chart with a common time axis. */}
+          {xMinor.map((d) => (
+            <ReferenceLine key={`vxm-${d}`} x={d} stroke="#f4f6f9" strokeWidth={1} />
+          ))}
+          <CartesianGrid stroke="#e4eaf1" strokeDasharray="4 4" />
+          <XAxis dataKey="date" tick={{ fontSize: 9 }} minTickGap={64}
+                 ticks={xMajor} />
           <YAxis tick={{ fontSize: 9 }} width={52}
                  tickFormatter={(v) => (v >= 1e6 ? `${(v / 1e6).toFixed(0)}M` : v)} />
           <Tooltip contentStyle={{ fontSize: 12 }} />

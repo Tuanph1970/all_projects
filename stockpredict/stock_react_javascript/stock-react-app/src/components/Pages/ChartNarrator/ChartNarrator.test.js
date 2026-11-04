@@ -207,3 +207,81 @@ describe('ChartNarrator date validity', () => {
     expect(defaultRange('2026-11-03').endDate).toBe('2026-11-03');
   });
 });
+
+describe('ChartNarrator chart grid', () => {
+  // eslint-disable-next-line global-require
+  const { gridTicks, everyNth } = require('./index');
+
+  it('puts major lines on round numbers, not on the data extremes', () => {
+    // 47.3 .. 71.8 should give 45,50,55,... — prices a person would say, not
+    // 47.3 / 51.38 / 55.46 from dividing the span.
+    const { major } = gridTicks(47.3, 71.8);
+    expect(major).toContain(50);
+    expect(major).toContain(70);
+    expect(major.every((v) => v % 5 === 0)).toBe(true);
+  });
+
+  it('snaps the domain outward so the plot edges land on a gridline', () => {
+    const { domain, major } = gridTicks(47.3, 71.8);
+    expect(domain[0]).toBeLessThanOrEqual(47.3);
+    expect(domain[1]).toBeGreaterThanOrEqual(71.8);
+    expect(domain).toEqual([major[0], major[major.length - 1]]);
+  });
+
+  it('puts minor lines between the majors and never on one', () => {
+    const { major, minor } = gridTicks(0, 10, { target: 5, minorPer: 2 });
+    expect(minor.length).toBe(major.length - 1);
+    expect(minor.some((v) => major.includes(v))).toBe(false);
+  });
+
+  it('supports more than one minor division per interval', () => {
+    const { major, minor } = gridTicks(0, 10, { target: 5, minorPer: 4 });
+    expect(minor.length).toBe((major.length - 1) * 3);
+  });
+
+  it('does not emit labels like 1.2000000000000002', () => {
+    // Accumulating a 0.1 step by repeated addition drifts; the ladder
+    // multiplies and rounds for exactly this reason.
+    const { major, minor } = gridTicks(1, 2, { target: 10 });
+    for (const v of [...major, ...minor]) {
+      expect(String(v).length).toBeLessThan(8);
+    }
+  });
+
+  it('handles a flat or inverted range without producing NaN lines', () => {
+    for (const [lo, hi] of [[5, 5], [9, 3], [NaN, 10], [0, Infinity]]) {
+      const g = gridTicks(lo, hi);
+      expect(g.major.every(Number.isFinite)).toBe(true);
+      expect(g.minor.every(Number.isFinite)).toBe(true);
+    }
+  });
+
+  it('spaces vertical lines so a short and a long window look alike', () => {
+    // everyNth is what keeps a 60-bar chart from being denser than a 320-bar one.
+    expect(everyNth(Array.from({ length: 10 }, (_, i) => i), 3)).toEqual([0, 3, 6, 9]);
+    expect(everyNth([], 3)).toEqual([]);
+    expect(everyNth(['a'], 0)).toEqual([]);
+  });
+
+  it('draws minor lines before the major grid and the data', () => {
+    // SVG paints in child order, so a minor line declared after the series
+    // would sit on top of the price line.
+    const src = fs.readFileSync(path.join(__dirname, 'index.js'), 'utf8');
+    const minorAt = src.indexOf('ym-');
+    const gridAt = src.indexOf('<CartesianGrid');
+    const areaAt = src.indexOf('<Area');
+    expect(minorAt).toBeGreaterThan(-1);
+    expect(minorAt).toBeLessThan(gridAt);
+    expect(gridAt).toBeLessThan(areaAt);
+  });
+
+  it('keeps the support and resistance lines distinguishable from the grid', () => {
+    // The grid is decoration; the named levels are information. If they shared
+    // a colour the chart would stop saying anything.
+    const src = fs.readFileSync(path.join(__dirname, 'index.js'), 'utf8');
+    expect(src).toMatch(/#f1f4f8/);          // minor
+    expect(src).toMatch(/#dde4ec/);          // major
+    expect(src).toMatch(/#059669/);          // support, unchanged
+    expect(src).toMatch(/#dc2626/);          // resistance, unchanged
+  });
+});
