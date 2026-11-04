@@ -369,6 +369,39 @@ def evaluate(actual: Sequence[float], predicted: Sequence[float]) -> Dict[str, f
     return {"rmse": rmse, "mae": mae, "r2": r2, "direction_accuracy": direction}
 
 
+#: A forecast whose every value is identical is not a forecast.
+#:
+#: #109 fixed ONE cause of this (missing normalisation collapsed a neural net
+#: onto its bias). Nothing detected the CONDITION, so the next cause arrived
+#: unannounced: measured 2026-11-04, XGBoost with learning_rate=0.001 and the
+#: default ~100 boosting rounds returns a perfectly constant series together
+#: with an rmse, an r2 and a direction accuracy that all look ordinary. That is
+#: not a library fault — it is an undertrained booster behaving exactly as the
+#: mathematics says — but a user cannot see it in the numbers, and a flat line
+#: presented as a forecast is the most confidently wrong output this service can
+#: produce.
+#:
+#: So the result SAYS SO. Not an exception: the run is legitimate and the
+#: metrics are real, and refusing to store them would hide a tuning problem
+#: behind an error. A named warning in the payload is what the reader needs.
+DEGENERATE_FORECAST_NOTE = (
+    "every predicted value is identical ({value:.6g}), so this forecast carries "
+    "no information. The usual cause is an undertrained model — for a booster, a "
+    "learning_rate too small for the number of rounds; for a neural net, too few "
+    "epochs. The metrics below are real but describe a constant."
+)
+
+
+def forecast_warnings(predicted: Sequence[float]) -> List[str]:
+    """Warnings about the SHAPE of a forecast, independent of its accuracy."""
+    vals = [float(v) for v in (predicted or []) if v is not None and v == v]
+    if len(vals) < 2:
+        return []
+    if max(vals) - min(vals) == 0.0:
+        return [DEGENERATE_FORECAST_NOTE.format(value=vals[0])]
+    return []
+
+
 def naive_baseline(actual: Sequence[float], last_train_value: float) -> Dict[str, float]:
     """The benchmark CLAUDE.md C4 requires, computed on the same slice.
 
@@ -504,6 +537,85 @@ def _build_torch(model_type: str, kwargs: dict, icl: int, epochs: int, seed: int
     return builders[model_type](**kwargs)
 
 
+# ---------------------------------------------------------------------------
+# Hyperparameters from config_json (Backlog #124)
+# ---------------------------------------------------------------------------
+#
+# WHY COERCION IS NEEDED AT ALL. `model_instances.config_json` stores every
+# value as a STRING — that is what the UI writes, and the live user-created
+# BlockRNN row proves it: {"batch_size": "16", "learning_rate": "0.0001",
+# "n_epochs": "300", ...}. `build_model` already coerces the two chunk lengths
+# and n_epochs with int(); nothing coerced the rest, and the regression
+# builders forwarded them verbatim into library constructors that type-check.
+#
+# Measured before the fix (tests/model_sweep.py, 2026-11-04):
+#   * RandomForest never constructed — n_estimators="100" tripped
+#     InvalidParameterError, and learning_rate tripped TypeError because
+#     RandomForestRegressor has no such parameter at any type.
+#   * CatBoost raised CatBoostError parsing "0.001", and completed when the
+#     same value arrived as a float.
+#   * XGBoost was the dangerous one: a string learning_rate did NOT raise, it
+#     trained and returned a CONSTANT 119-day forecast with plausible metrics.
+#     A crash gets noticed; that does not.
+#
+#: The type each constructor expects for the hyperparameters we forward.
+_REGRESSION_PARAM_TYPES = {
+    "n_estimators": int,
+    "max_depth": int,
+    "learning_rate": float,
+}
+
+#: Which of those each architecture actually ACCEPTS.
+#:
+#: Written out rather than introspected from the signature, deliberately: the
+#: Darts regression wrappers pass **kwargs down to the underlying library, so a
+#: signature tells you neither what is accepted nor what is refused. An explicit
+#: table is checkable, and `test_every_regression_model_builds_with_every_param`
+#: checks it by CONSTRUCTING each model with its full set.
+_REGRESSION_ACCEPTS = {
+    "XGBoost": frozenset({"n_estimators", "max_depth", "learning_rate"}),
+    "LightGBM": frozenset({"n_estimators", "max_depth", "learning_rate"}),
+    # RandomForestRegressor has no learning_rate — there is no boosting step to
+    # scale. Forwarding it is a TypeError, not a tuning mistake.
+    "RandomForest": frozenset({"n_estimators", "max_depth"}),
+    "CatBoost": frozenset({"n_estimators", "max_depth", "learning_rate"}),
+}
+
+
+def coerce_regression_params(model_type: str, cfg: dict) -> Tuple[Dict[str, object], list]:
+    """Hyperparameters for `model_type`, correctly typed. Returns (kwargs, notes).
+
+    Three behaviours, and the difference between them is the point:
+
+      * a value the architecture ACCEPTS is converted to the expected type;
+      * a value it does not accept is DROPPED, with a note, because the user
+        asking for a learning rate on a random forest is a harmless
+        misunderstanding and refusing to train would be unhelpful;
+      * a value that cannot be converted RAISES, because training on a
+        silently-ignored hyperparameter is how a flat forecast gets believed.
+    """
+    accepts = _REGRESSION_ACCEPTS.get(model_type, frozenset())
+    kwargs: Dict[str, object] = {}
+    notes: list = []
+    for key, caster in _REGRESSION_PARAM_TYPES.items():
+        if key not in cfg or cfg[key] is None or cfg[key] == "":
+            continue
+        raw = cfg[key]
+        if key not in accepts:
+            notes.append(f"{model_type} has no {key!r}; ignored (value {raw!r})")
+            continue
+        try:
+            # float() first so "6.0" survives as max_depth=6; int("6.0") raises.
+            kwargs[key] = caster(float(raw)) if caster is int else caster(raw)
+        except (TypeError, ValueError):
+            raise DartsTrainingError(
+                f"{model_type}: hyperparameter {key}={raw!r} is not a "
+                f"{caster.__name__}. Fix it on the model, or remove it — "
+                f"training with it ignored would report numbers produced by "
+                f"a model you did not configure."
+            ) from None
+    return kwargs, notes
+
 def _build_regression(model_type: str, icl: int, ocl: int, plan: CovariatePlan, cfg: dict):
     from darts.models import CatBoostModel, LightGBMModel, RandomForest, XGBModel
 
@@ -529,9 +641,13 @@ def _build_regression(model_type: str, icl: int, ocl: int, plan: CovariatePlan, 
         raise DartsTrainingError(f"no Darts constructor for model type {model_type!r}")
     if model_type == "LightGBM":
         kwargs["verbose"] = -1
-    for key in ("n_estimators", "max_depth", "learning_rate"):
-        if key in cfg:
-            kwargs[key] = cfg[key]
+    # Coerced and filtered — see coerce_regression_params. Forwarding cfg
+    # verbatim is what broke RandomForest and CatBoost outright and made
+    # XGBoost return a constant forecast (#124).
+    tuned, notes = coerce_regression_params(model_type, cfg)
+    for note in notes:
+        logger.warning("darts %s: %s", model_type, note)
+    kwargs.update(tuned)
     return builders[model_type](**kwargs)
 
 
@@ -770,6 +886,12 @@ def run_darts_training(
             "validation_start_date": window.validation_start,
             "window_warnings": list(window.warnings),
         },
+        # #124. Carried beside the metrics, not instead of them: the run is
+        # legitimate and the numbers are real, but a constant series must not
+        # reach a reader who can only see an ordinary-looking rmse.
+        "forecast_warnings": forecast_warnings(
+            [p.get("predicted_price") if isinstance(p, dict) else p
+             for p in (predictions or [])]),
         "predictions": predictions,
     }
 

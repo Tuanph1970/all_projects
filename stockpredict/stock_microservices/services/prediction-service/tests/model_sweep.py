@@ -70,6 +70,10 @@ TABULAR_NATIVE = {"XGBoost", "LightGBM", "RandomForest", "CatBoost", "LinearRegr
 
 ENGINES = ("tabular", "darts")
 
+#: Tree/boosting architectures, which take n_estimators and want a learning
+#: rate two orders of magnitude larger than a neural net does.
+BOOSTER_URL_NAMES = frozenset({"xgboost", "lightgbm", "randomforest", "catboost"})
+
 DEFAULT_GATEWAY = os.environ.get("GATEWAY_URL", "http://localhost:18004")
 PREFIX = "/stock_helper/api/v2"
 
@@ -84,22 +88,44 @@ class Api:
         self.token = token
         self.timeout = timeout
 
+    #: The gateway rate-limits (traefik/dynamic.yml: average 100 per minute,
+    #: and 30 per minute on some routes). A 429 is the GATEWAY talking, not the
+    #: service failing, so retrying is correct and reporting it as a model
+    #: failure is not — the second full run reported 26 phantom failures that
+    #: way, which is worse than no sweep at all because it would mask a real one.
+    RATE_LIMIT_RETRIES = 6
+
     def _call(self, method: str, path: str, body: Optional[dict] = None) -> Any:
         url = self.base + path
         data = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(url, data=data, method=method)
-        req.add_header("Authorization", f"Bearer {self.token}")
-        if data:
-            req.add_header("Content-Type", "application/json")
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as r:
-                raw = r.read().decode()
-                return json.loads(raw) if raw.strip() else {}
-        except urllib.error.HTTPError as e:
-            detail = e.read().decode()[:300]
-            raise ApiError(f"HTTP {e.code} {method} {path}: {detail}") from None
-        except Exception as e:                       # noqa: BLE001
-            raise ApiError(f"{type(e).__name__} {method} {path}: {e}") from None
+        delay = 5.0
+        for attempt in range(self.RATE_LIMIT_RETRIES + 1):
+            req = urllib.request.Request(url, data=data, method=method)
+            req.add_header("Authorization", f"Bearer {self.token}")
+            if data:
+                req.add_header("Content-Type", "application/json")
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                    raw = r.read().decode()
+                    return json.loads(raw) if raw.strip() else {}
+            except urllib.error.HTTPError as e:
+                if e.code == 429 and attempt < self.RATE_LIMIT_RETRIES:
+                    # Honour Retry-After when the gateway sends one; otherwise
+                    # back off, since the window is per-minute.
+                    wait = delay
+                    try:
+                        wait = max(wait, float(e.headers.get("Retry-After") or 0))
+                    except (TypeError, ValueError):
+                        pass
+                    time.sleep(wait)
+                    delay = min(delay * 2, 60.0)
+                    continue
+                detail = e.read().decode()[:300]
+                raise ApiError(f"HTTP {e.code} {method} {path}: {detail}") from None
+            except Exception as e:                   # noqa: BLE001
+                raise ApiError(f"{type(e).__name__} {method} {path}: {e}") from None
+        raise ApiError(f"rate-limited {method} {path} after "
+                       f"{self.RATE_LIMIT_RETRIES} retries")
 
     get = lambda self, p: self._call("GET", p)                      # noqa: E731
     post = lambda self, p, b=None: self._call("POST", p, b or {})   # noqa: E731
@@ -249,18 +275,32 @@ def run_cell(api: Api, url_name: str, engine: str, args) -> tuple[Cell, list[int
     started = time.time()
 
     try:
+        # PER-FAMILY DEFAULTS, because one config is not valid for both.
+        #
+        # The sweep originally sent learning_rate=0.001 to everything — a
+        # reasonable rate for a neural net and a PATHOLOGICAL one for a
+        # gradient booster, which at ~100 rounds then barely learns and
+        # predicts a constant. The sweep duly reported "XGBoost/darts:
+        # forecast is FLAT" and I nearly filed it as a service defect.
+        # Measured: lr=0.001 is flat at 100 AND 200 rounds, varies at 2000,
+        # and lr=0.1 varies immediately. The harness was the problem.
+        #
+        # Deliberately still STRINGS: that is what the UI writes into
+        # config_json, so the sweep keeps exercising the coercion path that
+        # #124 fixed rather than quietly bypassing it.
         cfg = {
             "model_name": f"sweep-{url_name}-{engine}",
             "model_sub_type": "LSTM" if url_name in ("blockrnn", "rnn") else "",
-            "n_epochs": str(args.epochs),
             "input_chunk_length": str(args.input_chunk),
             "output_chunk_length": str(args.horizon),
-            "batch_size": "16",
-            "learning_rate": "0.001",
-            "hidden_dim": "16",
-            "n_rnn_layers": "1",
-            "dropout": "0",
         }
+        if url_name in BOOSTER_URL_NAMES:
+            cfg.update({"n_estimators": "200", "max_depth": "6",
+                        "learning_rate": "0.1"})
+        else:
+            cfg.update({"n_epochs": str(args.epochs), "batch_size": "16",
+                        "learning_rate": "0.001", "hidden_dim": "16",
+                        "n_rnn_layers": "1", "dropout": "0"})
         created = api.post(f"/models/{url_name}", cfg)
         model_id = created.get("id") or created.get("model_id") or (created.get("data") or {}).get("id")
         if not model_id:
@@ -315,8 +355,16 @@ def run_cell(api: Api, url_name: str, engine: str, args) -> tuple[Cell, list[int
 
 
 def poll(api: Api, solution_id: int, timeout: float) -> dict:
+    """Poll with a WIDENING interval, because the gateway budget is per minute.
+
+    A flat 2-second poll is what broke the second full run: one cell took 64
+    seconds, spent ~32 polls on it, and exhausted the 100-per-minute allowance
+    for every cell after it. Backing off keeps a slow model from starving the
+    rest of the sweep.
+    """
     deadline = time.time() + timeout
     last: dict = {"status": "unknown"}
+    wait = 2.0
     while time.time() < deadline:
         try:
             last = api.get(f"/solutions/{solution_id}/training-status")
@@ -324,7 +372,8 @@ def poll(api: Api, solution_id: int, timeout: float) -> dict:
             return {"status": "poll_failed", "error": str(e)}
         if last.get("status") in ("completed", "failed"):
             return last
-        time.sleep(2.0)
+        time.sleep(wait)
+        wait = min(wait * 1.5, 15.0)
     # A run that never leaves "training" is itself a finding: the task died
     # without recording a failure, so nothing would ever have reported it.
     return {"status": "timeout",
@@ -458,6 +507,8 @@ def main() -> int:
     ap.add_argument("--end", default=str(today - timedelta(days=1)))
     ap.add_argument("--timeout", type=float, default=420.0,
                     help="per-run polling budget, seconds")
+    ap.add_argument("--pace", type=float, default=1.5,
+                    help="seconds between cells; the gateway allows ~100 req/min")
     ap.add_argument("--keep", action="store_true",
                     help="do not delete the solutions and models created")
     args = ap.parse_args()
@@ -488,6 +539,8 @@ def main() -> int:
         for name in names:
             for engine in engines:
                 print(f"  -> {name}/{engine} ...", flush=True)
+                if cells:
+                    time.sleep(args.pace)      # stay inside the gateway budget
                 cell, m, s = run_cell(api, name, engine, args)
                 created_models += m
                 created_solutions += s
