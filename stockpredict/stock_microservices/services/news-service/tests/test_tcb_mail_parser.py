@@ -300,3 +300,181 @@ def test_multiple_recommendations_in_one_mail():
     assert [(r.symbol, r.action) for r in p.recos] == [
         ("HPG", ACTION_BUY), ("VNM", ACTION_SELL), ("FPT", ACTION_HOLD)]
     assert p.recos[0].rationale == "Lý do thứ nhất."
+
+
+# ---------------------------------------------------------------------------
+# Mail 4 — the 2026-11-03 paste, which drifted from the format mails 1-3 use
+# ---------------------------------------------------------------------------
+#
+# WHY A FOURTH FIXTURE EXISTS. Mails 1-3 all phrase the net flow ADJACENTLY —
+# "bán ròng 664,2 tỷ đồng" — so the old adjacency-only pattern matched them and
+# the suite was green while `foreign_net_bn` was NULL on every mail the operator
+# had actually stored. Those four real pastes interpose text: "Bán ròng PHIÊN
+# THỨ NĂM LIÊN TIẾP VỚI GIÁ TRỊ 398,6 tỷ đồng" and "Bán ròng HƠN 500 tỷ đồng".
+# The fixtures were unrepresentative in precisely the place that mattered, which
+# is the only reason a field that never once worked looked tested.
+#
+# Mail 4 is terser than its predecessors throughout: a total trading value with
+# no matched/put-through split, a semicolon between the two foreign ticker
+# lists, a support level named without the word "hỗ trợ", and only three of the
+# four moving averages given a number.
+
+
+def test_mail4_total_value_survives_the_venue_and_the_hedge_word():
+    """"Tổng giá trị giao dịch TRÊN HOSE đạt KHOẢNG 12.600 tỷ đồng".
+
+    The old pattern wanted "tổng giá trị giao dịch đạt" contiguous, so the venue
+    between the phrase and the verb, and "khoảng" between the verb and the
+    number, were each enough to lose the figure.
+    """
+    r = parse_tcb_mail(_load(4))
+    assert r.total_value_bn == pytest.approx(12600.0)
+
+
+def test_mail4_reports_no_matched_split_because_the_mail_gives_none():
+    """Not every NULL is a defect. This mail gives only a total, so matched
+    value, matched volume and put-through are absent from the TEXT — inventing
+    them would be worse than leaving them empty."""
+    r = parse_tcb_mail(_load(4))
+    assert r.matched_value_bn is None
+    assert r.matched_volume_m is None
+    assert r.putthrough_bn is None
+
+
+def test_mail4_net_flow_is_read_through_the_hedge_word():
+    """"Bán ròng HƠN 500 tỷ đồng" — negative, because selling is money leaving."""
+    r = parse_tcb_mail(_load(4))
+    assert r.foreign_net_bn == pytest.approx(-500.0)
+
+
+def test_mail4_does_not_file_the_buyers_as_sellers():
+    """THE DEFECT THAT MATTERED MOST, because it stored the opposite of the truth.
+
+    The mail reads "...lực bán tập trung tại MBB và VCB; ở chiều ngược lại, HPG
+    và SHB dẫn đầu danh sách mua ròng." The old clause-end set knew only
+    "trong khi|while|song|however", so the sell capture ran past the SEMICOLON to
+    the full stop and swallowed the buy tickers: the stored row read
+    top_sell = "MBB, VCB, HPG, SHB" with top_buy empty.
+
+    HPG and SHB were BOUGHT. A missing field is a gap; a field asserting the
+    opposite direction is a lie, and anything reading it — a watchlist signal, a
+    breadth measure — inherits the inversion silently.
+    """
+    r = parse_tcb_mail(_load(4))
+    assert r.foreign_top_sell == "MBB, VCB"
+    assert r.foreign_top_buy == "HPG, SHB"
+    # Stated as the inversion itself, so a future delimiter change cannot
+    # quietly re-merge the lists.
+    assert "HPG" not in (r.foreign_top_sell or "")
+    assert "SHB" not in (r.foreign_top_sell or "")
+
+
+def test_mail4_buy_list_is_found_when_the_tickers_PRECEDE_the_phrase():
+    """Mails 1-3 say "chiều mua ròng nghiêng về <tickers>"; mail 4 says
+    "<tickers> dẫn đầu danh sách mua ròng". The follow-only pattern could not
+    see the second construction at all."""
+    r = parse_tcb_mail(_load(4))
+    assert r.foreign_top_buy is not None
+    assert r.foreign_top_buy.startswith("HPG")
+
+
+def test_mail4_support_is_found_though_the_word_is_never_used():
+    """"ngưỡng tâm lý 1.700 điểm là VÙNG CẦN LẤY LẠI gần nhất".
+
+    A level to reclaim is a support level by another name. Requiring the literal
+    "hỗ trợ" dropped the only downside reference in the mail.
+    """
+    r = parse_tcb_mail(_load(4))
+    assert r.support_txt is not None
+    assert "1.700" in r.support_txt
+
+
+def test_mail4_moving_averages_stop_where_the_mail_stops():
+    """The mail says "dưới cả BỐN đường trung bình động" but numbers only three.
+
+    ma50 must stay None rather than borrow a number from the resistance range —
+    an invented MA50 would read as a real level on the chart.
+    """
+    r = parse_tcb_mail(_load(4))
+    assert r.ma5 == pytest.approx(1735)
+    assert r.ma10 == pytest.approx(1747)
+    assert r.ma20 == pytest.approx(1730)   # from the range "1.730 - 1.735"
+    assert r.ma50 is None
+
+
+def test_mail4_index_and_recommendation():
+    r = parse_tcb_mail(_load(4))
+    assert r.vnindex_close == pytest.approx(1699.62)
+    assert r.vnindex_change_pct == pytest.approx(-0.65)
+    assert r.vnindex_change_pts == pytest.approx(-11.10)
+    assert len(r.recos) == 1
+    reco = r.recos[0]
+    assert reco.symbol == "SSI"
+    assert reco.action == ACTION_WATCH
+    assert "Chờ mua" in reco.label_verbatim
+    assert len(r.companies) == 1 and r.companies[0].symbol == "DPR"
+
+
+# ---------------------------------------------------------------------------
+# The sign guarantee, kept while the adjacency rule was loosened
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("n,expected", [(1, -664.2), (2, 54.1), (3, -1062.0), (4, -500.0)])
+def test_net_flow_sign_is_governed_by_the_nearest_direction_word(n, expected):
+    """Loosening adjacency must not reintroduce a sign inversion.
+
+    Mail 2 is the dangerous one and it is why the old rule was tight: "reversed
+    to a modest NET PURCHASE of VND 54.1 billion ... following heavy NET SELLING
+    in the previous session". A scan that paired the amount with any nearby
+    direction word would make that a net sale. The gap between direction and
+    number may now contain words, but NOT another direction word, so the amount
+    still belongs to the direction governing it.
+    """
+    assert parse_tcb_mail(_load(n)).foreign_net_bn == pytest.approx(expected)
+
+
+def test_a_unit_is_required_so_a_session_count_cannot_become_an_amount():
+    """"Bán ròng phiên thứ 5 liên tiếp với giá trị 398,6 tỷ đồng" — without the
+    tỷ/billion requirement, "5" is the first number after the direction word and
+    would be read as a 5-billion-dong net sale."""
+    text = ("Khối ngoại: Bán ròng phiên thứ 5 liên tiếp với giá trị 398,6 tỷ đồng "
+            "trên HoSE, gia tăng so với phiên trước.")
+    r = parse_tcb_mail("Thị trường chung\n\nVN-Index: giảm.\n\n" + text)
+    assert r.foreign_net_bn == pytest.approx(-398.6)
+
+
+def test_an_amount_is_never_credited_to_a_direction_that_does_not_own_it():
+    """THE SIGN GUARANTEE, and the case that actually exercises it.
+
+    Mail 2 does not: there the amount sits immediately after its own direction
+    word, so the guard is inert and a mutation removing it survived. The
+    construction that needs it is one where the FIRST direction word carries no
+    amount and a LATER one does:
+
+        "Mua ròng trở lại sau khi bán ròng 500 tỷ đồng ở phiên trước."
+
+    The 500 belongs to the SELLING. Without the negative lookahead the regex
+    pairs the leading "Mua ròng" with it and reports +500 — a net purchase of
+    half a trillion dong that never happened. With the lookahead the gap cannot
+    span "bán ròng", so the match restarts there and the sign is right.
+    """
+    text = ("Thị trường chung\n\nVN-Index: giảm.\n\n"
+            "Khối ngoại: Mua ròng trở lại sau khi bán ròng 500 tỷ đồng ở phiên trước.")
+    assert parse_tcb_mail(text).foreign_net_bn == pytest.approx(-500.0)
+
+
+def test_a_bare_semicolon_separates_the_two_ticker_lists():
+    """The semicolon is a clause break in its own right.
+
+    Mail 4 happens to follow its semicolon with "ở chiều ngược lại", so that
+    connective alone would have fixed it — which left the semicolon untested and
+    a mutation removing it survived. A mail that punctuates without the
+    connective is just as plausible, and the sell list must still stop.
+    """
+    text = ("Thị trường chung\n\nVN-Index: giảm.\n\n"
+            "Khối ngoại: Bán ròng 300 tỷ đồng trên HoSE, lực bán tập trung tại "
+            "MBB và VCB; HPG và SHB dẫn đầu danh sách mua ròng.")
+    r = parse_tcb_mail(text)
+    assert r.foreign_top_sell == "MBB, VCB"
+    assert "HPG" not in (r.foreign_top_sell or "")
+    assert r.foreign_top_buy == "HPG, SHB"

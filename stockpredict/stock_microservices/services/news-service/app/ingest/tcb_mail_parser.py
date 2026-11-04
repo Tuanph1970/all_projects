@@ -361,9 +361,15 @@ def _parse_liquidity(out: ParsedMail, block: Optional[str], lang: str) -> None:
         _find(rf"({_NUMBER})\s*(?:triệu cổ phiếu|million shares)", block), lang)
     out.putthrough_bn = _num(
         _find(rf"(?:Tính cả|Including)\s*(?:VND\s*)?({_NUMBER})", block), lang)
+    # "đạt" need not follow "giao dịch" immediately: the 2026-11-03 mail reads
+    # "Tổng giá trị giao dịch TRÊN HOSE đạt KHOẢNG 12.600 tỷ đồng", so the venue
+    # sits between the phrase and the verb, and an approximation word sits
+    # between the verb and the number. Both windows are bounded and may not
+    # cross a sentence, so this cannot reach into the next statistic.
     out.total_value_bn = _num(
-        _find(rf"(?:tổng giá trị giao dịch đạt|total trading value reached|total trading value of)"
-              rf"\s*(?:VND\s*)?({_NUMBER})", block), lang)
+        _find(rf"(?:tổng giá trị giao dịch|total trading value)"
+              rf"[^.\n]{{0,30}}?(?:đạt|reached|of|ở mức)"
+              rf"[^.\n\d]{{0,20}}?(?:VND\s*)?({_NUMBER})", block), lang)
 
 
 # Direction word immediately followed by its amount. Capturing the two together is the
@@ -371,12 +377,49 @@ def _parse_liquidity(out: ParsedMail, block: Optional[str], lang: str) -> None:
 # following heavy net selling in the previous session", so scanning the sentence for a
 # direction word independently of the number flips a net buy into a net sell.
 _FLOW_DIRECTION = (r"bán ròng|mua ròng|net (?:purchases?|buying|bought|sell(?:ing)?|sold|sales?)")
-_FLOW = rf"({_FLOW_DIRECTION})\s*(?:of\s+)?(?:VND\s*)?({_NUMBER})"
+# The number need not be ADJACENT to the direction word, and insisting on it is
+# why foreign_net_bn was NULL on every stored mail — all four phrase it with text
+# in between:
+#     "Bán ròng PHIÊN THỨ NĂM LIÊN TIẾP VỚI GIÁ TRỊ 398,6 tỷ đồng"   (2026-09-29)
+#     "Bán ròng HƠN 500 tỷ đồng"                                      (2026-11-03)
+#
+# The adjacency rule existed to stop a sign inversion, and that protection is
+# KEPT rather than traded away: the gap may not contain another direction word,
+# so the amount still belongs to the direction immediately governing it. The
+# worked example in the comment above — "reversed to a modest net purchase of
+# VND 54.1 billion … following heavy net selling in the previous session" —
+# still binds 54.1 to "net purchase", because "net selling" lies beyond the
+# captured number rather than inside the gap.
+#
+# A unit is now required after the number. Without it "phiên thứ 5" (session
+# five) or a percentage would be eligible as the amount.
+# Digits are ALLOWED in the gap, and excluding them was a mistake worth
+# recording: "Bán ròng phiên thứ 5 liên tiếp với giá trị 398,6 tỷ đồng" has an
+# intervening number, and a digit-free gap could not cross it — the match failed
+# outright and the amount was lost. The unit requirement below already does the
+# disambiguation (a session count is not followed by "tỷ"), so the first number
+# FOLLOWED BY A UNIT is the amount. The 2026-09-29 mail happens to spell the
+# ordinal out ("thứ năm"), which is the only reason this did not surface on real
+# data.
+_FLOW_GAP = rf"(?:(?!{_FLOW_DIRECTION})[^.\n]){{0,60}}?"
+_FLOW = (rf"({_FLOW_DIRECTION}){_FLOW_GAP}(?:of\s+)?(?:VND\s*)?({_NUMBER})"
+         rf"\s*(?:tỷ|nghìn tỷ|billion|bn)\b")
 _SELL_WORDS = re.compile(r"bán ròng|net (?:sell(?:ing)?|sold|sales?)", re.IGNORECASE)
 
 # A ticker list runs to the clause break, not to the full stop: "…SSI và SHB, trong khi
 # chiều mua ròng nghiêng về MCH…" puts both lists in one sentence.
-_CLAUSE_END = r"(?=\s*,?\s*(?:trong khi|while|song|however)\b|\.\s|\.$|$)"
+#
+# THE DELIMITER SET IS LOAD-BEARING AND WAS INCOMPLETE. The 2026-11-03 mail
+# separates the two lists with a SEMICOLON and a different connective —
+# "…tập trung tại MBB và VCB; Ở CHIỀU NGƯỢC LẠI, HPG và SHB dẫn đầu danh sách
+# mua ròng." — which none of the old delimiters matched, so the sell capture ran
+# to the full stop and swallowed the BUY tickers. The stored row read
+# top_sell = "MBB, VCB, HPG, SHB" with top_buy empty: HPG and SHB were bought
+# and the database said they were sold. A missing field is a gap; a field
+# asserting the opposite direction is a lie, so the semicolon is now a break in
+# its own right.
+_CLAUSE_END = (r"(?=\s*[;]|\s*,?\s*(?:trong khi|while|song|however|"
+               r"ở chiều ngược lại|ngược lại|in contrast|conversely)\b|\.\s|\.$|$)")
 
 
 def _flow_amount(text: Optional[str], lang: str) -> Optional[float]:
@@ -407,9 +450,18 @@ def _parse_foreign(out: ParsedMail, block: Optional[str], lang: str) -> None:
     out.foreign_top_sell = _tickers(
         _find(r"(?:Lực bán tập trung tại|selling concentrated on|Net selling favoured)\s*(.+?)"
               + _CLAUSE_END, block))
+    # Two constructions, because the mails use both. The tickers may FOLLOW the
+    # phrase ("chiều mua ròng nghiêng về PVT, PLX…") or PRECEDE it ("HPG và SHB
+    # dẫn đầu danh sách mua ròng"), and the 2026-11-03 mail uses the second —
+    # which the follow-only pattern could not see at all.
     out.foreign_top_buy = _tickers(
-        _find(r"(?:chiều mua ròng nghiêng về|Net buying favoured|net buying went to)\s*(.+?)"
-              + _CLAUSE_END, block))
+        _find(r"(?:chiều mua ròng nghiêng về|chiều mua ròng tập trung tại|"
+              r"Net buying favoured|net buying went to)\s*(.+?)" + _CLAUSE_END, block))
+    if out.foreign_top_buy is None:
+        out.foreign_top_buy = _tickers(
+            _find(r"(?:^|[;.,]|ngược lại,?)\s*([^;.]{0,80}?)\s*"
+                  r"(?:dẫn đầu danh sách mua ròng|dẫn đầu chiều mua ròng|"
+                  r"led (?:the )?net buying)", block))
     ytd_clause = _find(r"(?:Lũy kế từ đầu năm|Year[ -]to[ -]date)\s*(.+?)(?=\.\s|\.$|$)", block)
     out.foreign_ytd_net_bn = _flow_amount(ytd_clause, lang)
 
@@ -436,7 +488,14 @@ def _parse_technical(out: ParsedMail, block: Optional[str], lang: str) -> None:
         if val is not None:
             setattr(out, f"ma{period}", val)
     for sentence in _sentences(block):
-        if out.support_txt is None and re.search(r"hỗ trợ|support", sentence, re.IGNORECASE):
+        # "hỗ trợ" is not the only way a mail names the level below. The
+        # 2026-11-03 technical note never uses the word: "ngưỡng tâm lý 1.700
+        # điểm là VÙNG CẦN LẤY LẠI gần nhất" — a level to reclaim is a support
+        # level by any other name, and dropping it lost the only downside
+        # reference in that mail.
+        if out.support_txt is None and re.search(
+                r"hỗ trợ|support|cần lấy lại|cần chinh phục lại|vùng cần giữ",
+                sentence, re.IGNORECASE):
             out.support_txt = sentence
         if out.resistance_txt is None and re.search(r"kháng cự|resistance", sentence, re.IGNORECASE):
             out.resistance_txt = sentence
