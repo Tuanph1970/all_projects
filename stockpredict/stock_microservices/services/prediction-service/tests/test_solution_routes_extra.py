@@ -1109,3 +1109,424 @@ def test_an_edited_period_still_widens_the_warmup_past_the_floor():
     who sets a 200-day moving average must not be served the floor."""
     assert solution_routes.warmup_calendar_days([{"parameters": {"period": 200}}]) > \
         solution_routes.warmup_calendar_days([])
+
+
+# ---------------------------------------------------------------------------
+# Backlog #126 — the darts model reaches disk, and predict can use it
+# ---------------------------------------------------------------------------
+
+
+class _StubDartsModel:
+    """Stands in for a Darts model: saves a marker, loads back from it.
+
+    A stub rather than a real model because what is under test here is the
+    PLUMBING — two files, the class recorded by name, file_path written — and a
+    real fit would make these tests slow and darts-dependent for no extra
+    coverage. The real round trip is covered in test_darts_trainer.py.
+    """
+
+    def __init__(self, tag="stub"):
+        self.tag = tag
+
+    def save(self, path):
+        with open(path, "w") as fh:
+            fh.write(self.tag)
+
+    @classmethod
+    def load(cls, path):
+        with open(path) as fh:
+            return cls(fh.read())
+
+
+def _fitted(tmp_model=None):
+    return {
+        "model": tmp_model or _StubDartsModel("fitted-here"),
+        "model_type": "DLinear",
+        "target_scaler": "target-scaler-object",
+        "past_scaler": "past-scaler-object",
+        "future_scaler": None,
+        "past_columns": ["rsi_14", "sma_20"],
+        "future_columns": ["dayofweek"],
+        "calendar_features": ["dayofweek"],
+        "input_chunk_length": 20,
+        "output_chunk_length": 5,
+        "price_column": "close",
+    }
+
+
+def test_the_darts_bundle_round_trips_through_two_files(tmp_path):
+    """Darts models do not survive joblib — measured against 0.48.1, a torch
+    model pickled and reloaded raises "'NoneType' object has no attribute
+    'set_predict_parameters'" on its next predict. So the model goes through
+    Darts' own save() and the scalers and column list through joblib beside it."""
+    with patch.object(solution_routes.settings, "MODEL_PATH", str(tmp_path)):
+        sidecar = solution_routes.save_darts_bundle(42, _fitted())
+        saved = __import__("joblib").load(sidecar)
+        assert saved["engine"] == "darts"
+        assert saved["past_columns"] == ["rsi_14", "sma_20"]
+        assert saved["target_scaler"] == "target-scaler-object"
+        assert "model" not in saved, (
+            "the model must NOT be in the joblib — that is the thing joblib "
+            "breaks for torch models")
+        model = solution_routes.load_darts_model(saved)
+        assert isinstance(model, _StubDartsModel) and model.tag == "fitted-here"
+
+
+def test_the_sidecar_records_the_class_by_name_not_by_pickle(tmp_path):
+    """Darts' generic ForecastingModel.load refuses a torch checkpoint
+    (measured: UnpicklingError), so loading needs the concrete class. An import
+    path is inspectable where a pickled class reference is not."""
+    with patch.object(solution_routes.settings, "MODEL_PATH", str(tmp_path)):
+        saved = __import__("joblib").load(
+            solution_routes.save_darts_bundle(43, _fitted()))
+    assert saved["model_class"] == "_StubDartsModel"
+    assert saved["model_module"] == _StubDartsModel.__module__
+
+
+def test_a_missing_darts_model_file_is_reported_rather_than_crashing(tmp_path):
+    """The sidecar can outlive the model file — a cleared volume, a half-copied
+    backup. The message has to say what to do."""
+    with patch.object(solution_routes.settings, "MODEL_PATH", str(tmp_path)):
+        sidecar = solution_routes.save_darts_bundle(44, _fitted())
+    saved = __import__("joblib").load(sidecar)
+    import os as _os
+    _os.remove(saved["model_path"])
+    with pytest.raises(FileNotFoundError, match="retrain"):
+        solution_routes.load_darts_model(saved)
+
+
+@pytest.mark.asyncio
+async def test_predict_uses_the_darts_branch_when_the_bundle_says_darts(
+        client: AsyncClient, mock_db):
+    """#126 end to end through the route: a darts bundle must not reach the
+    tabular pipeline, which calls ml_model.predict(X) on a feature MATRIX."""
+    df = _ohlcv_frame(300)
+    price_records = [
+        {"time": d.strftime("%Y-%m-%d"), "open": float(df.loc[d, "open"]),
+         "high": float(df.loc[d, "high"]), "low": float(df.loc[d, "low"]),
+         "close": float(df.loc[d, "close"]), "volume": float(df.loc[d, "volume"])}
+        for d in df.index
+    ]
+    mock_db.execute = AsyncMock(side_effect=[
+        _result_with_first({"id": 7, "ticker": "FPT", "model_id": 99}),
+        _result_with_first({"id": 99, "status": "trained",
+                            "file_path": "/tmp/solution_7_darts.joblib",
+                            "config_json": json.dumps({"output_chunk_length": "5"})}),
+        _result_with_mappings([]),
+        MagicMock(),
+    ])
+    mock_db.commit = AsyncMock()
+
+    bundle = {"engine": "darts", "model_path": "/tmp/x.model",
+              "model_module": __name__, "model_class": "_StubDartsModel",
+              **{k: v for k, v in _fitted().items() if k != "model"}}
+
+    last = df.index[-1]
+    forecast = {
+        "engine": "darts", "model_type": "DLinear",
+        "backtest": [{"date": d.strftime("%Y-%m-%d"), "actual_price": 100.0 + i,
+                      "predicted_price": 100.5 + i}
+                     for i, d in enumerate(df.index[-4:])],
+        "future": [{"date": (last + pd.Timedelta(days=i + 1)).strftime("%Y-%m-%d"),
+                    "predicted_price": 101.0 + i} for i in range(5)],
+        "requested_horizon": 5, "horizon": 5, "warnings": [],
+    }
+
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"data": price_records}
+
+    with patch("app.api.solution_routes.os.path.exists", return_value=True), \
+         patch("app.api.solution_routes.joblib.load", return_value=bundle), \
+         patch("app.api.solution_routes.load_darts_model",
+               return_value=_StubDartsModel()), \
+         patch("app.services.darts_trainer.run_darts_forecast",
+               return_value=forecast) as forecasted, \
+         patch("app.api.solution_routes.httpx.AsyncClient",
+               return_value=_FakeAsyncClient(resp)):
+        r = await client.post(f"{PREFIX}/predict", json={
+            "id": 7,
+            "start_date": df.index[-4].strftime("%Y-%m-%d"),
+            "end_date": last.strftime("%Y-%m-%d"),
+        })
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert forecasted.called, "the darts forecaster was never reached"
+    assert body["engine"] == "darts", "the payload must name the engine (#109)"
+    assert len(body["future"]) == 5
+    assert len(body["actual"]) == len(body["predict"]) == 4
+    assert body["future_days"] == 5
+    # The chart carries a predicted value only where the backtest produced one,
+    # rather than drawing an in-sample fit across the whole context as a forecast.
+    with_pred = [p for p in body["chart"] if p.get("predicted_price") is not None]
+    assert len(with_pred) == 4, len(with_pred)
+    assert body["chart"], "the Prediction tab draws its context from this"
+
+
+@pytest.mark.asyncio
+async def test_a_bundle_with_no_engine_key_is_still_treated_as_tabular(
+        client: AsyncClient, mock_db):
+    """Every bundle written before #126 is a tabular one and has no engine key,
+    so the absence must mean 'tabular' and not 'unknown'. Without this, the fix
+    would break every solution trained before it."""
+    df = _ohlcv_frame(200)
+    price_records = [
+        {"time": d.strftime("%Y-%m-%d"), "open": float(df.loc[d, "open"]),
+         "high": float(df.loc[d, "high"]), "low": float(df.loc[d, "low"]),
+         "close": float(df.loc[d, "close"]), "volume": float(df.loc[d, "volume"])}
+        for d in df.index
+    ]
+    mock_db.execute = AsyncMock(side_effect=[
+        _result_with_first({"id": 7, "ticker": "FPT", "model_id": 99}),
+        _result_with_first({"id": 99, "status": "trained", "file_path": "/tmp/m.joblib",
+                            "config_json": "{}"}),
+        _result_with_mappings([]),
+        MagicMock(),
+    ])
+    mock_db.commit = AsyncMock()
+    fake_model = MagicMock()
+    fake_model.predict = lambda X: X[:, 0] * 1.01
+    saved = {"model": fake_model, "feature_cols": ["close", "returns"]}
+
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"data": price_records}
+
+    with patch("app.api.solution_routes.os.path.exists", return_value=True), \
+         patch("app.api.solution_routes.joblib.load", return_value=saved), \
+         patch("app.api.solution_routes.load_darts_model") as darts_loader, \
+         patch("app.api.solution_routes.httpx.AsyncClient",
+               return_value=_FakeAsyncClient(resp)):
+        r = await client.post(f"{PREFIX}/predict", json={
+            "id": 7,
+            "start_date": df.index[150].strftime("%Y-%m-%d"),
+            "end_date": df.index[-1].strftime("%Y-%m-%d"),
+        })
+
+    assert r.status_code == 200, r.text
+    assert not darts_loader.called, "a legacy tabular bundle took the darts branch"
+    assert r.json().get("engine") is None
+
+
+@pytest.mark.asyncio
+async def test_a_model_that_cannot_be_saved_fails_the_run_instead_of_being_trained(
+        monkeypatch):
+    """THE STATE #126 IS ABOUT MUST NOT BE REACHABLE BY A SECOND ROUTE. A
+    solution marked 'trained' whose model is not on disk is exactly what made
+    predict impossible, so a save failure fails the run — it is not logged and
+    swallowed."""
+    import app.services.darts_trainer as trainer
+
+    frame = pd.DataFrame(
+        {"close": np.linspace(10, 20, 60), "rsi_14": np.linspace(40, 60, 60)},
+        index=pd.bdate_range("2025-01-01", periods=60))
+    fake_result = {
+        "metrics": {"rmse": 1.0, "mae": 0.8, "r2": 0.5, "direction_accuracy": 55.0},
+        "naive": {"rmse": 1.2, "r2": 0.4}, "beats_naive_rmse": True,
+        "covariates": {"past": ["rsi_14"], "future": []},
+        "data_accounting": {"rows_used": 60, "training_samples": 48,
+                            "validation_samples": 12},
+        "predictions": [], "forecast_warnings": [],
+        "fitted": _fitted(),
+    }
+    monkeypatch.setattr(trainer, "run_darts_training", lambda *a, **k: fake_result)
+    monkeypatch.setattr(solution_routes, "save_darts_bundle",
+                        lambda *a, **k: (_ for _ in ()).throw(OSError("disk full")))
+
+    db = AsyncMock()
+    db.execute = AsyncMock()
+    db.commit = AsyncMock()
+    solution_routes.training_status[4242] = {"status": "training", "progress": 0}
+
+    await solution_routes._run_darts_engine(
+        solution_id=4242, db=db, feature_df=frame,
+        indicator_rows=[{"covariate_type": "past", "name": "RSI"}],
+        model_instance={"model_type": "DLinear", "config_json": "{}"},
+        model_id=99, ticker="FPT",
+        train_params={"train_ratio": 0.8}, start_date="2025-01-01",
+        end_date="2025-03-24", rows_before_warmup=60, rows_after_warmup=60)
+
+    status = solution_routes.training_status[4242]
+    assert status["status"] == "failed", status
+    assert "could not be saved" in status["error"]
+    assert not db.execute.called, "nothing may be marked trained after a failed save"
+    solution_routes.training_status.pop(4242, None)
+
+
+# ---------------------------------------------------------------------------
+# compute_prediction_dates — one copy for both engines (#126/#127)
+# ---------------------------------------------------------------------------
+
+
+def test_the_prediction_window_starts_the_business_day_after_training():
+    dates = solution_routes.compute_prediction_dates("2026-02-06", 1)   # a Friday
+    assert dates["prediction_start_date"] == "2026-02-09"
+    assert dates["prediction_end_date"] == "2026-02-09"
+
+
+def test_the_prediction_window_is_as_long_as_the_horizon():
+    dates = solution_routes.compute_prediction_dates("2026-02-02", 5)
+    assert dates["prediction_start_date"] == "2026-02-03"
+    assert dates["prediction_end_date"] == "2026-02-09"     # skips the weekend
+    assert dates["output_chunk_length"] == 5
+
+
+def test_the_prediction_window_reports_the_training_end_it_was_given():
+    dates = solution_routes.compute_prediction_dates("2026-02-02", 3)
+    assert dates["training_end_date"] == "2026-02-02"
+
+
+@pytest.mark.asyncio
+async def test_a_successful_darts_run_writes_file_path_and_the_predict_window(
+        monkeypatch, tmp_path):
+    """THE TWO THINGS #126 WAS. file_path stayed NULL, so predict could never
+    load a model; and the result carried no prediction_dates, so the Predict
+    tab had no window to offer after a training that reported success."""
+    import app.services.darts_trainer as trainer
+
+    frame = pd.DataFrame(
+        {"close": np.linspace(10, 20, 60), "rsi_14": np.linspace(40, 60, 60)},
+        index=pd.bdate_range("2025-01-01", periods=60))
+    fake_result = {
+        "metrics": {"rmse": 1.0, "mae": 0.8, "r2": 0.5, "direction_accuracy": 55.0},
+        "naive": {"rmse": 1.2, "r2": 0.4}, "beats_naive_rmse": True,
+        "covariates": {"past": ["rsi_14"], "future": []},
+        "data_accounting": {"rows_used": 60, "training_samples": 48,
+                            "validation_samples": 12},
+        "predictions": [], "forecast_warnings": [],
+        "fitted": _fitted(),
+    }
+    monkeypatch.setattr(trainer, "run_darts_training", lambda *a, **k: fake_result)
+    monkeypatch.setattr(solution_routes.settings, "MODEL_PATH", str(tmp_path))
+
+    statements, params = [], []
+
+    async def _execute(stmt, args=None):
+        statements.append(str(stmt))
+        params.append(args or {})
+        return MagicMock()
+
+    db = AsyncMock()
+    db.execute = _execute
+    db.commit = AsyncMock()
+    solution_routes.training_status[4343] = {"status": "training", "progress": 0}
+
+    await solution_routes._run_darts_engine(
+        solution_id=4343, db=db, feature_df=frame,
+        indicator_rows=[{"covariate_type": "past", "name": "RSI"}],
+        model_instance={"model_type": "DLinear",
+                        "config_json": json.dumps({"output_chunk_length": "5"})},
+        model_id=99, ticker="FPT",
+        train_params={"train_ratio": 0.8}, start_date="2025-01-01",
+        end_date="2025-03-21", rows_before_warmup=60, rows_after_warmup=60)
+
+    status = solution_routes.training_status.pop(4343)
+    assert status["status"] == "completed", status
+
+    model_update = [p for s, p in zip(statements, params) if "file_path" in s]
+    assert model_update, "model_instances was updated without file_path — #126"
+    written = model_update[0]["file_path"]
+    assert written.endswith("solution_4343_darts.joblib")
+    import os as _os
+    assert _os.path.exists(written), "file_path names a file that is not there"
+
+    dates = status["result"]["prediction_dates"]
+    assert dates["output_chunk_length"] == 5, (
+        "the window must be the MODEL's horizon, not a literal")
+    assert dates["prediction_start_date"] == "2025-03-24"      # the 21st is a Friday
+    assert dates["training_end_date"] == "2025-03-21"
+
+
+@pytest.mark.asyncio
+async def test_the_tabular_training_result_also_offers_the_models_own_window(
+        monkeypatch, tmp_path):
+    """A GAP FOUND BY MUTATION TESTING, not by reading. Removing
+    prediction_dates from the TABULAR result left the whole suite green: the
+    darts side had a guard and this side had none, so the block the Predict tab
+    pre-fills from was protected on one engine only. Both now, and the horizon
+    is asserted against the model's config rather than against a literal."""
+    sid = 9100
+    solution_routes.training_status.pop(sid, None)
+
+    rows = 200
+    idx = pd.bdate_range("2025-01-01", periods=rows)
+    close = np.linspace(20, 30, rows)
+    price_records = [
+        {"time": d.strftime("%Y-%m-%d"), "open": float(c), "high": float(c) + 1,
+         "low": float(c) - 1, "close": float(c), "volume": 1000.0 + i}
+        for i, (d, c) in enumerate(zip(idx, close))
+    ]
+
+    session = AsyncMock()
+    session.execute = AsyncMock(side_effect=[
+        _result_with_first({"id": sid, "ticker": "FPT", "model_id": 99}),
+        _result_with_first({"id": 99, "model_type": "XGBoost", "model_sub_type": "",
+                            "config_json": json.dumps({"output_chunk_length": "3"})}),
+        _result_with_mappings([]),            # no indicators
+        MagicMock(), MagicMock(), MagicMock(),
+    ])
+    session.__aenter__ = AsyncMock(return_value=session)
+    session.__aexit__ = AsyncMock(return_value=False)
+    monkeypatch.setattr("app.api.solution_routes.async_session_factory",
+                        MagicMock(return_value=session))
+    # MODEL_PATH is the container's /app volume; unwritable from a test host.
+    monkeypatch.setattr(solution_routes.settings, "MODEL_PATH", str(tmp_path))
+
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"data": price_records}
+
+    end_date = idx[-1].strftime("%Y-%m-%d")
+    with patch("app.api.solution_routes.httpx.AsyncClient",
+               return_value=_FakeAsyncClient(resp)):
+        await _run_training(sid, {"start_date": idx[0].strftime("%Y-%m-%d"),
+                                  "end_date": end_date,
+                                  "engine": "tabular", "train_ratio": 0.8,
+                                  "validation": True,
+                                  # Explicit: left to the default this reaches
+                                  # news-service over real HTTP and the test
+                                  # hangs on it rather than failing.
+                                  "include_news": False})
+
+    status = solution_routes.training_status.pop(sid)
+    assert status["status"] == "completed", status
+    dates = status["result"]["prediction_dates"]
+    assert dates["output_chunk_length"] == 3, (
+        "the tabular path hardcoded 10 here before #127")
+    assert dates["training_end_date"] == end_date
+    assert pd.Timestamp(dates["prediction_start_date"]) > pd.Timestamp(end_date)
+    assert pd.Timestamp(dates["prediction_start_date"]).weekday() < 5
+
+
+def test_deleting_a_darts_bundle_takes_its_model_files_with_it(tmp_path):
+    """A LEAK #126 CREATED, found by looking at the volume after a sweep rather
+    than by reading the code: DELETE /models/{id} removes file_path — the
+    joblib sidecar — and the Darts model file plus the torch .ckpt beside it
+    survived. Fourteen orphans in one afternoon, each a model nothing can reach
+    and nothing will ever delete."""
+    with patch.object(solution_routes.settings, "MODEL_PATH", str(tmp_path)):
+        sidecar = solution_routes.save_darts_bundle(77, _fitted())
+    model_file = str(tmp_path / "solution_77_darts.model")
+    # The .ckpt is torch's, written by Darts itself; the stub does not make one.
+    open(model_file + ".ckpt", "w").close()
+
+    companions = solution_routes.darts_companion_files(sidecar)
+    assert sorted(companions) == sorted([model_file, model_file + ".ckpt"])
+
+
+def test_a_tabular_bundle_has_no_darts_companions(tmp_path):
+    """Non-vacuity: the cleanup must not start deleting files next to a plain
+    tabular joblib because their names happen to look similar."""
+    sidecar = tmp_path / "solution_78_model.joblib"
+    __import__("joblib").dump({"model": "x", "feature_cols": ["close"]}, sidecar)
+    assert solution_routes.darts_companion_files(str(sidecar)) == []
+
+
+def test_an_unreadable_sidecar_still_gives_up_its_model_by_convention(tmp_path):
+    """A corrupt sidecar must not mean an abandoned model file."""
+    sidecar = tmp_path / "solution_79_darts.joblib"
+    sidecar.write_bytes(b"not a joblib at all")
+    model_file = tmp_path / "solution_79_darts.model"
+    model_file.write_text("the model")
+    assert solution_routes.darts_companion_files(str(sidecar)) == [str(model_file)]

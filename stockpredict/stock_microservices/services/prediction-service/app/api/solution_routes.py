@@ -227,6 +227,127 @@ def warmup_calendar_days(indicator_rows: list) -> int:
     return int(bars * CALENDAR_DAYS_PER_BAR) + HOLIDAY_MARGIN_DAYS
 
 
+def next_trading_day(day) -> "pd.Timestamp":
+    """The next weekday after `day`.
+
+    SINGLE PLACE ON PURPOSE. This arithmetic was written out three times and
+    Backlog #131 is about what all three get wrong: it skips weekends and knows
+    nothing about market holidays, so a window starting the day after a Friday
+    before Tet lands on a closed exchange. Fixing #131 means fixing this
+    function, not finding the copies.
+    """
+    nxt = pd.Timestamp(day) + pd.Timedelta(days=1)
+    while nxt.weekday() >= 5:
+        nxt += pd.Timedelta(days=1)
+    return nxt
+
+
+def compute_prediction_dates(end_date, output_chunk_length: int) -> dict:
+    """The window the Predict tab pre-fills after a training finishes.
+
+    Backlog #126/#127. The tabular path built this inline with a hardcoded
+    ten-day horizon and the darts path did not build it at all, so a
+    darts-trained solution left the Predict form with no dates to offer after a
+    training that had reported success. One function now serves both, and the
+    horizon is the model's.
+    """
+    start = next_trading_day(end_date)
+    end = start
+    added = 0
+    while added < max(1, int(output_chunk_length)) - 1:
+        end += pd.Timedelta(days=1)
+        if end.weekday() < 5:
+            added += 1
+    return {
+        'prediction_start_date': start.strftime('%Y-%m-%d'),
+        'prediction_end_date': end.strftime('%Y-%m-%d'),
+        'output_chunk_length': int(output_chunk_length),
+        'training_end_date': str(end_date),
+    }
+
+
+#: Backlog #126 — where a darts-trained solution's artefacts live.
+#:
+#: TWO FILES, and the split is forced by the library rather than chosen. Darts
+#: models do not survive joblib: measured against darts 0.48.1, a torch model
+#: pickled and reloaded raises "'NoneType' object has no attribute
+#: 'set_predict_parameters'" on its next predict, because the Lightning trainer
+#: is dropped. `model.save()` round-trips both families to identical forecasts
+#: (and writes a second `.ckpt` of its own for torch models).
+#:
+#: So the model goes through Darts' own serialisation and the rest — scalers,
+#: column list, chunk lengths — through joblib beside it. `file_path` points at
+#: the joblib sidecar, because that is what predict_solution already loads and
+#: it is the file that says which engine produced the model.
+def darts_bundle_paths(solution_id: int) -> tuple:
+    base = f"{settings.MODEL_PATH}/solution_{solution_id}_darts"
+    return f"{base}.joblib", f"{base}.model"
+
+
+def save_darts_bundle(solution_id: int, fitted: dict) -> str:
+    """Persist a fitted darts model plus its transforms. Returns the sidecar."""
+    sidecar_path, model_path = darts_bundle_paths(solution_id)
+    os.makedirs(settings.MODEL_PATH, exist_ok=True)
+    model = fitted["model"]
+    model.save(model_path)
+    state = {k: v for k, v in fitted.items() if k != "model"}
+    joblib.dump({
+        "engine": "darts",
+        "model_path": model_path,
+        # The class, recorded by name rather than pickled: Darts' generic
+        # ForecastingModel.load refuses a torch checkpoint (measured:
+        # UnpicklingError), so loading needs the concrete class, and an import
+        # path is inspectable where a pickled class reference is not.
+        "model_module": type(model).__module__,
+        "model_class": type(model).__qualname__,
+        **state,
+    }, sidecar_path)
+    return sidecar_path
+
+
+def darts_companion_files(sidecar_path: str) -> list:
+    """The other files a darts bundle owns, so deleting one deletes all of it.
+
+    Backlog #126 introduced a leak that the sweep made visible within an hour:
+    DELETE /models/{id} removes `file_path`, which is the joblib sidecar, while
+    the Darts model file and the torch `.ckpt` beside it survived. Fourteen
+    orphans accumulated in one afternoon of sweeps, each one a model nobody can
+    reach and nothing will ever delete.
+
+    The sidecar is READ rather than guessed at, because it records where the
+    model went; the naming convention is only the fallback for a sidecar too
+    corrupt to open, where leaving the model behind would be the worse outcome.
+    """
+    if not sidecar_path or not str(sidecar_path).endswith(".joblib"):
+        return []
+    model_path = None
+    try:
+        saved = joblib.load(sidecar_path)
+        if str(saved.get("engine") or "").strip().lower() == "darts":
+            model_path = saved.get("model_path")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("could not read %s to find its model file: %s",
+                       sidecar_path, exc)
+    if not model_path:
+        guess = sidecar_path[: -len(".joblib")] + ".model"
+        model_path = guess if os.path.exists(guess) else None
+    if not model_path:
+        return []
+    return [p for p in (model_path, f"{model_path}.ckpt") if os.path.exists(p)]
+
+
+def load_darts_model(saved: dict):
+    """Rebuild the model a darts sidecar describes."""
+    import importlib
+
+    model_path = saved.get("model_path")
+    if not model_path or not os.path.exists(model_path):
+        raise FileNotFoundError(
+            f"the darts model file is missing at {model_path}; retrain the solution")
+    module = importlib.import_module(saved["model_module"])
+    return getattr(module, saved["model_class"]).load(model_path)
+
+
 def _config_horizon(config_json):
     """output_chunk_length out of a model_instances.config_json, or None."""
     if isinstance(config_json, str):
@@ -918,31 +1039,14 @@ async def _run_training(solution_id: int, train_params: dict):
                 predictions.append(point)
 
             # Step 12: Compute prediction dates (business days)
-            # pred_start = training end date + 1 business day
             #
             # Backlog #127: the horizon comes from the model's own config now.
             # It was the literal 10 here, so the Predict tab offered a ten-day
             # window to every model including the ones created with 1.
-            training_end = pd.Timestamp(end_date)
+            # Backlog #126: the arithmetic moved into compute_prediction_dates
+            # so the darts path can produce the same block instead of none.
             output_chunk_length = resolve_output_chunk_length(config_json)
-
-            pred_start = training_end + pd.Timedelta(days=1)
-            while pred_start.weekday() >= 5:
-                pred_start += pd.Timedelta(days=1)
-
-            pred_end = pred_start
-            bdays = 0
-            while bdays < output_chunk_length - 1:
-                pred_end += pd.Timedelta(days=1)
-                if pred_end.weekday() < 5:
-                    bdays += 1
-
-            prediction_dates = {
-                'prediction_start_date': pred_start.strftime('%Y-%m-%d'),
-                'prediction_end_date': pred_end.strftime('%Y-%m-%d'),
-                'output_chunk_length': output_chunk_length,
-                'training_end_date': end_date
-            }
+            prediction_dates = compute_prediction_dates(end_date, output_chunk_length)
 
             # Step 13: Store completed result
             training_status[solution_id] = {
@@ -1435,16 +1539,47 @@ async def _run_darts_engine(
         'beats_naive_rmse': result['beats_naive_rmse'],
         **result["data_accounting"],
     })
+    # Backlog #126 — PERSIST THE MODEL, which is what made predict impossible.
+    #
+    # Everything below this point used to run without the trained model ever
+    # reaching disk: status became 'trained', the metrics were stored, and
+    # file_path stayed NULL. POST /solutions/predict loads a model from that
+    # column, so it answered "Model file not found at None. Retrain the
+    # solution." for every darts-trained solution — and retraining could not
+    # help, because the retrain was what failed to write the file. Since darts
+    # became the default engine on 2026-10-30 that was every solution a user
+    # trained without naming an engine.
+    #
+    # A save failure fails the RUN rather than being logged and swallowed: a
+    # solution marked 'trained' whose model is not on disk is precisely the
+    # state this backlog item is about, and it must not be reachable by a
+    # second route.
+    try:
+        model_file = await asyncio.to_thread(
+            save_darts_bundle, solution_id, result["fitted"])
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Darts model could not be saved for solution %s", solution_id)
+        training_status[solution_id] = {
+            "status": "failed",
+            "error": (f"the model trained but could not be saved, so it could not "
+                      f"be used for prediction: {type(exc).__name__}: {exc}"),
+            "failed_at": time_module.time()}
+        return
+
+    prediction_dates = compute_prediction_dates(
+        end_date, result["fitted"]["output_chunk_length"])
+
     await db.execute(
         text("""UPDATE model_instances
-                   SET status='trained', training_metrics_json=:metrics,
-                       last_training_date=NOW()
+                   SET status='trained', file_path=:file_path,
+                       training_metrics_json=:metrics, last_training_date=NOW()
                  WHERE id = :model_id"""),
-        {"metrics": metrics_json, "model_id": model_id})
+        {"file_path": model_file, "metrics": metrics_json, "model_id": model_id})
     await db.execute(
         text("""UPDATE tbl_solution
                    SET train_status='trained', solution_status=1,
-                       start_training_date=:start_date, end_training_date=:end_date
+                       start_training_date=:start_date, end_training_date=:end_date,
+                       prediction_result=NULL
                  WHERE id = :solution_id"""),
         {"start_date": start_date, "end_date": end_date, "solution_id": solution_id})
     await db.commit()
@@ -1463,6 +1598,10 @@ async def _run_darts_engine(
             "covariates": result['covariates'],
             "data_accounting": result['data_accounting'],
             "predictions": result['predictions'],
+            "forecast_warnings": result.get('forecast_warnings', []),
+            # Backlog #126. Absent here until now, so the Predict tab opened
+            # with nothing to offer after a successful darts training.
+            "prediction_dates": prediction_dates,
             "training_status": "completed",
         },
     }
@@ -1558,6 +1697,133 @@ async def train_solution(
     }
 
 
+async def _persist_prediction(db: AsyncSession, solution_id: int, response: dict) -> None:
+    """Store the prediction payload and flip the solution's status.
+
+    Extracted so the darts branch and the tabular path cannot drift on it; the
+    fallback matters because a payload too large for the column must still
+    leave the status correct rather than aborting a prediction that succeeded.
+    """
+    try:
+        await db.execute(
+            text("UPDATE tbl_solution SET train_status='predicted', "
+                 "prediction_result = :result WHERE id = :id"),
+            {"result": json.dumps(response), "id": solution_id})
+    except Exception as persist_err:  # noqa: BLE001
+        logger.warning(f"Failed to persist prediction result for solution "
+                       f"{solution_id}: {persist_err}")
+        await db.execute(
+            text("UPDATE tbl_solution SET train_status='predicted' WHERE id = :id"),
+            {"id": solution_id})
+    await db.commit()
+
+
+def _forecast_with_darts(*, saved: dict, solution_id: int, ticker: str,
+                         feature_df, df, indicator_data_by_date: dict,
+                         predict_start, predict_end, horizon: int) -> dict:
+    """Backlog #126 — the darts engine's half of POST /solutions/predict.
+
+    Synchronous and free of DB access so the caller can hand it to a thread:
+    loading a torch checkpoint and running inference are both blocking, and the
+    tabular path's equivalent arithmetic already runs on the event loop only
+    because it is numpy-fast.
+
+    The modelling lives in darts_trainer.run_darts_forecast, matching how
+    _run_darts_engine delegates to run_darts_training; this function is the
+    translation between that result and the payload the Prediction tab reads.
+    """
+    from app.services.darts_trainer import DartsTrainingError, run_darts_forecast
+
+    model = load_darts_model(saved)
+    state = {k: v for k, v in saved.items() if k != 'model'}
+    try:
+        out = run_darts_forecast(
+            model, state, feature_df,
+            predict_start=pd.Timestamp(predict_start) if predict_start else None,
+            horizon=horizon)
+    except DartsTrainingError as exc:
+        # A readable reason the operator can act on, rather than a 500 carrying
+        # a library message from three frames down.
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    backtest = out["backtest"]
+    actual_prices = [{'tradingdate': p['date'], 'close': p['actual_price']}
+                     for p in backtest]
+    predicted_prices = [{'tradingdate': p['date'], 'close': p['predicted_price']}
+                        for p in backtest]
+    future_predictions = [{'tradingdate': p['date'], 'close': p['predicted_price']}
+                          for p in out["future"]]
+
+    # Metrics over the requested window only, which is what the tabular path
+    # reports too, so the two engines' numbers stay comparable.
+    if len(backtest) > 1:
+        a = np.array([p['actual_price'] for p in backtest])
+        f = np.array([p['predicted_price'] for p in backtest])
+        metrics = {
+            "rmse": float(np.sqrt(mean_squared_error(a, f))),
+            "mae": float(mean_absolute_error(a, f)),
+            "r2": float(r2_score(a, f)),
+        }
+    else:
+        # One point cannot carry an r2, and inventing one would be worse than
+        # saying so.
+        metrics = {"rmse": None, "mae": None, "r2": None}
+
+    # The chart context: real history plus indicators, and a predicted value
+    # ONLY where the backtest actually produced one.
+    #
+    # The tabular path draws its predicted line across the whole context, which
+    # means most of that line is an in-sample fit of the training span shown as
+    # if it were a forecast. This does not copy that. A line that starts where
+    # the requested window starts is less decorative and does not claim a
+    # forecast was made for a date the model was fitted on.
+    CHART_CONTEXT_ROWS = 300
+    predicted_by_date = {p['date']: p['predicted_price'] for p in backtest}
+    ctx_index = (feature_df.index[-CHART_CONTEXT_ROWS:]
+                 if len(feature_df.index) > CHART_CONTEXT_ROWS else feature_df.index)
+    chart_points = []
+    for d in ctx_index:
+        key = d.strftime('%Y-%m-%d')
+        point = {
+            'date': key,
+            'actual_price': float(feature_df.loc[d, 'close']),
+            'open': float(df.loc[d, 'open']) if d in df.index else None,
+            'high': float(df.loc[d, 'high']) if d in df.index else None,
+            'low': float(df.loc[d, 'low']) if d in df.index else None,
+            'volume': float(df.loc[d, 'volume']) if d in df.index else None,
+        }
+        if key in predicted_by_date:
+            point['predicted_price'] = predicted_by_date[key]
+        if d.isoformat() in indicator_data_by_date:
+            point.update(indicator_data_by_date[d.isoformat()])
+        elif key in indicator_data_by_date:
+            point.update(indicator_data_by_date[key])
+        chart_points.append(point)
+
+    return {
+        "solution_id": solution_id,
+        "ticker": ticker,
+        "train_status": "predicted",
+        # Named, because #109's lesson was that a result must say which engine
+        # produced it. The tabular payload has never carried this; the darts one
+        # does from the start.
+        "engine": "darts",
+        "model_type": out.get("model_type"),
+        "chart": chart_points,
+        "actual": actual_prices,
+        "predict": predicted_prices,
+        "future": future_predictions,
+        "metrics": metrics,
+        "predict_start": str(predict_start) if predict_start else None,
+        "predict_end": str(predict_end) if predict_end else None,
+        "future_days": len(future_predictions),
+        # #124's rule, applied here too: a flat forecast travels with the
+        # numbers rather than being left for the reader to notice.
+        "forecast_warnings": out.get("warnings", []),
+        "requested_horizon": out.get("requested_horizon"),
+    }
+
+
 @solution_router.post("/predict")
 @solution_router.post("/predict/")
 async def predict_solution(
@@ -1615,10 +1881,19 @@ async def predict_solution(
 
         # Step 3: Load the saved model
         saved = joblib.load(model_file)
-        ml_model = saved['model']
-        feature_cols = saved['feature_cols']
+        # Backlog #126. A bundle written before the darts path persisted
+        # anything has no engine key, and those are all tabular — so the
+        # absence means 'tabular' rather than 'unknown'.
+        engine = str(saved.get('engine') or 'tabular').strip().lower()
+        if engine == 'darts':
+            ml_model = None
+            feature_cols = list(saved.get('past_columns') or [])
+        else:
+            ml_model = saved['model']
+            feature_cols = saved['feature_cols']
 
-        logger.info(f"Prediction: loaded model for solution {solution_id}, {len(feature_cols)} features")
+        logger.info(f"Prediction: loaded {engine} model for solution {solution_id}, "
+                    f"{len(feature_cols)} features")
 
         # Step 4: Load solution indicators
         result = await db.execute(
@@ -1725,6 +2000,26 @@ async def predict_solution(
                     f"more history."
                 ),
             )
+
+        # Backlog #126 — the darts branch. Everything above is shared: the
+        # solution, the model file, the indicator rows, the price fetch with its
+        # warm-up and the feature frame are built the same way for both engines.
+        # Everything below is the tabular pipeline, which cannot run a darts
+        # model: it calls ml_model.predict(X) on a feature MATRIX, while a darts
+        # model takes a TimeSeries plus its covariates.
+        if engine == 'darts':
+            prediction_response = await asyncio.to_thread(
+                _forecast_with_darts,
+                saved=saved, solution_id=solution_id, ticker=ticker,
+                feature_df=feature_df, df=df,
+                indicator_data_by_date=indicator_data_by_date,
+                predict_start=predict_start, predict_end=predict_end,
+                horizon=resolve_output_chunk_length(
+                    model_instance.get('config_json') if model_instance else None,
+                    requested=data.get('predict_days')),
+            )
+            await _persist_prediction(db, solution_id, prediction_response)
+            return prediction_response
 
         # Ensure we have the same columns as training (in same order)
         missing_cols = [c for c in feature_cols if c not in feature_df.columns]
@@ -1946,19 +2241,7 @@ async def predict_solution(
         }
 
         # Persist prediction result and update status
-        try:
-            prediction_result_json = json.dumps(prediction_response)
-            await db.execute(
-                text("UPDATE tbl_solution SET train_status='predicted', prediction_result = :result WHERE id = :id"),
-                {"result": prediction_result_json, "id": solution_id}
-            )
-        except Exception as persist_err:
-            logger.warning(f"Failed to persist prediction result for solution {solution_id}: {persist_err}")
-            await db.execute(
-                text("UPDATE tbl_solution SET train_status='predicted' WHERE id = :id"),
-                {"id": solution_id}
-            )
-        await db.commit()
+        await _persist_prediction(db, solution_id, prediction_response)
 
         return prediction_response
 

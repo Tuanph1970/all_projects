@@ -902,3 +902,196 @@ def test_training_still_runs_when_the_covariate_varies_in_training():
                              covariate_types={"news_intensity": "past"},
                              train_ratio=0.8, price_column="close")
     assert out["metrics"]["rmse"] > 0
+
+
+# ---------------------------------------------------------------------------
+# Backlog #126 — the fitted model survives training, and can forecast later
+# ---------------------------------------------------------------------------
+#
+# WHAT THIS SECTION IS ABOUT. The darts path used to return metrics and throw
+# the fitted model away, so model_instances.file_path stayed NULL and
+# POST /solutions/predict — which loads a model from that column — answered
+# "Model file not found at None" for every darts-trained solution. Training
+# reported success and the Predict button could never work, on what has been
+# the DEFAULT engine since 2026-10-30.
+
+
+def _fit(model_type="XGBoost", n=320, **config):
+    """Train once and hand back (fitted state, frame) for a forecast."""
+    from app.services.darts_trainer import run_darts_training
+
+    cfg = {"n_epochs": 1, "input_chunk_length": 20, "output_chunk_length": 5}
+    cfg.update(config)
+    frame = _frame(n=n)
+    out = run_darts_training(
+        frame, model_type=model_type,
+        indicator_columns=["rsi_14", "sma_20"],
+        covariate_types={"rsi_14": "past", "sma_20": "past"},
+        train_ratio=0.85, config=cfg)
+    return out, frame
+
+
+def test_training_returns_everything_a_later_forecast_needs():
+    """The model alone is not enough: a forecast has to transform its inputs
+    with the SAME scalers, and read the same covariate columns in the same
+    order, or the model meets a different problem than it was fitted on."""
+    pytest.importorskip("darts")
+    out, _ = _fit()
+    fitted = out["fitted"]
+    assert fitted["model"] is not None
+    assert fitted["target_scaler"] is not None
+    assert fitted["past_scaler"] is not None, (
+        "the covariate scaler used to be discarded — a forecast cannot be "
+        "reproduced without it")
+    assert fitted["past_columns"] == ["rsi_14", "sma_20"]
+    assert fitted["output_chunk_length"] == 5
+    assert fitted["input_chunk_length"] == 20
+
+
+@pytest.mark.parametrize("model_type", ["XGBoost", "DLinear"])
+def test_a_forecast_follows_the_training_without_refitting(model_type):
+    """The whole point of #126: predict with the model training produced."""
+    pytest.importorskip("darts")
+    import logging
+    logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
+    from app.services.darts_trainer import run_darts_forecast
+
+    out, frame = _fit(model_type)
+    state = {k: v for k, v in out["fitted"].items() if k != "model"}
+    predict_start = frame.index[-10]
+
+    res = run_darts_forecast(out["fitted"]["model"], state, frame,
+                             predict_start=predict_start, horizon=5)
+
+    assert res["engine"] == "darts"
+    assert len(res["future"]) == 5
+    assert all(p["predicted_price"] > 0 for p in res["future"])
+    # The forecast lies beyond the last bar, which is what makes it a forecast.
+    assert all(pd.Timestamp(p["date"]) > frame.index[-1] for p in res["future"])
+    # The backtest covers the requested window and nothing before it.
+    assert res["backtest"]
+    assert all(pd.Timestamp(p["date"]) >= predict_start for p in res["backtest"])
+    assert all(pd.Timestamp(p["date"]) <= frame.index[-1] for p in res["backtest"])
+
+
+def test_the_backtest_prices_are_in_price_units_not_scaler_units():
+    """A forecast returned in scaler units (0..1) would plot as a flat line at
+    the bottom of a chart whose prices are ~20 — and every metric would still
+    be finite, so nothing downstream would complain."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import run_darts_forecast
+
+    out, frame = _fit()
+    state = {k: v for k, v in out["fitted"].items() if k != "model"}
+    res = run_darts_forecast(out["fitted"]["model"], state, frame,
+                             predict_start=frame.index[-10], horizon=5)
+    level = float(frame["close"].iloc[-1])
+    for p in res["backtest"] + res["future"]:
+        assert 0.3 * level < p["predicted_price"] < 3 * level, p
+
+
+def test_a_horizon_beyond_the_output_chunk_is_capped_and_disclosed():
+    """MEASURED AGAINST darts 0.48.1, not assumed: with past covariates that
+    stop at the last bar, predict(n) raises for n > output_chunk_length — "the
+    provided past_covariates do not extend far enough into the future" — for
+    DLinear and XGBoost alike. Extending them would mean inventing indicator
+    values, i.e. future prices, which is the C1 leak this engine refuses.
+
+    So the cap is a property of the problem. What matters is that it is SAID."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import run_darts_forecast
+
+    out, frame = _fit(output_chunk_length=5)
+    state = {k: v for k, v in out["fitted"].items() if k != "model"}
+    res = run_darts_forecast(out["fitted"]["model"], state, frame,
+                             predict_start=frame.index[-3], horizon=30)
+    assert res["horizon"] == 5
+    assert res["requested_horizon"] == 30
+    assert len(res["future"]) == 5
+    assert any("horizon shortened" in w for w in res["warnings"]), res["warnings"]
+
+
+def test_a_horizon_inside_the_output_chunk_is_not_capped():
+    """Non-vacuity for the cap: it must not fire on a horizon that fits."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import run_darts_forecast
+
+    out, frame = _fit(output_chunk_length=5)
+    state = {k: v for k, v in out["fitted"].items() if k != "model"}
+    res = run_darts_forecast(out["fitted"]["model"], state, frame,
+                             predict_start=frame.index[-3], horizon=3)
+    assert res["horizon"] == 3 and len(res["future"]) == 3
+    assert not any("horizon shortened" in w for w in res["warnings"])
+
+
+def test_a_window_entirely_in_the_future_still_forecasts():
+    """Predicting from a date after the last bar is the normal live case: there
+    is nothing to backtest, and the forecast must still be produced."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import run_darts_forecast
+
+    out, frame = _fit()
+    state = {k: v for k, v in out["fitted"].items() if k != "model"}
+    res = run_darts_forecast(out["fitted"]["model"], state, frame,
+                             predict_start=frame.index[-1] + pd.Timedelta(days=30),
+                             horizon=5)
+    assert res["backtest"] == []
+    assert len(res["future"]) == 5
+
+
+def test_a_missing_fitted_column_is_refused_rather_than_filled():
+    """The tabular path fills an absent feature with zeros and logs a warning.
+    Here that would feed the model a dead covariate and return a forecast that
+    looks fine — the silent-substitution class of #109/#110. Refuse instead."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import DartsTrainingError, run_darts_forecast
+
+    out, frame = _fit()
+    state = {k: v for k, v in out["fitted"].items() if k != "model"}
+    with pytest.raises(DartsTrainingError, match="missing columns"):
+        run_darts_forecast(out["fitted"]["model"], state,
+                           frame.drop(columns=["sma_20"]),
+                           predict_start=frame.index[-10], horizon=5)
+
+
+def test_too_little_history_before_the_window_is_refused_readably():
+    """Fewer bars than the model's lookback cannot produce a backtest. Darts
+    would raise from three frames down; this says what to do about it."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import DartsTrainingError, run_darts_forecast
+
+    out, frame = _fit(input_chunk_length=20)
+    state = {k: v for k, v in out["fitted"].items() if k != "model"}
+    short = frame.iloc[-15:]            # 15 bars for a 20-bar lookback
+    with pytest.raises(DartsTrainingError, match="bar"):
+        run_darts_forecast(out["fitted"]["model"], state, short,
+                           predict_start=short.index[-5], horizon=5)
+
+
+def test_the_scalers_are_reused_and_not_refitted_on_prediction_data():
+    """C1. Re-fitting a scaler at prediction time would both move the model's
+    inputs under it and fit on data after the training span. Two frames that
+    differ only AFTER the backtest window must give the same backtest."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import run_darts_forecast
+
+    out, frame = _fit()
+    state = {k: v for k, v in out["fitted"].items() if k != "model"}
+    predict_start = frame.index[-12]
+
+    base = run_darts_forecast(out["fitted"]["model"], state, frame,
+                              predict_start=predict_start, horizon=5)
+    # Blow up the last two bars by a factor a refit scaler could not ignore.
+    tampered = frame.copy()
+    tampered.iloc[-2:, tampered.columns.get_loc("close")] *= 40
+    after = run_darts_forecast(out["fitted"]["model"], state, tampered,
+                               predict_start=predict_start, horizon=5)
+
+    unchanged = [b for b, a in zip(base["backtest"], after["backtest"])
+                 if pd.Timestamp(b["date"]) < frame.index[-2]]
+    assert unchanged, "the comparison would be vacuous with no earlier points"
+    for b, a in zip(base["backtest"], after["backtest"]):
+        if pd.Timestamp(b["date"]) < frame.index[-2]:
+            assert b["predicted_price"] == pytest.approx(a["predicted_price"]), (
+                "a prediction for an earlier date moved when LATER data changed "
+                "— the scaler is being refitted at prediction time")

@@ -936,6 +936,15 @@ async def delete_model_instance(
         # 1. Delete the specific file_path stored in DB
         if file_path:
             abs_path = os.path.join(settings.MODEL_PATH, file_path)
+            # Backlog #126. A darts-trained model is TWO or THREE files: the
+            # joblib sidecar named here, the Darts model file, and a torch
+            # .ckpt. Removing only file_path left the model itself on disk
+            # forever, unreachable and unreferenced.
+            from app.api.solution_routes import darts_companion_files
+            for companion in darts_companion_files(abs_path):
+                os.remove(companion)
+                deleted_files.append(companion)
+                logger.info(f"Deleted darts model file: {companion}")
             if os.path.exists(abs_path):
                 os.remove(abs_path)
                 deleted_files.append(abs_path)

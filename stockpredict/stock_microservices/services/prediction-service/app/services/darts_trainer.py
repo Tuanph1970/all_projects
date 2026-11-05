@@ -800,9 +800,15 @@ def run_darts_training(
             calendar_frame(extended).to_numpy()[: n_rows + window.output_chunk_length + 1])
 
     # 3b. Scale, with every scaler fitted on the TRAINING SPAN ONLY (C1).
+    #
+    # Backlog #126: the covariate scalers used to be discarded here. They are
+    # kept now because a forecast made later has to transform its inputs with
+    # the SAME scalers — re-fitting them at prediction time would both change
+    # the model's inputs under it and fit on data after the training span,
+    # which is the C1 leak this function is careful to avoid.
     target, target_scaler = scale_for_training(target, split)
-    past_cov, _ = scale_for_training(past_cov, split)
-    future_cov, _ = scale_for_training(future_cov, split)
+    past_cov, past_scaler = scale_for_training(past_cov, split)
+    future_cov, future_scaler = scale_for_training(future_cov, split)
 
     train_target = target[:split]
 
@@ -893,6 +899,207 @@ def run_darts_training(
             [p.get("predicted_price") if isinstance(p, dict) else p
              for p in (predictions or [])]),
         "predictions": predictions,
+        # Backlog #126 — EVERYTHING A LATER FORECAST NEEDS, and nothing is
+        # persisted here: this function stays free of I/O, so the caller saves
+        # what it wants from this.
+        #
+        # Until now the darts path returned metrics and threw the fitted model
+        # away, so `model_instances.file_path` stayed NULL and
+        # POST /solutions/predict — which loads a model from that column —
+        # answered "Model file not found at None" for every darts-trained
+        # solution. Training reported success and the Predict button could
+        # never work.
+        #
+        # The scalers and the column list travel WITH the model because a
+        # forecast is only reproducible if its inputs are transformed exactly
+        # as the fit's were; the chunk lengths travel because the horizon a
+        # past-covariate model can honestly reach is its output_chunk_length
+        # (measured against darts 0.48.1 — see run_darts_forecast).
+        "fitted": {
+            "model": model,
+            "model_type": model_type,
+            "target_scaler": target_scaler,
+            "past_scaler": past_scaler,
+            "future_scaler": future_scaler,
+            "past_columns": list(plan.past_columns),
+            "future_columns": list(plan.future_columns),
+            "calendar_features": list(plan.calendar_features),
+            "input_chunk_length": window.input_chunk_length,
+            "output_chunk_length": window.output_chunk_length,
+            "price_column": price_column,
+        },
+    }
+
+
+def _series_from(frame: pd.DataFrame, columns: Sequence[str]):
+    """A positional-index TimeSeries over `columns`, or None when there are none.
+
+    Positional for the reason run_darts_training documents at length: real
+    trading bars have no regular frequency, so a calendar index makes Darts
+    refuse the series outright. Both sides must build their series the same way
+    or the model meets a different shape than it was fitted on.
+    """
+    from darts import TimeSeries
+
+    if not columns:
+        return None
+    missing = [c for c in columns if c not in frame.columns]
+    if missing:
+        raise DartsTrainingError(
+            f"the frame is missing columns this model was fitted on: {missing}. "
+            f"The solution's indicators have changed since it was trained — "
+            f"retrain it.")
+    return TimeSeries.from_values(
+        frame[list(columns)].astype("float64").to_numpy())
+
+
+def run_darts_forecast(
+    model,
+    state: Dict[str, object],
+    feature_df: pd.DataFrame,
+    *,
+    predict_start: Optional[pd.Timestamp] = None,
+    horizon: int = 1,
+) -> Dict[str, object]:
+    """Forecast with an already-fitted Darts model. Still free of I/O.
+
+    Backlog #126. `state` is the `fitted` block run_darts_training returned,
+    minus the model itself, which the caller loads separately because Darts
+    models do not survive joblib — measured against darts 0.48.1: a torch model
+    pickled and reloaded raises "'NoneType' object has no attribute
+    'set_predict_parameters'" on its next predict, while `model.save()` /
+    `ModelClass.load()` round-trips both families to identical forecasts.
+
+    Two separate answers come back, because the Prediction tab draws two things:
+
+      * `backtest` — one-step-ahead forecasts across the requested window, each
+        re-anchored on the ACTUAL bar before it. The same protocol training
+        uses for its metrics, and the same question a trader asks. Not a
+        multi-step forecast re-labelled: that would be a harder task reported
+        as an easier one.
+      * `future` — the genuine forecast beyond the last available bar.
+
+    THE HORIZON IS CAPPED AT output_chunk_length WHEN PAST COVARIATES ARE USED,
+    and that is a property of the problem rather than a shortcut. Darts refuses
+    n > output_chunk_length with past covariates that stop at the data's end
+    (measured: n=5 fine, n=6 raises "do not extend far enough into the future"
+    for DLinear and XGBoost alike), because auto-regressing further would need
+    covariate values from after the last bar. Those covariates are technical
+    indicators — functions of price — so supplying them would mean supplying
+    future prices, the exact CLAUDE.md C1 leak this engine refuses elsewhere.
+    The cap is reported, not hidden.
+    """
+    price_column = str(state.get("price_column") or "close")
+    if price_column not in feature_df.columns:
+        raise DartsTrainingError(f"frame has no {price_column!r} column")
+    if not isinstance(feature_df.index, pd.DatetimeIndex):
+        raise DartsTrainingError("feature_df must be indexed by date")
+
+    from darts import TimeSeries
+
+    frame = feature_df.sort_index()
+    past_columns = list(state.get("past_columns") or [])
+    future_columns = list(state.get("future_columns") or [])
+    icl = int(state.get("input_chunk_length") or 1)
+    ocl = int(state.get("output_chunk_length") or 1)
+    target_scaler = state.get("target_scaler")
+    past_scaler = state.get("past_scaler")
+    future_scaler = state.get("future_scaler")
+
+    warnings_out: List[str] = []
+    requested_horizon = max(1, int(horizon))
+    effective_horizon = requested_horizon
+    if past_columns and requested_horizon > ocl:
+        effective_horizon = ocl
+        warnings_out.append(
+            f"horizon shortened from {requested_horizon} to {ocl} days: this "
+            f"model reads {len(past_columns)} past covariate(s), and forecasting "
+            f"further than its output_chunk_length would require indicator "
+            f"values from beyond the last trading bar")
+
+    # The target, and the covariates, built and scaled exactly as the fit did.
+    target = TimeSeries.from_values(
+        frame[price_column].astype("float64").to_numpy())
+    if target_scaler is not None:
+        target = target_scaler.transform(target)
+
+    kwargs: Dict[str, object] = {}
+    past_cov = _series_from(frame, past_columns)
+    if past_cov is not None:
+        kwargs["past_covariates"] = (
+            past_scaler.transform(past_cov) if past_scaler is not None else past_cov)
+    if future_columns:
+        # Extended past the end so the series covers the horizon, as Darts
+        # requires and as training did.
+        #
+        # THE EXTENSION IS SIZED BY output_chunk_length, NOT BY THE HORIZON, and
+        # the difference is not academic: a model emits a whole
+        # output_chunk_length window even when asked for fewer steps, so it
+        # wants future covariates that far ahead regardless. Extending by the
+        # horizon alone raised "the future_covariates are not long enough ...
+        # have to range from 300 until 324 (inclusive), but they only range
+        # from 0 until 323" for a 3-day request on a 5-day chunk — caught by
+        # the non-vacuity test for the horizon cap, which asked for less than
+        # the chunk and was the only case that exercised this.
+        extended = extend_index(frame.index, effective_horizon + ocl + 1)
+        cal = calendar_frame(extended)[future_columns]
+        future_cov = TimeSeries.from_values(cal.astype("float64").to_numpy())
+        kwargs["future_covariates"] = (
+            future_scaler.transform(future_cov)
+            if future_scaler is not None else future_cov)
+
+    def _to_prices(series) -> np.ndarray:
+        restored = (target_scaler.inverse_transform(series)
+                    if target_scaler is not None else series)
+        return np.asarray(restored.values(), dtype="float64").ravel()
+
+    # --- the backtest over the requested window ----------------------------
+    backtest: List[Dict[str, object]] = []
+    start = len(frame)
+    if predict_start is not None:
+        positions = np.flatnonzero(frame.index >= pd.Timestamp(predict_start))
+        start = int(positions[0]) if len(positions) else len(frame)
+    if start < len(frame):
+        if start < icl:
+            raise DartsTrainingError(
+                f"only {start} bar(s) of history before the first day to be "
+                f"predicted, and this model reads {icl}. Fetch more history "
+                f"before that date, or predict from a later date.")
+        hf = model.historical_forecasts(
+            target, **kwargs, start=start, forecast_horizon=1, stride=1,
+            retrain=False, last_points_only=True, verbose=False)
+        predicted = _to_prices(hf)
+        actual = frame[price_column].iloc[start:start + len(predicted)].to_numpy(
+            dtype="float64")
+        cut = min(len(actual), len(predicted))
+        backtest = [
+            {
+                "date": d.strftime("%Y-%m-%d"),
+                "actual_price": float(a),
+                "predicted_price": float(p),
+            }
+            for d, a, p in zip(frame.index[start:start + cut],
+                               actual[:cut], predicted[:cut])
+        ]
+
+    # --- the forecast beyond the last bar ----------------------------------
+    forecast = model.predict(effective_horizon, series=target, **kwargs)
+    values = _to_prices(forecast)
+    future_dates = extend_index(frame.index, len(values))[-len(values):]
+    future = [
+        {"date": d.strftime("%Y-%m-%d"), "predicted_price": float(v)}
+        for d, v in zip(future_dates, values)
+    ]
+
+    return {
+        "engine": "darts",
+        "model_type": state.get("model_type"),
+        "backtest": backtest,
+        "future": future,
+        "requested_horizon": requested_horizon,
+        "horizon": effective_horizon,
+        "warnings": warnings_out + forecast_warnings(
+            [p["predicted_price"] for p in future]),
     }
 
 
