@@ -688,3 +688,90 @@ async def test_trained_solutions_db_error_returns_empty(client: AsyncClient, moc
     r = await client.get(f"{PREFIX}/simulation/trained-solutions")
     assert r.status_code == 200
     assert r.json() == []
+
+
+# ---------------------------------------------------------------------------
+# Backlog #132 — the catalogue endpoints offer only what can be computed
+# ---------------------------------------------------------------------------
+#
+# A GAP FOUND BY MUTATION TESTING: both changes below could be reverted with the
+# whole suite still green. The helper and the attach-time refusal were covered;
+# the two endpoints that actually populate a GUI were not, so the filtering they
+# do was asserted nowhere.
+
+
+def _catalogue_rows():
+    """Two indicators that work and two that have no implementation."""
+    return [
+        {"id": 1, "name": "SMA", "type": "trend", "description": "Simple MA",
+         "calculation_function": "fn", "default_parameters": '{"period": 20}'},
+        {"id": 2, "name": "RSI", "type": "momentum", "description": "RSI",
+         "calculation_function": "fn", "default_parameters": None},
+        {"id": 50, "name": "PIVOT", "type": "support_resistance",
+         "description": "Pivot points", "calculation_function": "calculate_pivot",
+         "default_parameters": None},
+        {"id": 51, "name": "RENKO", "type": "price_transform",
+         "description": "Renko", "calculation_function": "calculate_renko",
+         "default_parameters": None},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_the_catalogue_does_not_offer_unimplemented_indicators(
+        client: AsyncClient, mock_db):
+    """Offering a control that cannot work is worse than not offering it: the
+    operator picks it, configures a solution, trains for minutes and only then
+    finds out. Owner decision 2026-11-05, for the v0.9 release."""
+    mock_db.execute = AsyncMock(return_value=_result_with_mappings(_catalogue_rows()))
+    r = await client.get(f"{PREFIX}/indicators")
+    assert r.status_code == 200
+    body = r.json()
+    offered = [i["name"] for group in body.values() for i in group]
+    assert "SMA" in offered and "RSI" in offered
+    assert "PIVOT" not in offered and "RENKO" not in offered
+
+
+@pytest.mark.asyncio
+async def test_a_group_with_nothing_available_is_dropped_not_returned_empty(
+        client: AsyncClient, mock_db):
+    """Three empty dropdowns are their own kind of broken promise. All three
+    affected groups are unimplemented in their entirety, so they disappear."""
+    mock_db.execute = AsyncMock(return_value=_result_with_mappings(_catalogue_rows()))
+    body = (await client.get(f"{PREFIX}/indicators")).json()
+    assert "support_resistance" not in body
+    assert "price_transform" not in body
+    assert set(body) == {"trend", "momentum"}
+
+
+@pytest.mark.asyncio
+async def test_a_group_that_still_has_something_is_kept(
+        client: AsyncClient, mock_db):
+    """Non-vacuity for the rule above: a group is dropped for being EMPTY, not
+    for containing an unavailable entry."""
+    rows = _catalogue_rows() + [
+        {"id": 52, "name": "MP", "type": "trend", "description": "Median price",
+         "calculation_function": "calculate_mp", "default_parameters": None},
+    ]
+    mock_db.execute = AsyncMock(return_value=_result_with_mappings(rows))
+    body = (await client.get(f"{PREFIX}/indicators")).json()
+    assert [i["name"] for i in body["trend"]] == ["SMA"]
+
+
+@pytest.mark.asyncio
+async def test_the_by_type_listing_is_filtered_too(client: AsyncClient, mock_db):
+    """This is the endpoint a per-group dropdown calls, so it needs the same
+    rule — an unfiltered second door makes the first one decorative."""
+    rows = [r for r in _catalogue_rows() if r["type"] == "support_resistance"]
+    mock_db.execute = AsyncMock(return_value=_result_with_mappings(rows))
+    r = await client.get(f"{PREFIX}/indicators/type/support_resistance")
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+@pytest.mark.asyncio
+async def test_the_by_type_listing_still_returns_what_works(
+        client: AsyncClient, mock_db):
+    rows = [r for r in _catalogue_rows() if r["type"] == "trend"]
+    mock_db.execute = AsyncMock(return_value=_result_with_mappings(rows))
+    r = await client.get(f"{PREFIX}/indicators/type/trend")
+    assert [i["name"] for i in r.json()] == ["SMA"]

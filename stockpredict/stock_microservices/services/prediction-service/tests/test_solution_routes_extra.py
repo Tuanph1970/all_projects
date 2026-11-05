@@ -2024,3 +2024,97 @@ async def test_an_unavailable_indicator_does_not_blank_the_whole_chart_response(
     assert "no implementation" in body["volume"]["error"]
     # And emphatically NOT a close-price series dressed as PIVOT.
     assert not any("value" in point for point in body["volume"]["data"])
+
+
+# ---------------------------------------------------------------------------
+# Backlog #132 — the catalogue offers only what it can compute
+# ---------------------------------------------------------------------------
+
+
+def test_the_unavailable_list_is_exactly_what_cannot_be_computed():
+    """THE GUARD THAT KEEPS THE LIST HONEST, and the reason it is a set in code
+    rather than a flag in the database: it is checked against the code that
+    makes it obsolete.
+
+    Implement one of the thirteen and forget to remove it here — the catalogue
+    goes on hiding a working indicator. Add a catalogue entry with no
+    implementation and forget to add it — the GUI offers a control that fails
+    after the operator has configured and trained a solution. Both are a
+    failure of this test rather than a discovery months later."""
+    df = _ohlcv_frame(120)
+    catalogue = sorted(set(solution_routes.INDICATOR_NAME_MAP) |
+                       set(solution_routes.UNAVAILABLE_INDICATORS))
+
+    cannot = set()
+    for name in catalogue:
+        code = solution_routes.INDICATOR_NAME_MAP.get(name, name)
+        try:
+            _calculate_indicator(df, code, {})
+        except solution_routes.IndicatorError:
+            cannot.add(name.strip().upper())
+
+    assert cannot == set(solution_routes.UNAVAILABLE_INDICATORS), (
+        f"listed but computable: "
+        f"{sorted(set(solution_routes.UNAVAILABLE_INDICATORS) - cannot)}; "
+        f"uncomputable but not listed: {sorted(cannot - set(solution_routes.UNAVAILABLE_INDICATORS))}")
+
+
+def test_the_thirteen_are_all_of_three_whole_groups():
+    """They are not scattered picks: support_resistance, price_transform and
+    bill_williams are unimplemented in their entirety, which is why hiding them
+    removes three dropdowns rather than leaving gap-toothed ones."""
+    assert len(solution_routes.UNAVAILABLE_INDICATORS) == 13
+
+
+@pytest.mark.parametrize("name", ["SMA", "RSI", "ATR", "OBV", "AROON"])
+def test_a_working_indicator_is_still_offered(name):
+    """Non-vacuity: the filter must not be hiding anything that works — AROON
+    included, which it would have been entitled to before #130 fixed it."""
+    assert solution_routes.indicator_is_available(name)
+
+
+@pytest.mark.parametrize("name", ["PIVOT", "RENKO", "GATOR"])
+def test_an_unimplemented_indicator_is_not_offered(name):
+    assert not solution_routes.indicator_is_available(name)
+
+
+def test_availability_ignores_case_and_padding():
+    """The name arrives from a database column and from request bodies."""
+    assert not solution_routes.indicator_is_available(" pivot ")
+    assert solution_routes.indicator_is_available(None) is True, (
+        "a missing name must not be treated as unavailable — that would hide "
+        "rows for a reason unrelated to #132")
+
+
+@pytest.mark.asyncio
+async def test_an_unimplemented_indicator_cannot_be_attached_to_a_solution(
+        client: AsyncClient, mock_db):
+    """Refused at the write boundary. The listing no longer offers these, so a
+    request carrying one came from a stale page or straight from the API —
+    either way the moment to say so is while the operator is choosing."""
+    mock_db.execute = AsyncMock(return_value=_result_with_mappings(
+        [{"id": 50, "name": "PIVOT"}]))
+    r = await client.post(
+        f"{PREFIX}/7/indicators/set",
+        json={"trend_indicator": {"id": 50, "covariate_type": "past",
+                                  "parameters": {}}})
+    assert r.status_code == 422, r.text
+    assert "PIVOT" in r.json()["detail"]
+    assert "no implementation" in r.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_a_working_indicator_can_still_be_attached(client: AsyncClient, mock_db):
+    """Non-vacuity for the guard above: the ordinary path must still work."""
+    mock_db.execute = AsyncMock(side_effect=[
+        _result_with_mappings([{"id": 1, "name": "SMA"}]),   # availability check
+        MagicMock(),                                        # DELETE
+        MagicMock(),                                        # INSERT
+    ])
+    mock_db.commit = AsyncMock()
+    r = await client.post(
+        f"{PREFIX}/7/indicators/set",
+        json={"trend_indicator": {"id": 1, "covariate_type": "past",
+                                  "parameters": {"period": 20}}})
+    assert r.status_code == 200, r.text
+    assert r.json()["solution_id"] == 7

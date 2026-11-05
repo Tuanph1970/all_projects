@@ -24,7 +24,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 from app.api.dependencies import get_db, get_current_user_optional, get_current_user, async_session_factory
 from app.config import get_settings
@@ -2530,6 +2530,27 @@ async def set_solution_indicators(
     if not indicators and "indicators" in data:
         indicators = data["indicators"]
 
+    # Backlog #132 — REFUSE AT THE WRITE BOUNDARY, not just in the catalogue.
+    # The listing endpoints no longer offer these, so a request carrying one
+    # came from a stale page or straight from the API; either way the right
+    # moment to say so is now, while the operator is choosing, rather than
+    # three minutes into a training run that then reports a disclosed failure.
+    requested_ids = [ind.get("indicator_id") for ind in indicators
+                     if ind.get("indicator_id") is not None]
+    if requested_ids:
+        found = await db.execute(
+            text("SELECT id, name FROM technical_indicators WHERE id IN :ids")
+            .bindparams(bindparam("ids", expanding=True)),
+            {"ids": requested_ids})
+        unavailable = sorted(r["name"] for r in found.mappings().all()
+                             if not indicator_is_available(r["name"]))
+        if unavailable:
+            raise HTTPException(
+                status_code=422,
+                detail=("these indicators are in the catalogue but this service "
+                        "has no implementation for them, so they cannot be "
+                        "attached to a solution: " + ", ".join(unavailable)))
+
     try:
         # Delete existing indicators for this solution
         await db.execute(
@@ -2598,6 +2619,42 @@ INDICATOR_NAME_MAP = {
     'EOM': 'EOM', 'FI': 'FI', 'NVI': 'NVI', 'PVI': 'PVI',
     'Volume_MA': 'Volume_MA',
 }
+
+
+#: Backlog #132 — catalogue entries this service cannot compute, hidden from
+#: the catalogue endpoints for the v0.9 release.
+#:
+#: These thirteen are seeded in `technical_indicators` and have NO branch in
+#: `_calculate_indicator`. Until #130 they came back as close prices wearing the
+#: chosen indicator's name; since #130 they raise. Either way, offering a
+#: control that cannot work is worse than not offering it, so the catalogue
+#: stops advertising them — OWNER DECISION, 2026-11-05, explicitly temporary.
+#:
+#: The rows are NOT deleted. Ids stay stable, `solution_indicators` keeps any
+#: legacy reference, and re-enabling one is deleting a name from this set. What
+#: each of them is, and what implementing it would take, is written down in
+#: docs/backlog132_unimplemented_indicators.md so the work is not rediscovered
+#: from scratch.
+#:
+#: NAMES, not codes, because that is what the catalogue column holds — and for
+#: all thirteen the two are the same string anyway (INDICATOR_NAME_MAP has no
+#: entry for any of them). test_the_unavailable_list_is_exactly_what_cannot_be
+#: _computed keeps this set honest against the code: implement one and forget
+#: to remove it here, or add a catalogue entry with no implementation and
+#: forget to add it, and that test fails.
+UNAVAILABLE_INDICATORS = frozenset({
+    # support_resistance — the whole group
+    "FIB_EXT", "FIB_RET", "PIVOT",
+    # price_transform — the whole group
+    "HEIKIN_ASHI", "MP", "RENKO", "TP", "WC",
+    # bill_williams — the whole group
+    "AC", "ALLIGATOR", "FRACTALS", "GATOR", "MFI_BW",
+})
+
+
+def indicator_is_available(name: str) -> bool:
+    """Whether the catalogue should offer `name` as a choice (Backlog #132)."""
+    return str(name or "").strip().upper() not in UNAVAILABLE_INDICATORS
 
 
 class IndicatorError(RuntimeError):

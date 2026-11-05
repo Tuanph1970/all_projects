@@ -656,7 +656,15 @@ async def get_all_indicators(
             'support_resistance': [], 'price_transform': [], 'bill_williams': []
         }
 
+        # Backlog #132 — do not offer what cannot be computed. Thirteen seeded
+        # entries have no implementation; a dropdown that lists them hands the
+        # operator a choice that fails after they have configured and trained a
+        # solution. The rows stay in the table (see UNAVAILABLE_INDICATORS).
+        from app.api.solution_routes import indicator_is_available
+
         for row in rows:
+            if not indicator_is_available(row['name']):
+                continue
             params = json.loads(row['default_parameters']) if row['default_parameters'] else {}
             indicator = {
                 'id': row['id'],
@@ -672,7 +680,9 @@ async def get_all_indicators(
             else:
                 grouped[category] = [indicator]
 
-        return grouped
+        # A group left with nothing is dropped rather than returned empty: three
+        # empty dropdowns are their own kind of broken promise.
+        return {group: items for group, items in grouped.items() if items}
     except Exception as e:
         logger.error(f"Failed to fetch indicators: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch indicators: {str(e)}")
@@ -692,6 +702,11 @@ async def get_indicators_by_type(
             {"indicator_type": indicator_type}
         )
         rows = result.mappings().all()
+        # Backlog #132 — same rule as the grouped listing: an unimplemented
+        # entry is not offered. Filtering here too, because this is the endpoint
+        # a per-group dropdown would call.
+        from app.api.solution_routes import indicator_is_available
+
         return [{
             'id': row['id'],
             'name': row['name'],
@@ -699,7 +714,7 @@ async def get_indicators_by_type(
             'description': row['description'],
             'calculation_function': row['calculation_function'],
             'default_parameters': json.loads(row['default_parameters']) if row['default_parameters'] else {}
-        } for row in rows]
+        } for row in rows if indicator_is_available(row['name'])]
     except Exception as e:
         logger.error(f"Failed to fetch indicators by type: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch indicators: {str(e)}")
