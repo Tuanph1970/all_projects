@@ -1095,3 +1095,58 @@ def test_the_scalers_are_reused_and_not_refitted_on_prediction_data():
             assert b["predicted_price"] == pytest.approx(a["predicted_price"]), (
                 "a prediction for an earlier date moved when LATER data changed "
                 "— the scaler is being refitted at prediction time")
+
+
+def test_the_forecast_carries_the_session_dates_it_is_given():
+    """Backlog #131. The route reads real trading sessions off the price series
+    — the only authority on them, since no exchange calendar exists anywhere in
+    this system — and hands them down. Without this the labels came from
+    weekday extrapolation and could land on a closed exchange."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import run_darts_forecast
+
+    out, frame = _fit(output_chunk_length=5)
+    state = {k: v for k, v in out["fitted"].items() if k != "model"}
+    # A deliberately IRREGULAR run of dates, so matching them cannot be a
+    # coincidence of weekday stepping.
+    given = [frame.index[-1] + pd.Timedelta(days=d) for d in (4, 9, 11)]
+
+    res = run_darts_forecast(out["fitted"]["model"], state, frame,
+                             predict_start=frame.index[-2], horizon=3,
+                             forecast_dates=given)
+
+    assert [p["date"] for p in res["future"]] == [
+        d.strftime("%Y-%m-%d") for d in given]
+
+
+def test_a_forecast_still_works_with_no_dates_supplied():
+    """Non-vacuity: run_darts_forecast is a pure function and must remain usable
+    without a calendar, falling back to weekday steps."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import run_darts_forecast
+
+    out, frame = _fit(output_chunk_length=5)
+    state = {k: v for k, v in out["fitted"].items() if k != "model"}
+    res = run_darts_forecast(out["fitted"]["model"], state, frame,
+                             predict_start=frame.index[-2], horizon=3)
+    dates = [pd.Timestamp(p["date"]) for p in res["future"]]
+    assert len(dates) == 3
+    assert all(d > frame.index[-1] for d in dates)
+    assert all(d.weekday() < 5 for d in dates)
+
+
+def test_fewer_supplied_dates_than_the_horizon_are_topped_up():
+    """The covariate window reaches output_chunk_length past the data whatever
+    the horizon, so a short list of dates must be extended rather than leaving
+    the model short of future covariates."""
+    pytest.importorskip("darts")
+    from app.services.darts_trainer import run_darts_forecast
+
+    out, frame = _fit(output_chunk_length=5)
+    state = {k: v for k, v in out["fitted"].items() if k != "model"}
+    res = run_darts_forecast(out["fitted"]["model"], state, frame,
+                             predict_start=frame.index[-2], horizon=4,
+                             forecast_dates=[frame.index[-1] + pd.Timedelta(days=3)])
+    assert len(res["future"]) == 4
+    assert res["future"][0]["date"] == (
+        frame.index[-1] + pd.Timedelta(days=3)).strftime("%Y-%m-%d")

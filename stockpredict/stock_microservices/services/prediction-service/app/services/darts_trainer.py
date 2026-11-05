@@ -953,6 +953,26 @@ def _series_from(frame: pd.DataFrame, columns: Sequence[str]):
         frame[list(columns)].astype("float64").to_numpy())
 
 
+def _forecast_index(known_index: pd.DatetimeIndex, horizon: int, ocl: int,
+                    forecast_dates: Optional[Sequence]) -> pd.DatetimeIndex:
+    """`known_index` plus the dates the forecast steps will carry.
+
+    Backlog #131. The tail must reach `horizon + ocl + 1` past the data even
+    when fewer dates are wanted, because a model emits a whole
+    output_chunk_length window regardless and Darts wants future covariates
+    that far ahead. Supplied dates are used as far as they go and the rest is
+    extrapolated by weekday, which is what this function can know on its own.
+    """
+    needed = horizon + ocl + 1
+    tail = pd.DatetimeIndex([pd.Timestamp(d) for d in (forecast_dates or [])])
+    tail = tail[tail > known_index[-1]].sort_values()[:needed]
+    if len(tail) < needed:
+        anchor = tail[-1] if len(tail) else known_index[-1]
+        extra = extend_index(pd.DatetimeIndex([anchor]), needed - len(tail))[1:]
+        tail = tail.append(extra)
+    return known_index.append(tail)
+
+
 def run_darts_forecast(
     model,
     state: Dict[str, object],
@@ -960,6 +980,7 @@ def run_darts_forecast(
     *,
     predict_start: Optional[pd.Timestamp] = None,
     horizon: int = 1,
+    forecast_dates: Optional[Sequence] = None,
 ) -> Dict[str, object]:
     """Forecast with an already-fitted Darts model. Still free of I/O.
 
@@ -1028,6 +1049,14 @@ def run_darts_forecast(
     if past_cov is not None:
         kwargs["past_covariates"] = (
             past_scaler.transform(past_cov) if past_scaler is not None else past_cov)
+    # Backlog #131 — the dates the forecast will carry, decided before the
+    # covariates are built because the calendar features are COMPUTED FROM
+    # THEM. Real trading sessions when the caller supplies them (it reads them
+    # off the price series); weekday extrapolation otherwise, which is all a
+    # pure function with no calendar can do.
+    horizon_index = _forecast_index(frame.index, effective_horizon, ocl,
+                                    forecast_dates)
+
     if future_columns:
         # Extended past the end so the series covers the horizon, as Darts
         # requires and as training did.
@@ -1041,8 +1070,7 @@ def run_darts_forecast(
         # from 0 until 323" for a 3-day request on a 5-day chunk — caught by
         # the non-vacuity test for the horizon cap, which asked for less than
         # the chunk and was the only case that exercised this.
-        extended = extend_index(frame.index, effective_horizon + ocl + 1)
-        cal = calendar_frame(extended)[future_columns]
+        cal = calendar_frame(horizon_index)[future_columns]
         future_cov = TimeSeries.from_values(cal.astype("float64").to_numpy())
         kwargs["future_covariates"] = (
             future_scaler.transform(future_cov)
@@ -1085,7 +1113,7 @@ def run_darts_forecast(
     # --- the forecast beyond the last bar ----------------------------------
     forecast = model.predict(effective_horizon, series=target, **kwargs)
     values = _to_prices(forecast)
-    future_dates = extend_index(frame.index, len(values))[-len(values):]
+    future_dates = horizon_index[len(frame.index):][:len(values)]
     future = [
         {"date": d.strftime("%Y-%m-%d"), "predicted_price": float(v)}
         for d, v in zip(future_dates, values)

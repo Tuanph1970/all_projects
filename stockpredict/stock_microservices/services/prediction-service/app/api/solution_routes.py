@@ -242,6 +242,67 @@ def next_trading_day(day) -> "pd.Timestamp":
     return nxt
 
 
+#: Backlog #131 — calendar days fetched PAST the prediction window, so the
+#: forecast can be dated on real trading sessions instead of guessed weekdays.
+#:
+#: Bounded rather than open-ended: MAX_PREDICTION_DAYS is 30 sessions, about 42
+#: calendar days, and holiday clusters (Tet, the Reunification/Labour pair) add
+#: a week at worst. Sixty covers that without turning a two-year request into a
+#: six-year download.
+FORECAST_CALENDAR_TAIL_DAYS = 60
+
+
+def forecast_session_dates(known_sessions, count: int, *, anchor,
+                           not_before=None) -> tuple:
+    """Dates for the next `count` forecast steps. Returns (dates, estimated).
+
+    Backlog #131. Two defects came from generating these with a weekday rule.
+
+    FIRST, A FORECAST COULD BE DATED BEFORE THE WINDOW IT WAS ASKED FOR. The
+    roll started at the last available BAR, not at the requested start, so a
+    solution trained to 2024-04-29 and asked to predict 2024-04-30 returned a
+    point dated 2024-04-29: a day that had already happened, inside the training
+    range, presented as a forecast. `not_before` is what stops that.
+
+    SECOND, THE RULE SKIPPED WEEKENDS AND NOTHING ELSE, so forecasts landed on
+    days the exchange was shut — and in Vietnam that is not a rare edge: Tet
+    closes it for about a week, and 2024-04-29 to 05-01 was closed for
+    Reunification Day and Labour Day back to back. There is no exchange calendar
+    anywhere in this system to consult (stock-data-service says so in as many
+    words: "holidays are not modelled"), and no holiday library is installed.
+
+    So the sessions come from the only authority there is — the price series.
+    Dates that lie inside what has been fetched are REAL sessions. Past the end
+    of that, a weekday step is the best available and the count of such dates is
+    returned so the caller can say which dates are estimates rather than
+    implying the whole series is known.
+    """
+    anchor = pd.Timestamp(anchor)
+    floor = pd.Timestamp(not_before) if not_before is not None else None
+    real = [pd.Timestamp(d) for d in known_sessions
+            if pd.Timestamp(d) > anchor
+            and (floor is None or pd.Timestamp(d) >= floor)]
+    dates = sorted(real)[:count]
+
+    estimated = 0
+    if dates:
+        cursor = dates[-1]
+    elif floor is not None:
+        # Step from whichever is later: the last bar, or the day before the
+        # requested start. Starting from the bar alone is what produced a
+        # forecast dated before the request.
+        cursor = max(anchor, floor - pd.Timedelta(days=1))
+    else:
+        cursor = anchor
+    while len(dates) < count:
+        cursor = next_trading_day(cursor)
+        if floor is not None and cursor < floor:
+            continue
+        dates.append(cursor)
+        estimated += 1
+    return dates, estimated
+
+
 def compute_prediction_dates(end_date, output_chunk_length: int) -> dict:
     """The window the Predict tab pre-fills after a training finishes.
 
@@ -1720,7 +1781,8 @@ async def _persist_prediction(db: AsyncSession, solution_id: int, response: dict
 
 def _forecast_with_darts(*, saved: dict, solution_id: int, ticker: str,
                          feature_df, df, indicator_data_by_date: dict,
-                         predict_start, predict_end, horizon: int) -> dict:
+                         predict_start, predict_end, horizon: int,
+                         session_calendar=None) -> dict:
     """Backlog #126 — the darts engine's half of POST /solutions/predict.
 
     Synchronous and free of DB access so the caller can hand it to a thread:
@@ -1736,11 +1798,22 @@ def _forecast_with_darts(*, saved: dict, solution_id: int, ticker: str,
 
     model = load_darts_model(saved)
     state = {k: v for k, v in saved.items() if k != 'model'}
+    # Backlog #131 — real sessions, read off the price series, so the forecast
+    # is not dated on a closed exchange or before the window that was asked
+    # for. run_darts_forecast extrapolates by weekday only for whatever these
+    # do not cover.
+    estimated_dates = 0
+    forecast_dates = None
+    if session_calendar is not None and len(feature_df.index):
+        forecast_dates, estimated_dates = forecast_session_dates(
+            session_calendar, horizon,
+            anchor=feature_df.index[-1], not_before=predict_start)
+
     try:
         out = run_darts_forecast(
             model, state, feature_df,
             predict_start=pd.Timestamp(predict_start) if predict_start else None,
-            horizon=horizon)
+            horizon=horizon, forecast_dates=forecast_dates)
     except DartsTrainingError as exc:
         # A readable reason the operator can act on, rather than a 500 carrying
         # a library message from three frames down.
@@ -1821,6 +1894,7 @@ def _forecast_with_darts(*, saved: dict, solution_id: int, ticker: str,
         # numbers rather than being left for the reader to notice.
         "forecast_warnings": out.get("warnings", []),
         "requested_horizon": out.get("requested_horizon"),
+        "forecast_dates_estimated": estimated_dates,
     }
 
 
@@ -1939,7 +2013,21 @@ async def predict_solution(
             if history_start:
                 params["start_date"] = history_start
             if predict_end:
-                params["end_date"] = predict_end
+                # Backlog #131 — a BOUNDED TAIL PAST THE WINDOW, fetched so the
+                # forecast can be dated on real trading sessions. There is no
+                # exchange calendar in this system, so the only way to know that
+                # 2024-04-29 to 05-01 was closed is to ask for those bars and be
+                # given none.
+                #
+                # THE EXTRA BARS NEVER REACH THE MODEL. They are sliced off
+                # immediately below and only their DATES are kept; feeding bars
+                # from after the prediction window into the features would be
+                # precisely the look-ahead this service is careful to avoid, and
+                # test_the_calendar_tail_never_reaches_the_model_frame pins it.
+                params["end_date"] = (
+                    pd.Timestamp(predict_end)
+                    + pd.Timedelta(days=FORECAST_CALENDAR_TAIL_DAYS)
+                ).strftime('%Y-%m-%d')
             resp = await client.get(url, params=params)
             if resp.status_code != 200:
                 raise HTTPException(
@@ -1971,6 +2059,20 @@ async def predict_solution(
         df = df[['open', 'high', 'low', 'close', 'volume']].copy()
         df = df.apply(pd.to_numeric, errors='coerce')
         df = df.dropna()
+
+        # Backlog #131 — SPLIT THE CALENDAR FROM THE DATA, right here, before
+        # anything is computed. `session_calendar` keeps every date the exchange
+        # actually traded, including the tail past the window; `df` is cut back
+        # to the window so no bar the model sees post-dates the prediction. The
+        # tail is dates only, and it is used only to label the forecast.
+        session_calendar = df.index
+        if predict_end:
+            df = df.loc[df.index <= pd.Timestamp(predict_end)]
+        if df.empty:
+            raise HTTPException(
+                status_code=422,
+                detail=(f"No price history for {ticker} up to {predict_end}. "
+                        f"Pick a prediction window inside the ticker's history."))
 
         # Step 6: Build features using shared function
         indicator_feature_df, indicator_data_by_date = _prepare_indicator_features(df, indicator_rows)
@@ -2014,6 +2116,7 @@ async def predict_solution(
                 feature_df=feature_df, df=df,
                 indicator_data_by_date=indicator_data_by_date,
                 predict_start=predict_start, predict_end=predict_end,
+                session_calendar=session_calendar,
                 horizon=resolve_output_chunk_length(
                     model_instance.get('config_json') if model_instance else None,
                     requested=data.get('predict_days')),
@@ -2124,11 +2227,17 @@ async def predict_solution(
         vol_mean = float(recent['volume'].mean())
         vol_std = float(recent['volume'].std()) if len(recent) > 1 else vol_mean * 0.1
 
+        # Backlog #131 — the dates are decided up front, from the real session
+        # calendar, and never fall before the window that was asked for. The
+        # loop used to step `+1 day, skip weekends` from the last available bar,
+        # which dated a forecast 2024-04-29 for a request starting 2024-04-30:
+        # before the request, and on a closed exchange.
+        future_dates, estimated_dates = forecast_session_dates(
+            session_calendar, output_chunk_length,
+            anchor=last_date, not_before=predict_start)
+
         for day_i in range(output_chunk_length):
-            # Next business day
-            next_date = last_date + pd.Timedelta(days=1)
-            while next_date.weekday() >= 5:
-                next_date += pd.Timedelta(days=1)
+            next_date = future_dates[day_i]
 
             # Simulate realistic price movement based on historical volatility
             # Clamp return to prevent extreme moves (max ±10% per day)
@@ -2238,6 +2347,10 @@ async def predict_solution(
             "predict_start": predict_start,
             "predict_end": predict_end,
             "future_days": output_chunk_length,
+            # Backlog #131. How many forecast dates are weekday GUESSES because
+            # they fall past the end of the fetched session calendar. Zero means
+            # every date is a session the exchange actually held.
+            "forecast_dates_estimated": estimated_dates,
         }
 
         # Persist prediction result and update status

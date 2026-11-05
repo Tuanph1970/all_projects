@@ -1530,3 +1530,228 @@ def test_an_unreadable_sidecar_still_gives_up_its_model_by_convention(tmp_path):
     model_file = tmp_path / "solution_79_darts.model"
     model_file.write_text("the model")
     assert solution_routes.darts_companion_files(str(sidecar)) == [str(model_file)]
+
+
+# ---------------------------------------------------------------------------
+# Backlog #131 — forecast dates come from the real session calendar
+# ---------------------------------------------------------------------------
+#
+# THE CASE THIS IS BUILT ON IS REAL, not invented: FPT has no session from
+# 2024-04-29 to 2024-05-01 (Reunification Day and Labour Day back to back) and
+# resumes on 05-02. A solution trained to 04-29 and asked to predict 04-30
+# returned a forecast dated 04-29 — before the window requested, and on a
+# closed exchange. Found by tests/predict_roundtrip.py, seed 42, randomforest.
+
+#: The gap, as the exchange actually had it.
+_TET_GAP = [pd.Timestamp("2024-04-29"), pd.Timestamp("2024-04-30"),
+            pd.Timestamp("2024-05-01")]
+
+
+def _sessions_around_the_holiday():
+    """Weekday dates with the Reunification/Labour closure actually missing."""
+    days = pd.bdate_range("2024-03-01", "2024-06-28")
+    return pd.DatetimeIndex([d for d in days if d not in _TET_GAP])
+
+
+def test_a_forecast_is_never_dated_before_the_window_it_was_asked_for():
+    """The defect itself. 2024-04-26 is the last bar and the caller asked from
+    2024-04-30, so a date of 04-29 is a day that had already happened."""
+    cal = _sessions_around_the_holiday()
+    dates, _ = solution_routes.forecast_session_dates(
+        cal, 3, anchor=pd.Timestamp("2024-04-26"),
+        not_before=pd.Timestamp("2024-04-30"))
+    assert min(dates) >= pd.Timestamp("2024-04-30")
+
+
+def test_a_forecast_lands_on_real_sessions_across_a_market_holiday():
+    """And the dates are the sessions the exchange actually held: 05-02 next,
+    not 04-29 and not 05-01. Nothing but the price series knows this — there is
+    no exchange calendar in the system to consult."""
+    cal = _sessions_around_the_holiday()
+    dates, estimated = solution_routes.forecast_session_dates(
+        cal, 3, anchor=pd.Timestamp("2024-04-26"),
+        not_before=pd.Timestamp("2024-04-30"))
+    assert [str(d.date()) for d in dates] == ["2024-05-02", "2024-05-03", "2024-05-06"]
+    assert estimated == 0, "these are known sessions, not guesses"
+    assert not any(d in _TET_GAP for d in dates)
+
+
+def test_without_a_requested_start_the_forecast_simply_follows_the_last_bar():
+    """Non-vacuity for not_before: it must not shift dates when it is absent."""
+    cal = _sessions_around_the_holiday()
+    dates, estimated = solution_routes.forecast_session_dates(
+        cal, 2, anchor=pd.Timestamp("2024-04-26"))
+    assert [str(d.date()) for d in dates] == ["2024-05-02", "2024-05-03"]
+    assert estimated == 0
+
+
+def test_dates_past_the_known_calendar_are_counted_as_estimates():
+    """Past the fetched series nothing knows the sessions, so a weekday step is
+    the best available — and the COUNT of such dates is reported rather than
+    the payload implying the whole series is known."""
+    cal = _sessions_around_the_holiday()
+    dates, estimated = solution_routes.forecast_session_dates(
+        cal, 4, anchor=cal[-1])          # anchored at the very end
+    assert len(dates) == 4
+    assert estimated == 4
+    assert all(d > cal[-1] for d in dates)
+
+
+def test_a_partly_known_horizon_counts_only_the_guessed_dates():
+    """The boundary case: some real sessions left, then extrapolation."""
+    cal = _sessions_around_the_holiday()
+    dates, estimated = solution_routes.forecast_session_dates(
+        cal, 3, anchor=cal[-2])          # one known session remains
+    assert len(dates) == 3
+    assert estimated == 2
+
+
+@pytest.mark.parametrize("count", [1, 5, 30])
+def test_a_forecast_never_lands_on_a_weekend_and_is_always_full_length(count):
+    cal = _sessions_around_the_holiday()
+    dates, _ = solution_routes.forecast_session_dates(
+        cal, count, anchor=cal[-1])
+    assert len(dates) == count
+    assert all(d.weekday() < 5 for d in dates)
+    assert len(set(dates)) == count
+
+
+def _holiday_price_records():
+    """OHLCV over the real session calendar, including the tail past the window."""
+    cal = _sessions_around_the_holiday()
+    close = np.linspace(90, 110, len(cal))
+    return cal, [
+        {"time": d.strftime("%Y-%m-%d"), "open": float(c), "high": float(c) + 1,
+         "low": float(c) - 1, "close": float(c), "volume": 1000.0 + i}
+        for i, (d, c) in enumerate(zip(cal, close))
+    ]
+
+
+async def _predict_over_the_holiday(client, mock_db, **body):
+    cal, records = _holiday_price_records()
+    mock_db.execute = AsyncMock(side_effect=[
+        _result_with_first({"id": 7, "ticker": "FPT", "model_id": 99}),
+        _result_with_first({"id": 99, "status": "trained", "file_path": "/tmp/m.joblib",
+                            "config_json": json.dumps({"output_chunk_length": "3"})}),
+        _result_with_mappings([]),
+        MagicMock(),
+    ])
+    mock_db.commit = AsyncMock()
+    fake_model = MagicMock()
+    fake_model.predict = lambda X: X[:, 0] * 1.01
+    saved = {"model": fake_model, "feature_cols": ["close", "returns"]}
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"data": records}
+    fake_client = _FakeAsyncClient(resp)
+
+    with patch("app.api.solution_routes.os.path.exists", return_value=True), \
+         patch("app.api.solution_routes.joblib.load", return_value=saved), \
+         patch("app.api.solution_routes.httpx.AsyncClient", return_value=fake_client):
+        r = await client.post(f"{PREFIX}/predict", json={"id": 7, **body})
+    return r, fake_client, cal
+
+
+@pytest.mark.asyncio
+async def test_the_tabular_forecast_skips_the_closure_and_respects_the_window(
+        client: AsyncClient, mock_db):
+    """#131 through the route: the exact request that produced a forecast dated
+    2024-04-29 for a window starting 2024-04-30."""
+    r, _, _ = await _predict_over_the_holiday(
+        client, mock_db, start_date="2024-04-30", end_date="2024-04-30")
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    future = [pd.Timestamp(p["tradingdate"]) for p in body["future"]]
+    assert future, "a forecast was still expected — the window being shut does " \
+                   "not mean there is nothing ahead to forecast"
+    assert min(future) >= pd.Timestamp("2024-04-30"), future
+    assert not any(d in _TET_GAP for d in future), future
+    assert str(min(future).date()) == "2024-05-02"
+    assert body["forecast_dates_estimated"] == 0
+
+
+@pytest.mark.asyncio
+async def test_the_calendar_tail_never_reaches_the_model_frame(
+        client: AsyncClient, mock_db):
+    """THE LEAK TEST FOR #131's FIX. Bars past the prediction window are fetched
+    on purpose — they are the only way to learn which days the exchange held —
+    and they must never be fed to the model. If they were, the backtest would be
+    scored against features built from the future of its own window, which is
+    the look-ahead this service is built to avoid."""
+    window_end = "2024-04-18"
+    r, fake_client, _ = await _predict_over_the_holiday(
+        client, mock_db, start_date="2024-04-10", end_date=window_end)
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+
+    # It really did ask for more than the window, or the fix does nothing.
+    asked_to = pd.Timestamp(fake_client.last_params["end_date"])
+    assert asked_to > pd.Timestamp(window_end), fake_client.last_params
+
+    # And nothing the model saw post-dates the window.
+    for series in ("chart", "actual", "predict"):
+        for point in body[series]:
+            day = pd.Timestamp(point.get("date") or point.get("tradingdate"))
+            assert day <= pd.Timestamp(window_end), (series, str(day))
+
+
+def test_sessions_between_the_last_bar_and_the_requested_start_are_excluded():
+    """A VACUITY MY OWN TESTS HAD, found by mutation: removing the not_before
+    filter left the suite green, because in the holiday fixture there are NO
+    sessions between the last bar and the requested start — the closure is the
+    gap. Nothing was being excluded, so the rule that excludes was untested.
+
+    This is the shape that actually exercises it, and the one that matters most:
+    a window starting several sessions after the last available bar. Without the
+    filter the forecast would be labelled 2024-04-23 and presented as the answer
+    to a request for 2024-04-30."""
+    cal = _sessions_around_the_holiday()
+    anchor = pd.Timestamp("2024-04-22")
+    floor = pd.Timestamp("2024-04-30")
+    skipped = [d for d in cal if anchor < d < floor]
+    assert skipped, "the fixture must contain sessions to exclude, or this is vacuous again"
+
+    dates, _ = solution_routes.forecast_session_dates(
+        cal, 3, anchor=anchor, not_before=floor)
+    assert all(d >= floor for d in dates), dates
+    assert not any(d in skipped for d in dates), dates
+    assert str(dates[0].date()) == "2024-05-02"
+
+
+@pytest.mark.asyncio
+async def test_a_window_opening_after_the_last_bar_is_honoured_through_the_route(
+        client: AsyncClient, mock_db):
+    """The same shape end to end: the data stops well before the window, and the
+    forecast must still be dated inside it rather than straight after the bar."""
+    cal, records = _holiday_price_records()
+    cutoff = pd.Timestamp("2024-04-22")
+    records = [r for r in records if pd.Timestamp(r["time"]) <= cutoff
+               or pd.Timestamp(r["time"]) >= pd.Timestamp("2024-04-30")]
+
+    mock_db.execute = AsyncMock(side_effect=[
+        _result_with_first({"id": 7, "ticker": "FPT", "model_id": 99}),
+        _result_with_first({"id": 99, "status": "trained", "file_path": "/tmp/m.joblib",
+                            "config_json": json.dumps({"output_chunk_length": "2"})}),
+        _result_with_mappings([]),
+        MagicMock(),
+    ])
+    mock_db.commit = AsyncMock()
+    fake_model = MagicMock()
+    fake_model.predict = lambda X: X[:, 0] * 1.01
+    saved = {"model": fake_model, "feature_cols": ["close", "returns"]}
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"data": records}
+
+    with patch("app.api.solution_routes.os.path.exists", return_value=True), \
+         patch("app.api.solution_routes.joblib.load", return_value=saved), \
+         patch("app.api.solution_routes.httpx.AsyncClient",
+               return_value=_FakeAsyncClient(resp)):
+        r = await client.post(f"{PREFIX}/predict", json={
+            "id": 7, "start_date": "2024-04-30", "end_date": "2024-05-03"})
+
+    assert r.status_code == 200, r.text
+    future = [pd.Timestamp(p["tradingdate"]) for p in r.json()["future"]]
+    assert future and min(future) >= pd.Timestamp("2024-04-30"), future
