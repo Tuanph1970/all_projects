@@ -171,9 +171,9 @@ _INDICATOR_CASES = [
     ("PVI", {}, "pvi"),
     ("Volume_MA", {}, "volume_ma"),
     ("SUPERTREND", {}, "supertrend"),
-    # AROON has a source bug (calls AroonIndicator without `low`); it
-    # falls through to the close-fallback. Excluded from the strict-key
-    # check below but still exercised by test_calculate_indicator_aroon_fallback.
+    # AROON joined this sweep when #130 fixed it; it used to be excluded here
+    # because it always fell through to the close-price fallback.
+    ("AROON", {}, "aroon_up"),
     ("VORTEX", {}, "vortex_pos"),
     ("ICHIMOKU", {}, "ichimoku_conv"),
 ]
@@ -190,40 +190,89 @@ def test_calculate_indicator_supported_codes(code, params, expected_key):
     assert expected_key in out[0]
 
 
-def test_calculate_indicator_aroon_falls_back_due_to_source_bug():
-    """The AROON branch in solution_routes calls ta.trend.AroonIndicator with
-    only `close` (it should also pass `low`), so it always raises and falls
-    through to the close-price fallback. We pin that behavior so a future
-    fix doesn't silently change the response shape."""
-    df = _ohlcv_frame(40)
-    out = _calculate_indicator(df, "AROON", {})
+# THESE THREE TESTS USED TO ASSERT THE OPPOSITE, and the rewrite is the point
+# of Backlog #130 rather than a convenience.
+#
+# They pinned the close-price fallback: one of them even said "we pin that
+# behavior so a future fix doesn't silently change the response shape". That
+# sentence was right about the shape and wrong about what deserved pinning —
+# the shape it protected was a column of CLOSE PRICES wearing the name of the
+# indicator the operator had chosen, which is the #109/#110/#112 defect class
+# and the quietest member of it, because close-as-a-feature produces entirely
+# plausible metrics.
+#
+# A test can hold a known defect in place deliberately; that is legitimate when
+# the defect is documented and the alternative is worse. Here the alternative
+# was not worse, and nothing in the register said this was a deliberate
+# compromise — it was simply never revisited. So the pin is replaced by its
+# opposite, and the three tests now say: AROON computes, and anything that
+# cannot be computed raises instead of lying.
+
+
+def test_aroon_is_computed_from_the_high_and_low_extremes():
+    """Backlog #130. The branch passed `close` as the first positional argument
+    and nothing for `low`, so AroonIndicator raised on EVERY call and AROON was
+    silently the close price for as long as it has been in the catalogue.
+
+    Aroon measures how long since the highest high and the lowest low, so the
+    values must respond to the HIGH/LOW extremes and must be percentages."""
+    df = _ohlcv_frame(60)
+    out = _calculate_indicator(df, "AROON", {"period": 25})
     assert len(out) == len(df)
-    # Fallback returns a `value` key, not `aroon_up`.
-    assert "value" in out[0]
+    assert "aroon_up" in out[0] and "aroon_down" in out[0]
+    assert "value" not in out[0], "a `value` key means it fell back to close"
+    settled = [r for r in out[30:] if r["aroon_up"] is not None]
+    assert settled, "no finite values after the warm-up"
+    assert all(0 <= r["aroon_up"] <= 100 and 0 <= r["aroon_down"] <= 100
+               for r in settled), "Aroon is a percentage"
 
 
-def test_calculate_indicator_unknown_code_falls_back_to_close():
-    """Unknown code → fallback returns the close price under a `value` key."""
+def test_aroon_reads_the_highs_and_not_the_closes():
+    """Non-vacuity for the fix: if `close` were still being passed, moving the
+    highs alone could not change the answer."""
+    df = _ohlcv_frame(60)
+    base = _calculate_indicator(df, "AROON", {"period": 25})
+    lifted = df.copy()
+    lifted.iloc[-1, lifted.columns.get_loc("high")] += 50      # a new extreme
+    after = _calculate_indicator(lifted, "AROON", {"period": 25})
+    assert base[-1]["aroon_up"] != after[-1]["aroon_up"]
+
+
+def test_an_unimplemented_indicator_raises_instead_of_returning_close():
+    """Thirteen catalogue entries have no implementation (measured 2026-11-05:
+    FIB_EXT, FIB_RET, PIVOT, HEIKIN_ASHI, MP, RENKO, TP, WC, AC, ALLIGATOR,
+    FRACTALS, GATOR, MFI_BW). They came back as close prices under the chosen
+    indicator's name."""
     df = _ohlcv_frame(20)
-    out = _calculate_indicator(df, "TOTALLY_UNKNOWN", {})
-    assert len(out) == len(df)
-    assert "value" in out[0]
-    assert out[-1]["value"] == pytest.approx(float(df["close"].iloc[-1]))
+    with pytest.raises(solution_routes.IndicatorError, match="no implementation"):
+        _calculate_indicator(df, "TOTALLY_UNKNOWN", {})
 
 
-def test_calculate_indicator_exception_falls_back_to_close():
-    """If the underlying ta call blows up, we still return one row per
-    date with the close price — the warning is logged but the function
-    never raises."""
+def test_a_library_failure_raises_instead_of_returning_close():
+    """The quietest route into the same defect: any exception from `ta` used to
+    become a close-price column plus a log line nobody reads."""
     df = _ohlcv_frame(20)
-    # Force a TypeError by passing a non-numeric period.
     with patch(
         "app.api.solution_routes.ta.trend.SMAIndicator",
         side_effect=ValueError("bad arg"),
     ):
-        out = _calculate_indicator(df, "SMA", {"period": "garbage"})
-    assert len(out) == len(df)
-    assert "value" in out[0]
+        with pytest.raises(solution_routes.IndicatorError, match="could not be calculated"):
+            _calculate_indicator(df, "SMA", {"period": "garbage"})
+
+
+def test_the_raised_error_names_the_indicator_and_the_reason():
+    """The operator has to be told WHICH indicator and WHY, or the disclosure is
+    just a failure with no action attached."""
+    df = _ohlcv_frame(20)
+    with patch("app.api.solution_routes.ta.trend.SMAIndicator",
+               side_effect=ValueError("bad arg")):
+        try:
+            _calculate_indicator(df, "SMA", {})
+        except solution_routes.IndicatorError as exc:
+            assert "SMA" in str(exc)
+            assert "ValueError" in str(exc) and "bad arg" in str(exc)
+        else:
+            pytest.fail("no IndicatorError raised")
 
 
 # ---------------------------------------------------------------------------
@@ -1755,3 +1804,223 @@ async def test_a_window_opening_after_the_last_bar_is_honoured_through_the_route
     assert r.status_code == 200, r.text
     future = [pd.Timestamp(p["tradingdate"]) for p in r.json()["future"]]
     assert future and min(future) >= pd.Timestamp("2024-04-30"), future
+
+
+# ---------------------------------------------------------------------------
+# Backlog #130 — a failed indicator is excluded and reported, never faked
+# ---------------------------------------------------------------------------
+
+
+def _rows(*names):
+    return [{"name": n, "parameters": None, "default_parameters": None}
+            for n in names]
+
+
+def test_a_failed_indicator_is_left_out_of_the_features():
+    """Not replaced by close, not filled with zeros: absent. A zero column and
+    a close column are both features the operator did not choose."""
+    df = _ohlcv_frame(60)
+    failures = []
+    feat, _ = _prepare_indicator_features(
+        df, _rows("SMA", "TOTALLY_UNKNOWN", "RSI"), failures=failures)
+    assert "sma" in feat.columns and "rsi" in feat.columns
+    assert not any("unknown" in c.lower() or c == "value" for c in feat.columns)
+
+
+def test_a_failed_indicator_is_reported_with_its_name_and_reason():
+    df = _ohlcv_frame(60)
+    failures = []
+    _prepare_indicator_features(df, _rows("SMA", "TOTALLY_UNKNOWN"),
+                                failures=failures)
+    assert len(failures) == 1
+    assert failures[0]["name"] == "TOTALLY_UNKNOWN"
+    assert "no implementation" in failures[0]["reason"]
+
+
+def test_nothing_is_reported_when_every_indicator_computes():
+    """Non-vacuity: an empty report must mean 'all present', so it cannot be
+    filling up on healthy input."""
+    df = _ohlcv_frame(60)
+    failures = []
+    feat, _ = _prepare_indicator_features(df, _rows("SMA", "RSI", "ATR", "OBV"),
+                                          failures=failures)
+    assert failures == []
+    assert len(feat.columns) >= 4
+
+
+def test_the_chart_series_also_omits_a_failed_indicator():
+    """indicator_data_by_date feeds the chart. A close-price line drawn under
+    the name of a failed indicator is the same lie in a second place."""
+    df = _ohlcv_frame(60)
+    _, by_date = _prepare_indicator_features(df, _rows("TOTALLY_UNKNOWN"))
+    for values in by_date.values():
+        assert "value" not in values
+
+
+def test_collecting_failures_is_optional():
+    """The per-step forecast loop calls this once per forecast day and has no
+    use for the report; it must not be forced to pass a list."""
+    df = _ohlcv_frame(60)
+    feat, _ = _prepare_indicator_features(df, _rows("SMA", "TOTALLY_UNKNOWN"))
+    assert "sma" in feat.columns
+
+
+@pytest.mark.asyncio
+async def test_training_refuses_when_no_configured_indicator_survives(monkeypatch):
+    """The threshold case. A model that saw NONE of the four indicators the
+    operator configured is not the model that was asked for, so this refuses
+    rather than training and burying the reason in a JSON field — the same
+    reasoning plan_covariates applies to an RNN with indicators attached."""
+    sid = 9200
+    solution_routes.training_status.pop(sid, None)
+
+    idx = pd.bdate_range("2025-01-01", periods=200)
+    close = np.linspace(20, 30, len(idx))
+    records = [
+        {"time": d.strftime("%Y-%m-%d"), "open": float(c), "high": float(c) + 1,
+         "low": float(c) - 1, "close": float(c), "volume": 1000.0 + i}
+        for i, (d, c) in enumerate(zip(idx, close))
+    ]
+
+    session = AsyncMock()
+    session.execute = AsyncMock(side_effect=[
+        _result_with_first({"id": sid, "ticker": "FPT", "model_id": 99}),
+        _result_with_first({"id": 99, "model_type": "XGBoost", "model_sub_type": "",
+                            "config_json": "{}"}),
+        # Two indicators, both unimplemented — PIVOT and RENKO are real
+        # catalogue entries with no branch in _calculate_indicator.
+        _result_with_mappings([
+            {"indicator_id": 50, "indicator_category": "trend",
+             "covariate_type": "past", "parameters": None, "name": "PIVOT",
+             "type": "support_resistance", "default_parameters": None,
+             "calculation_function": "calculate_pivot"},
+            {"indicator_id": 51, "indicator_category": "trend",
+             "covariate_type": "past", "parameters": None, "name": "RENKO",
+             "type": "price_transform", "default_parameters": None,
+             "calculation_function": "calculate_renko"},
+        ]),
+    ])
+    session.__aenter__ = AsyncMock(return_value=session)
+    session.__aexit__ = AsyncMock(return_value=False)
+    monkeypatch.setattr("app.api.solution_routes.async_session_factory",
+                        MagicMock(return_value=session))
+
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"data": records}
+
+    with patch("app.api.solution_routes.httpx.AsyncClient",
+               return_value=_FakeAsyncClient(resp)):
+        await _run_training(sid, {"start_date": idx[0].strftime("%Y-%m-%d"),
+                                  "end_date": idx[-1].strftime("%Y-%m-%d"),
+                                  "engine": "tabular", "include_news": False})
+
+    status = solution_routes.training_status.pop(sid)
+    assert status["status"] == "failed", status
+    assert "none of this solution's indicators" in status["error"]
+    assert "PIVOT" in status["error"] and "RENKO" in status["error"]
+
+
+@pytest.mark.asyncio
+async def test_training_proceeds_and_discloses_when_some_indicators_survive(
+        monkeypatch, tmp_path):
+    """Non-vacuity for the refusal above, and the normal shape of the
+    disclosure: three of four is a result worth having, reported so the
+    operator can see which one is missing."""
+    sid = 9201
+    solution_routes.training_status.pop(sid, None)
+
+    idx = pd.bdate_range("2025-01-01", periods=200)
+    close = np.linspace(20, 30, len(idx))
+    records = [
+        {"time": d.strftime("%Y-%m-%d"), "open": float(c), "high": float(c) + 1,
+         "low": float(c) - 1, "close": float(c), "volume": 1000.0 + i}
+        for i, (d, c) in enumerate(zip(idx, close))
+    ]
+
+    session = AsyncMock()
+    session.execute = AsyncMock(side_effect=[
+        _result_with_first({"id": sid, "ticker": "FPT", "model_id": 99}),
+        _result_with_first({"id": 99, "model_type": "XGBoost", "model_sub_type": "",
+                            "config_json": "{}"}),
+        _result_with_mappings([
+            {"indicator_id": 1, "indicator_category": "trend",
+             "covariate_type": "past", "parameters": '{"period": 20}', "name": "SMA",
+             "type": "trend", "default_parameters": '{"period": 20}',
+             "calculation_function": "calculate_sma"},
+            {"indicator_id": 50, "indicator_category": "trend",
+             "covariate_type": "past", "parameters": None, "name": "PIVOT",
+             "type": "support_resistance", "default_parameters": None,
+             "calculation_function": "calculate_pivot"},
+        ]),
+        MagicMock(), MagicMock(), MagicMock(),
+    ])
+    session.__aenter__ = AsyncMock(return_value=session)
+    session.__aexit__ = AsyncMock(return_value=False)
+    monkeypatch.setattr("app.api.solution_routes.async_session_factory",
+                        MagicMock(return_value=session))
+    monkeypatch.setattr(solution_routes.settings, "MODEL_PATH", str(tmp_path))
+
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"data": records}
+
+    with patch("app.api.solution_routes.httpx.AsyncClient",
+               return_value=_FakeAsyncClient(resp)):
+        await _run_training(sid, {"start_date": idx[0].strftime("%Y-%m-%d"),
+                                  "end_date": idx[-1].strftime("%Y-%m-%d"),
+                                  "engine": "tabular", "include_news": False})
+
+    status = solution_routes.training_status.pop(sid)
+    assert status["status"] == "completed", status
+    reported = status["result"]["indicator_failures"]
+    assert [f["name"] for f in reported] == ["PIVOT"]
+    assert "no implementation" in reported[0]["reason"]
+
+
+@pytest.mark.asyncio
+async def test_an_unavailable_indicator_does_not_blank_the_whole_chart_response(
+        client: AsyncClient, mock_db):
+    """Backlog #130. calculate_solution_indicators called _calculate_indicator
+    unguarded, which was safe only while that function could not fail — it
+    answered everything, including indicators it has no implementation for,
+    with the close price. Now that it raises, the failure must be reported for
+    ITS category while the others still come back: one unavailable indicator
+    turning the whole chart into a 500 would be a worse bug than the one fixed.
+
+    Asserted through the endpoint rather than by reading its source, so it
+    survives the code being rearranged."""
+    idx = pd.bdate_range("2026-01-01", periods=60)
+    close = np.linspace(50, 60, len(idx))
+    records = [
+        {"time": d.strftime("%Y-%m-%d"), "open": float(c), "high": float(c) + 1,
+         "low": float(c) - 1, "close": float(c), "volume": 1000.0}
+        for d, c in zip(idx, close)
+    ]
+    rows = [
+        {"indicator_id": 1, "indicator_category": "trend", "covariate_type": "past",
+         "parameters": '{"period": 5}', "name": "SMA", "type": "trend",
+         "default_parameters": '{"period": 5}', "calculation_function": None},
+        {"indicator_id": 50, "indicator_category": "volume", "covariate_type": "past",
+         "parameters": None, "name": "PIVOT", "type": "support_resistance",
+         "default_parameters": None, "calculation_function": None},
+    ]
+    mock_db.execute = AsyncMock(return_value=_result_with_mappings(rows))
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"data": records}
+
+    with patch("app.api.solution_routes.httpx.AsyncClient",
+               return_value=_FakeAsyncClient(resp)):
+        r = await client.post(
+            f"{PREFIX}/7/indicators/calculate",
+            json={"symbol": "FPT", "start_date": "2026-01-01", "end_date": "2026-04-01"})
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["trend"]["data"], "the indicator that works must still be returned"
+    assert "error" not in body["trend"]
+    assert body["volume"]["data"] == []
+    assert "no implementation" in body["volume"]["error"]
+    # And emphatically NOT a close-price series dressed as PIVOT.
+    assert not any("value" in point for point in body["volume"]["data"])

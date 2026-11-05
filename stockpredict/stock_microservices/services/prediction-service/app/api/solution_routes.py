@@ -632,12 +632,22 @@ def _create_ml_model(model_type: str, model_sub_type: str = '', config_json=None
         return LinearRegression()
 
 
-def _prepare_indicator_features(df: pd.DataFrame, indicator_rows: list) -> tuple:
+def _prepare_indicator_features(df: pd.DataFrame, indicator_rows: list,
+                                failures: Optional[list] = None) -> tuple:
     """Calculate indicator features and return (feature_df, indicator_data_by_date).
 
     Returns:
         feature_df: DataFrame with indicator columns
         indicator_data_by_date: dict mapping date_str -> {col: value} for chart merge
+
+    Backlog #130. An indicator that cannot be computed is now EXCLUDED and
+    recorded, never substituted. Pass a list as `failures` to collect
+    {name, code, reason} for each one; callers that report to the operator do,
+    and the per-step forecast loop — which calls this once per forecast day and
+    would only repeat the same entry — does not.
+
+    `failures` is an out-parameter rather than a third return value on purpose:
+    that loop is the majority of the call sites and has no use for it.
     """
     feature_df = pd.DataFrame(index=df.index)
     indicator_data_by_date = {}
@@ -665,7 +675,17 @@ def _prepare_indicator_features(df: pd.DataFrame, indicator_rows: list) -> tuple
             else:
                 params = {}
 
-        indicator_data = _calculate_indicator(df, code, params)
+        try:
+            indicator_data = _calculate_indicator(df, code, params)
+        except IndicatorError as exc:
+            # EXCLUDED, NOT SUBSTITUTED. A model trained on three of the four
+            # indicators the operator chose is a result worth reporting; one
+            # trained on close prices labelled as the fourth is not.
+            logger.warning("solution indicator %s excluded: %s", name or code, exc)
+            if failures is not None:
+                failures.append({"name": name or code, "code": code,
+                                 "reason": str(exc)})
+            continue
         if not indicator_data:
             continue
 
@@ -841,7 +861,30 @@ async def _run_training(solution_id: int, train_params: dict):
             training_status[solution_id]["progress"] = 25
 
             # Step 5: Calculate indicator features
-            indicator_feature_df, indicator_data_by_date = _prepare_indicator_features(df, indicator_rows)
+            #
+            # Backlog #130 — an indicator that cannot be computed is excluded
+            # and REPORTED, never replaced by the close price. The report
+            # travels into the training result and the stored metrics, because
+            # the operator chose those four indicators and has to be able to
+            # see that one of them is not in the model.
+            indicator_failures = []
+            indicator_feature_df, indicator_data_by_date = _prepare_indicator_features(
+                df, indicator_rows, failures=indicator_failures)
+
+            # REFUSED when NOTHING the operator configured survived, for the
+            # same reason plan_covariates refuses an RNN with indicators
+            # attached (#105): a model that saw none of the four is not the
+            # model that was asked for, and training it would bury the problem
+            # in a field nobody reads.
+            if indicator_rows and not len(indicator_feature_df.columns):
+                training_status[solution_id] = {
+                    "status": "failed",
+                    "error": ("none of this solution's indicators could be "
+                              "calculated, so the model would see none of them: "
+                              + "; ".join(f"{f['name']} — {f['reason']}"
+                                          for f in indicator_failures)),
+                    "failed_at": time_module.time()}
+                return
 
             # Build feature DataFrame using shared function
             feature_df = _build_feature_df(df, indicator_feature_df)
@@ -935,7 +978,8 @@ async def _run_training(solution_id: int, train_params: dict):
                     start_date=start_date, end_date=end_date,
                     rows_before_warmup=rows_before_warmup,
                     rows_after_warmup=rows_after_warmup,
-                    news_coverage_report=news_coverage_report)
+                    news_coverage_report=news_coverage_report,
+                    indicator_failures=indicator_failures)
                 return
             if engine not in SUPPORTED_TRAINING_ENGINES:
                 training_status[solution_id] = {
@@ -1021,6 +1065,9 @@ async def _run_training(solution_id: int, train_params: dict):
                 'validation_samples': int(len(X_val)),
                 'features_used': len(feature_cols),
                 'rows_dropped_to_warmup': rows_before_warmup - rows_after_warmup,
+                # #109's rule: training_metrics_json outlives the in-memory
+                # status, so a disclosure has to be stored with it.
+                'indicator_failures': indicator_failures,
             })
 
             await db.execute(
@@ -1147,6 +1194,10 @@ async def _run_training(solution_id: int, train_params: dict):
                     # numbers has to be able to see that.
                     **describe_tabular_backend(model_type),
                     "news_covariates": news_coverage_report,
+                    # Backlog #130. Empty is the normal case and says so
+                    # positively: every indicator the operator chose is in the
+                    # model.
+                    "indicator_failures": indicator_failures,
                     "training_samples": int(len(X_train)),
                     "validation_samples": int(len(X_val)),
                 }
@@ -1514,7 +1565,7 @@ async def get_ticker_time_range(
 async def _run_darts_engine(
     *, solution_id, db, feature_df, indicator_rows, model_instance, model_id,
     ticker, train_params, start_date, end_date, rows_before_warmup, rows_after_warmup,
-    news_coverage_report=None,
+    news_coverage_report=None, indicator_failures=None,
 ):
     """Backlog #109 Phase 2b — train through Darts instead of the tabular path.
 
@@ -1592,6 +1643,9 @@ async def _run_darts_engine(
     metrics_json = json.dumps({
         'engine': 'darts', 'model_type': model_type,
         'news_covariates': (news_coverage_report or {"attached": False}),
+        # Backlog #130 — which of the operator's indicators are NOT in this
+        # model, stored beside the metrics they affected.
+        'indicator_failures': (indicator_failures or []),
         'rmse': m['rmse'], 'mae': m['mae'], 'r2': m['r2'],
         'direction_accuracy': m['direction_accuracy'],
         # The benchmark is stored WITH the figure, per C4 — a later reader must
@@ -1653,6 +1707,7 @@ async def _run_darts_engine(
         "result": {
             "engine": "darts", "model_type": model_type,
             "news_covariates": (news_coverage_report or {"attached": False}),
+            "indicator_failures": (indicator_failures or []),
             "rmse": m['rmse'], "mae": m['mae'], "r2": m['r2'],
             "direction_accuracy": m['direction_accuracy'],
             "naive": result['naive'], "beats_naive_rmse": result['beats_naive_rmse'],
@@ -1782,7 +1837,7 @@ async def _persist_prediction(db: AsyncSession, solution_id: int, response: dict
 def _forecast_with_darts(*, saved: dict, solution_id: int, ticker: str,
                          feature_df, df, indicator_data_by_date: dict,
                          predict_start, predict_end, horizon: int,
-                         session_calendar=None) -> dict:
+                         session_calendar=None, indicator_failures=None) -> dict:
     """Backlog #126 — the darts engine's half of POST /solutions/predict.
 
     Synchronous and free of DB access so the caller can hand it to a thread:
@@ -1895,6 +1950,7 @@ def _forecast_with_darts(*, saved: dict, solution_id: int, ticker: str,
         "forecast_warnings": out.get("warnings", []),
         "requested_horizon": out.get("requested_horizon"),
         "forecast_dates_estimated": estimated_dates,
+        "indicator_failures": (indicator_failures or []),
     }
 
 
@@ -2075,7 +2131,12 @@ async def predict_solution(
                         f"Pick a prediction window inside the ticker's history."))
 
         # Step 6: Build features using shared function
-        indicator_feature_df, indicator_data_by_date = _prepare_indicator_features(df, indicator_rows)
+        # Backlog #130 — same rule as training: excluded and reported, never
+        # substituted. A prediction made without an indicator the model was
+        # trained on is a worse forecast, and the payload has to say so.
+        indicator_failures = []
+        indicator_feature_df, indicator_data_by_date = _prepare_indicator_features(
+            df, indicator_rows, failures=indicator_failures)
         feature_df = _build_feature_df(df, indicator_feature_df)
         feature_df = feature_df.dropna()
 
@@ -2117,6 +2178,7 @@ async def predict_solution(
                 indicator_data_by_date=indicator_data_by_date,
                 predict_start=predict_start, predict_end=predict_end,
                 session_calendar=session_calendar,
+                indicator_failures=indicator_failures,
                 horizon=resolve_output_chunk_length(
                     model_instance.get('config_json') if model_instance else None,
                     requested=data.get('predict_days')),
@@ -2351,6 +2413,7 @@ async def predict_solution(
             # they fall past the end of the fetched session calendar. Zero means
             # every date is a session the exchange actually held.
             "forecast_dates_estimated": estimated_dates,
+            "indicator_failures": indicator_failures,
         }
 
         # Persist prediction result and update status
@@ -2537,6 +2600,22 @@ INDICATOR_NAME_MAP = {
 }
 
 
+class IndicatorError(RuntimeError):
+    """An indicator the service cannot compute, named so the caller can say which.
+
+    Backlog #130. This exists because the alternative was worse than an error:
+    _calculate_indicator used to answer an unknown code — or ANY exception from
+    the library — with the raw CLOSE PRICE under a `value` key, logging a
+    warning and nothing more. A model then trained on a column of closing
+    prices labelled as the indicator the operator had chosen, and the result
+    looked entirely ordinary: close-as-a-feature produces plausible metrics, so
+    there was nothing in the numbers, the payload or the UI to notice.
+
+    That is the #109/#110/#112 defect class — a result labelled as something it
+    is not — arriving by a fourth route, and the quietest of the four.
+    """
+
+
 def _safe_val(v):
     """Convert numpy types to native Python types for JSON serialization."""
     if v is None or (isinstance(v, float) and np.isnan(v)):
@@ -2716,7 +2795,15 @@ def _calculate_indicator(df: pd.DataFrame, code: str, params: dict) -> List[Dict
             for i, d in enumerate(dates):
                 result.append({'date': d.isoformat(), 'supertrend': _safe_val(st.stc().iloc[i])})
         elif code == 'AROON':
-            a = ta.trend.AroonIndicator(df['close'], window=params.get('period', 25))
+            # Backlog #130. This passed `close` as the first positional argument
+            # and nothing for `low`, so AroonIndicator raised on EVERY call
+            # ("missing 1 required positional argument: 'low'") and AROON was
+            # silently the close price for as long as it has been in the
+            # catalogue. Aroon is a function of the HIGH and LOW extremes —
+            # how long since the highest high and the lowest low — so close was
+            # never the right series to hand it.
+            a = ta.trend.AroonIndicator(
+                high=df['high'], low=df['low'], window=params.get('period', 25))
             for i, d in enumerate(dates):
                 result.append({'date': d.isoformat(),
                                'aroon_up': _safe_val(a.aroon_up().iloc[i]),
@@ -2772,13 +2859,21 @@ def _calculate_indicator(df: pd.DataFrame, code: str, params: dict) -> List[Dict
             for i, d in enumerate(dates):
                 result.append({'date': d.isoformat(), 'volume_ma': _safe_val(values.iloc[i])})
         else:
-            # Fallback: return close price as the value
-            for i, d in enumerate(dates):
-                result.append({'date': d.isoformat(), 'value': float(df['close'].iloc[i])})
+            # Backlog #130. Thirteen catalogue entries reach here because they
+            # are seeded but never implemented (FIB_EXT, FIB_RET, PIVOT,
+            # HEIKIN_ASHI, MP, RENKO, TP, WC, AC, ALLIGATOR, FRACTALS, GATOR,
+            # MFI_BW — measured 2026-11-05, all in the three groups the
+            # Solutions selector does not offer). They used to come back as
+            # close prices wearing the indicator's name.
+            raise IndicatorError(
+                f"{code} is in the indicator catalogue but this service has no "
+                f"implementation for it")
+    except IndicatorError:
+        raise
     except Exception as e:
-        logger.warning(f"Failed to calculate {code}: {e}, falling back to close price")
-        for i, d in enumerate(dates):
-            result.append({'date': d.isoformat(), 'value': float(df['close'].iloc[i])})
+        # Deliberately NOT a close-price fallback. See IndicatorError.
+        raise IndicatorError(f"{code} could not be calculated: "
+                             f"{type(e).__name__}: {e}") from e
 
     return result
 
@@ -2892,7 +2987,22 @@ async def calculate_solution_indicators(
         # Map name to calculation code
         code = INDICATOR_NAME_MAP.get(name, name)
 
-        indicator_data = _calculate_indicator(df, code, params)
+        # Backlog #130. This call used to be incapable of failing, because
+        # _calculate_indicator answered everything — including an indicator it
+        # has no implementation for — with the close price. Now that it raises,
+        # the failure is reported FOR THAT CATEGORY and the other three still
+        # come back: one unavailable indicator should not blank the chart.
+        try:
+            indicator_data = _calculate_indicator(df, code, params)
+        except IndicatorError as exc:
+            logger.warning("solution %s: %s could not be calculated: %s",
+                           solution_id, name or code, exc)
+            calculated_values[category] = {
+                'name': name,
+                'data': [],
+                'error': str(exc),
+            }
+            continue
 
         calculated_values[category] = {
             'name': name,
