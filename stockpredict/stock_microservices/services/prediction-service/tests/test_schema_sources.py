@@ -311,3 +311,80 @@ def test_the_lifespan_runs_the_guarded_drop():
     import app.main as main_mod
 
     assert "_drop_dead_model_tables" in inspect.getsource(main_mod.lifespan)
+
+
+# ---------------------------------------------------------------------------
+# 4. Every creatable model type is configurable (Backlog #129)
+# ---------------------------------------------------------------------------
+#
+# A THIRD WAY THE LEGACY FAMILY CAN DRIFT AGAINST ITSELF, and the one that was
+# already broken when this section was written. MODEL_TYPE_MAP in routes.py
+# decides which model types POST /models/{name} accepts; tbl_model_field and
+# tbl_model_defaul_value — seeded here, in SEED_DATA_SQL — decide which ones the
+# Solutions form can show and pre-fill. Nothing connected the two, so TiDE was
+# creatable through the API and unconfigurable through the UI: 13 of 14 types
+# had defaults, and the missing one was invisible until
+# tests/predict_roundtrip.py tried to create a model with defaults it did not
+# have.
+#
+# These read the seed SQL as text rather than the live database on purpose: the
+# gap is in what gets seeded, and a database seeded before the row existed would
+# hide it behind INSERT IGNORE.
+
+_SEEDED_MODEL_TYPE = re.compile(r"\(\s*'([A-Za-z0-9_]+)'\s*,", re.M)
+
+
+def _seeded_types(table: str) -> set[str]:
+    """Model types named in the VALUES of every INSERT into `table`."""
+    out: set[str] = set()
+    for literal in _sql_literals(MAIN):
+        inserts = _INSERT.findall(literal)
+        if not inserts or inserts[0].lower() != table:
+            continue
+        out |= {m.lower() for m in _SEEDED_MODEL_TYPE.findall(literal)}
+    return out
+
+
+def _catalogue_types() -> set[str]:
+    from app.api.routes import MODEL_TYPE_MAP
+    return {v.lower() for v in MODEL_TYPE_MAP.values()}
+
+
+@pytest.mark.parametrize("table", ["tbl_model_field", "tbl_model_defaul_value"])
+def test_every_creatable_model_type_is_seeded(table):
+    missing = sorted(_catalogue_types() - _seeded_types(table))
+    assert missing == [], (
+        f"MODEL_TYPE_MAP accepts {missing} but nothing seeds {table} for them, so "
+        f"the Solutions form has no fields to show or no defaults to pre-fill")
+
+
+@pytest.mark.parametrize("table", ["tbl_model_field", "tbl_model_defaul_value"])
+def test_nothing_is_seeded_for_a_model_type_that_cannot_be_created(table):
+    """The other direction. A seeded type absent from MODEL_TYPE_MAP would show
+    in the form and then 404 on create — the same gap facing the other way."""
+    extra = sorted(_seeded_types(table) - _catalogue_types())
+    assert extra == [], f"{table} seeds {extra}, which POST /models/ cannot create"
+
+
+def test_every_seeded_default_names_a_field_of_that_model_type():
+    """A default for a field the form does not render is a value a user can
+    never see or change, and #124 showed that config_json is forwarded to the
+    trainer verbatim — so an orphan default is a silent hyperparameter."""
+    fields: dict[str, set[str]] = {}
+    defaults: dict[str, set[str]] = {}
+    for literal in _sql_literals(MAIN):
+        inserts = _INSERT.findall(literal)
+        if not inserts:
+            continue
+        target = {"tbl_model_field": fields,
+                  "tbl_model_defaul_value": defaults}.get(inserts[0].lower())
+        if target is None:
+            continue
+        for model_type, field in re.findall(
+                r"\(\s*'([A-Za-z0-9_]+)'\s*,\s*'([A-Za-z0-9_]+)'\s*,", literal):
+            target.setdefault(model_type.lower(), set()).add(field)
+
+    orphans = {mt: sorted(names - fields.get(mt, set()))
+               for mt, names in defaults.items()
+               if names - fields.get(mt, set())}
+    assert orphans == {}, f"defaults with no matching field row: {orphans}"

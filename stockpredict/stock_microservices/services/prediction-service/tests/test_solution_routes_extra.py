@@ -76,14 +76,27 @@ def _result_with_first(row):
 
 
 class _FakeAsyncClient:
-    """Async-context-manager whose .get() returns a pre-canned response."""
+    """Async-context-manager whose .get() returns a pre-canned response.
+
+    It also RECORDS the query parameters of the last call, because Backlog #128
+    is about the date range the service asks stock-data-service for: a test that
+    only checked the response could not tell a widened warm-up window from the
+    flat 60 days it replaced.
+    """
 
     def __init__(self, response):
         self._response = response
+        self.last_params = None
+        self.last_url = None
 
     async def __aenter__(self):
+        async def _get(url, **kwargs):
+            self.last_url = url
+            self.last_params = kwargs.get("params") or {}
+            return self._response
+
         c = MagicMock()
-        c.get = AsyncMock(return_value=self._response)
+        c.get = _get
         return c
 
     async def __aexit__(self, *_):
@@ -817,3 +830,282 @@ async def test_run_training_marks_failed_when_too_few_usable_rows(monkeypatch):
     assert solution_routes.training_status[sid]["status"] == "failed"
     assert "insufficient" in solution_routes.training_status[sid]["error"].lower()
     solution_routes.training_status.pop(sid, None)
+
+
+# ---------------------------------------------------------------------------
+# Backlog #127 — the forecast horizon is the model's own
+# ---------------------------------------------------------------------------
+#
+# Three numbers used to disagree for one model: the config said
+# output_chunk_length, the training result's prediction_dates block said 10, and
+# the forecast was DEFAULT_PREDICTION_DAYS long. resolve_output_chunk_length is
+# now the single answer, so these tests pin the precedence rather than any one
+# literal.
+
+
+def test_the_horizon_comes_from_the_models_config():
+    assert solution_routes.resolve_output_chunk_length({"output_chunk_length": 7}) == 7
+
+
+def test_a_horizon_stored_as_a_string_is_read_as_a_number():
+    """config_json is written by the Solutions form, which posts '10' not 10 —
+    the same shape that made #124's hyperparameters reach darts as strings."""
+    assert solution_routes.resolve_output_chunk_length(
+        '{"output_chunk_length": "10", "n_epochs": "300"}') == 10
+
+
+def test_an_explicit_predict_days_outranks_the_config():
+    """A caller naming a number is not making a mistake, and predict_days
+    predates the horizon living in the config."""
+    assert solution_routes.resolve_output_chunk_length(
+        {"output_chunk_length": 10}, requested=3) == 3
+
+
+def test_a_model_declaring_no_horizon_keeps_the_previous_offer():
+    """RNN is parameterised by training_length and has no output_chunk_length at
+    all. Those models offered 10 before this change and must still offer 10 —
+    the fix is meant to change behaviour only where the config speaks."""
+    assert solution_routes.resolve_output_chunk_length(
+        {"training_length": 30}) == solution_routes.PREDICTION_HORIZON_FALLBACK
+
+
+@pytest.mark.parametrize("junk", [None, "", "not a json", "[]", {"output_chunk_length": "abc"},
+                                 {"output_chunk_length": 0}, {"output_chunk_length": -5}])
+def test_an_unusable_horizon_falls_back_rather_than_forecasting_nothing(junk):
+    """A zero or negative horizon would make the forecast loop produce an empty
+    series — the #128 symptom arriving by a different route."""
+    assert solution_routes.resolve_output_chunk_length(junk) == \
+        solution_routes.PREDICTION_HORIZON_FALLBACK
+
+
+def test_a_horizon_beyond_the_service_maximum_is_clamped():
+    settings = solution_routes.settings
+    assert solution_routes.resolve_output_chunk_length(
+        {"output_chunk_length": settings.MAX_PREDICTION_DAYS + 50}
+    ) == settings.MAX_PREDICTION_DAYS
+
+
+@pytest.mark.asyncio
+async def test_the_forecast_is_as_long_as_the_models_horizon(client: AsyncClient, mock_db):
+    """#127 end to end: no predict_days in the request, so the forecast length
+    must come from config_json — it used to be DEFAULT_PREDICTION_DAYS."""
+    horizon = 7
+    assert horizon != solution_routes.settings.DEFAULT_PREDICTION_DAYS, \
+        "the test would pass vacuously if these agreed"
+
+    df = _ohlcv_frame(200)
+    price_records = [
+        {"time": d.strftime("%Y-%m-%d"), "open": float(df.loc[d, "open"]),
+         "high": float(df.loc[d, "high"]), "low": float(df.loc[d, "low"]),
+         "close": float(df.loc[d, "close"]), "volume": float(df.loc[d, "volume"])}
+        for d in df.index
+    ]
+
+    mock_db.execute = AsyncMock(side_effect=[
+        _result_with_first({"id": 7, "ticker": "FPT", "model_id": 99}),
+        _result_with_first({"id": 99, "status": "trained", "file_path": "/tmp/m99.joblib",
+                            "config_json": json.dumps({"output_chunk_length": str(horizon)})}),
+        _result_with_mappings([]),
+        MagicMock(),
+    ])
+    mock_db.commit = AsyncMock()
+
+    fake_model = MagicMock()
+    fake_model.predict = lambda X: X[:, 0] * 1.01 if X.ndim == 2 else np.array([100.0])
+    saved = {"model": fake_model, "feature_cols": ["close", "returns", "high_low_ratio"]}
+
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"data": price_records}
+
+    with patch("app.api.solution_routes.os.path.exists", return_value=True), \
+         patch("app.api.solution_routes.joblib.load", return_value=saved), \
+         patch("app.api.solution_routes.httpx.AsyncClient",
+               return_value=_FakeAsyncClient(resp)):
+        r = await client.post(f"{PREFIX}/predict", json={
+            "id": 7,
+            "start_date": df.index[150].strftime("%Y-%m-%d"),
+            "end_date": df.index[-1].strftime("%Y-%m-%d"),
+        })
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["future_days"] == horizon
+    assert len(body["future"]) == horizon
+
+
+# ---------------------------------------------------------------------------
+# Backlog #128 — warm-up, and refusing instead of returning an empty 200
+# ---------------------------------------------------------------------------
+
+
+def test_the_warmup_covers_the_fixed_feature_windows_with_no_indicators():
+    """volatility_20 and close_lag_10 need bars whether or not an indicator is
+    attached, so the floor applies to a solution with none."""
+    days = solution_routes.warmup_calendar_days([])
+    assert days >= solution_routes.BASE_WARMUP_BARS
+
+
+def test_the_warmup_grows_with_the_indicator_lookback():
+    """ICHIMOKU's senkou_b_period of 52 must buy more history than RSI's 14 —
+    the flat 60 days this replaces is what emptied the frame."""
+    short = solution_routes.warmup_calendar_days(
+        [{"parameters": {"period": 14}}])
+    long = solution_routes.warmup_calendar_days(
+        [{"parameters": {"tenkan_period": 9, "kijun_period": 26, "senkou_b_period": 52}}])
+    assert long > short
+    assert long > 60, "the old flat 60-day window is what #128 was about"
+
+
+def test_the_warmup_reads_parameters_stored_as_json_text():
+    """solution_indicators.parameters is a JSON column; a string there must not
+    silently contribute a lookback of zero."""
+    as_text = solution_routes.warmup_calendar_days(
+        [{"parameters": '{"senkou_b_period": 52}'}])
+    as_dict = solution_routes.warmup_calendar_days(
+        [{"parameters": {"senkou_b_period": 52}}])
+    assert as_text == as_dict
+
+
+def test_the_warmup_falls_back_to_the_catalogue_default_parameters():
+    as_default = solution_routes.warmup_calendar_days(
+        [{"parameters": None, "default_parameters": {"period": 200}}])
+    assert as_default > solution_routes.warmup_calendar_days([{"parameters": {"period": 14}}])
+
+
+@pytest.mark.parametrize("junk", [{"parameters": "not json"}, {"parameters": []},
+                                  {"parameters": {"flag": "yes"}}, {}])
+def test_unreadable_indicator_parameters_still_yield_the_floor(junk):
+    assert solution_routes.warmup_calendar_days([junk]) >= solution_routes.BASE_WARMUP_BARS
+
+
+@pytest.mark.asyncio
+async def test_too_little_history_is_refused_not_returned_as_an_empty_200(
+        client: AsyncClient, mock_db):
+    """#128. With fewer bars than the features need, dropna() empties the frame.
+    That used to come back 200 with chart/actual/predict/future all empty and
+    null metrics — a blank Prediction tab and no error — or as a 500 once the
+    empty array reached sklearn (RandomForest, measured 2026-11-05)."""
+    df = _ohlcv_frame(8)        # fewer rows than any rolling window needs
+    price_records = [
+        {"time": d.strftime("%Y-%m-%d"), "open": float(df.loc[d, "open"]),
+         "high": float(df.loc[d, "high"]), "low": float(df.loc[d, "low"]),
+         "close": float(df.loc[d, "close"]), "volume": float(df.loc[d, "volume"])}
+        for d in df.index
+    ]
+
+    mock_db.execute = AsyncMock(side_effect=[
+        _result_with_first({"id": 7, "ticker": "FPT", "model_id": 99}),
+        _result_with_first({"id": 99, "status": "trained", "file_path": "/tmp/m99.joblib",
+                            "config_json": "{}"}),
+        _result_with_mappings([]),
+    ])
+
+    fake_model = MagicMock()
+    # If the guard is removed this is what receives a 0-row array; the assertion
+    # below would then see a 200 or a 500 instead of the refusal.
+    fake_model.predict = lambda X: X[:, 0] * 1.01
+    saved = {"model": fake_model, "feature_cols": ["close", "returns"]}
+
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"data": price_records}
+
+    with patch("app.api.solution_routes.os.path.exists", return_value=True), \
+         patch("app.api.solution_routes.joblib.load", return_value=saved), \
+         patch("app.api.solution_routes.httpx.AsyncClient",
+               return_value=_FakeAsyncClient(resp)):
+        r = await client.post(f"{PREFIX}/predict", json={
+            "id": 7,
+            "start_date": df.index[-1].strftime("%Y-%m-%d"),
+            "end_date": df.index[-1].strftime("%Y-%m-%d"),
+        })
+
+    assert r.status_code == 422, r.text
+    detail = r.json()["detail"]
+    assert "Not enough price history" in detail
+    assert "FPT" in detail
+
+
+@pytest.mark.asyncio
+async def test_the_predict_request_buys_warmup_history_before_the_window(
+        client: AsyncClient, mock_db):
+    """The widened fetch is only useful if it reaches stock-data-service, so the
+    start_date actually sent is asserted. A 1-day window used to ask for 60
+    calendar days; it must now ask for enough to compute an ICHIMOKU."""
+    df = _ohlcv_frame(400)
+    price_records = [
+        {"time": d.strftime("%Y-%m-%d"), "open": float(df.loc[d, "open"]),
+         "high": float(df.loc[d, "high"]), "low": float(df.loc[d, "low"]),
+         "close": float(df.loc[d, "close"]), "volume": float(df.loc[d, "volume"])}
+        for d in df.index
+    ]
+    indicator_rows = [{
+        "indicator_id": 10, "indicator_category": "trend", "covariate_type": "past",
+        "parameters": '{"tenkan_period": 9, "kijun_period": 26, "senkou_b_period": 52}',
+        "name": "ICHIMOKU", "type": "trend",
+        "default_parameters": '{"tenkan_period": 9, "kijun_period": 26, "senkou_b_period": 52}',
+        "calculation_function": "calculate_ichimoku",
+    }]
+
+    mock_db.execute = AsyncMock(side_effect=[
+        _result_with_first({"id": 7, "ticker": "FPT", "model_id": 99}),
+        _result_with_first({"id": 99, "status": "trained", "file_path": "/tmp/m99.joblib",
+                            "config_json": "{}"}),
+        _result_with_mappings(indicator_rows),
+        MagicMock(),
+    ])
+    mock_db.commit = AsyncMock()
+
+    fake_model = MagicMock()
+    fake_model.predict = lambda X: X[:, 0] * 1.01
+    saved = {"model": fake_model, "feature_cols": ["close", "returns"]}
+
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"data": price_records}
+    fake_client = _FakeAsyncClient(resp)
+
+    predict_start = df.index[-1]
+    with patch("app.api.solution_routes.os.path.exists", return_value=True), \
+         patch("app.api.solution_routes.joblib.load", return_value=saved), \
+         patch("app.api.solution_routes.httpx.AsyncClient", return_value=fake_client):
+        r = await client.post(f"{PREFIX}/predict", json={
+            "id": 7,
+            "start_date": predict_start.strftime("%Y-%m-%d"),
+            "end_date": predict_start.strftime("%Y-%m-%d"),
+        })
+
+    assert r.status_code == 200, r.text
+    asked_from = pd.Timestamp(fake_client.last_params["start_date"])
+    bought = (predict_start - asked_from).days
+    assert bought == solution_routes.warmup_calendar_days(indicator_rows)
+    assert bought > 60, "a flat 60 days is the window that emptied the frame"
+
+
+def test_the_warmup_floor_covers_the_hungriest_indicator():
+    """#128, second iteration. The floor is a MEASUREMENT, not a guess: every
+    catalogue indicator was computed over 880 bars of FPT on 2026-11-05 and
+    SUPERTREND leaves 72 leading rows NaN — on a period of 10, so no multiple
+    of its parameters predicts that. The first version of this fix bought 42
+    bars for it and the frame still emptied.
+
+    The floor must also cover the fixed feature windows on top of the indicator,
+    since both consume the same leading rows."""
+    assert solution_routes.BASE_WARMUP_BARS >= (
+        solution_routes.MEASURED_WORST_INDICATOR_WARMUP_BARS + 20 + 10)
+
+
+def test_the_floor_alone_is_enough_for_the_hungriest_indicator():
+    """What the previous test asserts in bars, asserted in the calendar days
+    actually requested — including SUPERTREND, whose parameters are small."""
+    bought_bars = solution_routes.warmup_calendar_days(
+        [{"parameters": {"period": 10, "multiplier": 3}}]) / solution_routes.CALENDAR_DAYS_PER_BAR
+    assert bought_bars >= solution_routes.MEASURED_WORST_INDICATOR_WARMUP_BARS + 30
+
+
+def test_an_edited_period_still_widens_the_warmup_past_the_floor():
+    """Non-vacuity for the proportional term now that the floor is large: a user
+    who sets a 200-day moving average must not be served the floor."""
+    assert solution_routes.warmup_calendar_days([{"parameters": {"period": 200}}]) > \
+        solution_routes.warmup_calendar_days([])

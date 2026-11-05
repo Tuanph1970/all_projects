@@ -117,6 +117,128 @@ def resolve_training_engine(requested: Optional[str]) -> str:
     name = str(requested).strip().lower()
     return name or DEFAULT_TRAINING_ENGINE
 
+
+# Backlog #127 — the horizon offered when the model itself declares none.
+#
+# This is the literal the two sites below used to hardcode, kept as the fallback
+# rather than replaced by DEFAULT_PREDICTION_DAYS so that behaviour changes ONLY
+# where the model's config actually states a horizon. Some catalogue entries
+# legitimately have no output_chunk_length at all (RNN is parameterised by
+# training_length instead), and those must keep offering what they offered
+# before.
+PREDICTION_HORIZON_FALLBACK = 10
+
+
+def resolve_output_chunk_length(config_json, requested=None) -> int:
+    """The forecast horizon in business days: what the MODEL was created with.
+
+    Backlog #127. Two sites used to decide this without consulting the model:
+    the training result's prediction_dates block hardcoded 10, and the predict
+    endpoint sized its forward forecast from predict_days or
+    DEFAULT_PREDICTION_DAYS. So a model created with output_chunk_length=1 (the
+    XGBoost, CatBoost and RandomForest defaults) was offered a ten-day window
+    and then forecast five days — three different numbers, none of them the
+    one the user set at creation.
+
+    Precedence is explicit request, then the model's config, then the fallback.
+    An explicitly requested predict_days still wins: a caller asking for a
+    specific number of days is not making a mistake, and /solutions/predict has
+    accepted that parameter since before the horizon lived in the config.
+
+    VALUES ARRIVE AS STRINGS. config_json is written from the Solutions form,
+    which posts '10' rather than 10 — the same lesson as #124 on the darts
+    hyperparameters. A str()/int() round trip here is not defensive padding; it
+    is the actual shape of the stored data.
+    """
+    for candidate in (requested, _config_horizon(config_json)):
+        if candidate is None:
+            continue
+        try:
+            value = int(float(str(candidate).strip()))
+        except (TypeError, ValueError):
+            continue
+        if value >= 1:
+            return min(value, settings.MAX_PREDICTION_DAYS)
+    return PREDICTION_HORIZON_FALLBACK
+
+
+#: Floor on the warm-up, in bars, and the number is MEASURED rather than
+#: reasoned: on 2026-11-05 every indicator in the catalogue was computed over
+#: 880 bars of FPT and asked how many leading rows it leaves NaN. The worst is
+#: SUPERTREND at 72, then TEMA 57, DEMA 38, TSI 37, MACD and AO 33.
+#:
+#: WHY A MEASURED FLOOR AND NOT JUST A MULTIPLE OF THE PERIOD. SUPERTREND's
+#: parameters are {"period": 10, "multiplier": 3}; its warm-up is 72 bars and
+#: does not shrink with more history, so NOTHING in its parameters predicts it.
+#: A warm-up derived only from the parameters bought 42 bars for it and the
+#: feature frame still came out empty — the first version of this fix did
+#: exactly that and the sweep returned a 422 where a forecast was expected.
+#: ICHIMOKU is the opposite case: senkou_b_period is 52 and it needs only 25.
+#:
+#: 72 for the worst indicator + 20 for volatility_20/volume_sma_20 + 10 for
+#: close_lag_10, rounded up for margin. test_the_warmup_floor_covers_the_
+#: hungriest_indicator pins it against the measurement.
+BASE_WARMUP_BARS = 120
+
+#: Multiple of the longest indicator period, which still matters because a
+#: period is EDITABLE: the floor covers the catalogue's defaults, and this keeps
+#: a user-raised period (a 200-day moving average, say) from under-fetching.
+#: Three times is the right factor for the parameter-driven ones — TEMA's triple
+#: smoothing needs 57 bars on a period of 20.
+INDICATOR_WARMUP_FACTOR = 3
+
+#: The measurement above, kept as data so a test can assert the floor covers it
+#: rather than restating a number that would drift silently.
+MEASURED_WORST_INDICATOR_WARMUP_BARS = 72
+
+#: Trading days per calendar week, for turning bars into a date offset, plus a
+#: fortnight for public holidays — Tet alone closes the exchange for about a week.
+CALENDAR_DAYS_PER_BAR = 7 / 5
+HOLIDAY_MARGIN_DAYS = 14
+
+
+def warmup_calendar_days(indicator_rows: list) -> int:
+    """Calendar days of history to fetch BEFORE the first day to be predicted.
+
+    Backlog #128. Proportional to the indicators actually attached to the
+    solution, so the number follows the catalogue instead of being a literal
+    that silently stops being enough.
+
+    Deliberately generous: over-fetching costs one wider query against
+    stock-data-service, while under-fetching empties the feature frame and
+    returns a blank chart with HTTP 200.
+    """
+    longest = 0
+    for row in indicator_rows or []:
+        for source in (row.get('parameters'), row.get('default_parameters')):
+            if isinstance(source, str):
+                try:
+                    source = json.loads(source)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+            if not isinstance(source, dict):
+                continue
+            for value in source.values():
+                try:
+                    longest = max(longest, int(float(value)))
+                except (TypeError, ValueError):
+                    continue
+    bars = max(BASE_WARMUP_BARS, longest * INDICATOR_WARMUP_FACTOR)
+    return int(bars * CALENDAR_DAYS_PER_BAR) + HOLIDAY_MARGIN_DAYS
+
+
+def _config_horizon(config_json):
+    """output_chunk_length out of a model_instances.config_json, or None."""
+    if isinstance(config_json, str):
+        try:
+            config_json = json.loads(config_json)
+        except (json.JSONDecodeError, TypeError):
+            return None
+    if not isinstance(config_json, dict):
+        return None
+    return config_json.get('output_chunk_length')
+
+
 # Model type mapping: DARTS neural network types -> scikit-learn/gradient boosting models
 # USED ONLY BY THE 'tabular' ENGINE, which is no longer the default (#109,
 # DEFAULT_TRAINING_ENGINE above). The line that stood here — "Since DARTS is not
@@ -797,8 +919,12 @@ async def _run_training(solution_id: int, train_params: dict):
 
             # Step 12: Compute prediction dates (business days)
             # pred_start = training end date + 1 business day
+            #
+            # Backlog #127: the horizon comes from the model's own config now.
+            # It was the literal 10 here, so the Predict tab offered a ten-day
+            # window to every model including the ones created with 1.
             training_end = pd.Timestamp(end_date)
-            output_chunk_length = 10
+            output_chunk_length = resolve_output_chunk_length(config_json)
 
             pred_start = training_end + pd.Timedelta(days=1)
             while pred_start.weekday() >= 5:
@@ -1507,10 +1633,28 @@ async def predict_solution(
         )
         indicator_rows = [dict(r) for r in result.mappings().all()]
 
-        # Step 5: Fetch price data (need extra history for lag features)
-        # We need at least 30 extra business days before predict_start for rolling features
+        # Step 5: Fetch price data, with enough warm-up to COMPUTE the features
+        #
+        # Backlog #128. This was a flat 60 calendar days — about 40 trading bars
+        # — while the feature set needs 20-bar rolling windows, 10-bar lags AND
+        # whatever lookback each attached indicator wants (ICHIMOKU's senkou_b
+        # alone is 52). dropna() then emptied the frame and the endpoint
+        # returned HTTP 200 with every series empty and null metrics: a blank
+        # Prediction tab and no error. On RandomForest the empty frame reached
+        # sklearn instead and raised, so the same cause produced a 500.
+        #
+        # It bit hardest on the window the application ITSELF suggests, because
+        # training_end+1 for a one-day horizon is the shortest window there is.
+        # Measured on one stored solution: a 1-day window returned 0 points, an
+        # 8-month window 154 and finite metrics.
+        #
+        # The warm-up is now proportional to the indicators actually attached,
+        # so a future indicator with a longer lookback widens it by itself.
         if predict_start:
-            history_start = (pd.Timestamp(predict_start) - pd.Timedelta(days=60)).strftime('%Y-%m-%d')
+            history_start = (
+                pd.Timestamp(predict_start)
+                - pd.Timedelta(days=warmup_calendar_days(indicator_rows))
+            ).strftime('%Y-%m-%d')
         else:
             history_start = None
 
@@ -1557,6 +1701,30 @@ async def predict_solution(
         indicator_feature_df, indicator_data_by_date = _prepare_indicator_features(df, indicator_rows)
         feature_df = _build_feature_df(df, indicator_feature_df)
         feature_df = feature_df.dropna()
+
+        # Backlog #128 — REFUSE RATHER THAN RETURN AN EMPTY 200.
+        #
+        # With no row left there is nothing to backtest and nothing to forecast
+        # from, so what came back before was 200 with four empty series and null
+        # metrics, or a 500 from sklearn once the empty array reached it. Both
+        # read to the user as "the application is broken" with no cause given.
+        #
+        # The check is on the WHOLE frame, not on the requested window: a window
+        # that lies entirely in the future legitimately selects no rows and must
+        # still produce a forecast from the last available bar.
+        if feature_df.empty:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Not enough price history for {ticker} to compute the model's "
+                    f"features before {predict_start}. {len(df)} bar(s) were "
+                    f"available from {history_start or 'the start of the series'}, "
+                    f"and the attached indicators need about "
+                    f"{warmup_calendar_days(indicator_rows)} calendar days of "
+                    f"warm-up. Pick a later prediction start, or a ticker with "
+                    f"more history."
+                ),
+            )
 
         # Ensure we have the same columns as training (in same order)
         missing_cols = [c for c in feature_cols if c not in feature_df.columns]
@@ -1623,9 +1791,15 @@ async def predict_solution(
             p['close'] = _correct_pred(p['close'])
 
         # Step 8: Future predictions (iterative, day-by-day)
+        #
+        # Backlog #127. This read predict_days or DEFAULT_PREDICTION_DAYS (5)
+        # and never the model, so a model built with output_chunk_length=10
+        # forecast five days and one built with 1 also forecast five. An
+        # explicit predict_days still wins — see resolve_output_chunk_length.
         future_predictions = []
-        output_chunk_length = data.get('predict_days', settings.DEFAULT_PREDICTION_DAYS)
-        output_chunk_length = min(output_chunk_length, settings.MAX_PREDICTION_DAYS)
+        output_chunk_length = resolve_output_chunk_length(
+            model_instance.get('config_json') if model_instance else None,
+            requested=data.get('predict_days'))
 
         # Compute model quality weight for blending model vs simulated trajectory
         # Good model (R2>0.5): rely mostly on model; Bad model (R2<0): rely on simulation

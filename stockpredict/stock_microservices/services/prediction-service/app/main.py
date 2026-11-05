@@ -277,6 +277,27 @@ SEED_DATA_SQL = [
     ('CatBoost', 'multi_models', 'checkbox', 'Multi models', 5),
     ('CatBoost', 'past_covariate', 'checkbox', 'Use past covariates', 6),
     ('CatBoost', 'future_covariate', 'checkbox', 'Use future covariates', 7)""",
+    # TiDE fields — Backlog #129.
+    #
+    # TiDE was reachable but unconfigurable: MODEL_TYPE_MAP accepts
+    # POST /models/tide and darts_trainer builds a real TiDEModel, while
+    # tbl_model_field and tbl_model_defaul_value had no row for it at all. So
+    # the Solutions form had no fields to show and nothing to pre-fill, and it
+    # was the one architecture a default-parameters user could not create.
+    # Found by tests/predict_roundtrip.py, which reports the 13-of-14 count.
+    #
+    # The field set mirrors NLinear's, the closest torch entry: build_model
+    # forwards only the chunk lengths and n_epochs to the constructor, so these
+    # are the parameters that actually reach TiDEModel plus the two covariate
+    # flags every architecture shows.
+    """INSERT IGNORE INTO tbl_model_field (model_type_, field_name, field_type, description, display_order) VALUES
+    ('TiDE', 'input_chunk_length', 'text', 'Input chunk length', 1),
+    ('TiDE', 'output_chunk_length', 'text', 'Output chunk length', 2),
+    ('TiDE', 'batch_size', 'text', 'Batch size', 3),
+    ('TiDE', 'n_epochs', 'text', 'Number of epochs', 4),
+    ('TiDE', 'dropout', 'text', 'Dropout', 5),
+    ('TiDE', 'past_covariate', 'checkbox', 'Use past covariates', 6),
+    ('TiDE', 'future_covariate', 'checkbox', 'Use future covariates', 7)""",
 
     # ---- tbl_model_defaul_value: default parameter values per model type ----
     """INSERT IGNORE INTO tbl_model_defaul_value (model_type_, field_name, default_value, description) VALUES
@@ -377,6 +398,16 @@ SEED_DATA_SQL = [
     ('CatBoost', 'lag_past_len', '14', 'Default past lag'),
     ('CatBoost', 'lag_future_len', '14', 'Default future lag'),
     ('CatBoost', 'output_chunk_length', '1', 'Default output chunk')""",
+    # Backlog #129 — TiDE's defaults. The window matches DEFAULT_WINDOWS['TiDE']
+    # in darts_trainer.py in spirit (a fortnight in, a fortnight's horizon out)
+    # and the epoch count matches the other linear-family entries rather than
+    # the 300 the RNNs carry, so a first run finishes in a sensible time.
+    """INSERT IGNORE INTO tbl_model_defaul_value (model_type_, field_name, default_value, description) VALUES
+    ('TiDE', 'input_chunk_length', '14', 'Default input chunk'),
+    ('TiDE', 'output_chunk_length', '10', 'Default output chunk'),
+    ('TiDE', 'batch_size', '32', 'Default batch size'),
+    ('TiDE', 'n_epochs', '100', 'Default epochs'),
+    ('TiDE', 'dropout', '0.1', 'Default dropout')""",
 
     # ---- tbl_param_option: dropdown options for select fields ----
     """INSERT IGNORE INTO tbl_param_option (param_name, option_value, description, display_order) VALUES
