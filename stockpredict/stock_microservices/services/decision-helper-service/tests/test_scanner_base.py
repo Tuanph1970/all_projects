@@ -17,7 +17,10 @@ import pytest
 
 from app.services.scanner.base import (
     DEFAULT_BASE_MAX_BARS,
+    SHAPE_FLAG,
+    SHAPE_FLAT,
     assess_base,
+    detect_flag_base,
     detect_base,
     find_pivot,
     measure_ma_proximity,
@@ -329,3 +332,174 @@ def test_vt4_the_full_funnel_is_more_selective_against_noise_than_s1_alone():
     s2 = estimate_null_fpr(run_scan, ScanConfig(),
                            trials=4, universe_size=12, bars_per_symbol=320)
     assert s2.total_candidates <= s1.total_candidates
+
+
+# ---------------------------------------------------------------------------
+# FR-SCAN-BASE, flag shape — "lá cờ"
+# ---------------------------------------------------------------------------
+
+def pole_then_flag(
+    *,
+    run_bars: int = 260,
+    pole_bars: int = 8,
+    flag_bars: int = 4,
+    start: float = 20.0,
+    drift_step: float = 0.05,
+    pole_step: float = 3.0,
+    pullback_step: float = 0.4,
+    bearish: bool = False,
+) -> List[OHLCVBar]:
+    """A planted bull flag: quiet drift, a SHARP pole, then a TIGHT pullback.
+
+    THE DEFAULTS ARE CALIBRATED TO THE CASE THE FLAT-BASE TEST GENUINELY MISSES,
+    which is narrower than it first appears. A 4-bar pullback of 0.4 against an
+    8-bar pole of 3.0 retraces ~7%, so no window straddling the pole top and the
+    pullback reads flat — the pole dominates any such window and drift/depth
+    lands near 0.9. Make the pullback DEEPER (8 bars x 0.6, ~20% retrace) and
+    `detect_base` finds a straddling 11-bar FLAT window on its own, which is why
+    only 9% of real names fail `base_found` at all.
+
+    `bearish=True` inverts the pole and the pullback to plant a bear flag, which
+    this long-side funnel must refuse.
+    """
+    sign = -1.0 if bearish else 1.0
+    bars: List[OHLCVBar] = []
+    price = start
+    for i in range(run_bars):
+        price = start + drift_step * i
+        bars.append(bar(i, price, half_range=price * 0.01, volume=1_000_000))
+    for j in range(pole_bars):
+        price += sign * pole_step
+        bars.append(bar(run_bars + j, price, half_range=abs(pole_step) * 0.4,
+                        volume=3_000_000))
+    for k in range(flag_bars):
+        price -= sign * pullback_step
+        bars.append(bar(run_bars + pole_bars + k, price,
+                        half_range=pullback_step * 0.5, volume=900_000))
+    return bars
+
+
+def test_a_planted_bull_flag_is_found():
+    bars = pole_then_flag()
+    assert detect_base(bars) is None, \
+        "fixture invalid: the flat-base test must NOT already cover this"
+    w = detect_flag_base(bars)
+    assert w is not None
+    assert w.shape == SHAPE_FLAG
+    assert w.end_index == len(bars) - 1
+    assert w.drift_pct < 0, "a bull flag finishes below where the pullback began"
+
+
+def test_the_flag_is_why_drift_over_depth_cannot_gate_it():
+    """The point of adding a second shape at all."""
+    w = detect_flag_base(pole_then_flag())
+    assert w.drift_over_depth > 0.5, \
+        "if a flag scored under the flat-base gate, no second shape was needed"
+
+
+def test_a_bear_flag_is_refused():
+    """Long-side funnel: a bear flag is a real pattern and an irrelevant one,
+    and admitting it would put falling stocks on a list headed 'candidates'."""
+    assert detect_flag_base(pole_then_flag(bearish=True)) is None
+
+
+def test_a_pole_too_small_against_atr_is_not_a_flag():
+    assert detect_flag_base(pole_then_flag(pole_step=0.06)) is None
+
+
+def test_a_pullback_deeper_than_half_the_pole_is_not_a_flag():
+    # Pole 8 x 3.0 = 24; a 4 x 3.2 = 12.8 pullback retraces 53% of it.
+    assert detect_flag_base(pole_then_flag(pullback_step=3.2)) is None
+
+
+def test_a_deep_pullback_is_already_covered_by_the_flat_shape():
+    """Why the flag only adds 9%: a deep enough pullback leaves a straddling
+    window that reads flat on its own, so the flat shape was already finding it."""
+    bars = pole_then_flag(flag_bars=8, pullback_step=0.6)
+    flat = detect_base(bars)
+    assert flat is not None and flat.shape == SHAPE_FLAT
+
+
+def test_a_rising_pullback_is_not_a_flag():
+    """Highs and lows must BOTH slope counter to the pole — a pullback that
+    keeps making highs is the move continuing, not a pause in it."""
+    assert detect_flag_base(pole_then_flag(pullback_step=-0.4)) is None
+
+
+def test_a_flag_shorter_than_three_bars_is_refused():
+    with pytest.raises(ValueError, match="at least 3"):
+        detect_flag_base(pole_then_flag(), flag_min_bars=2)
+
+
+# ── the flag must only ADD candidates, never change existing ones ──────────
+
+def test_a_flat_base_is_still_classified_flat_when_flags_are_enabled():
+    a = assess_base("PLANT", advance_then_base())
+    assert a.window.shape == SHAPE_FLAT, "flag-first search would reclassify this"
+
+
+def test_enabling_flags_does_not_remove_a_flat_base_candidate():
+    bars = advance_then_base()
+    on = run_scan({"PLANT": bars}, bars[-1].date, ScanConfig(allow_flag_base=True))
+    off = run_scan({"PLANT": bars}, bars[-1].date, ScanConfig(allow_flag_base=False))
+    assert [c.symbol for c in on.candidates] == [c.symbol for c in off.candidates] == ["PLANT"]
+
+
+def test_disabling_flags_reproduces_the_flat_only_funnel():
+    """How the flag's contribution stays measurable instead of assumed."""
+    bars = pole_then_flag()
+    off = run_scan({"FLAG": bars}, bars[-1].date, ScanConfig(allow_flag_base=False))
+    assert [b.symbol for b in off.failed_base] == ["FLAG"]
+    assert "base_found" in off.failed_base[0].failed_clauses()
+
+
+def test_the_rejection_message_says_a_flag_was_looked_for():
+    bars = [bar(i, 20.0 + 0.5 * i, half_range=0.4, volume=1_000_000) for i in range(300)]
+    a = assess_base("RAMP", bars, allow_flag=True)
+    assert "no bull flag either" in a.clauses[0].detail
+
+
+def test_the_shape_is_reported_in_the_clause_detail():
+    a = assess_base("PLANT", advance_then_base())
+    assert a.clauses[0].detail.startswith(SHAPE_FLAT)
+
+
+# ── EC-S3: the two implementations must not drift apart ───────────────────
+
+def test_cross_check_against_ai_insights_flag_detector():
+    """Same geometry, two codebases (see the note in base.py). Skipped where
+    ai-insights is not importable, exactly as `tests/test_phase_k.py` does — but
+    present so a container run catches divergence instead of nobody catching it."""
+    pd = pytest.importorskip("pandas")
+    try:
+        import sys
+        sys.path.insert(0, "../ai-insights-service")
+        from app.services.patterns.continuation import FlagDetector  # type: ignore
+    except Exception:                                   # noqa: BLE001
+        pytest.skip("ai-insights-service pattern package not importable here")
+
+    bars = pole_then_flag()
+    ours = detect_flag_base(bars)
+    theirs = FlagDetector().detect(pd.DataFrame([
+        {"open": b.open, "high": b.high, "low": b.low, "close": b.close, "volume": b.volume}
+        for b in bars
+    ]))
+    assert (ours is not None) == (theirs is not None and theirs.found), \
+        "the two flag implementations disagree on a planted flag"
+    if ours and theirs:
+        # Their `neckline` is the breakout level; ours is the window high. Same thing.
+        assert ours.high == pytest.approx(theirs.neckline, rel=1e-6)
+
+
+def test_the_retrace_cap_admits_just_under_and_refuses_just_over():
+    """The 50% line, from both sides. 4 x 2.4 = 9.6 against a 24 pole is 40% and
+    is a legitimate flag; 4 x 3.2 = 12.8 is 53% and is a failed move."""
+    assert detect_flag_base(pole_then_flag(pullback_step=2.4)) is not None
+    assert detect_flag_base(pole_then_flag(pullback_step=3.2)) is None
+
+
+def test_a_pole_that_already_turned_down_is_not_a_pole():
+    """The cap is otherwise evadable by SHORTENING the flag, which pushes the
+    pole window over the pullback's first bars and inflates pole_move."""
+    bars = pole_then_flag(pullback_step=3.2)
+    assert detect_flag_base(bars, flag_min_bars=3, flag_max_bars=3) is None

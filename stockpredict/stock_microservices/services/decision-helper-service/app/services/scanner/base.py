@@ -77,6 +77,43 @@ DEFAULT_SQUEEZE_MAX_RATIO = 0.75
 #: Mean volume of the last third over the base's own mean. "Cạn cung."
 DEFAULT_DRYUP_MAX_RATIO = 0.80
 
+# ── Flag shape (lá cờ) ─────────────────────────────────────────────────────
+#
+# RELATIONSHIP TO ai-insights' FlagDetector, stated because EC-S3 forbids
+# reinventing it. The parameters below MIRROR
+# `ai-insights-service/app/services/patterns/continuation.py::FlagDetector`
+# one for one, and the geometry test is the same test: a pole of
+# `pole_min_atr_multiple x ATR` that is mostly linear, followed by a channel
+# ending at the last bar whose highs AND lows both slope counter to the pole,
+# retracing no more than `flag_max_retrace` of the pole.
+#
+# Why it is not called directly. decision-helper does not import ai-insights
+# code — it consumes that service's pattern payload over HTTP and adapts it
+# (`signal/failed_signal.py::adapt_ai_insights_patterns`), and
+# `tests/test_phase_k.py` skips wholesale when the package is not importable. A
+# nightly scan making one HTTP call per symbol would break the offline CLI and
+# the VT-2 determinism harness, both of which must run with no services up.
+#
+# And the two answer different questions. FlagDetector returns a *pattern* for
+# narration — confidence, measured-move target, pole bars — scored for a chart
+# the user is reading. This returns a *base window* for a screen: boundaries the
+# squeeze, MA-proximity and pivot stages then measure. Same geometry, different
+# output, which is why `tests/test_scanner_base.py` cross-checks the two against
+# the same planted series rather than letting them drift apart silently.
+# If they ever disagree, the fix is to lift the geometry into `stock-common` the
+# way `find_price_seams` was lifted — not to patch one side.
+DEFAULT_FLAG_POLE_MIN_BARS = 4
+DEFAULT_FLAG_POLE_MAX_BARS = 25
+DEFAULT_FLAG_MIN_BARS = 3
+DEFAULT_FLAG_MAX_BARS = 15
+DEFAULT_FLAG_POLE_MIN_ATR_MULTIPLE = 2.0
+DEFAULT_FLAG_MAX_RETRACE = 0.50
+DEFAULT_FLAG_POLE_LINEARITY_MIN = 0.55
+
+#: Base shapes. Qullamaggie names both: "nền phẳng (flat base) hoặc lá cờ (flag)".
+SHAPE_FLAT = "FLAT"
+SHAPE_FLAG = "FLAG"
+
 #: MA10/MA20 must sit BELOW price and within this much of it.
 DEFAULT_MA_PROXIMITY_PCT = 8.0
 MA_FAST = 10
@@ -96,8 +133,11 @@ class BaseWindow:
     depth_pct: float
     drift_pct: float
     #: |drift| / depth. Near 0 is a true consolidation, near 1 is a trend
-    #: wearing a base's clothes.
+    #: wearing a base's clothes. Gated for FLAT only — a flag is SUPPOSED to
+    #: drift against its pole, which is the whole reason flags were invisible
+    #: to the flat-base test.
     drift_over_depth: float
+    shape: str = SHAPE_FLAT
 
 
 @dataclass(frozen=True)
@@ -160,6 +200,160 @@ def true_ranges(bars: Sequence[OHLCVBar]) -> List[Optional[float]]:
                      abs(bars[i].high - pc),
                      abs(bars[i].low - pc))
     return out
+
+
+def _linreg_slope(values: Sequence[float]) -> float:
+    """Least-squares slope over 0..n-1. Mirrors `continuation.py::_linreg`."""
+    n = len(values)
+    if n < 2:
+        return 0.0
+    xm = (n - 1) / 2.0
+    ym = sum(values) / n
+    ss = sum((i - xm) ** 2 for i in range(n))
+    if ss == 0:
+        return 0.0
+    return sum((i - xm) * (v - ym) for i, v in enumerate(values)) / ss
+
+
+def detect_flag_base(
+    bars: Sequence[OHLCVBar],
+    *,
+    pole_min_bars: int = DEFAULT_FLAG_POLE_MIN_BARS,
+    pole_max_bars: int = DEFAULT_FLAG_POLE_MAX_BARS,
+    flag_min_bars: int = DEFAULT_FLAG_MIN_BARS,
+    flag_max_bars: int = DEFAULT_FLAG_MAX_BARS,
+    pole_min_atr_multiple: float = DEFAULT_FLAG_POLE_MIN_ATR_MULTIPLE,
+    flag_max_retrace: float = DEFAULT_FLAG_MAX_RETRACE,
+    pole_linearity_min: float = DEFAULT_FLAG_POLE_LINEARITY_MIN,
+) -> Optional[BaseWindow]:
+    """A BULL flag ending at the last bar — pole, then a tight pullback.
+
+    BULL ONLY, deliberately. The scanner is a long-side discovery funnel; a bear
+    flag is a real pattern and an irrelevant one here, and admitting it would put
+    falling stocks on a list headed "candidates".
+
+    Why the flat-base test cannot find these. `detect_base` requires
+    drift/depth <= 0.5 — price must finish near where it began. A flag finishes
+    DOWN, counter to its pole, by design: that is what the pullback is. So the
+    very test that separates a base from a trend is the test that hides a flag,
+    and a separate shape is the only honest way to cover both.
+
+    The geometry mirrors ai-insights' `FlagDetector` (see the note by the
+    constants above): a pole of at least `pole_min_atr_multiple x ATR` that is
+    mostly linear rather than a zigzag, then a channel whose highs AND lows both
+    slope down, retracing at most `flag_max_retrace` of the pole height.
+    """
+    if flag_min_bars < 3:
+        raise ValueError(f"a flag needs at least 3 bars to have thirds, got {flag_min_bars}")
+
+    n = len(bars)
+    atr = atr_series(list(bars))
+
+    # LONGEST FLAG FIRST — a second divergence from FlagDetector, and the same
+    # reasoning as `detect_base`'s flattest-wins rule: a search order must not
+    # pick the answer. Shortest-first reported a 3-bar flag for EVERY planted
+    # pullback from 6 to 10 bars, because the last three bars of any pullback
+    # satisfy the constraints once retrace is measured from the pole. The flag
+    # IS the whole pullback, and its length feeds the squeeze thirds and the
+    # pivot, so under-reporting it corrupts both.
+    for flag_len in range(min(flag_max_bars, n - 1), flag_min_bars - 1, -1):
+        flag_start = n - flag_len
+        pole_end = flag_start - 1
+        if pole_end < pole_min_bars - 1:
+            break
+
+        ref_atr = atr[pole_end] if pole_end < len(atr) and atr[pole_end] else None
+        if not ref_atr:
+            valid = [a for a in atr if a]
+            ref_atr = (sum(valid) / len(valid)) if valid else None
+        if not ref_atr or ref_atr <= 0:
+            continue
+
+        for pole_len in range(pole_min_bars, min(pole_max_bars + 1, pole_end + 1)):
+            pole_start = pole_end - pole_len + 1
+            pole_close = [float(b.close) for b in bars[pole_start: pole_end + 1]]
+            pole_move = pole_close[-1] - pole_close[0]
+            if pole_move <= 0:
+                continue                      # bull only
+            if pole_move < pole_min_atr_multiple * ref_atr:
+                continue
+            # THE POLE MUST END AT ITS OWN TOP. "Cây sào" is the move up to the
+            # pause; a window that already turned down is not a pole, it is a
+            # pole plus the start of the pullback.
+            #
+            # Without this the retrace cap is trivially evadable by SHORTENING
+            # the flag: pole_end is pinned to flag_start - 1, so a shorter flag
+            # pushes the pole window over the pullback's first bars, which both
+            # lowers the measured peak and inflates pole_move. A 53%-retrace
+            # pullback came back as a 3-bar flag off a 9-bar "pole" whose last
+            # bar was already 3.2 below its own high.
+            if pole_close[-1] < max(pole_close):
+                continue
+            # Linearity: the move must be mostly one-directional, not a zigzag
+            # that happens to end higher.
+            slope = _linreg_slope(pole_close)
+            if abs(slope * (pole_len - 1)) < pole_linearity_min * pole_move:
+                continue
+
+            flag = bars[flag_start:]
+            flag_highs = [float(b.high) for b in flag]
+            if _linreg_slope(flag_highs) > 0:
+                continue
+            if _linreg_slope([float(b.low) for b in flag]) > 0:
+                continue
+
+            # THE FLAG'S HIGH MUST SIT IN ITS FIRST THIRD — i.e. the window
+            # declines FROM its start. Without this, longest-first lets the flag
+            # swallow the pole: a test planted 8 pole bars and a 4-bar pullback
+            # and got back a 9-bar "flag" containing 5 pole bars, with the quiet
+            # pre-pole drift reinterpreted as the pole. Both slope tests passed,
+            # because a big fall after a big rise still regresses downward.
+            #
+            # This is the same failure as `detect_base`'s old longest-admissible
+            # rule, in mirror image: a search order was picking the answer. A
+            # pullback peaks where it begins, and that is the property to assert.
+            if flag_highs.index(max(flag_highs)) > max(1, (flag_len - 1) // 3):
+                continue
+            # RETRACE IS MEASURED FROM THE POLE'S TOP, NOT WITHIN THE FLAG.
+            #
+            # This DIVERGES from FlagDetector, which uses
+            # `abs(fg_close[-1] - fg_close[0])` — the move across the flag
+            # window only. A test caught why that matters: because the flag must
+            # end at the last bar and the search runs shortest-first, ANY
+            # pullback however deep contains a shallow final 3-bar window, and a
+            # long pole window reaching back over the pullback's first bars can
+            # still net positive and pass linearity. A 66%-retrace pullback was
+            # therefore admitted as a 3-bar flag.
+            #
+            # "Hồi không quá 50% cây sào" means measured from the top of the
+            # pole, which is what this does. The divergence is deliberate and
+            # the cross-check test asserts agreement on a clean planted flag
+            # rather than identical thresholds in every corner.
+            # Measured from the PEAK OF THE MOVE — the higher of the pole's
+            # final close and the flag's own high. Neither alone is right:
+            # measuring from the flag's high loses the first bar's drop off the
+            # pole (a 53%-retrace pullback read as 47% and was admitted), and
+            # measuring from the pole alone was what let the flag swallow the
+            # pole before the first-third test above closed that off.
+            peak = max(pole_close[-1], max(flag_highs))
+            retrace = peak - float(flag[-1].close)
+            if retrace > flag_max_retrace * pole_move:
+                continue
+
+            high = max(float(b.high) for b in flag)
+            low = min(float(b.low) for b in flag)
+            first_close = float(flag[0].close)
+            if low <= 0 or first_close <= 0:
+                continue
+            depth = (high / low - 1.0) * 100.0
+            drift = (float(flag[-1].close) / first_close - 1.0) * 100.0
+            return BaseWindow(
+                start_index=flag_start, end_index=n - 1, length=flag_len,
+                high=high, low=low, depth_pct=depth, drift_pct=drift,
+                drift_over_depth=(0.0 if depth <= 0 else abs(drift) / depth),
+                shape=SHAPE_FLAG,
+            )
+    return None
 
 
 def detect_base(
@@ -306,23 +500,34 @@ def assess_base(
     max_depth_pct: float = DEFAULT_BASE_MAX_DEPTH_PCT,
     max_drift_pct: float = DEFAULT_BASE_MAX_DRIFT_PCT,
     max_drift_over_depth: float = DEFAULT_BASE_MAX_DRIFT_OVER_DEPTH,
+    allow_flag: bool = True,
     squeeze_max_ratio: float = DEFAULT_SQUEEZE_MAX_RATIO,
     dryup_max_ratio: float = DEFAULT_DRYUP_MAX_RATIO,
     ma_proximity_pct: float = DEFAULT_MA_PROXIMITY_PCT,
 ) -> BaseAssessment:
     """The S-2 verdict, with every clause reported pass or fail (NFR-S3)."""
+    # FLAT FIRST, FLAG ONLY AS A FALLBACK, and the order is load-bearing: a flat
+    # base has absorbed supply across a longer sideways stretch, which is the
+    # mechanism the setup rests on, while a flag is a brief pause inside a move.
+    # Searching flag-first would reclassify existing flat bases as 3-bar flags
+    # and quietly change every candidate the scanner already produced. Running it
+    # second means flags can only ADD names, never alter or remove one — a
+    # property `test_scanner_base.py` asserts rather than assumes.
     window = detect_base(
         bars, min_bars=min_bars, max_bars=max_bars,
         max_depth_pct=max_depth_pct, max_drift_pct=max_drift_pct,
         max_drift_over_depth=max_drift_over_depth,
     )
+    if window is None and allow_flag:
+        window = detect_flag_base(bars)
     if window is None:
         return BaseAssessment(
             symbol, False,
             (TrendClause("base_found", False,
                          f"no {min_bars}-{max_bars} bar window ending today is within "
                          f"{max_depth_pct:.0f}% deep, {max_drift_pct:.0f}% flat and "
-                         f"drift/depth <= {max_drift_over_depth:.2f}"),),
+                         f"drift/depth <= {max_drift_over_depth:.2f}"
+                         + (", and no bull flag either" if allow_flag else "")),),
             None, None, None, None,
         )
 
@@ -332,7 +537,7 @@ def assess_base(
 
     clauses = [
         TrendClause("base_found", True,
-                    f"{window.length} bars, {window.depth_pct:.1f}% deep, "
+                    f"{window.shape} {window.length} bars, {window.depth_pct:.1f}% deep, "
                     f"{window.drift_pct:+.1f}% drift (drift/depth {window.drift_over_depth:.2f})"),
         TrendClause(
             "range_contraction",

@@ -16,8 +16,11 @@ from app.services.scanner.base import (
     MAProximity,
     Pivot,
     SqueezeMetrics,
+    SHAPE_FLAG,
+    SHAPE_FLAT,
     assess_base,
     detect_base,
+    detect_flag_base,
     find_pivot,
     measure_ma_proximity,
     measure_squeeze,
@@ -45,7 +48,7 @@ from app.services.scanner.screen import (
 
 __all__ = [
     "BaseAssessment", "BaseWindow", "MAProximity", "Pivot", "SqueezeMetrics",
-    "assess_base", "detect_base", "find_pivot", "measure_ma_proximity",
+    "SHAPE_FLAG", "SHAPE_FLAT", "assess_base", "detect_base", "detect_flag_base", "find_pivot", "measure_ma_proximity",
     "measure_squeeze",
     "NullFprResult", "estimate_null_fpr", "random_walk",
     "MomentumProfile", "MomentumRank", "horizon_return", "profile_momentum",

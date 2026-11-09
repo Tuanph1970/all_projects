@@ -131,6 +131,10 @@ class ScanConfig:
     base_max_depth_pct: float = DEFAULT_BASE_MAX_DEPTH_PCT
     base_max_drift_pct: float = DEFAULT_BASE_MAX_DRIFT_PCT
     base_max_drift_over_depth: float = DEFAULT_BASE_MAX_DRIFT_OVER_DEPTH
+    #: Qullamaggie names both shapes — "nền phẳng (flat base) hoặc lá cờ
+    #: (flag)". False reproduces the flat-base-only funnel, which is how the
+    #: flag's contribution stays measurable rather than merely assumed.
+    allow_flag_base: bool = True
     squeeze_max_ratio: float = DEFAULT_SQUEEZE_MAX_RATIO
     dryup_max_ratio: float = DEFAULT_DRYUP_MAX_RATIO
     ma_proximity_pct: float = DEFAULT_MA_PROXIMITY_PCT
@@ -311,6 +315,7 @@ def run_scan(
                 max_depth_pct=cfg.base_max_depth_pct,
                 max_drift_pct=cfg.base_max_drift_pct,
                 max_drift_over_depth=cfg.base_max_drift_over_depth,
+                allow_flag=cfg.allow_flag_base,
                 squeeze_max_ratio=cfg.squeeze_max_ratio,
                 dryup_max_ratio=cfg.dryup_max_ratio,
                 ma_proximity_pct=cfg.ma_proximity_pct,

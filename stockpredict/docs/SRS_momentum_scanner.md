@@ -825,3 +825,96 @@ market is not offering this setup today"*, the funnel (12 illiquid, 81 failed tr
 clauses and their arithmetic, the failing one reading *"22.1% off the 126-bar low 192.00,
 need 30%"*. Setting the date to 2024-03-31 and pressing Run returns the 16-name list with
 base length, depth, squeeze ratios, MA distances, pivot and turnover in tỷ.
+
+---
+
+## 15. The flag shape (2026-11-09)
+
+### 15.1 Why a second shape was needed at all
+
+`detect_base` requires `drift/depth ≤ 0.5` — price must finish near where it
+began. **A flag finishes *down*, counter to its pole, by design.** So the very
+test that separates a base from a trend is the test that hides a flag, and no
+threshold adjustment fixes that: the two shapes are different objects.
+`detect_flag_base` therefore runs as a **fallback**, only where no flat base
+exists, so flags can only *add* names and never reclassify or remove one — a
+property `test_scanner_base.py` asserts rather than assumes.
+
+### 15.2 Relationship to ai-insights' `FlagDetector` (EC-S3)
+
+The geometry mirrors it: a pole of ≥ 2×ATR that is mostly linear, then a channel
+ending at the last bar whose highs **and** lows both slope down, retracing ≤ 50%
+of the pole. It is not called directly because this service consumes ai-insights
+over HTTP and never imports it, and a per-symbol HTTP call would break the
+offline CLI and the VT-2 determinism harness. A skip-guarded cross-check test
+asserts the two agree on a planted flag, so divergence is caught rather than
+discovered. **If they ever disagree, lift the geometry into `stock-common`** the
+way `find_price_seams` was lifted — do not patch one side.
+
+Three deliberate divergences, each forced by a failing test:
+
+1. **Retrace is measured from the peak of the move**, not across the flag window.
+   `FlagDetector` uses `abs(fg_close[-1] - fg_close[0])`; because the flag must
+   end at the last bar, that lets a 53%-retrace pullback read as 47% once the
+   first bar's drop off the pole is excluded.
+2. **Longest flag first, not shortest.** Shortest-first returned a 3-bar flag for
+   every planted pullback from 6 to 10 bars. The flag *is* the whole pullback,
+   and its length feeds the squeeze thirds and the pivot.
+3. **The pole must end at its own top, and the flag's high must sit in its first
+   third.** Without the first, the retrace cap is evadable by *shortening* the
+   flag — `pole_end` is pinned to `flag_start − 1`, so a shorter flag pushes the
+   pole window over the pullback's first bars, inflating `pole_move` and lowering
+   the measured peak. Without the second, longest-first lets the flag swallow the
+   pole: a planted 8-bar pole and 4-bar pullback came back as a 9-bar "flag"
+   containing 5 pole bars, with the quiet pre-pole drift reinterpreted as the
+   pole. Both are the same error in mirror image — a search order picking the
+   answer — and the same error `detect_base` made before flattest-wins.
+
+### 15.3 It works, it fires, and it changes almost nothing
+
+Measured over 242 sampled dates, on names that reached the base stage with **no
+flat base**:
+
+```
+names with no flat base                     572
+  of those, a bull FLAG is found             87   (15%)
+  of those 87, what they then fail on:
+     range_contraction + volume_dryup + ma_hugging   30
+     range_contraction + volume_dryup                19
+     ma_hugging                                      13
+     range_contraction + ma_hugging                   9
+     range_contraction                                6
+     volume_dryup + ma_hugging                        4
+     volume_dryup                                     4
+     PASSES                                           2
+```
+
+**Two of 572.** Across the ten half-year dates used elsewhere in this document,
+the flag shape added **zero** candidates — the two survivors fall on other dates.
+
+### 15.4 The finding, which is not "flags are useless"
+
+**The squeeze and MA-proximity thresholds were calibrated for flat bases and are
+wrong for flags.** They reject 98% of the flags the detector finds, and the
+reasons are structural rather than marginal:
+
+- *Volume dry-up.* "Khối lượng giao dịch kiệt quệ" describes a base lasting weeks
+  absorbing supply. A four-day pause after a sharp run does not dry up that way,
+  and `dryup_max_ratio = 0.80` encodes the multi-week expectation.
+- *MA proximity.* A flag sits immediately after a sharp pole, which is exactly
+  when price is **furthest** from its MA20. `ma_proximity_pct = 8.0` was set for
+  a base whose averages have had weeks to catch up.
+- *Range contraction.* Measured over thirds of a 5-bar window, where a "third" is
+  one or two bars.
+
+**The thresholds are deliberately left alone.** Loosening them until flags
+survive is precisely Backlog #135's trap — it would convert a working filter into
+a decorative one and guarantee the screen always has rows. Shape-specific
+thresholds are a *calibration* question requiring its own pre-registered
+measurement, filed as Backlog #141, not a number picked today to make a feature
+look productive.
+
+So the honest status: the flag shape is implemented, tested from both sides of
+every threshold, cross-checked against the existing detector, and **currently
+contributes ~0 candidates** because the stages after it were not built for it.
+That is a real result, and recording it is worth more than the feature.
