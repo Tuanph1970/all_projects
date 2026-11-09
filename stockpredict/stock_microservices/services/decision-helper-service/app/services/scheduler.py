@@ -135,3 +135,48 @@ async def run_all_users(bar_date: date | None = None) -> None:
             await run_for_user(uid, bar_date=today)
         except Exception as exc:
             logger.error("Scheduler failed for user=%d: %s", uid, exc)
+
+
+# ---------------------------------------------------------------------------
+# FR-SCAN-SCHED — nightly momentum scan (S-3)
+# ---------------------------------------------------------------------------
+
+async def run_momentum_scan_job(bar_date: date | None = None) -> None:
+    """One market-wide discovery scan per trading day, persisted.
+
+    SEQUENCED AFTER THE RECOMMENDATION RUN, NOT BEFORE. Both read
+    stock-data-service, and that service's own nightly price refresh and
+    Backlog #119 seam sweep run earlier still — scanning before the sweep would
+    rank a universe whose seams have not yet been repaired, and a seam distorts
+    a 126-bar return for six months (SRS 2.4).
+
+    The VT-4 null rate is computed here and stored on the run, because C4/EC-S5
+    require the candidate list to be reported beside it and the nightly job is
+    the one place that can afford the work (SRS 12.4). It costs seconds.
+
+    Failure is logged and swallowed: a scan is a daily convenience, and killing
+    the scheduler would also stop the recommendation job that users depend on.
+    """
+    from app.services.scanner.runner import run_momentum_scan
+
+    today = bar_date or date.today()
+    try:
+        async with async_session_factory() as session:
+            report, run = await run_momentum_scan(
+                session, get_market_client(),
+                as_of=today, trigger="SCHEDULED", with_null_fpr=True,
+            )
+        logger.info(
+            "Momentum scan %s: %d candidates from %d ranked of %d universe",
+            today, len(report.candidates), report.ranked_universe,
+            report.universe_total,
+        )
+        if not report.candidates:
+            # An empty list is a VALID output of this method (#135). Logged as
+            # INFO with its reason so a quiet screen is never mistaken for a
+            # broken pipeline — the mistake that gets a working filter loosened.
+            logger.info(
+                "Momentum scan %s found nothing: %s", today, report.accounting()
+            )
+    except Exception as exc:
+        logger.warning("Momentum scan failed for %s: %s", today, exc, exc_info=True)

@@ -48,6 +48,11 @@ from app.models.schemas import (
     RegimeBreakdownItem,
     RuleAdvisorySchema,
     RawSignalSchema,
+    MomentumCandidate,
+    MomentumNullFpr,
+    MomentumScanRequest,
+    MomentumScanResponse,
+    MomentumSymbolResponse,
     ScanRequest,
     ScanResponse,
     ScanResultItem,
@@ -73,6 +78,7 @@ from app.services.decision.orchestrator import run_recommendation
 from app.services.discipline.checks import run_all_checks
 from app.services.discipline.rules_engine import evaluate_rules
 from app.services.market.client import get_market_client
+from app.services.scanner.screen import KNOWN_PROVIDER_SEAMS as SCANNER_SEAM_ALLOWLIST
 from app.services.regime.classifier import classify_regime
 from app.services.signal.base import OHLCVBar, RawSignal
 from app.services.signal.trend.ma_cross import detect_ma_cross
@@ -1893,4 +1899,267 @@ async def get_position(
         current_stop=float(pos.current_stop) if pos.current_stop else None,
         current_target=float(pos.current_target) if pos.current_target else None,
         entry_signal_kind=pos.entry_signal_kind,
+    )
+
+
+# ---------------------------------------------------------------------------
+# FR-SCAN-API — momentum scanner (S-3)
+#
+# Three endpoints, and the third is not a convenience. Without the per-symbol
+# diagnostic the scanner is unfalsifiable in daily use: a user who expected a
+# name on the list has no way to learn which clause rejected it.
+# ---------------------------------------------------------------------------
+
+#: Explains an empty list so a client renders it as a reading rather than a
+#: failure. Backlog #135: an empty result is a VALID output of this method, and
+#: a blank screen that looks identical to a broken one is how a working filter
+#: gets loosened until it stops filtering.
+def _empty_reason(report) -> Optional[str]:
+    if report.candidates:
+        return None
+    acc = report.accounting()
+    if not report.universe_total:
+        return "the universe is empty — no symbols were available to scan"
+    if acc["failed_trend"] and not acc["failed_base"]:
+        return (
+            f"{acc['failed_trend']} of {report.ranked_universe} ranked names failed the "
+            "trend template, so none reached the base stage — the market is not offering "
+            "this setup today"
+        )
+    if acc["failed_base"]:
+        return (
+            f"{acc['failed_base']} names cleared the trend template but none is resting "
+            "in a tightening base"
+        )
+    return "no symbol cleared the funnel"
+
+
+def _candidate_schema(c) -> MomentumCandidate:
+    base = c.base
+    w = base.window if base else None
+    s = base.squeeze if base else None
+    m = base.moving_averages if base else None
+    p = base.pivot if base else None
+    return MomentumCandidate(
+        rank=c.rank,
+        symbol=c.symbol,
+        composite=c.momentum.composite,
+        ranked_universe=c.momentum.ranked_universe,
+        returns={str(k): v for k, v in c.momentum.returns.items()},
+        percentiles={str(k): v for k, v in c.momentum.percentiles.items()},
+        close=c.trend.close,
+        prior_advance_pct=c.trend.prior_advance_pct,
+        # Restated in VND. The stored series is in thousands (SRS 11.2) and a
+        # raw figure here would be wrong by 1,000x in the direction nobody
+        # notices.
+        avg_daily_value_vnd=c.liquidity.avg_daily_value * 1000.0,
+        base_length=w.length if w else None,
+        base_depth_pct=w.depth_pct if w else None,
+        range_ratio=s.range_ratio if s else None,
+        volume_ratio=s.volume_ratio if s else None,
+        ma10_distance_pct=m.dist_fast_pct if m else None,
+        ma20_distance_pct=m.dist_medium_pct if m else None,
+        pivot=p.level if p else None,
+        pivot_distance_pct=p.distance_pct if p else None,
+        pivot_distance_atr=p.distance_atr if p else None,
+    )
+
+
+def _scan_config(req: "MomentumScanRequest") -> "ScanConfig":
+    from app.services.scanner.screen import ScanConfig as _Cfg
+    kw: Dict[str, Any] = {"seam_allowlist": SCANNER_SEAM_ALLOWLIST}
+    if req.min_avg_daily_value is not None:
+        kw["min_avg_daily_value"] = req.min_avg_daily_value
+    if req.min_prior_advance_pct is not None:
+        kw["min_prior_advance_pct"] = req.min_prior_advance_pct
+    if req.require_base is not None:
+        kw["require_base"] = req.require_base
+    if req.max_candidates is not None:
+        kw["max_candidates"] = req.max_candidates
+    return _Cfg(**kw)
+
+
+@router.post("/scan/momentum", response_model=MomentumScanResponse)
+async def run_momentum_scanner(
+    req: MomentumScanRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Run the discovery funnel over the whole universe and persist the result.
+
+    Not per-user: the scan is a property of the market, not of a watchlist, so
+    one run serves everybody and `scan_date` is unique. What IS per-user is what
+    someone does with a candidate afterwards — see the hand-off note on
+    POST /watchlist (EC-S6: this endpoint never writes a watchlist).
+    """
+    from sqlalchemy import select
+    from app.services.scanner.runner import run_momentum_scan
+
+    cfg = _scan_config(req)
+    try:
+        report, run = await run_momentum_scan(
+            db, get_market_client(),
+            as_of=req.scan_date, config=cfg,
+            trigger="ON_DEMAND", with_null_fpr=req.with_null_fpr,
+        )
+    except Exception as exc:
+        logger.exception("momentum scan failed")
+        raise HTTPException(status_code=500, detail=f"momentum scan failed: {exc}")
+
+    return MomentumScanResponse(
+        scan_date=report.as_of,
+        trigger=run.trigger,
+        universe_total=report.universe_total,
+        required_bars=report.required_bars,
+        ranked_universe=report.ranked_universe,
+        candidate_count=len(report.candidates),
+        accounting=report.accounting(),
+        config=run.config or {},
+        candidates=[_candidate_schema(c) for c in report.candidates],
+        null_fpr=MomentumNullFpr(**run.null_fpr) if run.null_fpr else None,
+        latency_ms=run.latency_ms,
+        empty_reason=_empty_reason(report),
+    )
+
+
+@router.get("/scan/momentum", response_model=MomentumScanResponse)
+async def get_momentum_scan(
+    scan_date: Optional[date] = None,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Read back a persisted scan — the given date, or the most recent.
+
+    Reads the stored row rather than recomputing: a scan recomputed later is a
+    scan run with hindsight over a possibly-revised series, which is exactly
+    what VT-5 must not be allowed to do.
+    """
+    from sqlalchemy import desc, select
+    from app.models.domain import ScannerResult, ScannerRun
+
+    stmt = select(ScannerRun)
+    if scan_date is not None:
+        stmt = stmt.where(ScannerRun.scan_date == scan_date)
+    run = (await db.execute(stmt.order_by(desc(ScannerRun.scan_date)).limit(1))).scalar_one_or_none()
+    if run is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(f"no persisted scan for {scan_date}" if scan_date
+                    else "no scan has been run yet — POST /scan/momentum"),
+        )
+
+    rows = (await db.execute(
+        select(ScannerResult)
+        .where(ScannerResult.run_id == run.id, ScannerResult.verdict == "CANDIDATE")
+        .order_by(ScannerResult.rank)
+    )).scalars().all()
+
+    candidates: List[MomentumCandidate] = []
+    for r in rows:
+        d = r.detail or {}
+        mom = d.get("momentum") or {}
+        trend = d.get("trend") or {}
+        liq = d.get("liquidity") or {}
+        base = d.get("base") or {}
+        w, s, m, p = (base.get("window") or {}, base.get("squeeze") or {},
+                      base.get("moving_averages") or {}, base.get("pivot") or {})
+        candidates.append(MomentumCandidate(
+            rank=r.rank or 0,
+            symbol=r.symbol,
+            composite=float(r.composite) if r.composite is not None else 0.0,
+            ranked_universe=mom.get("ranked_universe") or run.ranked_universe,
+            returns=mom.get("returns") or {},
+            percentiles=mom.get("percentiles") or {},
+            close=trend.get("close"),
+            prior_advance_pct=trend.get("prior_advance_pct"),
+            avg_daily_value_vnd=((liq.get("avg_daily_value") or 0.0) * 1000.0
+                                 if liq.get("avg_daily_value") is not None else None),
+            base_length=w.get("length"),
+            base_depth_pct=w.get("depth_pct"),
+            range_ratio=s.get("range_ratio"),
+            volume_ratio=s.get("volume_ratio"),
+            ma10_distance_pct=m.get("dist_fast_pct"),
+            ma20_distance_pct=m.get("dist_medium_pct"),
+            pivot=p.get("level"),
+            pivot_distance_pct=p.get("distance_pct"),
+            pivot_distance_atr=p.get("distance_atr"),
+        ))
+
+    acc = run.accounting or {}
+    empty = None
+    if not candidates:
+        failed_trend = int(acc.get("failed_trend") or 0)
+        failed_base = int(acc.get("failed_base") or 0)
+        if failed_base:
+            empty = (f"{failed_base} names cleared the trend template but none is "
+                     "resting in a tightening base")
+        elif failed_trend:
+            empty = (f"{failed_trend} of {run.ranked_universe} ranked names failed the "
+                     "trend template, so none reached the base stage — the market is not "
+                     "offering this setup today")
+        else:
+            empty = "no symbol cleared the funnel"
+
+    return MomentumScanResponse(
+        scan_date=run.scan_date,
+        trigger=run.trigger,
+        universe_total=run.universe_total,
+        required_bars=run.required_bars,
+        ranked_universe=run.ranked_universe,
+        candidate_count=run.candidate_count,
+        accounting={k: int(v) for k, v in acc.items()},
+        config=run.config or {},
+        candidates=candidates,
+        null_fpr=MomentumNullFpr(**run.null_fpr) if run.null_fpr else None,
+        latency_ms=run.latency_ms,
+        empty_reason=empty,
+    )
+
+
+@router.get("/scan/momentum/{symbol}", response_model=MomentumSymbolResponse)
+async def get_momentum_symbol(
+    symbol: str,
+    scan_date: Optional[date] = None,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Why this symbol did — or did not — make the cut.
+
+    THE REASON REJECTIONS ARE PERSISTED. Every scanner a trader stops trusting
+    stops being trusted the same way: a name they were watching is missing and
+    nothing says why. This endpoint answers that from the stored run, naming the
+    exact clause.
+    """
+    from sqlalchemy import desc, select
+    from app.models.domain import ScannerResult, ScannerRun
+
+    stmt = select(ScannerRun)
+    if scan_date is not None:
+        stmt = stmt.where(ScannerRun.scan_date == scan_date)
+    run = (await db.execute(stmt.order_by(desc(ScannerRun.scan_date)).limit(1))).scalar_one_or_none()
+    if run is None:
+        raise HTTPException(status_code=404, detail="no scan has been run yet")
+
+    row = (await db.execute(
+        select(ScannerResult).where(
+            ScannerResult.run_id == run.id,
+            ScannerResult.symbol == symbol.upper(),
+        )
+    )).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(f"{symbol.upper()} was not in the universe scanned on "
+                    f"{run.scan_date} — it has no stored history, or is not a listed symbol"),
+        )
+
+    detail = row.detail or {}
+    return MomentumSymbolResponse(
+        scan_date=run.scan_date,
+        symbol=row.symbol,
+        verdict=row.verdict,
+        rank=row.rank,
+        composite=float(row.composite) if row.composite is not None else None,
+        failed_clauses=list(detail.get("failed_clauses") or []),
+        detail=detail,
     )

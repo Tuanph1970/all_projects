@@ -711,3 +711,97 @@ class CorrelationMatrixResponse(BaseModel):
     max_correlation: float                 # from UserRiskPrefs
     any_breach: bool                       # True if any pair exceeds limit
     lookback_days: int = 60               # effective trading-day window
+
+
+# ---------------------------------------------------------------------------
+# FR-SCAN-API — momentum scanner (S-3). Named *Momentum* throughout to stay
+# clear of the watchlist ScanRequest/ScanResponse above, which is a different
+# thing entirely: that one EVALUATES an existing watchlist, this one DISCOVERS
+# candidates for it.
+# ---------------------------------------------------------------------------
+
+class MomentumScanRequest(BaseModel):
+    scan_date: Optional[date] = None
+    #: Only the knobs worth varying from a client. The rest of ScanConfig stays
+    #: server-side: a caller who can set every threshold can manufacture any
+    #: candidate list, and #135 is specifically about not doing that.
+    min_avg_daily_value: Optional[float] = Field(
+        default=None, ge=0, description="VND of average daily turnover"
+    )
+    min_prior_advance_pct: Optional[float] = Field(default=None, ge=0, le=500)
+    require_base: Optional[bool] = None
+    max_candidates: Optional[int] = Field(default=None, ge=0, le=200)
+    with_null_fpr: bool = Field(
+        default=False,
+        description="Compute the VT-4 random-walk false-positive rate (slow).",
+    )
+
+
+class MomentumClause(BaseModel):
+    name: str
+    passed: bool
+    detail: str
+
+
+class MomentumCandidate(BaseModel):
+    rank: int
+    symbol: str
+    composite: float
+    ranked_universe: int
+    returns: Dict[str, Optional[float]]
+    percentiles: Dict[str, Optional[float]]
+    close: Optional[float] = None
+    prior_advance_pct: Optional[float] = None
+    avg_daily_value_vnd: Optional[float] = None
+    base_length: Optional[int] = None
+    base_depth_pct: Optional[float] = None
+    range_ratio: Optional[float] = None
+    volume_ratio: Optional[float] = None
+    ma10_distance_pct: Optional[float] = None
+    ma20_distance_pct: Optional[float] = None
+    pivot: Optional[float] = None
+    pivot_distance_pct: Optional[float] = None
+    pivot_distance_atr: Optional[float] = None
+
+
+class MomentumNullFpr(BaseModel):
+    """VT-4. Returned BESIDE the candidates, per C4/EC-S5 — a list without it
+    invites the reader to assume selectivity nobody measured."""
+    trials: int
+    universe_size: int
+    trials_with_candidates: int
+    total_candidates: int
+    symbols_tested: int
+    trial_fpr: float
+    symbol_fpr: float
+
+
+class MomentumScanResponse(BaseModel):
+    scan_date: date
+    trigger: str
+    universe_total: int
+    required_bars: int
+    ranked_universe: int
+    candidate_count: int
+    accounting: Dict[str, int]
+    config: Dict[str, Any]
+    candidates: List[MomentumCandidate]
+    #: Null when the run skipped VT-4. Stated as null rather than omitted so a
+    #: reader can tell "not measured" from "measured at zero".
+    null_fpr: Optional[MomentumNullFpr] = None
+    latency_ms: Optional[int] = None
+    #: Present when the funnel found nothing. An empty list is a VALID answer
+    #: (#135) and the client must render it as a reading, not as a failure.
+    empty_reason: Optional[str] = None
+
+
+class MomentumSymbolResponse(BaseModel):
+    """The per-symbol diagnostic. Without this the scanner is unfalsifiable in
+    daily use: a user who expected a name has no way to learn what rejected it."""
+    scan_date: date
+    symbol: str
+    verdict: str
+    rank: Optional[int] = None
+    composite: Optional[float] = None
+    failed_clauses: List[str] = []
+    detail: Dict[str, Any] = {}

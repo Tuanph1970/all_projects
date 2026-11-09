@@ -75,8 +75,23 @@ async def lifespan(app: FastAPI):
         id="daily_recommendations",
         replace_existing=True,
     )
+    # FR-SCAN-SCHED — nightly discovery scan, AFTER the recommendation run and
+    # after stock-data-service's price refresh + #119 seam sweep. Scanning
+    # before the sweep would rank a universe whose seams are still unrepaired,
+    # and a seam distorts a 126-bar return for six months.
+    from app.services.scheduler import run_momentum_scan_job
+    scheduler.add_job(
+        run_momentum_scan_job,
+        trigger="cron",
+        hour=9,
+        minute=15,
+        id="daily_momentum_scan",
+        replace_existing=True,
+    )
     scheduler.start()
-    logger.info("Scheduler started — daily run at 08:30 UTC")
+    logger.info(
+        "Scheduler started — daily run at 08:30 UTC, momentum scan at 09:15 UTC"
+    )
 
     yield
 

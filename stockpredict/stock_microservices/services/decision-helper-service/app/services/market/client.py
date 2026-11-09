@@ -66,6 +66,35 @@ class MarketClient:
             logger.warning("fetch_ohlcv %s failed: %s", symbol, exc)
             return []
 
+    async def fetch_universe(self, page_size: int = 200) -> List[str]:
+        """Every symbol stock-data-service holds, as a sorted symbol list.
+
+        `GET /companies` is the DB-backed listing, NOT `/companies/group/{g}`
+        or `/companies/all` — those call vnstock live and would spend the
+        20-60 req/min quota on something the database already knows. The scan
+        needs the set of symbols that HAVE stored history, which is exactly
+        what this table is (FR-SCAN-UNIV).
+        """
+        symbols: List[str] = []
+        page = 1
+        while True:
+            try:
+                resp = await self._stock.get(
+                    "/stock_helper/api/v2/companies",
+                    params={"page": page, "limit": page_size},
+                )
+                resp.raise_for_status()
+                payload = resp.json()
+            except (httpx.HTTPError, ValueError) as exc:
+                logger.warning("fetch_universe page %d failed: %s", page, exc)
+                break
+            items = payload.get("items") or []
+            symbols.extend(str(i["symbol"]).upper() for i in items if i.get("symbol"))
+            if page >= int(payload.get("total_pages") or 1) or not items:
+                break
+            page += 1
+        return sorted(set(symbols))
+
     # ------------------------------------------------------------------
     # Regime
     # ------------------------------------------------------------------

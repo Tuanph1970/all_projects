@@ -142,3 +142,83 @@ class DecisionRun(Base):
     exit_price = Column(DECIMAL(18, 4), nullable=True)    # actual exit price (on entry run)
     # F-190..F-193 — AI trade review (Phase T)
     ai_review = Column(String(2000), nullable=True)       # LLM post-mortem text
+
+
+# ---------------------------------------------------------------------------
+# FR-SCAN-SCHED / FR-SCAN-API — persisted momentum scans (S-3)
+# ---------------------------------------------------------------------------
+
+class ScannerRun(Base):
+    """One momentum scan, persisted.
+
+    WITHOUT THIS TABLE VT-5 IS UNFALSIFIABLE, which is the only reason it
+    exists. The forward evaluation compares what the scanner said on an evening
+    against what happened next; a scan that is recomputed later is a scan run
+    with hindsight over a revised series. The row is the commitment.
+
+    `scan_date` is unique: one authoritative scan per trading day. A re-run for
+    the same day replaces it rather than accumulating variants, so "what did the
+    scanner say on the 6th" has exactly one answer.
+    """
+    __tablename__ = "scanner_runs"
+    __table_args__ = (UniqueConstraint("scan_date", name="uq_scanner_run_date"),)
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    scan_date = Column(Date, nullable=False, index=True)
+    trigger = Column(
+        Enum("SCHEDULED", "ON_DEMAND", name="scanner_trigger_enum"), nullable=False
+    )
+    universe_total = Column(Integer, nullable=False, default=0)
+    required_bars = Column(Integer, nullable=False, default=0)
+    ranked_universe = Column(Integer, nullable=False, default=0)
+    candidate_count = Column(Integer, nullable=False, default=0)
+    #: The funnel buckets, as `accounting()` reports them. Stored so a later
+    #: reader can see WHERE the universe went without re-running anything.
+    accounting = Column(JSON, nullable=True)
+    #: Every threshold in force. A candidate list means nothing without the
+    #: settings that produced it, and the defaults will change (#135, #136).
+    config = Column(JSON, nullable=True)
+    #: The VT-4 random-walk false-positive rate for THIS run's thresholds.
+    #:
+    #: Stored on the run rather than recomputed per request because C4/EC-S5
+    #: require the candidate list to be reported BESIDE it, and a reader who has
+    #: to ask for it separately will not. Computed once nightly; null only when
+    #: a cheap on-demand run skipped it, and then the API says so rather than
+    #: omitting the field.
+    null_fpr = Column(JSON, nullable=True)
+    latency_ms = Column(Integer, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+
+class ScannerResult(Base):
+    """One row per symbol EVALUATED, candidate or not.
+
+    Rejections are persisted alongside passes on purpose. FR-SCAN-API's
+    per-symbol diagnostic exists so a user who expected a name can learn which
+    clause rejected it; storing only the winners would make that endpoint a
+    404 for every question anyone actually asks.
+    """
+    __tablename__ = "scanner_results"
+    __table_args__ = (
+        UniqueConstraint("run_id", "symbol", name="uq_scanner_result_symbol"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    run_id = Column(BigInteger, nullable=False, index=True)
+    scan_date = Column(Date, nullable=False, index=True)
+    symbol = Column(String(16), nullable=False, index=True)
+    verdict = Column(
+        Enum(
+            "CANDIDATE", "QUALIFIED_BEYOND_CUT", "FAILED_BASE", "FAILED_TREND",
+            "ILLIQUID", "PRICE_SEAM", "SHORT_HISTORY", "NO_BARS",
+            name="scanner_verdict_enum",
+        ),
+        nullable=False,
+        index=True,
+    )
+    rank = Column(Integer, nullable=True)
+    composite = Column(DECIMAL(6, 4), nullable=True)
+    #: Horizon returns, percentiles, trend clauses, base geometry, squeeze
+    #: ratios, MA distances, pivot and liquidity — the whole evidence payload.
+    detail = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
