@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
-import { TrendingUp, TrendingDown, AlertTriangle, Brain, Activity, Shield, Target, RefreshCw, BarChart3, ChartLine } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertTriangle, Brain, Activity, Shield, Target, RefreshCw, BarChart3, ChartLine, Telescope } from 'lucide-react';
 import UnifiedFinancialChart from '../ui/UnifiedFinancialChart';
 import ChartPatternsCompact from '../common/ChartPatternsCompact';
+import MomentumScannerPanel from '../common/MomentumScannerPanel';
 import helperService from '../../services/helperService';
 
 import { API_BASE_URLS, API_ENDPOINTS } from '../../constants/api';
@@ -48,7 +49,7 @@ export const AIInsights = () => {
   const [rangeNotice, setRangeNotice] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('parameters'); // 'parameters' or 'charts'
+  const [activeTab, setActiveTab] = useState('parameters'); // 'parameters' | 'charts' | 'scanner'
   const [indicatorData, setIndicatorData] = useState(null);
   // EM-1 / F2: the Edwards & Magee formations come from a DIFFERENT endpoint
   // than this page's main payload. `/insights/comprehensive/` returns
@@ -635,11 +636,23 @@ export const AIInsights = () => {
                 <ChartLine className={`w-4 h-4 ${activeTab === 'charts' ? 'animate-pulse' : ''}`} />
                 <span>{t('analysis.ai_insights.charts_tab')}</span>
               </button>
+              <button
+                onClick={() => setActiveTab('scanner')}
+                className="flex items-center space-x-2 px-5 py-2 text-sm font-semibold rounded-xl transition-all duration-300"
+                style={activeTab === 'scanner'
+                  ? { background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', color: '#ffffff', boxShadow: '0 4px 15px rgba(139, 92, 246, 0.4)', transform: 'scale(1.02)' }
+                  : { background: 'transparent', color: '#4b5563' }
+                }
+              >
+                <Telescope className={`w-4 h-4 ${activeTab === 'scanner' ? 'animate-pulse' : ''}`} />
+                <span>{t('analysis.ai_insights.scanner_tab')}</span>
+              </button>
             </div>
           </div>
           <button
             onClick={fetchAIInsights}
             disabled={loading}
+            hidden={activeTab === 'scanner'}
             className="flex items-center px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
           >
             {loading ? (
@@ -651,8 +664,11 @@ export const AIInsights = () => {
           </button>
         </div>
 
-        {/* Stock Info Summary - 6-Column Table */}
-        <table className="w-full text-sm">
+        {/* Stock Info Summary - 6-Column Table.
+            Hidden on the scanner tab: every cell here describes the SELECTED
+            SYMBOL, and the scanner is market-wide. Showing a stale symbol above
+            a market-wide list reads as though the list were about that symbol. */}
+        <table className="w-full text-sm" hidden={activeTab === 'scanner'}>
           <tbody>
             <tr className="border-b border-gray-100">
               <td className="py-2 text-gray-500 w-1/6">{t('analysis.ai_insights.symbol_label')}</td>
@@ -691,6 +707,16 @@ export const AIInsights = () => {
             <span className="text-sm text-red-700">{error}</span>
           </div>
         </div>
+      )}
+
+      {/* Tab 3: Momentum & base scanner (FR-SCAN-API, D6) */}
+      {activeTab === 'scanner' && (
+        <MomentumScannerPanel
+          onSelectSymbol={(symbol) => {
+            setSelectedStock(symbol);
+            setActiveTab('charts');
+          }}
+        />
       )}
 
       {/* Tab 1: Stock Parameters & Indicators */}

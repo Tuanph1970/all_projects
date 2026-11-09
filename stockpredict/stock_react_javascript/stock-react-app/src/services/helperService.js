@@ -145,6 +145,27 @@ class HelperService {
     });
   }
 
+  // FR-SCAN-API — momentum & base scanner. Three calls, and the third is not a
+  // convenience: without it a user who expected a name on the list has no way
+  // to learn which clause rejected it.
+  async runMomentumScan({ scanDate = null, withNullFpr = false, requireBase = null } = {}) {
+    const body = { scan_date: scanDate, with_null_fpr: withNullFpr };
+    if (requireBase !== null) body.require_base = requireBase;
+    return await httpClient.post(API_ENDPOINTS.HELPER_SCAN_MOMENTUM, body);
+  }
+
+  async getMomentumScan(scanDate = null) {
+    const qs = scanDate ? `?scan_date=${scanDate}` : '';
+    return await httpClient.get(`${API_ENDPOINTS.HELPER_SCAN_MOMENTUM}${qs}`);
+  }
+
+  async getMomentumSymbol(symbol, scanDate = null) {
+    const qs = scanDate ? `?scan_date=${scanDate}` : '';
+    return await httpClient.get(
+      `${API_ENDPOINTS.HELPER_SCAN_MOMENTUM_SYMBOL(symbol.toUpperCase())}${qs}`
+    );
+  }
+
   // F-100 — Fetch ai-insights pattern overlay for a symbol
   async getPatterns(symbol, lookbackBars = 100) {
     return await httpClient.get(

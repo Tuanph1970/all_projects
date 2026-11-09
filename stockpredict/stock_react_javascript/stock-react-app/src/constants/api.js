@@ -374,8 +374,13 @@ export const API_ENDPOINTS = {
   HELPER_ALERTS_STREAM: `${API_BASE_URLS.HELPER_API}/alerts/stream`,
   // F-100..F-103 — Pattern overlay (ai-insights-service)
   AI_PATTERNS: (symbol) => `${API_BASE_URLS.AI_API}/insights/patterns/${symbol}`,
-  // F-120..F-123 — Multi-ticker scanner
+  // F-120..F-123 — Multi-ticker scanner (evaluates the EXISTING watchlist)
   HELPER_SCAN: `${API_BASE_URLS.HELPER_API}/scan`,
+  // FR-SCAN-API — momentum & base scanner (DISCOVERS candidates for the
+  // watchlist; market-wide, not per-user). Distinct from HELPER_SCAN above.
+  HELPER_SCAN_MOMENTUM: `${API_BASE_URLS.HELPER_API}/scan/momentum`,
+  HELPER_SCAN_MOMENTUM_SYMBOL: (symbol) =>
+    `${API_BASE_URLS.HELPER_API}/scan/momentum/${symbol}`,
   // F-130..F-133 — Performance analytics
   HELPER_ANALYTICS: `${API_BASE_URLS.HELPER_API}/analytics`,
   // F-150..F-153 — Open positions dashboard
