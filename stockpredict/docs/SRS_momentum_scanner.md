@@ -297,11 +297,34 @@ The scanner **shall** compute, over the detected base:
 Both **shall** be reported as numbers, not just booleans — the ratio is the thing a user
 compares between candidates, and a hidden boolean cannot be calibrated later.
 
+**On a FLAG window both denominators are the POLE, not the window** (Backlog #141,
+measured — see §16). The cut-offs are unchanged; only what they are measured against
+moves. A flag is 3–15 bars, so a "third" is one or two bars and the window's own mean is
+computed over the same few quiet bars being judged — the flat denominators are
+*degenerate* there rather than merely strict, and on a planted flag the window's first
+third picks up the last pole bar, so the flat range ratio was partly measuring the pole it
+was supposed to be compared against. The scanner **shall** therefore compute, for a FLAG:
+last-third TR / mean pole TR `<= 0.75`, and last-third volume / mean pole volume `<= 0.80`.
+Both pole-relative ratios **shall** also be reported as numbers, and **shall** be absent
+(`None`) for a FLAT window, which has no pole — a flat base can then never be judged by a
+flag's clause even by accident.
+
 ### FR-SCAN-MA — Short moving-average proximity
 The scanner **shall** compute MA10 and MA20 (neither currently exists, §2.2) and report
 `(close − MA10)/close` and `(close − MA20)/close`, plus whether both sit **below** price
 within `MA_PROXIMITY_PCT` (default 8%). This encodes Qulla's *"MA10 và MA20 vắt chặt ngay
 sát dưới đáy vùng nền"*.
+
+**On a FLAG window the percentage ceiling does not apply; extension is bounded in ATR**
+(Backlog #141, and the measurement says this was the *binding* clause — §16.2). Both
+averages **shall** still sit below price: a flag whose MA20 is above it is not a pause in
+an uptrend, and dropping the ceiling did not drop that requirement. What replaces the
+ceiling is `(close − MA20) / ATR20 <= FLAG_MA_MAX_ATR` (default 5.0). The reason is
+mechanical and was argued before any number was seen: a flag sits immediately after a
+pole, which is exactly when price is **furthest** from its MA20, so a fixed percentage
+bound asks a flag to look like a base whose averages have had weeks to catch up. What is
+worth bounding there is *extension*, and extension scales with the stock's own volatility.
+`(close − MA20)/ATR20` **shall** be reported alongside the two percentage distances.
 
 ### FR-SCAN-LEVEL — Pivot emission
 For each candidate the scanner **shall** emit the pivot: the highest high of the detected
@@ -872,6 +895,13 @@ Three deliberate divergences, each forced by a failing test:
 
 ### 15.3 It works, it fires, and it changes almost nothing
 
+> **SUPERSEDED 2026-11-10 by §16.** The counts below are correct as measured and
+> are left as recorded, but the conclusion drawn from them — that the flag shape
+> contributes ~0 candidates — no longer describes the scanner. Backlog #141 ran
+> the pre-registered calibration this section called for, and the shape now
+> admits 71 of 481 flag windows rather than 20. Read §15.3 and §15.4 as the
+> statement of the problem; §16 is the resolution.
+
 Measured over 242 sampled dates, on names that reached the base stage with **no
 flat base**:
 
@@ -918,3 +948,151 @@ So the honest status: the flag shape is implemented, tested from both sides of
 every threshold, cross-checked against the existing detector, and **currently
 contributes ~0 candidates** because the stages after it were not built for it.
 That is a real result, and recording it is worth more than the feature.
+
+**That status held for one day.** The calibration this section demanded was
+pre-registered, run and adopted on 2026-11-10 — §16. The paragraph above is kept
+because it is what the evidence supported at the time, and because the sequence
+matters: the feature was recorded as unproductive *before* anyone was allowed to
+tune it, which is the only reason the tuning that followed can be believed.
+
+---
+
+## 16. The #141 calibration (2026-11-10)
+
+Resolves what §15.4 filed. Pre-registered in
+`docs/backlog141_flag_calibration_preregistration.md` (commit `f3cecc5f`, written
+before the study script existed), measured in `docs/backlog141_flag_calibration.md`
+(`f2d003db`), adopted in `b617afe1`.
+
+### 16.1 Why this is not §135's trap
+
+The temptation §15.4 named was real: loosen three numbers until flags survive, and
+a filter becomes decoration. What was done instead is a different act. **Two of the
+three clauses kept their production cut-offs exactly — 0.75 and 0.80 — and changed
+only their denominator.** "Quieter than the thrust it is pausing after" is what
+range contraction and volume dry-up always meant; measuring a 4-bar pause against
+its own 4-bar mean cannot express that, and produces a ratio near 1 whatever the
+stock did. Re-specifying a measure that cannot work on a short window is not the
+same act as relaxing a threshold that can.
+
+Only `ma_hugging` had a bound genuinely replaced, and only after the measurement
+identified it as the binding one.
+
+### 16.2 What the measurement found
+
+1,186 scan dates, 2021-03-15 → 2026-11-09, 93 symbols, **481 flag windows**. This
+cross-checks §15.3: 87 over 242 sampled dates scales to ≈426, against 481 on the
+full calendar.
+
+```
+production (PPP)                      20 of 481 admitted   (4%)
+arms carrying shape-specific ma_hugging    48-74 admitted
+arms without it                            18-28 admitted
+```
+
+**The fixed 8% MA bound was the binding clause, not the squeeze ratios.** That was
+argued from mechanism in the pre-registration before any number was seen, which is
+precisely what the eight diagnostic arms were run to test — and why only one of
+them (`SSS`) was ever adoptable.
+
+### 16.3 The held-out result, and which part of it is real
+
+TEST period 2024-07-01 → 2026-11-09, n = 35 flag episodes. All four pre-committed
+conditions passed, so the rule said adopt and was honoured as written.
+
+| condition | result | verdict |
+|---|---|---|
+| n ≥ 20 flag episodes | 35 | pass |
+| pivot clearance ≥ ARM-FLAT | **57.1% vs 40.9%** | pass |
+| mean excess 20-bar ≥ 0 | +0.46% (median **−2.37%**) | pass |
+| mean excess 20-bar ≥ ARM-RANDOM | +0.46% vs +0.29% | pass |
+
+**Only the second line is evidence.** Pivot clearance is the mechanism test — a
+flag admitted by these clauses clears its own pivot more often than the flat bases
+the screen already produces, out-of-sample. The fourth passes by 0.17pp at n=35
+against n=35, which is noise. The third passes on a mean whose median is negative:
+the central episode *lost*, and the mean is carried by a tail. Had the rule
+pre-registered the median, the study would have said KEEP.
+
+This is **not an edge claim.** S-5a's limits apply unchanged.
+
+### 16.4 What was adopted, and the proof flat verdicts did not move
+
+Flag-only, switched on `window.shape` in `assess_base`. FR-SCAN-SQUEEZE and
+FR-SCAN-MA above carry the normative statements.
+
+Verified empirically rather than asserted: production over all 1,186 scan dates
+gives **FLAT = 861 rows, sha256 `c580bca5`, identical before and after**, while
+FLAG goes **20 → 71**, matching the adopted arm's measured count exactly. Nine unit
+tests assert the two shapes are judged by disjoint rule sets — the risk was never
+"flags pass more often", it was a loosened flag clause leaking onto the flat path.
+
+### 16.5 What #141 does not resolve
+
+- The flag shape is still a **small** contributor: 71 symbol-days. It adds names;
+  it does not change the screen's character.
+- **§11.3 and Backlog #135 still stand.** A funnel returning nothing on today's
+  market is still returning the correct answer, and this is not licence to
+  revisit the liquidity or advance floors.
+- **S-5a's primary finding is unchanged.** Buying the base still does not pay.
+- The successor is **VT-5 on accumulating live runs**, not another sweep of the
+  same 5.5 years.
+
+---
+
+## 17. The decision-engine handshake (Backlog #140, 2026-11-10)
+
+FR-SCAN-LEVEL emits a pivot. Until 2026-11-10 **nothing read it.** Every `pivot`
+reference in the risk modules is a *swing* pivot, and nothing in `confirmation/`,
+`risk/`, `signal/` or `decision/` touched `ScanCandidate.base.pivot`. The
+user-visible consequence: the Scanner tab said "GVR, pivot 35.0", the user added
+GVR to the watchlist, and `/helper` then judged a breakout against its own 20-day
+high. Two surfaces, two levels, no stated relationship — a missing handshake, not
+a missing feature.
+
+S-5a made it load-bearing: selection has content but buying the base does not pay,
+so whatever edge exists has to come from the breakout trigger, and the trigger was
+not connected to the level the screen advertised.
+
+### 17.1 The coupling is one-directional, and that is EC-S6
+
+`scanner/runner.py::load_scanner_pivot` returns the most recent CANDIDATE pivot at
+or before `bar_date`; `detect_n_day_breakout` takes it as `reference_level` and
+**adopts it only when it is at or above the N-bar high.** A lower pivot is ignored.
+
+Honouring a lower pivot would fire a breakout the engine's own rule would refuse —
+the scanner *loosening* the engine's standard, which EC-S6 forbids it from doing.
+The scanner proposes: it may make the trigger stricter, never easier. The emitted
+evidence carries `level_source`, `n_day_level` and `reference_level` so a reader
+comparing the two surfaces sees why they agree or differ, rather than discovering
+a silent substitution.
+
+`confirmation/layer.py` needed no change: `_extract_trigger_level` reads
+`evidence["breakout_level"]`, so penetration and the K-bar delay inherit the
+handshake.
+
+### 17.2 `PIVOT_LOOKBACK_DAYS = 30` is measured, not chosen
+
+Recorded here because it was previously justified only in a docstring.
+
+**A pivot is not a same-day fact.** Measured over 40 scan dates: on the day a
+candidate first closes *above* its pivot it is never still a candidate — **0 of
+8** — because the breakout lifts the window's drift and the base stops qualifying.
+Matching `scan_date == bar_date` therefore guarantees the pivot is gone exactly
+when the engine needs it, which is what made the first cut of this handshake
+decorative.
+
+A trader draws the line when the base forms and leaves it drawn until the breakout
+resolves. Thirty calendar days is that, bounded: a pivot older than this describes
+a base the market has moved on from.
+
+### 17.3 What is verified, and what is not
+
+Verified live after deployment: `reference_level` comes back as the stored pivot
+(VGC 52.99, KBC 36.3, PAN 18.45), so the lookup works end-to-end through the
+deployed endpoint. **Not yet observed in the wild:** a LONG adoption in which the
+pivot actually *replaces* the N-bar high. All three live cases were short
+breakdowns, where the pivot is correctly ignored. The branch is unit-tested and the
+lookup is proven; the two have not been exercised together on live data, because
+the latest persisted candidates are 2024-03-31 and today's market yields none
+(§11.3). Stated rather than rounded up.
