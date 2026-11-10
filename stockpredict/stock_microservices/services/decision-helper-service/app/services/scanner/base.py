@@ -138,6 +138,14 @@ class BaseWindow:
     #: to the flat-base test.
     drift_over_depth: float
     shape: str = SHAPE_FLAT
+    #: The pole this flag hangs off, as indices into the same bar sequence.
+    #: None for FLAT — a flat base has no pole. Instrumentation for Backlog
+    #: #141: the pole-relative squeeze and dry-up variants need the thrust the
+    #: pause is being compared against, and re-deriving it in the study would
+    #: be a second implementation of the search in `detect_flag_base`, free to
+    #: drift from it. Carries no clause and gates nothing.
+    pole_start_index: Optional[int] = None
+    pole_end_index: Optional[int] = None
 
 
 @dataclass(frozen=True)
@@ -352,6 +360,8 @@ def detect_flag_base(
                 high=high, low=low, depth_pct=depth, drift_pct=drift,
                 drift_over_depth=(0.0 if depth <= 0 else abs(drift) / depth),
                 shape=SHAPE_FLAG,
+                pole_start_index=pole_start,
+                pole_end_index=pole_end,
             )
     return None
 
