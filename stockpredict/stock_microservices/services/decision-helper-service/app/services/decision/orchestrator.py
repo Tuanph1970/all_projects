@@ -127,6 +127,31 @@ async def run_recommendation(
                 break
 
     # ── 3. Signal engines ─────────────────────────────────────────────────
+    # #140 — if the scanner drew a base pivot for this symbol on this bar, the
+    # breakout detector uses it as the reference level. Best-effort and never
+    # fatal: no scan, no candidate row, or a DB hiccup all mean "fall back to
+    # the engine's own N-day high", which is the behaviour that shipped.
+    # Read through its OWN session, not the caller's. Two reasons, and the
+    # second is why the first was not enough: the scanner tables belong to the
+    # scanner and this session is mid-transaction for decision writes; and
+    # borrowing it inserts an extra query into a sequence that callers — the
+    # orchestrator's own e2e tests among them — depend on the order of. A
+    # read-only lookup must not be able to perturb the decision path at all.
+    scanner_pivot: Optional[float] = None
+    try:
+        from app.api.dependencies import async_session_factory
+        from app.services.scanner.runner import load_scanner_pivot
+        async with async_session_factory() as scan_session:
+            found = await load_scanner_pivot(scan_session, ticker, bar_date)
+        if found is not None:
+            scanner_pivot = found.level
+            logger.info(
+                "scanner pivot %.4f for %s (drawn %s) offered to the breakout detector",
+                found.level, ticker, found.scan_date,
+            )
+    except Exception as exc:                                   # noqa: BLE001
+        logger.debug("scanner pivot lookup skipped for %s: %s", ticker, exc)
+
     raw_signals: List[RawSignal] = _run_signal_engines(
         regime=regime_result.regime,
         bars=bars,
@@ -135,6 +160,7 @@ async def run_recommendation(
         slow_ma=slow_ma,
         breakout_n=breakout_n,
         sr_data=sr_data,
+        scanner_pivot=scanner_pivot,
     )
     reason_chain.append({
         "stage": "signal_engine",
@@ -484,6 +510,7 @@ def _run_signal_engines(
     slow_ma: int,
     breakout_n: int,
     sr_data: Optional[Dict[str, Any]],
+    scanner_pivot: Optional[float] = None,
 ) -> List[RawSignal]:
     signals: List[RawSignal] = []
 
@@ -491,7 +518,9 @@ def _run_signal_engines(
         sig = detect_ma_cross(bars, bar_date, fast_period=fast_ma, slow_period=slow_ma)
         if sig:
             signals.append(sig)
-        bo = detect_n_day_breakout(bars, bar_date, n=breakout_n)
+        bo = detect_n_day_breakout(
+            bars, bar_date, n=breakout_n,
+            reference_level=scanner_pivot, reference_source="scanner_base_pivot")
         if bo:
             signals.append(bo)
         # F-042: midtrend entry signals (4 additional methods)
@@ -509,7 +538,9 @@ def _run_signal_engines(
         sig = detect_ma_cross(bars, bar_date, fast_period=fast_ma, slow_period=slow_ma)
         if sig:
             signals.append(sig)
-        bo = detect_n_day_breakout(bars, bar_date, n=breakout_n)
+        bo = detect_n_day_breakout(
+            bars, bar_date, n=breakout_n,
+            reference_level=scanner_pivot, reference_source="scanner_base_pivot")
         if bo:
             signals.append(bo)
 

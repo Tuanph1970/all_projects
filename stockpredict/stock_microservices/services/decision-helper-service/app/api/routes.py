@@ -152,13 +152,32 @@ async def signal_analysis(
             rsi = rsi_item.get("value")
 
     # 4. Run signal engines based on regime
+    #
+    # #140 — this endpoint calls the detectors DIRECTLY rather than through the
+    # orchestrator, so wiring the pivot into the orchestrator alone left the two
+    # surfaces disagreeing about the breakout level: exactly the problem #140
+    # exists to close. Same lookup, same one-directional rule, its own session.
+    scanner_pivot_level: Optional[float] = None
+    try:
+        from app.api.dependencies import async_session_factory
+        from app.services.scanner.runner import load_scanner_pivot
+        async with async_session_factory() as scan_session:
+            found = await load_scanner_pivot(scan_session, ticker, req.bar_date)
+        if found is not None:
+            scanner_pivot_level = found.level
+    except Exception as exc:                                   # noqa: BLE001
+        logger.debug("scanner pivot lookup skipped for %s: %s", ticker, exc)
+
     raw_signals: List[RawSignal] = []
 
     if regime_result.regime in ("TREND_UP", "TREND_DOWN"):
         sig = detect_ma_cross(bars, req.bar_date, fast_period=req.fast_ma, slow_period=req.slow_ma)
         if sig:
             raw_signals.append(sig)
-        bo = detect_n_day_breakout(bars, req.bar_date, n=req.breakout_n)
+        bo = detect_n_day_breakout(
+            bars, req.bar_date, n=req.breakout_n,
+            reference_level=scanner_pivot_level,
+            reference_source="scanner_base_pivot")
         if bo:
             raw_signals.append(bo)
 
@@ -174,7 +193,10 @@ async def signal_analysis(
         sig = detect_ma_cross(bars, req.bar_date, fast_period=req.fast_ma, slow_period=req.slow_ma)
         if sig:
             raw_signals.append(sig)
-        bo = detect_n_day_breakout(bars, req.bar_date, n=req.breakout_n)
+        bo = detect_n_day_breakout(
+            bars, req.bar_date, n=req.breakout_n,
+            reference_level=scanner_pivot_level,
+            reference_source="scanner_base_pivot")
         if bo:
             raw_signals.append(bo)
 

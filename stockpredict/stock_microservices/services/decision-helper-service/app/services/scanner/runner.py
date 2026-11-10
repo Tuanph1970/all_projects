@@ -15,8 +15,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import asdict, replace
-from datetime import date
+from dataclasses import asdict, dataclass, replace
+from datetime import date, timedelta
 from typing import Any, Dict, List, Optional, Sequence
 
 from sqlalchemy import delete, select
@@ -297,3 +297,77 @@ async def run_momentum_scan(
         report.ranked_universe, latency,
     )
     return report, run
+
+
+# ---------------------------------------------------------------------------
+# Backlog #140 — handing the base pivot to the decision engine
+# ---------------------------------------------------------------------------
+
+#: How far back a drawn pivot stays usable, in calendar days.
+#:
+#: A pivot is not a same-day fact. Measured 2026-11-10 over 40 scan dates: on
+#: the day a candidate first closes ABOVE its pivot it is NEVER still a
+#: candidate — 0 of 8 — because a breakout pushes the window's drift up and the
+#: base stops qualifying. Matching scan_date == bar_date therefore guarantees
+#: the pivot is gone exactly when the engine needs it, which made the first cut
+#: of this handshake decorative.
+#:
+#: A trader draws the line when the base forms and leaves it drawn until the
+#: breakout resolves. 30 days is that, bounded: a pivot older than this
+#: describes a base the market has moved on from.
+PIVOT_LOOKBACK_DAYS = 30
+
+
+@dataclass(frozen=True)
+class ScannerPivot:
+    level: float
+    scan_date: date
+    symbol: str
+
+
+async def load_scanner_pivot(
+    db: AsyncSession,
+    symbol: str,
+    bar_date: date,
+    *,
+    lookback_days: int = PIVOT_LOOKBACK_DAYS,
+) -> Optional[ScannerPivot]:
+    """The most recent base pivot the scanner drew for `symbol` at or before
+    `bar_date`, within `lookback_days`.
+
+    WHY THIS EXISTS. Every `pivot` in the risk modules is a SWING pivot; nothing
+    read `ScanCandidate.base.pivot`, so the Scanner tab could say "GVR, pivot
+    35.0" while the decision engine judged a breakout against its own 20-day
+    high. Two surfaces, two levels, no stated relationship — and S-5a made that
+    load-bearing, because it found selection has content while buying the base
+    does not pay, so whatever edge exists has to come from the breakout trigger.
+
+    MOST RECENT WINS, AND NEVER FROM THE FUTURE. `scan_date <= bar_date` keeps
+    this causal: a backtest or a re-run for an older date must not see a pivot
+    drawn afterwards.
+
+    Only CANDIDATE rows carry a pivot worth using: a name that failed the base
+    stage has no base, and one that failed the trend template never reached it.
+    Reads persisted runs only — it never re-scans, so the engine sees exactly
+    the level the user saw, not one recomputed later with newer bars.
+    """
+    rows = (await db.execute(
+        select(ScannerResult)
+        .where(
+            ScannerResult.symbol == symbol.upper(),
+            ScannerResult.scan_date <= bar_date,
+            ScannerResult.scan_date >= bar_date - timedelta(days=lookback_days),
+            ScannerResult.verdict.in_(("CANDIDATE", "QUALIFIED_BEYOND_CUT")),
+        )
+        .order_by(ScannerResult.scan_date.desc())
+        .limit(5)
+    )).scalars().all()
+    for row in rows:
+        pivot = ((row.detail or {}).get("base") or {}).get("pivot") or {}
+        level = pivot.get("level")
+        try:
+            if level is not None and float(level) > 0:
+                return ScannerPivot(float(level), row.scan_date, row.symbol)
+        except (TypeError, ValueError):
+            continue
+    return None
