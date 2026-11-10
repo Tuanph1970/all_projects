@@ -26,6 +26,23 @@ from app.models.schemas import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _clear_components_cache():
+    """Reset the StockComponents cache around every test (Backlog #144).
+
+    It is module-level process state, so without this the first test to build a
+    component hands its mock to every later test for the same (symbol, source)
+    and their own mocks are never consulted. That is exactly how it failed when
+    the cache was introduced: one test passed and the next five did not, with
+    assertion errors that pointed at period translation rather than at shared
+    state. Autouse, because remembering to ask for it is the failure mode.
+    """
+    from app.services.stock_service import clear_components_cache
+    clear_components_cache()
+    yield
+    clear_components_cache()
+
+
 @pytest_asyncio.fixture
 async def mock_db():
     """Mock database session"""

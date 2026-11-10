@@ -122,6 +122,23 @@ class Settings(BaseSettings):
     #: sync, slow enough not to re-provoke the limit immediately.
     VNSTOCK_RECOVERY_FACTOR: float = 0.98
 
+    # ── StockComponents reuse (Backlog #144) ──────────────────────────────
+    #: How long a cached `StockComponents` stays usable, in seconds.
+    #:
+    #: NOT just a cache-size knob — it bounds STALENESS, and there is something
+    #: real to go stale. Building one runs `Finance._handshake()`, which GETs
+    #: trading.vietcap.com.vn/priceboard and copies the session COOKIES into the
+    #: instance headers. Cookies expire, so an entry kept indefinitely would
+    #: eventually carry dead ones and fail every financial read for that symbol
+    #: until the process restarted. The handshake also swallows its own
+    #: exception, so a failed one yields a component with no cookies at all —
+    #: this TTL is what stops either state from being permanent.
+    #:
+    #: 15 minutes keeps the win that matters (one handshake per symbol per
+    #: quarter-hour instead of one per call site invocation) while capping how
+    #: long a bad entry can sit there. 0 disables reuse entirely.
+    VNSTOCK_COMPONENTS_TTL_SECONDS: float = 900.0
+
     @field_validator("VNSTOCK_API_KEY", "VNSTOCK_MIN_INTERVAL_SECONDS", mode="before")
     @classmethod
     def _blank_env_is_unset(cls, v):

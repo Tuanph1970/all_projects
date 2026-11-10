@@ -7,7 +7,8 @@ import logging
 import re
 import time
 from datetime import datetime, date, timedelta, time as dt_time
-from typing import Optional, List, Tuple
+from collections import OrderedDict
+from typing import Any, Dict, Optional, List, Tuple
 import json
 import pandas as pd
 
@@ -579,6 +580,47 @@ async def vnstock_call(fn, *args, **kwargs):
             await asyncio.sleep(min_interval)
 
 
+# ── StockComponents reuse (Backlog #144) ──────────────────────────────────
+#
+# CONSTRUCTING A `StockComponents` IS A NETWORK CALL, AND THAT IS THE #134
+# RESIDUAL. `Vnstock().stock(...)` builds `Finance(symbol, source)`, whose
+# `__init__` calls `_handshake()` — one HTTPS request to iq.vietcap.com.vn —
+# even when the caller only wants `quote.history` or `listing.all_symbols`.
+# Measured 2026-11-10 inside our own container: ~0.6s each when idle, and
+# back-to-back the SIXTH construction read-times-out at 30s; 20 of them took
+# 102s and three failed outright. That is the mechanism behind #134's bursts,
+# and it is why #134's pacing fix did not stop them — the guard paced DATA
+# calls while the failures were happening in CONSTRUCTION.
+#
+# So the fix is not only to guard it but to stop doing it. Eighteen call sites
+# built one of these per invocation; they now share one per (symbol, source).
+#
+# THE CACHE IS SAFE ONLY BECAUSE EVERY VNSTOCK CALL IS SERIALISED. Components
+# are shared across tasks, and the data methods are not documented thread-safe
+# — but `vnstock_call` holds a process-wide lock around the whole
+# `to_thread(...)`, so exactly one vnstock call runs at a time in this process.
+# That invariant is what makes sharing sound, which is the other reason every
+# bypass had to be closed in the same change rather than later.
+#: (symbol, source) -> (built_at_monotonic, components)
+_components_cache: "OrderedDict[Tuple[str, str], Tuple[float, Any]]" = OrderedDict()
+
+#: Bounded because the universe is ~1,750 symbols and nothing here expires. Each
+#: entry is small (headers plus a handshake result), so this is about not leaking
+#: unboundedly over a long-lived process, not about memory pressure.
+COMPONENTS_CACHE_MAX = 256
+
+
+def components_cache_state() -> dict:
+    """Reported on /health (and asserted in tests) — how much construction is
+    being avoided. Process-local, like the pacing state beside it."""
+    return {"size": len(_components_cache), "max": COMPONENTS_CACHE_MAX}
+
+
+def clear_components_cache() -> None:
+    """Tests only. Shared state across tests is how a cache bug hides."""
+    _components_cache.clear()
+
+
 class StockService:
     """Service for stock data operations"""
 
@@ -592,6 +634,40 @@ class StockService:
         if self._vnstock is None:
             self._vnstock = Vnstock(source=settings.VNSTOCK_DATA_SOURCE)
         return self._vnstock
+
+    async def _components(self, symbol: str, source: Optional[str] = None):
+        """A `StockComponents` for (symbol, source) — reused, and built under
+        the quota guard when it has to be built (Backlog #144).
+
+        Every call site that used `self.vnstock.stock(...)` goes through here.
+        Construction is an upstream request (see the note above the cache), so
+        it belongs inside `vnstock_call` for the same reasons a data fetch does:
+        pacing, the retry, and not blocking the event loop for ~0.6s — or for
+        30s when the handshake endpoint decides it has seen enough of us.
+        """
+        src = (source or settings.VNSTOCK_DATA_SOURCE).upper()
+        sym = (symbol or "").upper()
+        key = (sym, src)
+        ttl = settings.VNSTOCK_COMPONENTS_TTL_SECONDS
+        now = time.monotonic()
+
+        if ttl > 0:
+            entry = _components_cache.get(key)
+            if entry is not None:
+                built_at, cached = entry
+                if now - built_at <= ttl:
+                    _components_cache.move_to_end(key)
+                    return cached
+                # Expired: drop it rather than hand back stale cookies.
+                del _components_cache[key]
+
+        built = await vnstock_call(self.vnstock.stock, symbol=sym, source=src)
+        if ttl > 0:
+            _components_cache[key] = (now, built)
+            _components_cache.move_to_end(key)
+            while len(_components_cache) > COMPONENTS_CACHE_MAX:
+                _components_cache.popitem(last=False)
+        return built
 
     # ==================== Company Operations ====================
 
@@ -727,7 +803,7 @@ class StockService:
         This fetches directly from vnstock API, not from database.
         """
         try:
-            stock = self.vnstock.stock(symbol="VNM", source=settings.VNSTOCK_DATA_SOURCE)
+            stock = await self._components("VNM")
             df = await vnstock_call(stock.listing.all_symbols)
 
             if df is None or df.empty:
@@ -761,7 +837,7 @@ class StockService:
             group: Stock group (VN30, VN100, HOSE, HNX, UPCOM, etc.)
         """
         try:
-            stock = self.vnstock.stock(symbol="VNM", source=settings.VNSTOCK_DATA_SOURCE)
+            stock = await self._components("VNM")
 
             # symbols_by_group returns a Series, not DataFrame
             symbols = await vnstock_call(stock.listing.symbols_by_group, group.upper())
@@ -986,7 +1062,7 @@ class StockService:
         returns these fields in the VCI data source.
         """
         try:
-            stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
+            stock = await self._components(symbol)
             df = await vnstock_call(stock.company.overview)
 
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
@@ -1093,7 +1169,7 @@ class StockService:
             source = FINANCIAL_SOURCE_OVERRIDES.get(
                 statement_type, settings.VNSTOCK_DATA_SOURCE
             )
-            stock = self.vnstock.stock(symbol=symbol.upper(), source=source)
+            stock = await self._components(symbol, source)
             method = getattr(stock.finance, statement_type, None)
             if method is None:
                 logger.error(f"Unknown statement type: {statement_type}")
@@ -1178,7 +1254,7 @@ class StockService:
     async def get_company_news_data(self, symbol: str) -> List[dict]:
         """Get company news from vnstock."""
         try:
-            stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
+            stock = await self._components(symbol)
             df = await vnstock_call(stock.company.news)
 
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
@@ -1208,7 +1284,7 @@ class StockService:
     async def get_company_events_data(self, symbol: str) -> List[dict]:
         """Get company events from vnstock."""
         try:
-            stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
+            stock = await self._components(symbol)
             df = await vnstock_call(stock.company.events)
 
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
@@ -1233,7 +1309,7 @@ class StockService:
     async def get_company_dividends_data(self, symbol: str) -> List[dict]:
         """Get company dividends from vnstock."""
         try:
-            stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
+            stock = await self._components(symbol)
 
             data_source = stock.company.data_source
             if not hasattr(data_source, 'dividends'):
@@ -1399,7 +1475,7 @@ class StockService:
     async def sync_company_profile(self, symbol: str) -> bool:
         """Fetch profile from vnstock and save to DB cache."""
         try:
-            stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
+            stock = await self._components(symbol)
             df = await vnstock_call(stock.company.overview)
 
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
@@ -1713,8 +1789,8 @@ class StockService:
             # Fetch company info from vnstock and create record
             logger.info(f"Company {symbol} not found in DB, creating from vnstock")
             try:
-                stock = self.vnstock.stock(symbol=symbol, source=settings.VNSTOCK_DATA_SOURCE)
-                all_symbols_df = stock.listing.all_symbols()
+                stock = await self._components(symbol)
+                all_symbols_df = await vnstock_call(stock.listing.all_symbols)
 
                 company_name = symbol
                 exchange = "HOSE"
@@ -2085,7 +2161,7 @@ class StockService:
         Used as fallback when database is empty.
         """
         try:
-            stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
+            stock = await self._components(symbol)
             df = await vnstock_call(
                 stock.quote.history,
                 start=start_date.strftime("%Y-%m-%d"),
@@ -2175,7 +2251,7 @@ class StockService:
 
         try:
             # Fetch from VNStock (run in thread to avoid blocking event loop)
-            stock = self.vnstock.stock(symbol=symbol, source=settings.VNSTOCK_DATA_SOURCE)
+            stock = await self._components(symbol)
             df = await vnstock_call(
                 stock.quote.history,
                 start=start_date.strftime("%Y-%m-%d"),
@@ -2307,8 +2383,8 @@ class StockService:
             # Get company names for enrichment
             company_names = {}
             try:
-                stock = self.vnstock.stock(symbol="VNM", source=settings.VNSTOCK_DATA_SOURCE)
-                all_symbols_df = stock.listing.all_symbols()
+                stock = await self._components("VNM")
+                all_symbols_df = await vnstock_call(stock.listing.all_symbols)
                 if all_symbols_df is not None and not all_symbols_df.empty:
                     for _, row in all_symbols_df.iterrows():
                         symbol = row.get("symbol", "")
@@ -2401,11 +2477,11 @@ class StockService:
         industries_icb() is not available for all data sources.
         """
         try:
-            stock = self.vnstock.stock(symbol="VNM", source=settings.VNSTOCK_DATA_SOURCE)
+            stock = await self._components("VNM")
 
             # Try industries_icb() first, fallback to symbols_by_industries()
             try:
-                df = stock.listing.industries_icb()
+                df = await vnstock_call(stock.listing.industries_icb)
                 if df is not None and not df.empty:
                     industries = []
                     for idx, row in df.iterrows():
@@ -2424,7 +2500,7 @@ class StockService:
                 logger.warning(f"industries_icb() not available: {icb_error}, trying symbols_by_industries()")
 
             # Fallback: Use symbols_by_industries() and extract unique industries
-            df = stock.listing.symbols_by_industries()
+            df = await vnstock_call(stock.listing.symbols_by_industries)
 
             if df is None or df.empty:
                 logger.warning("No data returned from vnstock symbols_by_industries")
@@ -2592,8 +2668,8 @@ class StockService:
         Uses symbols_by_industries() method and enriches with company names from all_symbols().
         """
         try:
-            stock = self.vnstock.stock(symbol="VNM", source=settings.VNSTOCK_DATA_SOURCE)
-            df = stock.listing.symbols_by_industries()
+            stock = await self._components("VNM")
+            df = await vnstock_call(stock.listing.symbols_by_industries)
 
             if df is None or df.empty:
                 logger.warning("No data returned from vnstock symbols_by_industries")
@@ -2648,7 +2724,7 @@ class StockService:
             # Try to get company names from all_symbols() for enrichment
             company_names = {}
             try:
-                all_symbols_df = stock.listing.all_symbols()
+                all_symbols_df = await vnstock_call(stock.listing.all_symbols)
                 if all_symbols_df is not None and not all_symbols_df.empty:
                     for _, sym_row in all_symbols_df.iterrows():
                         symbol = sym_row.get("symbol", "")
@@ -2736,9 +2812,7 @@ class StockService:
 
         for code in MARKET_INDEX_CODES:
             try:
-                stock = self.vnstock.stock(
-                    symbol=code, source=settings.VNSTOCK_DATA_SOURCE
-                )
+                stock = await self._components(code)
                 df = await vnstock_call(
                     stock.quote.history,
                     start=start.strftime("%Y-%m-%d"),
@@ -3167,9 +3241,7 @@ class StockService:
         from datetime import timedelta as _td
 
         try:
-            stock = self.vnstock.stock(
-                symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE
-            )
+            stock = await self._components(symbol)
             end = date.today()
             df = await vnstock_call(
                 stock.quote.history,
@@ -3195,12 +3267,12 @@ class StockService:
             CompanyFinancialsResponse with financial ratios and metrics
         """
         try:
-            stock = self.vnstock.stock(symbol=symbol.upper(), source=settings.VNSTOCK_DATA_SOURCE)
+            stock = await self._components(symbol)
 
             # Get company name
             company_name = symbol.upper()
             try:
-                all_symbols_df = stock.listing.all_symbols()
+                all_symbols_df = await vnstock_call(stock.listing.all_symbols)
                 if all_symbols_df is not None and not all_symbols_df.empty:
                     match = all_symbols_df[all_symbols_df["symbol"] == symbol.upper()]
                     if not match.empty:
@@ -3223,7 +3295,7 @@ class StockService:
 
             # Try to get financial ratios from vnstock
             try:
-                ratio_df = stock.finance.ratio(period="quarter", lang="en")
+                ratio_df = await vnstock_call(stock.finance.ratio, period="quarter", lang="en")
                 latest = self._latest_metrics(ratio_df)
 
                 if latest:
@@ -3279,11 +3351,12 @@ class StockService:
                     # unset. VCI's stale values are deliberately NOT a
                     # fallback — a wrong number is worse than an absent one.
                     try:
+                        # #144: the construction used to sit INSIDE this
+                        # argument list, so it was evaluated eagerly in the
+                        # event loop and only looked guarded. Hoisted.
+                        kbs = await self._components(symbol, "KBS")
                         kbs_ratio = await vnstock_call(
-                            self.vnstock.stock(
-                                symbol=symbol.upper(), source="KBS"
-                            ).finance.ratio,
-                            period="year",
+                            kbs.finance.ratio, period="year",
                         )
                         if bvps is None:
                             bvps = bvps_from_ratio_frame(kbs_ratio)
@@ -3358,7 +3431,8 @@ class StockService:
 
             # Try to get income statement for revenue, net income, and growth
             try:
-                is_df = stock.finance.income_statement(period="quarter", lang="en")
+                is_df = await vnstock_call(
+                    stock.finance.income_statement, period="quarter", lang="en")
                 latest_is = self._latest_metrics(is_df)
 
                 if latest_is:
@@ -3401,7 +3475,8 @@ class StockService:
 
             # Try to get balance sheet for assets, liabilities, equity
             try:
-                bs_df = stock.finance.balance_sheet(period="quarter", lang="en")
+                bs_df = await vnstock_call(
+                    stock.finance.balance_sheet, period="quarter", lang="en")
                 latest_bs = self._latest_metrics(bs_df)
 
                 if latest_bs:
@@ -3496,7 +3571,8 @@ class StockService:
 
             # Try to get cash flow statement
             try:
-                cf_df = stock.finance.cash_flow(period="quarter", lang="en")
+                cf_df = await vnstock_call(
+                    stock.finance.cash_flow, period="quarter", lang="en")
                 latest_cf = self._latest_metrics(cf_df)
 
                 if latest_cf:

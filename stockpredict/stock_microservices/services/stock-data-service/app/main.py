@@ -322,12 +322,25 @@ async def readiness():
 
 @app.get("/health", tags=["Health"])
 async def health():
-    """Combined health check"""
+    """Combined health check.
+
+    Carries the vnstock quota state (Backlog #134) and the StockComponents
+    reuse state (#144) because both are process-local and otherwise invisible.
+    `vnstock_pacing_state()` has claimed since #134 that it was "for /health"
+    while being wired nowhere — #143 is what that costs: four days of silence
+    from this service and nobody noticed, because nothing cheap reported on it.
+    Neither field touches the network, so /health stays usable as a probe.
+    """
+    from app.services.stock_service import (
+        components_cache_state, vnstock_pacing_state,
+    )
     return {
         "status": "healthy",
         "service": settings.SERVICE_NAME,
         "version": settings.SERVICE_VERSION,
         "environment": settings.ENVIRONMENT,
+        "vnstock_pacing": vnstock_pacing_state(),
+        "vnstock_components": components_cache_state(),
     }
 
 
