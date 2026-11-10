@@ -119,6 +119,33 @@ DEFAULT_MA_PROXIMITY_PCT = 8.0
 MA_FAST = 10
 MA_MEDIUM = 20
 
+# ── Shape-specific clause settings for FLAG windows (Backlog #141) ─────────
+# Pre-registered in docs/backlog141_flag_calibration_preregistration.md and
+# adopted on the strength of docs/backlog141_flag_calibration.md: on held-out
+# data 2024-07-01..2026-11-09 a flag admitted by these clears its own pivot
+# 57.1% of the time against 40.9% for the FLAT bases the screen already
+# produces. THE CUT-OFFS ARE UNCHANGED FROM THE FLAT VALUES — only the
+# denominators move, from the flag's own first third / own mean to the POLE.
+# "Quieter than the thrust it is pausing after" is the mechanism the squeeze
+# clauses were always reaching for, and on a 3-15 bar window a "third" is one
+# or two bars, so the flat denominators were degenerate rather than merely
+# strict. Loosening a cut-off would have been #135's trap; re-specifying a
+# measure that cannot work on a short window is not.
+FLAG_SQUEEZE_MAX_RATIO = DEFAULT_SQUEEZE_MAX_RATIO
+FLAG_DRYUP_MAX_RATIO = DEFAULT_DRYUP_MAX_RATIO
+
+#: The one bound that is genuinely replaced rather than re-denominated, and the
+#: measurement says it was the binding clause: production admitted 20 of 481
+#: flag windows, and every arm carrying this variant jumped to 48-74 while every
+#: arm without it stayed at 18-28. A flag sits immediately after a pole, which
+#: is exactly when price is FURTHEST from MA20, so a fixed percentage bound asks
+#: a flag to look like a base whose averages have had weeks to catch up. What is
+#: worth bounding is EXTENSION, which scales with the stock's own volatility.
+#: MA10/MA20 must still sit below price — the trend must be intact; there is just
+#: no percentage ceiling.
+FLAG_MA_MAX_ATR = 5.0
+FLAG_MA_ATR_PERIOD = 20
+
 
 @dataclass(frozen=True)
 class BaseWindow:
@@ -159,6 +186,13 @@ class SqueezeMetrics:
     last_third_tr: Optional[float]
     base_mean_volume: Optional[float]
     last_third_volume: Optional[float]
+    #: The same two ratios against the POLE instead of the window itself
+    #: (Backlog #141). None for FLAT, which has no pole — so a flat base can
+    #: never be judged by a flag's clause even by accident.
+    pole_range_ratio: Optional[float] = None
+    pole_volume_ratio: Optional[float] = None
+    pole_mean_tr: Optional[float] = None
+    pole_mean_volume: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -168,6 +202,11 @@ class MAProximity:
     dist_fast_pct: Optional[float]     # (close - MA)/close, positive = MA below price
     dist_medium_pct: Optional[float]
     hugging: bool
+    #: (close - MA20) / ATR20 — extension in the stock's own volatility units,
+    #: and `hugging_flag` is the FLAG form of the clause: trend intact, no
+    #: percentage ceiling, extension bounded in ATR (Backlog #141).
+    dist_medium_atr: Optional[float] = None
+    hugging_flag: bool = False
 
 
 @dataclass(frozen=True)
@@ -462,6 +501,16 @@ def measure_squeeze(bars: Sequence[OHLCVBar], window: BaseWindow) -> SqueezeMetr
     base_vol = sum(vols) / len(vols) if vols else None
     last_vol = sum(vols[-third:]) / third if vols else None
 
+    # The pole denominators (Backlog #141). Computed whenever the window carries
+    # pole bounds, which only a FLAG does — a flat base leaves these None and is
+    # therefore untouched by the flag clauses.
+    pole_tr = pole_vol = None
+    if window.pole_start_index is not None and window.pole_end_index is not None:
+        ps, pe = window.pole_start_index, window.pole_end_index + 1
+        pole_tr = _mean(tr[ps:pe])
+        pvols = [float(b.volume) for b in bars[ps:pe]]
+        pole_vol = (sum(pvols) / len(pvols)) if pvols else None
+
     return SqueezeMetrics(
         range_ratio=(last_tr / first_tr) if (first_tr and last_tr is not None and first_tr > 0) else None,
         volume_ratio=(last_vol / base_vol) if (base_vol and last_vol is not None and base_vol > 0) else None,
@@ -469,6 +518,10 @@ def measure_squeeze(bars: Sequence[OHLCVBar], window: BaseWindow) -> SqueezeMetr
         last_third_tr=last_tr,
         base_mean_volume=base_vol,
         last_third_volume=last_vol,
+        pole_range_ratio=(last_tr / pole_tr) if (pole_tr and last_tr is not None and pole_tr > 0) else None,
+        pole_volume_ratio=(last_vol / pole_vol) if (pole_vol and last_vol is not None and pole_vol > 0) else None,
+        pole_mean_tr=pole_tr,
+        pole_mean_volume=pole_vol,
     )
 
 
@@ -476,6 +529,8 @@ def measure_ma_proximity(
     bars: Sequence[OHLCVBar],
     *,
     proximity_pct: float = DEFAULT_MA_PROXIMITY_PCT,
+    max_atr: float = FLAG_MA_MAX_ATR,
+    max_atr_period: int = FLAG_MA_ATR_PERIOD,
 ) -> MAProximity:
     """MA10/MA20 relative to the last close. Positive distance = MA below price."""
     close = float(bars[-1].close)
@@ -486,7 +541,20 @@ def measure_ma_proximity(
     d_fast = (close - fast) / close * 100.0
     d_medium = (close - medium) / close * 100.0
     hugging = 0.0 <= d_fast <= proximity_pct and 0.0 <= d_medium <= proximity_pct
-    return MAProximity(fast, medium, d_fast, d_medium, hugging)
+
+    # The FLAG form (Backlog #141): both averages still below price, extension
+    # bounded in ATR rather than by a fixed percentage. Not computable means
+    # NOT hugging, matching every other clause in this module — a missing
+    # denominator must never become a pass.
+    atr = atr_series(list(bars), max_atr_period)
+    latest_atr = atr[-1] if atr else None
+    d_medium_atr = ((close - medium) / latest_atr) if latest_atr else None
+    hugging_flag = (
+        d_fast >= 0.0 and d_medium >= 0.0
+        and d_medium_atr is not None and d_medium_atr <= max_atr
+    )
+    return MAProximity(fast, medium, d_fast, d_medium, hugging,
+                       dist_medium_atr=d_medium_atr, hugging_flag=hugging_flag)
 
 
 def find_pivot(bars: Sequence[OHLCVBar], window: BaseWindow) -> Pivot:
@@ -514,6 +582,7 @@ def assess_base(
     squeeze_max_ratio: float = DEFAULT_SQUEEZE_MAX_RATIO,
     dryup_max_ratio: float = DEFAULT_DRYUP_MAX_RATIO,
     ma_proximity_pct: float = DEFAULT_MA_PROXIMITY_PCT,
+    flag_ma_max_atr: float = FLAG_MA_MAX_ATR,
 ) -> BaseAssessment:
     """The S-2 verdict, with every clause reported pass or fail (NFR-S3)."""
     # FLAT FIRST, FLAG ONLY AS A FALLBACK, and the order is load-bearing: a flat
@@ -542,8 +611,48 @@ def assess_base(
         )
 
     squeeze = measure_squeeze(bars, window)
-    mas = measure_ma_proximity(bars, proximity_pct=ma_proximity_pct)
+    mas = measure_ma_proximity(bars, proximity_pct=ma_proximity_pct,
+                               max_atr=flag_ma_max_atr)
     pivot = find_pivot(bars, window)
+
+    # SHAPE DECIDES WHICH FORM OF THE THREE CLAUSES APPLIES (Backlog #141).
+    # A flat base keeps every production rule untouched — the FLAT-only
+    # candidate set over 1,186 scan dates is byte-identical across this change
+    # (861 rows, sha256 c580bca5), which is the property worth asserting rather
+    # than assuming. A flag is judged against its pole; see the constants above
+    # for why, and docs/backlog141_flag_calibration.md for what it measured.
+    is_flag = window.shape == SHAPE_FLAG
+    if is_flag:
+        range_ratio, range_cut = squeeze.pole_range_ratio, FLAG_SQUEEZE_MAX_RATIO
+        range_detail = "last third TR / mean pole TR"
+        vol_ratio, vol_cut = squeeze.pole_volume_ratio, FLAG_DRYUP_MAX_RATIO
+        vol_detail = "last third volume / mean pole volume"
+    else:
+        range_ratio, range_cut = squeeze.range_ratio, squeeze_max_ratio
+        range_detail = "last third TR / first third TR"
+        vol_ratio, vol_cut = squeeze.volume_ratio, dryup_max_ratio
+        vol_detail = "last third volume / base mean"
+
+    if is_flag:
+        ma_passed = mas.hugging_flag
+        ma_detail = (
+            f"MA{MA_FAST} {mas.dist_fast_pct:+.1f}% / MA{MA_MEDIUM} "
+            f"{mas.dist_medium_pct:+.1f}% below price, extension "
+            f"{mas.dist_medium_atr:.2f} ATR, need both below price and "
+            f"extension <= {flag_ma_max_atr:.1f} ATR"
+            if mas.dist_fast_pct is not None and mas.dist_medium_pct is not None
+            and mas.dist_medium_atr is not None
+            else "moving averages not computable"
+        )
+    else:
+        ma_passed = mas.hugging
+        ma_detail = (
+            f"MA{MA_FAST} {mas.dist_fast_pct:+.1f}% / MA{MA_MEDIUM} "
+            f"{mas.dist_medium_pct:+.1f}% below price, need both in "
+            f"0..{ma_proximity_pct:.0f}%"
+            if mas.dist_fast_pct is not None and mas.dist_medium_pct is not None
+            else "moving averages not computable"
+        )
 
     clauses = [
         TrendClause("base_found", True,
@@ -551,23 +660,17 @@ def assess_base(
                     f"{window.drift_pct:+.1f}% drift (drift/depth {window.drift_over_depth:.2f})"),
         TrendClause(
             "range_contraction",
-            squeeze.range_ratio is not None and squeeze.range_ratio <= squeeze_max_ratio,
-            f"last third TR / first third TR = {squeeze.range_ratio:.2f}, need <= {squeeze_max_ratio:.2f}"
-            if squeeze.range_ratio is not None else "range ratio not computable",
+            range_ratio is not None and range_ratio <= range_cut,
+            f"{range_detail} = {range_ratio:.2f}, need <= {range_cut:.2f}"
+            if range_ratio is not None else "range ratio not computable",
         ),
         TrendClause(
             "volume_dryup",
-            squeeze.volume_ratio is not None and squeeze.volume_ratio <= dryup_max_ratio,
-            f"last third volume / base mean = {squeeze.volume_ratio:.2f}, need <= {dryup_max_ratio:.2f}"
-            if squeeze.volume_ratio is not None else "volume ratio not computable",
+            vol_ratio is not None and vol_ratio <= vol_cut,
+            f"{vol_detail} = {vol_ratio:.2f}, need <= {vol_cut:.2f}"
+            if vol_ratio is not None else "volume ratio not computable",
         ),
-        TrendClause(
-            "ma_hugging", mas.hugging,
-            f"MA{MA_FAST} {mas.dist_fast_pct:+.1f}% / MA{MA_MEDIUM} {mas.dist_medium_pct:+.1f}% "
-            f"below price, need both in 0..{ma_proximity_pct:.0f}%"
-            if mas.dist_fast_pct is not None and mas.dist_medium_pct is not None
-            else "moving averages not computable",
-        ),
+        TrendClause("ma_hugging", ma_passed, ma_detail),
     ]
     return BaseAssessment(
         symbol=symbol,

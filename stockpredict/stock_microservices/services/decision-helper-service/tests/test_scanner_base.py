@@ -19,6 +19,8 @@ from app.services.scanner.base import (
     DEFAULT_BASE_MAX_BARS,
     SHAPE_FLAG,
     SHAPE_FLAT,
+    MAProximity,
+    SqueezeMetrics,
     assess_base,
     detect_flag_base,
     detect_base,
@@ -503,3 +505,104 @@ def test_a_pole_that_already_turned_down_is_not_a_pole():
     pole window over the pullback's first bars and inflates pole_move."""
     bars = pole_then_flag(pullback_step=3.2)
     assert detect_flag_base(bars, flag_min_bars=3, flag_max_bars=3) is None
+
+
+# ---------------------------------------------------------------------------
+# Backlog #141 — shape-specific clause settings for FLAG windows
+#
+# Every test here asserts from BOTH sides. The property that matters is not
+# "flags pass more often" — it is that the two shapes are judged by DISJOINT
+# rule sets, because the whole risk of #141 was a loosened flag clause leaking
+# into the flat path and quietly widening the screen.
+# ---------------------------------------------------------------------------
+
+def test_a_flag_window_carries_its_pole_bounds():
+    """The instrumentation #141 needs; a flat base must not have it."""
+    w = detect_flag_base(pole_then_flag())
+    assert w is not None and w.shape == SHAPE_FLAG
+    assert w.pole_start_index is not None and w.pole_end_index is not None
+    assert w.pole_end_index == w.start_index - 1          # the pole abuts the flag
+
+
+def test_a_flat_base_has_no_pole_bounds_so_flag_clauses_cannot_reach_it():
+    w = detect_base(advance_then_base())
+    assert w is not None and w.shape == SHAPE_FLAT
+    assert w.pole_start_index is None and w.pole_end_index is None
+    sq = measure_squeeze(advance_then_base(), w)
+    assert sq.pole_range_ratio is None and sq.pole_volume_ratio is None
+
+
+def test_the_pole_denominator_is_the_stricter_comparison():
+    """§4.2 as a test. The flag's own mean is a WEAK denominator: it is computed
+    over the same few quiet bars being measured, so it cannot express "quiet
+    relative to the thrust" at all. Against the pole the same window reads 0.30
+    where against itself it reads 0.68 — the pole comparison is both stricter
+    here and the one that means what the clause says.
+
+    Note what this fixture also shows: the detected window's first third picks up
+    the last POLE bar (`first_third_tr == pole_mean_tr`), so on a 4-bar planted
+    flag the flat range denominator is not merely weak, it is partly measuring
+    the pole it was supposed to be compared against.
+    """
+    bars = pole_then_flag()
+    w = detect_flag_base(bars)
+    sq = measure_squeeze(bars, w)
+    assert sq.volume_ratio is not None and sq.pole_volume_ratio is not None
+    assert sq.pole_volume_ratio < sq.volume_ratio
+    assert sq.pole_mean_volume is not None and sq.base_mean_volume is not None
+    assert sq.pole_mean_volume > sq.base_mean_volume
+
+
+def test_extension_beyond_the_atr_bound_fails_the_flag_clause():
+    """From the far side: ATR-bounded is a BOUND, not an open door."""
+    bars = pole_then_flag()
+    assert measure_ma_proximity(bars, max_atr=99.0).hugging_flag is True
+    assert measure_ma_proximity(bars, max_atr=0.01).hugging_flag is False
+
+
+def test_trend_intact_is_still_non_negotiable_for_a_flag():
+    """Dropping the percentage ceiling did not drop the requirement that both
+    averages sit BELOW price."""
+    bars = pole_then_flag(pole_step=0.06, pullback_step=3.0, flag_bars=8)
+    mas = measure_ma_proximity(bars, max_atr=99.0)
+    if mas.dist_medium_pct is not None and mas.dist_medium_pct < 0:
+        assert mas.hugging_flag is False
+
+
+def test_assess_base_judges_a_flag_by_pole_relative_clauses():
+    a = assess_base("FLAGGED", pole_then_flag())
+    names = {c.name: c for c in a.clauses}
+    assert names["base_found"].passed
+    assert "mean pole TR" in names["range_contraction"].detail
+    assert "mean pole volume" in names["volume_dryup"].detail
+    assert "ATR" in names["ma_hugging"].detail
+
+
+def test_assess_base_still_judges_a_flat_base_by_production_clauses():
+    """The regression that would matter: flag wording — or a flag threshold —
+    leaking onto a flat base."""
+    a = assess_base("PLANT", advance_then_base())
+    names = {c.name: c for c in a.clauses}
+    assert names["base_found"].passed
+    assert "first third TR" in names["range_contraction"].detail
+    assert "base mean" in names["volume_dryup"].detail
+    assert "ATR" not in names["ma_hugging"].detail
+    assert "0..8%" in names["ma_hugging"].detail
+
+
+def test_a_missing_denominator_fails_rather_than_passes():
+    """Production's rule, preserved across the new clause forms."""
+    assert MAProximity(None, None, None, None, False).hugging_flag is False
+    sq = SqueezeMetrics(None, None, None, None, None, None)
+    assert sq.pole_range_ratio is None and sq.pole_volume_ratio is None
+
+
+def test_the_flat_candidate_set_is_unchanged_by_the_flag_clauses():
+    """§7's claim, at unit scale: with flags off, nothing about this changed."""
+    bars = advance_then_base()
+    on = run_scan({"PLANT": bars}, bars[-1].date, ScanConfig(allow_flag_base=True))
+    off = run_scan({"PLANT": bars}, bars[-1].date, ScanConfig(allow_flag_base=False))
+    assert [c.symbol for c in on.candidates] == [c.symbol for c in off.candidates] == ["PLANT"]
+    a, b = on.candidates[0].base, off.candidates[0].base
+    assert [(c.name, c.passed, c.detail) for c in a.clauses] == \
+           [(c.name, c.passed, c.detail) for c in b.clauses]
