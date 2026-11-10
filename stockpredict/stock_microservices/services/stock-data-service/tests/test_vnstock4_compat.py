@@ -220,14 +220,58 @@ async def test_vnstock_call_retries_once_after_rate_limit(quota_settings):
 
 
 @pytest.mark.asyncio
-async def test_vnstock_call_gives_up_after_second_rate_limit(quota_settings):
+async def test_vnstock_call_gives_up_after_the_configured_retries(quota_settings):
     quota_settings.setattr(svc_mod.settings, "VNSTOCK_MIN_INTERVAL_SECONDS", 0.0)
+    quota_settings.setattr(svc_mod.settings, "VNSTOCK_RATE_LIMIT_MAX_RETRIES", 3)
+    attempts = {"n": 0}
 
     def always_limited():
+        attempts["n"] += 1
         raise _FakeRateLimit(retry_after=0.0)
 
     with pytest.raises(_FakeRateLimit):
         await svc_mod.vnstock_call(always_limited)
+    assert attempts["n"] == 4, "1 initial + 3 retries"
+
+
+@pytest.mark.asyncio
+async def test_vnstock_call_survives_a_limit_that_lasts_more_than_one_retry(quota_settings):
+    """ONE RETRY WAS NOT ENOUGH, which is half of #134. vnai has already
+    retried twice internally before it raises, so the budget has been exhausted
+    for seconds by the time we see it — and when the key is shared with another
+    machine it can stay exhausted for the rest of the minute."""
+    quota_settings.setattr(svc_mod.settings, "VNSTOCK_MIN_INTERVAL_SECONDS", 0.0)
+    quota_settings.setattr(svc_mod.settings, "VNSTOCK_RATE_LIMIT_MAX_RETRIES", 3)
+    attempts = {"n": 0}
+
+    def flaky():
+        attempts["n"] += 1
+        if attempts["n"] < 3:
+            raise _FakeRateLimit(retry_after=0.01)
+        return "ok"
+
+    async def fake_sleep(seconds):
+        pass
+
+    with patch.object(svc_mod.asyncio, "sleep", fake_sleep):
+        assert await svc_mod.vnstock_call(flaky) == "ok"
+    assert attempts["n"] == 3
+
+
+@pytest.mark.asyncio
+async def test_giving_up_on_a_rate_limit_is_logged(quota_settings, caplog):
+    """A caller that gives up silently is indistinguishable from one that never
+    hit the limit — which is exactly what made #134 hard to see."""
+    quota_settings.setattr(svc_mod.settings, "VNSTOCK_MIN_INTERVAL_SECONDS", 0.0)
+    quota_settings.setattr(svc_mod.settings, "VNSTOCK_RATE_LIMIT_MAX_RETRIES", 0)
+
+    def always_limited():
+        raise _FakeRateLimit(retry_after=0.0)
+
+    with caplog.at_level("WARNING"):
+        with pytest.raises(_FakeRateLimit):
+            await svc_mod.vnstock_call(always_limited)
+    assert any("rate limit NOT cleared" in r.getMessage() for r in caplog.records), caplog.text
 
 
 @pytest.mark.asyncio
@@ -268,10 +312,44 @@ async def test_vnstock_call_caps_retry_wait(quota_settings):
 
 
 def test_settings_default_interval_depends_on_api_key():
+    """The interval is 60 / (budget x safety), not a magic constant.
+
+    It USED to be a literal 3.1 / 1.05 — i.e. 19.4 and 57.1 calls per minute
+    against 20 and 60 limits, 95% of a hard cap with no margin. Backlog #134 is
+    what that cost: a 61-symbol backfill lost 6 requests. These assertions are
+    on the RELATIONSHIP so that changing the safety fraction is a one-line
+    change rather than a hunt for hard-coded seconds.
+    """
     from app.config import Settings
-    assert Settings(VNSTOCK_API_KEY=None, VNSTOCK_MIN_INTERVAL_SECONDS=None).vnstock_min_interval == pytest.approx(3.1)
-    assert Settings(VNSTOCK_API_KEY="abcdefghijkl", VNSTOCK_MIN_INTERVAL_SECONDS=None).vnstock_min_interval == pytest.approx(1.05)
+    guest = Settings(VNSTOCK_API_KEY=None, VNSTOCK_MIN_INTERVAL_SECONDS=None)
+    keyed = Settings(VNSTOCK_API_KEY="abcdefghijkl", VNSTOCK_MIN_INTERVAL_SECONDS=None)
+
+    assert guest.vnstock_rate_per_min == guest.VNSTOCK_GUEST_RATE_PER_MIN
+    assert keyed.vnstock_rate_per_min == keyed.VNSTOCK_KEYED_RATE_PER_MIN
+    for s in (guest, keyed):
+        assert s.vnstock_min_interval == pytest.approx(
+            60.0 / (s.vnstock_rate_per_min * s.VNSTOCK_QUOTA_SAFETY))
+        # The margin must be real, not nominal.
+        assert 60.0 / s.vnstock_min_interval < s.vnstock_rate_per_min * 0.9
+
+    # A key buys a faster rate, and an explicit interval still wins outright.
+    assert keyed.vnstock_min_interval < guest.vnstock_min_interval
     assert Settings(VNSTOCK_API_KEY=None, VNSTOCK_MIN_INTERVAL_SECONDS=0.5).vnstock_min_interval == 0.5
+
+
+def test_the_safety_fraction_moves_the_interval_and_is_clamped():
+    from app.config import Settings
+    def iv(safety):
+        # MIN_INTERVAL must be pinned to None: conftest sets it in the env to
+        # keep the suite fast, and an explicit interval overrides the budget
+        # arithmetic this test exists to check.
+        return Settings(VNSTOCK_API_KEY="k", VNSTOCK_MIN_INTERVAL_SECONDS=None,
+                        VNSTOCK_QUOTA_SAFETY=safety).vnstock_min_interval
+    assert iv(0.5) > iv(0.7) > iv(1.0)
+    assert iv(1.0) == pytest.approx(1.0)        # 60/min exactly, no margin
+    # Nonsense values must not produce a zero or negative interval, which would
+    # turn the throttle off entirely.
+    assert iv(0.0) > 0 and iv(-5.0) > 0 and iv(99.0) > 0
 
 
 def test_settings_blank_env_values_are_treated_as_unset(monkeypatch):
@@ -282,7 +360,8 @@ def test_settings_blank_env_values_are_treated_as_unset(monkeypatch):
     s = Settings()
     assert s.VNSTOCK_API_KEY is None
     assert s.VNSTOCK_MIN_INTERVAL_SECONDS is None
-    assert s.vnstock_min_interval == pytest.approx(3.1)
+    assert s.vnstock_min_interval == pytest.approx(
+        60.0 / (s.VNSTOCK_GUEST_RATE_PER_MIN * s.VNSTOCK_QUOTA_SAFETY))
 
 
 @pytest.mark.asyncio
@@ -319,3 +398,118 @@ async def test_sync_all_company_data_marks_its_calls_background():
     await asyncio.create_task(run())
     assert seen["flag"] is True
     assert svc_mod.vnstock_background.get() is False  # did not leak out of the task
+
+
+# ---------------------------------------------------------------------------
+# Adaptive pacing (Backlog #134, second pass)
+#
+# A fixed safety fraction cannot solve a SHARED budget. Measured 2026-11-10:
+# pacing at 42 calls/min against a 60/min tier, a 38-request burst still came
+# back "Đã sử dụng: 60/60" — the rest of the budget was spent by a consumer off
+# this machine. So the interval has to react rather than predict.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def adaptive(quota_settings):
+    quota_settings.setattr(svc_mod, "_vnstock_interval_multiplier", 1.0)
+    quota_settings.setattr(svc_mod.settings, "VNSTOCK_ADAPTIVE_PACING", True)
+    quota_settings.setattr(svc_mod.settings, "VNSTOCK_BACKOFF_FACTOR", 2.0)
+    quota_settings.setattr(svc_mod.settings, "VNSTOCK_MAX_INTERVAL_MULTIPLIER", 8.0)
+    quota_settings.setattr(svc_mod.settings, "VNSTOCK_RECOVERY_FACTOR", 0.5)
+    quota_settings.setattr(svc_mod.settings, "VNSTOCK_MIN_INTERVAL_SECONDS", 0.0)
+    return quota_settings
+
+
+@pytest.mark.asyncio
+async def test_a_rate_limit_slows_the_pace(adaptive):
+    adaptive.setattr(svc_mod.settings, "VNSTOCK_RATE_LIMIT_MAX_RETRIES", 0)
+
+    def limited():
+        raise _FakeRateLimit(retry_after=0.0)
+
+    with pytest.raises(_FakeRateLimit):
+        await svc_mod.vnstock_call(limited)
+    assert svc_mod._vnstock_interval_multiplier == pytest.approx(2.0)
+
+
+@pytest.mark.asyncio
+async def test_repeated_limits_compound_but_stop_at_the_ceiling(adaptive):
+    adaptive.setattr(svc_mod.settings, "VNSTOCK_RATE_LIMIT_MAX_RETRIES", 0)
+
+    def limited():
+        raise _FakeRateLimit(retry_after=0.0)
+
+    for _ in range(6):
+        with pytest.raises(_FakeRateLimit):
+            await svc_mod.vnstock_call(limited)
+    assert svc_mod._vnstock_interval_multiplier == pytest.approx(8.0), \
+        "an unbounded multiplier would stall the service instead of slowing it"
+
+
+@pytest.mark.asyncio
+async def test_success_decays_the_pace_back_toward_normal(adaptive):
+    adaptive.setattr(svc_mod, "_vnstock_interval_multiplier", 4.0)
+    await svc_mod.vnstock_call(lambda: "ok")
+    assert svc_mod._vnstock_interval_multiplier == pytest.approx(2.0)
+    await svc_mod.vnstock_call(lambda: "ok")
+    assert svc_mod._vnstock_interval_multiplier == pytest.approx(1.0)
+
+
+@pytest.mark.asyncio
+async def test_recovery_never_goes_below_the_configured_pace(adaptive):
+    for _ in range(5):
+        await svc_mod.vnstock_call(lambda: "ok")
+    assert svc_mod._vnstock_interval_multiplier == 1.0, \
+        "decaying past 1.0 would silently outrun the configured budget"
+
+
+@pytest.mark.asyncio
+async def test_adaptive_pacing_can_be_switched_off(adaptive):
+    adaptive.setattr(svc_mod.settings, "VNSTOCK_ADAPTIVE_PACING", False)
+    adaptive.setattr(svc_mod.settings, "VNSTOCK_RATE_LIMIT_MAX_RETRIES", 0)
+
+    def limited():
+        raise _FakeRateLimit(retry_after=0.0)
+
+    with pytest.raises(_FakeRateLimit):
+        await svc_mod.vnstock_call(limited)
+    assert svc_mod._vnstock_interval_multiplier == 1.0
+
+
+@pytest.mark.asyncio
+async def test_a_non_quota_error_does_not_change_the_pace(adaptive):
+    with pytest.raises(ValueError):
+        await svc_mod.vnstock_call(lambda: (_ for _ in ()).throw(ValueError("boom")))
+    assert svc_mod._vnstock_interval_multiplier == 1.0
+
+
+@pytest.mark.asyncio
+async def test_total_wait_is_bounded_so_a_stall_does_not_cascade(adaptive):
+    """The lock is process-wide: a call sleeping here blocks every other vnstock
+    caller. Unbounded, 3 retries x a 90s retry_after queues requests until the
+    gateway times them out — a quota stall becoming a 503 cascade, which is what
+    a 38-request burst actually produced."""
+    adaptive.setattr(svc_mod.settings, "VNSTOCK_RATE_LIMIT_MAX_RETRIES", 5)
+    adaptive.setattr(svc_mod.settings, "VNSTOCK_RATE_LIMIT_MAX_WAIT_SECONDS", 10.0)
+    slept = []
+
+    async def fake_sleep(seconds):
+        slept.append(seconds)
+
+    def limited():
+        raise _FakeRateLimit(retry_after=4.0)
+
+    with patch.object(svc_mod.asyncio, "sleep", fake_sleep):
+        with pytest.raises(_FakeRateLimit):
+            await svc_mod.vnstock_call(limited)
+    assert sum(s for s in slept if s >= 4.0) <= 10.0, slept
+
+
+def test_pacing_state_reports_what_is_actually_in_force(adaptive):
+    adaptive.setattr(svc_mod, "_vnstock_interval_multiplier", 2.0)
+    adaptive.setattr(svc_mod.settings, "VNSTOCK_MIN_INTERVAL_SECONDS", 1.5)
+    st = svc_mod.vnstock_pacing_state()
+    assert st["base_interval_s"] == 1.5
+    assert st["multiplier"] == 2.0
+    assert st["effective_interval_s"] == 3.0
+    assert st["effective_calls_per_min"] == 20.0

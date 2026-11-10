@@ -415,12 +415,50 @@ def _is_rate_limit(exc: Exception) -> bool:
     return _VnaiRateLimitExceeded is not None and isinstance(exc, _VnaiRateLimitExceeded)
 
 
-# vnstock 4.x enforces a per-process quota (vnai: 20 req/min guest, 60 with a
-# free key). One lock + timestamp for the whole process so every caller —
+# vnstock 4.x enforces a quota through vnai: 20 req/min guest, 60 with a free
+# Community key. One lock + timestamp for the whole process so every caller —
 # request handlers and the nightly sync alike — shares the same budget.
+#
+# BUT THE QUOTA IS NOT PER-PROCESS WHEN A KEY IS PRESENT (Backlog #134). With a
+# key, `vnai/beam/quota.py::verify` defers to a SERVER-SIDE quota manager keyed
+# on the API key, so the budget is shared by every process using that key —
+# including another machine. This lock can lower our share of it; it can never
+# guarantee it. That is why the interval now derives from an explicit budget and
+# a safety fraction (`settings.vnstock_min_interval`) instead of sitting at 95%
+# of the cap, and why a rate-limit response is retried more than once.
 _vnstock_call_lock: Optional[asyncio.Lock] = None
 _vnstock_lock_loop: Optional[asyncio.AbstractEventLoop] = None
 _vnstock_last_call: float = 0.0
+#: Adaptive multiplier on the base interval (Backlog #134). 1.0 = the configured
+#: pace; grows on a rate limit, decays on success. Module-level because the
+#: budget it is tracking is process-wide — and in fact wider than this process,
+#: which is the whole reason it has to be learned rather than configured.
+_vnstock_interval_multiplier: float = 1.0
+
+
+def _calls_per_min(interval: float) -> Optional[float]:
+    """Rate implied by an interval, or None when there is no interval.
+
+    A zero interval is legitimate — conftest uses it to keep the suite fast, and
+    an operator with a dedicated key may set it — so every rate calculation has
+    to tolerate it. Dividing by it blindly is a ZeroDivisionError raised from
+    inside the error handler for a rate limit, i.e. a crash in the code that
+    exists to handle a crash.
+    """
+    return round(60.0 / interval, 1) if interval > 0 else None
+
+
+def vnstock_pacing_state() -> dict:
+    """Current adaptive pacing, for /health and for tests."""
+    base = settings.vnstock_min_interval
+    eff = base * _vnstock_interval_multiplier
+    return {
+        "base_interval_s": round(base, 3),
+        "multiplier": round(_vnstock_interval_multiplier, 3),
+        "effective_interval_s": round(eff, 3),
+        "effective_calls_per_min": _calls_per_min(eff),
+        "tier_budget_per_min": settings.vnstock_rate_per_min,
+    }
 # True inside the nightly sync task: its calls give the next quota slot away
 # (sleep one interval *after* releasing the lock) so interactive requests are
 # not queued FIFO behind ~240 sync calls.
@@ -467,25 +505,72 @@ async def vnstock_call(fn, *args, **kwargs):
     under vnai's per-minute quota. If the quota is hit anyway, honour
     vnai's ``retry_after`` once before giving up.
     """
-    global _vnstock_last_call
-    min_interval = settings.vnstock_min_interval
+    global _vnstock_last_call, _vnstock_interval_multiplier
+    min_interval = settings.vnstock_min_interval * _vnstock_interval_multiplier
+    max_attempts = 1 + max(0, settings.VNSTOCK_RATE_LIMIT_MAX_RETRIES)
+    waited = 0.0
     try:
         async with _get_vnstock_lock():
-            for attempt in (1, 2):
+            for attempt in range(1, max_attempts + 1):
                 wait = _vnstock_last_call + min_interval - time.monotonic()
                 if wait > 0:
                     await asyncio.sleep(wait)
                 _vnstock_last_call = time.monotonic()
                 try:
-                    return await asyncio.to_thread(fn, *args, **kwargs)
+                    result = await asyncio.to_thread(fn, *args, **kwargs)
+                    if settings.VNSTOCK_ADAPTIVE_PACING and _vnstock_interval_multiplier > 1.0:
+                        _vnstock_interval_multiplier = max(
+                            1.0, _vnstock_interval_multiplier * settings.VNSTOCK_RECOVERY_FACTOR)
+                    return result
                 except Exception as e:
-                    if attempt == 2 or not settings.VNSTOCK_RATE_LIMIT_RETRY or not _is_rate_limit(e):
+                    if settings.VNSTOCK_ADAPTIVE_PACING and _is_rate_limit(e):
+                        before = _vnstock_interval_multiplier
+                        _vnstock_interval_multiplier = min(
+                            settings.VNSTOCK_MAX_INTERVAL_MULTIPLIER,
+                            _vnstock_interval_multiplier * settings.VNSTOCK_BACKOFF_FACTOR)
+                        if _vnstock_interval_multiplier != before:
+                            logger.warning(
+                                "vnstock pacing backed off: interval x%.2f -> x%.2f "
+                                "(%s -> %s calls/min); the %d/min budget is shared",
+                                before, _vnstock_interval_multiplier,
+                                _calls_per_min(settings.vnstock_min_interval * before),
+                                _calls_per_min(settings.vnstock_min_interval
+                                               * _vnstock_interval_multiplier),
+                                settings.vnstock_rate_per_min,
+                            )
+                        min_interval = settings.vnstock_min_interval * _vnstock_interval_multiplier
+                    last = attempt >= max_attempts
+                    if last or not settings.VNSTOCK_RATE_LIMIT_RETRY or not _is_rate_limit(e):
+                        if _is_rate_limit(e):
+                            # Logged on the way out as well as on the way round:
+                            # a caller that gives up silently is indistinguishable
+                            # from one that never hit the limit, which is exactly
+                            # what made #134 hard to see.
+                            logger.warning(
+                                "vnstock rate limit NOT cleared after %d attempt(s) "
+                                "(%s tier) — giving up on %s",
+                                attempt, getattr(e, "tier", "?"),
+                                getattr(fn, "__qualname__", fn),
+                            )
                         raise
                     retry_after = getattr(e, "retry_after", None) or min_interval
                     retry_after = min(float(retry_after), settings.VNSTOCK_RATE_LIMIT_MAX_WAIT_SECONDS)
+                    # The lock is process-wide, so a call that sleeps here is
+                    # blocking every other vnstock caller. Unbounded, three
+                    # retries x a 90s retry_after queues requests until the
+                    # gateway times them out — a quota stall turning into a 503
+                    # cascade, which is what a 38-request burst produced.
+                    if waited + retry_after > settings.VNSTOCK_RATE_LIMIT_MAX_WAIT_SECONDS:
+                        logger.warning(
+                            "vnstock rate limit: total wait budget %.0fs exhausted, "
+                            "releasing the lock rather than queueing more callers",
+                            settings.VNSTOCK_RATE_LIMIT_MAX_WAIT_SECONDS)
+                        raise
+                    waited += retry_after
                     logger.warning(
-                        f"vnstock rate limit hit ({getattr(e, 'tier', '?')} tier) — "
-                        f"waiting {retry_after:.0f}s then retrying once"
+                        "vnstock rate limit hit (%s tier) — waiting %.0fs then "
+                        "retrying (attempt %d of %d)",
+                        getattr(e, "tier", "?"), retry_after, attempt + 1, max_attempts,
                     )
                     await asyncio.sleep(retry_after)
                     _vnstock_last_call = 0.0

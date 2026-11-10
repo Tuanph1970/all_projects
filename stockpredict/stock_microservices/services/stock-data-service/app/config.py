@@ -69,12 +69,58 @@ class Settings(BaseSettings):
     # from the VNSTOCK_API_KEY env var itself; we only use it to pick a default
     # spacing between calls. Get a key at https://vnstocks.com/login
     VNSTOCK_API_KEY: Optional[str] = None
+    # Calls per minute the tier allows. 20 guest / 60 with a Community key.
+    VNSTOCK_GUEST_RATE_PER_MIN: int = 20
+    VNSTOCK_KEYED_RATE_PER_MIN: int = 60
+
+    # Fraction of that budget we actually aim at (Backlog #134).
+    #
+    # THE OLD DEFAULT TARGETED 95% OF A HARD CAP AND HAD NO MARGIN. With a key
+    # the interval was 1.05s = 57.1 calls/min against a 60/min limit, and a
+    # 61-symbol backfill lost 6 requests to it. 95% leaves nothing for the three
+    # things that always happen: jitter between the sleep and the call, a second
+    # caller inside this process (a user request landing mid-sync), and — the one
+    # a per-process interval CANNOT control — another machine using the SAME
+    # key, because with a key present vnai enforces the quota SERVER-SIDE per
+    # key (`vnai/beam/quota.py::verify` -> `qm.check_quota(api_key)`), not per
+    # process. A local interval can only lower our share of a shared budget; it
+    # can never guarantee it.
+    VNSTOCK_QUOTA_SAFETY: float = 0.7
+
     # Minimum seconds between two vnstock calls. None = derive from the tier
-    # (3.1s guest / 1.05s with key), i.e. just under the per-minute quota.
+    # and the safety fraction above.
     VNSTOCK_MIN_INTERVAL_SECONDS: Optional[float] = None
-    # On RateLimitExceeded, sleep for vnai's retry_after and try once more.
+    # On RateLimitExceeded, sleep for vnai's retry_after and try again.
     VNSTOCK_RATE_LIMIT_RETRY: bool = True
     VNSTOCK_RATE_LIMIT_MAX_WAIT_SECONDS: float = 90.0
+    # Attempts after the first. One was not enough: vnai has already retried
+    # twice internally before it raises, so by the time we see RateLimitExceeded
+    # the budget has been exhausted for seconds, and when the key is shared it
+    # can stay exhausted for the rest of the minute.
+    VNSTOCK_RATE_LIMIT_MAX_RETRIES: int = 3
+
+    # Adaptive pacing (Backlog #134, second pass).
+    #
+    # A FIXED SAFETY FRACTION CANNOT SOLVE A SHARED BUDGET, which is what this
+    # key has. Measured 2026-11-10: pacing at 42 calls/min — 70% of the 60/min
+    # tier — a 38-request burst still came back "Đã sử dụng: 60/60". Only this
+    # container holds the key on this machine and only it imports vnstock, so
+    # the other ~20 calls/min came from somewhere we do not control (the key is
+    # also in use on the production host). Any fraction we pick here is a guess
+    # at a stranger's share, and it will be wrong again the moment that share
+    # moves.
+    #
+    # So the interval reacts instead of predicting: multiply it on a rate limit,
+    # decay it back on success. Classic multiplicative-decrease / additive-
+    # recovery, which converges on whatever share is actually available without
+    # anyone having to know what it is.
+    VNSTOCK_ADAPTIVE_PACING: bool = True
+    VNSTOCK_BACKOFF_FACTOR: float = 2.0
+    VNSTOCK_MAX_INTERVAL_MULTIPLIER: float = 8.0
+    #: Per successful call. 0.98 ** 35 ~ 0.5, so a doubled interval halves back
+    #: over roughly 35 clean calls — fast enough to recover within a nightly
+    #: sync, slow enough not to re-provoke the limit immediately.
+    VNSTOCK_RECOVERY_FACTOR: float = 0.98
 
     @field_validator("VNSTOCK_API_KEY", "VNSTOCK_MIN_INTERVAL_SECONDS", mode="before")
     @classmethod
@@ -85,10 +131,22 @@ class Settings(BaseSettings):
         return v
 
     @property
+    def vnstock_rate_per_min(self) -> int:
+        """The tier's per-minute budget, named rather than implied."""
+        return (self.VNSTOCK_KEYED_RATE_PER_MIN if self.VNSTOCK_API_KEY
+                else self.VNSTOCK_GUEST_RATE_PER_MIN)
+
+    @property
     def vnstock_min_interval(self) -> float:
+        """Seconds between calls = 60 / (budget x safety).
+
+        An explicit VNSTOCK_MIN_INTERVAL_SECONDS still wins, so an operator who
+        knows the key is theirs alone can turn the margin back down.
+        """
         if self.VNSTOCK_MIN_INTERVAL_SECONDS is not None:
             return self.VNSTOCK_MIN_INTERVAL_SECONDS
-        return 1.05 if self.VNSTOCK_API_KEY else 3.1
+        safety = min(max(self.VNSTOCK_QUOTA_SAFETY, 0.05), 1.0)
+        return 60.0 / max(1.0, self.vnstock_rate_per_min * safety)
 
     # Company data sync
     COMPANY_SYNC_STALE_DAYS: int = 7
