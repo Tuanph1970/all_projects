@@ -5,7 +5,7 @@
 **Document version:** 1.0
 **Date:** 2026-11-09
 **Status:** Draft (Phase 1 — Design)
-**Source method:** `docs/Cam_nang_Giao_dich_Qullamaggie.pdf` — Part 2, *Quy Trình Lọc Cổ
+**Source method:** `docs/archive/Cam_nang_Giao_dich_Qullamaggie.pdf` — Part 2, *Quy Trình Lọc Cổ
 Phiếu Hàng Ngày*. Part 1 (entry/stop/exit) is **not** in scope; see §1.3.
 **Sibling docs:** `docs/implementation_plan_momentum_scanner.md` (the companion plan,
 written in the next phase), `docs/SRS_edwards_magee_*.md` (the evaluation engine this
