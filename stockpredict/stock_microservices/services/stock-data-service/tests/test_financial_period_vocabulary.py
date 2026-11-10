@@ -50,8 +50,7 @@ def _service(captured: dict) -> StockService:
 
 
 def _patched(svc, fake_vnstock):
-    return patch.object(type(svc), "vnstock",
-                        new_callable=lambda: property(lambda self: fake_vnstock))
+    return __import__("tests.conftest", fromlist=["x"]).patch_vendor_components(fake_vnstock)
 
 
 class TestPeriodTranslation:

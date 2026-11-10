@@ -172,8 +172,7 @@ class TestWiredIntoTheResponse:
     @pytest.mark.asyncio
     async def test_the_response_carries_the_kbs_values_not_the_stale_ones(self):
         svc, fv = self._service(_kbs_annual())
-        with patch.object(type(svc), "vnstock",
-                          new_callable=lambda: property(lambda self: fv)):
+        with __import__("tests.conftest", fromlist=["x"]).patch_vendor_components(fv):
             out = await svc.get_company_financials("FPT")
         assert out.pe_ratio == pytest.approx(15.91), "still serving VCI's stale 8.76"
         assert out.roe == pytest.approx(28.3)
@@ -182,8 +181,7 @@ class TestWiredIntoTheResponse:
     @pytest.mark.asyncio
     async def test_the_stale_market_cap_is_no_longer_published(self):
         svc, fv = self._service(_kbs_annual())
-        with patch.object(type(svc), "vnstock",
-                          new_callable=lambda: property(lambda self: fv)):
+        with __import__("tests.conftest", fromlist=["x"]).patch_vendor_components(fv):
             out = await svc.get_company_financials("FPT")
         assert out.market_cap is None
 
@@ -214,8 +212,7 @@ class TestWiredIntoTheResponse:
 
         fv = MagicMock()
         fv.stock.side_effect = make_stock
-        with patch.object(type(svc), "vnstock",
-                          new_callable=lambda: property(lambda self: fv)):
+        with __import__("tests.conftest", fromlist=["x"]).patch_vendor_components(fv):
             out = await svc.get_company_financials("FPT")
         assert out is not None
         assert out.pe_ratio is None

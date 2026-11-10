@@ -38,11 +38,10 @@ def _patch_vnstock(svc: StockService, fake_vnstock):
     decorator-based vnstock property would otherwise rebuild a real
     client. Using a closure to capture fake_vnstock keeps each test
     isolated."""
-    return patch.object(
-        type(svc),
-        "vnstock",
-        new_callable=lambda: property(lambda self: fake_vnstock),
-    )
+    # #142: production constructs gen-5 classes, so patching the gen-4 facade
+    # intercepts nothing. The fake's shape is unchanged; conftest maps it on.
+    from tests.conftest import patch_vendor_components
+    return patch_vendor_components(fake_vnstock)
 
 
 def _make_company(id=1, symbol="VNM", name="Vinamilk", last_synced_at=None) -> Company:

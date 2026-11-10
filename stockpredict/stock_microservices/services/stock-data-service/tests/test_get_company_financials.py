@@ -70,11 +70,10 @@ def _make_service(repo=None) -> StockService:
 
 
 def _patch_vnstock(svc: StockService, fake_vnstock):
-    return patch.object(
-        type(svc),
-        "vnstock",
-        new_callable=lambda: property(lambda self: fake_vnstock),
-    )
+    # #142: production constructs gen-5 classes, so patching the gen-4 facade
+    # intercepts nothing. The fake's shape is unchanged; conftest maps it on.
+    from tests.conftest import patch_vendor_components
+    return patch_vendor_components(fake_vnstock)
 
 
 def _build_fake_stock(

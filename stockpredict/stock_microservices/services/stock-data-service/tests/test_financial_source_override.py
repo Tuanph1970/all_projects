@@ -55,8 +55,7 @@ def _service(calls: list):
 
 
 def _patched(svc, fv):
-    return patch.object(type(svc), "vnstock",
-                        new_callable=lambda: property(lambda self: fv))
+    return __import__("tests.conftest", fromlist=["x"]).patch_vendor_components(fv)
 
 
 class TestPerStatementSource:

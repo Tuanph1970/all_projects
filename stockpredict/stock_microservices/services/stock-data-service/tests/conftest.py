@@ -201,3 +201,55 @@ def mock_industry():
         level=1,
         company_count=25
     )
+
+# ── gen-5 vendor construction, for tests written against the gen-4 facade ──
+#
+# Backlog #142 moved production from `Vnstock().stock(...)` to the gen-5 direct
+# classes, so patching `StockService.vnstock` no longer intercepts anything —
+# tests that did it started making REAL network calls and the suite hung on
+# 30s read timeouts rather than failing.
+#
+# Rather than rewrite every fake, this maps the EXISTING ones onto the new
+# construction path: the fakes already describe the vendor surface correctly
+# (`fake.stock(symbol, source).finance.ratio(...)`), and that shape is still
+# exactly what the service needs — only who constructs each component changed.
+# So one adapter here beats fifteen rewritten fixtures, and the fakes stay
+# readable as descriptions of the vendor rather than of our plumbing.
+import contextlib as _contextlib
+from unittest.mock import patch as _patch
+
+
+@_contextlib.contextmanager
+def patch_vendor_components(fake_vnstock):
+    """Make the gen-5 classes resolve to `fake_vnstock.stock(...).<kind>`.
+
+    `VnListing` is served from the fake's PRIMARY components object, not from a
+    KBS-specific sheet, and the distinction is load-bearing. Production pins the
+    listing component to KBS (LISTING_SOURCE) because gen-4 did — but in gen-4's
+    OBJECT GRAPH `.listing` hung off the components object built for the
+    configured source, with the KBS pinning hidden inside it. Source-aware fakes
+    (see `_vnstock_with(..., kbs_ratio_df=...)`) model that graph: their KBS
+    sheet carries only `finance.ratio`. Passing source="KBS" through to such a
+    fake would therefore ask for `.listing` on a sheet that has none, which is a
+    fixture artefact and not a production behaviour change.
+    """
+    def _sub(kind):
+        def build(*args, **kwargs):
+            symbol = kwargs.get("symbol") or (args[0] if args else "")
+            source = kwargs.get("source") or (args[1] if len(args) > 1 else None)
+            if kind == "listing":
+                symbol, source = "", None     # the primary sheet — see above
+            try:
+                components = fake_vnstock.stock(symbol=symbol, source=source)
+            except TypeError:                     # fakes with a positional API
+                components = fake_vnstock.stock(symbol, source)
+            return getattr(components, kind)
+        return build
+
+    with _patch("app.services.stock_service.VnQuote", side_effect=_sub("quote")), \
+         _patch("app.services.stock_service.VnCompany", side_effect=_sub("company")), \
+         _patch("app.services.stock_service.VnFinance", side_effect=_sub("finance")), \
+         _patch("app.services.stock_service.VnListing", side_effect=_sub("listing")), \
+         _patch("app.services.stock_service.VnTrading", side_effect=_sub("trading")):
+        yield
+

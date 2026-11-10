@@ -16,7 +16,19 @@ import pandas as pd
 if not hasattr(pd.DataFrame, "applymap"):
     pd.DataFrame.applymap = pd.DataFrame.map  # type: ignore[attr-defined]
 
-from vnstock import Vnstock
+# GEN-5 CALL STYLE (Backlog #142). The vendor's transition notice asks gen-4
+# code to move to these direct classes before gen 6, which keeps this style:
+# `Quote(symbol=..., source=...)` instead of `Vnstock().stock(...).quote`.
+#
+# These are `vnstock.api.*`, which are NOT the `vnstock.common.data.*` classes
+# `StockComponents` builds — that module emits a DeprecationWarning telling you
+# to move here. Equivalence per endpoint was measured before this migration, not
+# assumed; see `tests/gen5_equivalence.py` and docs/backlog142_gen5_migration.md.
+from vnstock import Company as VnCompany
+from vnstock import Finance as VnFinance
+from vnstock import Listing as VnListing
+from vnstock import Quote as VnQuote
+from vnstock import Trading as VnTrading
 try:
     from vnai.beam.quota import RateLimitExceeded as _VnaiRateLimitExceeded
 except Exception:
@@ -580,34 +592,45 @@ async def vnstock_call(fn, *args, **kwargs):
             await asyncio.sleep(min_interval)
 
 
-# ── StockComponents reuse (Backlog #144) ──────────────────────────────────
+# ── Vendor component reuse (Backlog #144, gen-5 style since #142) ─────────
 #
-# CONSTRUCTING A `StockComponents` IS A NETWORK CALL, AND THAT IS THE #134
-# RESIDUAL. `Vnstock().stock(...)` builds `Finance(symbol, source)`, whose
-# `__init__` calls `_handshake()` — one HTTPS request to iq.vietcap.com.vn —
-# even when the caller only wants `quote.history` or `listing.all_symbols`.
-# Measured 2026-11-10 inside our own container: ~0.6s each when idle, and
-# back-to-back the SIXTH construction read-times-out at 30s; 20 of them took
-# 102s and three failed outright. That is the mechanism behind #134's bursts,
-# and it is why #134's pacing fix did not stop them — the guard paced DATA
-# calls while the failures were happening in CONSTRUCTION.
+# CONSTRUCTING A FINANCE COMPONENT IS A NETWORK CALL, AND THAT WAS THE #134
+# RESIDUAL. `Finance(symbol, source).__init__` runs `_handshake()` — one HTTPS
+# GET to trading.vietcap.com.vn/priceboard whose session cookies it keeps.
+# Measured 2026-11-10 in this container: ~0.6s idle, and back-to-back the SIXTH
+# construction read-times-out at 30s (20 took 102s with three failures). #134's
+# pacing could not stop its own bursts because it paced DATA calls while the
+# failures were in CONSTRUCTION.
 #
-# So the fix is not only to guard it but to stop doing it. Eighteen call sites
-# built one of these per invocation; they now share one per (symbol, source).
+# THE GEN-5 MIGRATION MADE THIS STRICTLY BETTER, which is the part worth
+# knowing. Gen-4's `Vnstock().stock(...)` built every component eagerly, so a
+# caller that only wanted `listing.all_symbols()` still paid the Finance
+# handshake. Constructing components individually means ONLY the finance paths
+# pay it at all — measured: Quote, Company, Listing and Trading construct in
+# ~0.00s, Finance in ~0.75s.
 #
-# THE CACHE IS SAFE ONLY BECAUSE EVERY VNSTOCK CALL IS SERIALISED. Components
-# are shared across tasks, and the data methods are not documented thread-safe
-# — but `vnstock_call` holds a process-wide lock around the whole
-# `to_thread(...)`, so exactly one vnstock call runs at a time in this process.
-# That invariant is what makes sharing sound, which is the other reason every
-# bypass had to be closed in the same change rather than later.
-#: (symbol, source) -> (built_at_monotonic, components)
-_components_cache: "OrderedDict[Tuple[str, str], Tuple[float, Any]]" = OrderedDict()
+# THE CACHE IS SAFE ONLY BECAUSE EVERY VENDOR CALL IS SERIALISED. Components are
+# shared across tasks and their methods are not documented thread-safe, but
+# `vnstock_call` holds a process-wide lock around the whole `to_thread(...)`, so
+# exactly one vendor call runs at a time in this process. That invariant is why
+# #144 had to close every bypass in one change rather than later.
+#
+#: (kind, symbol, source) -> (built_at_monotonic, component)
+_components_cache: "OrderedDict[Tuple[str, str, str], Tuple[float, Any]]" = OrderedDict()
 
-#: Bounded because the universe is ~1,750 symbols and nothing here expires. Each
-#: entry is small (headers plus a handshake result), so this is about not leaking
-#: unboundedly over a long-lived process, not about memory pressure.
+#: Bounded because the universe is ~1,750 symbols and nothing here expires on a
+#: timer. Each entry is small (headers plus a handshake result), so this is about
+#: not leaking unboundedly in a long-lived process, not about memory pressure.
 COMPONENTS_CACHE_MAX = 256
+
+#: gen-4's `StockComponents._initialize_components` hardcodes
+#: `Listing(source="KBS")` even when the components' own source is VCI. That is
+#: not a detail to tidy up in passing: measured 2026-11-10,
+#: `Listing("KBS").all_symbols()` returns 1,517 rows and `Listing("VCI")`
+#: returns 1,757. Every listing consumer — the scanner's universe included —
+#: reads whatever this is, so the migration PRESERVES KBS and changing it stays
+#: a separate, measured decision.
+LISTING_SOURCE = "KBS"
 
 
 def components_cache_state() -> dict:
@@ -629,25 +652,48 @@ class StockService:
         self._vnstock = None
 
     @property
-    def vnstock(self) -> Vnstock:
-        """Lazy load VNStock client"""
+    def vnstock(self):
+        """Retained for the gen-4 `Vnstock()` facade.
+
+        Nothing in this module builds components through it any more (#142) —
+        it stays because the migration note in `tests/gen5_equivalence.py`
+        compares the two styles against each other and because a caller outside
+        this class may still hold it. Constructing it is free; it is the
+        `.stock(...)` call that was not.
+        """
         if self._vnstock is None:
+            from vnstock import Vnstock
             self._vnstock = Vnstock(source=settings.VNSTOCK_DATA_SOURCE)
         return self._vnstock
 
-    async def _components(self, symbol: str, source: Optional[str] = None):
-        """A `StockComponents` for (symbol, source) — reused, and built under
-        the quota guard when it has to be built (Backlog #144).
+    async def _component(self, kind: str, symbol: str, source: Optional[str] = None):
+        """A vendor component for (kind, symbol, source) — reused, and built
+        under the quota guard when it has to be built (#144, gen-5 since #142).
 
-        Every call site that used `self.vnstock.stock(...)` goes through here.
-        Construction is an upstream request (see the note above the cache), so
-        it belongs inside `vnstock_call` for the same reasons a data fetch does:
-        pacing, the retry, and not blocking the event loop for ~0.6s — or for
-        30s when the handshake endpoint decides it has seen enough of us.
+        Construction is an upstream request for `finance` (see the note above
+        the cache), so it belongs inside `vnstock_call` for the same reasons a
+        data fetch does: pacing, the retry, and not blocking the event loop for
+        ~0.6s — or for 30s when the handshake endpoint has seen enough of us.
+        The other kinds construct locally and are routed through the same path
+        anyway, because a guard with exceptions is the thing #144 was fixing.
         """
-        src = (source or settings.VNSTOCK_DATA_SOURCE).upper()
-        sym = (symbol or "").upper()
-        key = (sym, src)
+        builders = {
+            "quote": lambda sym, src: VnQuote(symbol=sym, source=src),
+            "company": lambda sym, src: VnCompany(symbol=sym, source=src),
+            "finance": lambda sym, src: VnFinance(symbol=sym, source=src),
+            "trading": lambda sym, src: VnTrading(symbol=sym, source=src),
+            # Symbol-free, and deliberately NOT the configured source — see
+            # LISTING_SOURCE for the row-count measurement behind that.
+            "listing": lambda sym, src: VnListing(source=LISTING_SOURCE),
+        }
+        build = builders.get(kind)
+        if build is None:
+            raise ValueError(f"unknown vendor component kind: {kind!r}")
+
+        src = LISTING_SOURCE if kind == "listing" else (
+            source or settings.VNSTOCK_DATA_SOURCE).upper()
+        sym = "" if kind == "listing" else (symbol or "").upper()
+        key = (kind, sym, src)
         ttl = settings.VNSTOCK_COMPONENTS_TTL_SECONDS
         now = time.monotonic()
 
@@ -661,13 +707,30 @@ class StockService:
                 # Expired: drop it rather than hand back stale cookies.
                 del _components_cache[key]
 
-        built = await vnstock_call(self.vnstock.stock, symbol=sym, source=src)
+        built = await vnstock_call(build, sym, src)
         if ttl > 0:
             _components_cache[key] = (now, built)
             _components_cache.move_to_end(key)
             while len(_components_cache) > COMPONENTS_CACHE_MAX:
                 _components_cache.popitem(last=False)
         return built
+
+    async def _quote(self, symbol: str, source: Optional[str] = None):
+        return await self._component("quote", symbol, source)
+
+    async def _company(self, symbol: str, source: Optional[str] = None):
+        return await self._component("company", symbol, source)
+
+    async def _finance(self, symbol: str, source: Optional[str] = None):
+        return await self._component("finance", symbol, source)
+
+    async def _trading(self, symbol: str, source: Optional[str] = None):
+        return await self._component("trading", symbol, source)
+
+    async def _listing(self):
+        """The listing component. Takes no symbol and no source: gen-4 pinned it
+        to KBS and so does this (LISTING_SOURCE)."""
+        return await self._component("listing", "")
 
     # ==================== Company Operations ====================
 
@@ -803,8 +866,8 @@ class StockService:
         This fetches directly from vnstock API, not from database.
         """
         try:
-            stock = await self._components("VNM")
-            df = await vnstock_call(stock.listing.all_symbols)
+            vn_listing = await self._listing()
+            df = await vnstock_call(vn_listing.all_symbols)
 
             if df is None or df.empty:
                 logger.warning("No companies returned from vnstock")
@@ -837,10 +900,10 @@ class StockService:
             group: Stock group (VN30, VN100, HOSE, HNX, UPCOM, etc.)
         """
         try:
-            stock = await self._components("VNM")
+            vn_listing = await self._listing()
 
             # symbols_by_group returns a Series, not DataFrame
-            symbols = await vnstock_call(stock.listing.symbols_by_group, group.upper())
+            symbols = await vnstock_call(vn_listing.symbols_by_group, group.upper())
 
             if symbols is None or len(symbols) == 0:
                 logger.warning(f"No companies returned for group {group}")
@@ -1062,8 +1125,8 @@ class StockService:
         returns these fields in the VCI data source.
         """
         try:
-            stock = await self._components(symbol)
-            df = await vnstock_call(stock.company.overview)
+            vn_company = await self._company(symbol)
+            df = await vnstock_call(vn_company.overview)
 
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
                 return []
@@ -1077,7 +1140,7 @@ class StockService:
 
             # Enrich with trading_stats() for foreign ownership data
             try:
-                ts_df = await vnstock_call(stock.company.trading_stats)
+                ts_df = await vnstock_call(vn_company.trading_stats)
                 if ts_df is not None and not ts_df.empty:
                     ts_row = self._dedupe_columns(ts_df).iloc[0]
                     foreign_percent, outstanding = self._foreign_ownership(ts_row, df.iloc[0])
@@ -1089,7 +1152,7 @@ class StockService:
 
             # Enrich with shareholders() for shareholder count
             try:
-                sh_df = await vnstock_call(stock.company.shareholders)
+                sh_df = await vnstock_call(vn_company.shareholders)
                 if sh_df is not None and not sh_df.empty:
                     df['noShareholders'] = len(sh_df)
             except Exception as e:
@@ -1169,8 +1232,8 @@ class StockService:
             source = FINANCIAL_SOURCE_OVERRIDES.get(
                 statement_type, settings.VNSTOCK_DATA_SOURCE
             )
-            stock = await self._components(symbol, source)
-            method = getattr(stock.finance, statement_type, None)
+            vn_finance = await self._finance(symbol, source)
+            method = getattr(vn_finance, statement_type, None)
             if method is None:
                 logger.error(f"Unknown statement type: {statement_type}")
                 return []
@@ -1254,8 +1317,8 @@ class StockService:
     async def get_company_news_data(self, symbol: str) -> List[dict]:
         """Get company news from vnstock."""
         try:
-            stock = await self._components(symbol)
-            df = await vnstock_call(stock.company.news)
+            vn_company = await self._company(symbol)
+            df = await vnstock_call(vn_company.news)
 
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
                 return []
@@ -1284,8 +1347,8 @@ class StockService:
     async def get_company_events_data(self, symbol: str) -> List[dict]:
         """Get company events from vnstock."""
         try:
-            stock = await self._components(symbol)
-            df = await vnstock_call(stock.company.events)
+            vn_company = await self._company(symbol)
+            df = await vnstock_call(vn_company.events)
 
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
                 return []
@@ -1309,9 +1372,9 @@ class StockService:
     async def get_company_dividends_data(self, symbol: str) -> List[dict]:
         """Get company dividends from vnstock."""
         try:
-            stock = await self._components(symbol)
+            vn_company = await self._company(symbol)
 
-            data_source = stock.company.data_source
+            data_source = vn_company.data_source
             if not hasattr(data_source, 'dividends'):
                 # VCI has no dividends(); fall back to its corporate events (#59)
                 if hasattr(data_source, '_fetch_events'):
@@ -1319,7 +1382,7 @@ class StockService:
                 logger.info(f"Dividend data not supported by {settings.VNSTOCK_DATA_SOURCE} for {symbol}")
                 return []
 
-            df = await vnstock_call(stock.company.dividends)
+            df = await vnstock_call(vn_company.dividends)
 
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
                 logger.info(f"Dividend data not available for {symbol} - API limitation")
@@ -1475,8 +1538,8 @@ class StockService:
     async def sync_company_profile(self, symbol: str) -> bool:
         """Fetch profile from vnstock and save to DB cache."""
         try:
-            stock = await self._components(symbol)
-            df = await vnstock_call(stock.company.overview)
+            vn_company = await self._company(symbol)
+            df = await vnstock_call(vn_company.overview)
 
             if df is None or (isinstance(df, pd.DataFrame) and df.empty):
                 logger.warning(f"No overview data for {symbol}")
@@ -1507,7 +1570,7 @@ class StockService:
 
             # Enrich with trading_stats for foreign ownership
             try:
-                ts_df = await vnstock_call(stock.company.trading_stats)
+                ts_df = await vnstock_call(vn_company.trading_stats)
                 if ts_df is not None and not ts_df.empty:
                     ts_row = self._dedupe_columns(ts_df).iloc[0]
                     foreign_percent, outstanding = self._foreign_ownership(ts_row, row)
@@ -1520,7 +1583,7 @@ class StockService:
 
             # Enrich with shareholders count
             try:
-                sh_df = await vnstock_call(stock.company.shareholders)
+                sh_df = await vnstock_call(vn_company.shareholders)
                 if sh_df is not None and not sh_df.empty:
                     kwargs["no_shareholders"] = len(sh_df)
             except Exception as e:
@@ -1789,8 +1852,8 @@ class StockService:
             # Fetch company info from vnstock and create record
             logger.info(f"Company {symbol} not found in DB, creating from vnstock")
             try:
-                stock = await self._components(symbol)
-                all_symbols_df = await vnstock_call(stock.listing.all_symbols)
+                vn_listing = await self._listing()
+                all_symbols_df = await vnstock_call(vn_listing.all_symbols)
 
                 company_name = symbol
                 exchange = "HOSE"
@@ -2161,9 +2224,10 @@ class StockService:
         Used as fallback when database is empty.
         """
         try:
-            stock = await self._components(symbol)
+            vn_listing = await self._listing()
+            vn_quote = await self._quote(symbol)
             df = await vnstock_call(
-                stock.quote.history,
+                vn_quote.history,
                 start=start_date.strftime("%Y-%m-%d"),
                 end=end_date.strftime("%Y-%m-%d"),
             )
@@ -2175,7 +2239,7 @@ class StockService:
             # Get company name from listing data
             company_name = symbol.upper()
             try:
-                all_symbols_df = await vnstock_call(stock.listing.all_symbols)
+                all_symbols_df = await vnstock_call(vn_listing.all_symbols)
                 if all_symbols_df is not None and not all_symbols_df.empty:
                     match = all_symbols_df[all_symbols_df["symbol"] == symbol.upper()]
                     if not match.empty:
@@ -2251,9 +2315,9 @@ class StockService:
 
         try:
             # Fetch from VNStock (run in thread to avoid blocking event loop)
-            stock = await self._components(symbol)
+            vn_quote = await self._quote(symbol)
             df = await vnstock_call(
-                stock.quote.history,
+                vn_quote.history,
                 start=start_date.strftime("%Y-%m-%d"),
                 end=end_date.strftime("%Y-%m-%d"),
             )
@@ -2383,8 +2447,8 @@ class StockService:
             # Get company names for enrichment
             company_names = {}
             try:
-                stock = await self._components("VNM")
-                all_symbols_df = await vnstock_call(stock.listing.all_symbols)
+                vn_listing = await self._listing()
+                all_symbols_df = await vnstock_call(vn_listing.all_symbols)
                 if all_symbols_df is not None and not all_symbols_df.empty:
                     for _, row in all_symbols_df.iterrows():
                         symbol = row.get("symbol", "")
@@ -2477,11 +2541,11 @@ class StockService:
         industries_icb() is not available for all data sources.
         """
         try:
-            stock = await self._components("VNM")
+            vn_listing = await self._listing()
 
             # Try industries_icb() first, fallback to symbols_by_industries()
             try:
-                df = await vnstock_call(stock.listing.industries_icb)
+                df = await vnstock_call(vn_listing.industries_icb)
                 if df is not None and not df.empty:
                     industries = []
                     for idx, row in df.iterrows():
@@ -2500,7 +2564,7 @@ class StockService:
                 logger.warning(f"industries_icb() not available: {icb_error}, trying symbols_by_industries()")
 
             # Fallback: Use symbols_by_industries() and extract unique industries
-            df = await vnstock_call(stock.listing.symbols_by_industries)
+            df = await vnstock_call(vn_listing.symbols_by_industries)
 
             if df is None or df.empty:
                 logger.warning("No data returned from vnstock symbols_by_industries")
@@ -2668,8 +2732,8 @@ class StockService:
         Uses symbols_by_industries() method and enriches with company names from all_symbols().
         """
         try:
-            stock = await self._components("VNM")
-            df = await vnstock_call(stock.listing.symbols_by_industries)
+            vn_listing = await self._listing()
+            df = await vnstock_call(vn_listing.symbols_by_industries)
 
             if df is None or df.empty:
                 logger.warning("No data returned from vnstock symbols_by_industries")
@@ -2724,7 +2788,7 @@ class StockService:
             # Try to get company names from all_symbols() for enrichment
             company_names = {}
             try:
-                all_symbols_df = await vnstock_call(stock.listing.all_symbols)
+                all_symbols_df = await vnstock_call(vn_listing.all_symbols)
                 if all_symbols_df is not None and not all_symbols_df.empty:
                     for _, sym_row in all_symbols_df.iterrows():
                         symbol = sym_row.get("symbol", "")
@@ -2812,9 +2876,9 @@ class StockService:
 
         for code in MARKET_INDEX_CODES:
             try:
-                stock = await self._components(code)
+                vn_quote = await self._quote(code)
                 df = await vnstock_call(
-                    stock.quote.history,
+                    vn_quote.history,
                     start=start.strftime("%Y-%m-%d"),
                     end=end.strftime("%Y-%m-%d"),
                     interval="1D",
@@ -3241,10 +3305,10 @@ class StockService:
         from datetime import timedelta as _td
 
         try:
-            stock = await self._components(symbol)
+            vn_quote = await self._quote(symbol)
             end = date.today()
             df = await vnstock_call(
-                stock.quote.history,
+                vn_quote.history,
                 start=(end - _td(days=21)).strftime("%Y-%m-%d"),
                 end=end.strftime("%Y-%m-%d"),
             )
@@ -3267,12 +3331,13 @@ class StockService:
             CompanyFinancialsResponse with financial ratios and metrics
         """
         try:
-            stock = await self._components(symbol)
+            vn_finance = await self._finance(symbol)
+            vn_listing = await self._listing()
 
             # Get company name
             company_name = symbol.upper()
             try:
-                all_symbols_df = await vnstock_call(stock.listing.all_symbols)
+                all_symbols_df = await vnstock_call(vn_listing.all_symbols)
                 if all_symbols_df is not None and not all_symbols_df.empty:
                     match = all_symbols_df[all_symbols_df["symbol"] == symbol.upper()]
                     if not match.empty:
@@ -3295,7 +3360,7 @@ class StockService:
 
             # Try to get financial ratios from vnstock
             try:
-                ratio_df = await vnstock_call(stock.finance.ratio, period="quarter", lang="en")
+                ratio_df = await vnstock_call(vn_finance.ratio, period="quarter", lang="en")
                 latest = self._latest_metrics(ratio_df)
 
                 if latest:
@@ -3354,9 +3419,9 @@ class StockService:
                         # #144: the construction used to sit INSIDE this
                         # argument list, so it was evaluated eagerly in the
                         # event loop and only looked guarded. Hoisted.
-                        kbs = await self._components(symbol, "KBS")
+                        vn_kbs_finance = await self._finance(symbol, "KBS")
                         kbs_ratio = await vnstock_call(
-                            kbs.finance.ratio, period="year",
+                            vn_kbs_finance.ratio, period="year",
                         )
                         if bvps is None:
                             bvps = bvps_from_ratio_frame(kbs_ratio)
@@ -3432,7 +3497,7 @@ class StockService:
             # Try to get income statement for revenue, net income, and growth
             try:
                 is_df = await vnstock_call(
-                    stock.finance.income_statement, period="quarter", lang="en")
+                    vn_finance.income_statement, period="quarter", lang="en")
                 latest_is = self._latest_metrics(is_df)
 
                 if latest_is:
@@ -3476,7 +3541,7 @@ class StockService:
             # Try to get balance sheet for assets, liabilities, equity
             try:
                 bs_df = await vnstock_call(
-                    stock.finance.balance_sheet, period="quarter", lang="en")
+                    vn_finance.balance_sheet, period="quarter", lang="en")
                 latest_bs = self._latest_metrics(bs_df)
 
                 if latest_bs:
@@ -3572,7 +3637,7 @@ class StockService:
             # Try to get cash flow statement
             try:
                 cf_df = await vnstock_call(
-                    stock.finance.cash_flow, period="quarter", lang="en")
+                    vn_finance.cash_flow, period="quarter", lang="en")
                 latest_cf = self._latest_metrics(cf_df)
 
                 if latest_cf:

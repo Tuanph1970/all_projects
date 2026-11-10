@@ -194,7 +194,7 @@ def _recording_vnstock(svc: StockService):
 
     fake = MagicMock()
     fake.stock.return_value.quote.history = history
-    patcher = patch.object(type(svc), "vnstock", new_callable=lambda: property(lambda self: fake))
+    patcher = __import__("tests.conftest", fromlist=["x"]).patch_vendor_components(fake)
     return patcher, calls
 
 

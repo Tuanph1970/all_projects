@@ -112,8 +112,7 @@ class TestItIsWiredIntoTheResponse:
     @pytest.mark.asyncio
     async def test_the_response_carries_book_value_per_share(self):
         svc, fv = self._service(_kbs_ratio_frame())
-        with patch.object(type(svc), "vnstock",
-                          new_callable=lambda: property(lambda self: fv)):
+        with __import__("tests.conftest", fromlist=["x"]).patch_vendor_components(fv):
             out = await svc.get_company_financials("FPT")
         assert out is not None
         assert out.book_value_per_share == pytest.approx(28_450.0)
@@ -144,8 +143,7 @@ class TestItIsWiredIntoTheResponse:
 
         fv = MagicMock()
         fv.stock.side_effect = make_stock
-        with patch.object(type(svc), "vnstock",
-                          new_callable=lambda: property(lambda self: fv)):
+        with __import__("tests.conftest", fromlist=["x"]).patch_vendor_components(fv):
             out = await svc.get_company_financials("FPT")
         assert out is not None
         assert out.book_value_per_share is None

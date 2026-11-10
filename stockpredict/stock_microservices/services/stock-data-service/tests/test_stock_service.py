@@ -414,7 +414,7 @@ async def test_get_all_companies_live_maps_vnstock_dataframe():
     fake_vnstock = MagicMock()
     fake_vnstock.stock.return_value = fake_stock
 
-    with patch.object(type(svc), "vnstock", new_callable=lambda: property(lambda self: fake_vnstock)):
+    with __import__("tests.conftest", fromlist=["x"]).patch_vendor_components(fake_vnstock):
         out = await svc.get_all_companies_live()
 
     assert {c.symbol for c in out} == {"FPT", "VNM"}
@@ -428,7 +428,7 @@ async def test_get_all_companies_live_returns_empty_on_exception():
     fake_vnstock = MagicMock()
     fake_vnstock.stock.return_value = fake_stock
 
-    with patch.object(type(svc), "vnstock", new_callable=lambda: property(lambda self: fake_vnstock)):
+    with __import__("tests.conftest", fromlist=["x"]).patch_vendor_components(fake_vnstock):
         out = await svc.get_all_companies_live()
     assert out == []
 
@@ -441,7 +441,7 @@ async def test_get_all_companies_live_returns_empty_on_empty_dataframe():
     fake_vnstock = MagicMock()
     fake_vnstock.stock.return_value = fake_stock
 
-    with patch.object(type(svc), "vnstock", new_callable=lambda: property(lambda self: fake_vnstock)):
+    with __import__("tests.conftest", fromlist=["x"]).patch_vendor_components(fake_vnstock):
         out = await svc.get_all_companies_live()
     assert out == []
 
@@ -454,7 +454,7 @@ async def test_get_companies_by_group_live_maps_symbols_series():
     fake_vnstock = MagicMock()
     fake_vnstock.stock.return_value = fake_stock
 
-    with patch.object(type(svc), "vnstock", new_callable=lambda: property(lambda self: fake_vnstock)):
+    with __import__("tests.conftest", fromlist=["x"]).patch_vendor_components(fake_vnstock):
         out = await svc.get_companies_by_group_live("hose")
     # exchange filled in for known groups
     assert all(c.exchange == "HOSE" for c in out)
@@ -469,7 +469,7 @@ async def test_get_companies_by_group_live_returns_empty_on_no_symbols():
     fake_vnstock = MagicMock()
     fake_vnstock.stock.return_value = fake_stock
 
-    with patch.object(type(svc), "vnstock", new_callable=lambda: property(lambda self: fake_vnstock)):
+    with __import__("tests.conftest", fromlist=["x"]).patch_vendor_components(fake_vnstock):
         out = await svc.get_companies_by_group_live("VN30")
     assert out == []
 
