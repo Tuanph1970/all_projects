@@ -94,7 +94,7 @@ def redact(obj: Any, depth: int = 0) -> Any:
     return obj
 
 
-def jwt_claims(token: str) -> Optional[Dict[str, Any]]:
+def jwt_exp_claims(token: str) -> Optional[Dict[str, Any]]:
     """Read a JWT's payload WITHOUT verifying it.
 
     Verification needs TCBS's public key and is not the question here — the
@@ -181,7 +181,7 @@ def main(argv: list[str]) -> int:
               "being designed around.")
         tok = body.get("token") if isinstance(body, dict) else None
         if tok:
-            claims = jwt_claims(tok)
+            claims = jwt_exp_claims(tok)
             if claims:
                 describe_claims(claims)
     else:
@@ -214,7 +214,7 @@ def main(argv: list[str]) -> int:
 
     token = body.get("token") or ""
     print(f"  => token obtained, {len(token)} chars")
-    claims = jwt_claims(token)
+    claims = jwt_exp_claims(token)
     if claims:
         describe_claims(claims)
         exp = claims.get("exp")
@@ -230,6 +230,34 @@ def main(argv: list[str]) -> int:
                 pass
     else:
         print("      token is not a readable JWT — report its shape, not its value")
+
+    # ── Step 3b — THE question, tested directly and for free ─────────────
+    # The docs show exactly three auth endpoints (token exchange, apikey info,
+    # apikey extend) and NO refresh endpoint, so the documented answer is "a
+    # token cannot be renewed without an OTP". That leaves one undocumented
+    # possibility worth a single call: the exchange endpoint might accept a
+    # live bearer token IN PLACE OF an otp. It costs no extra OTP, because the
+    # one just spent is what authorises it.
+    print("\nSTEP 3b  re-exchange with the BEARER instead of an otp — the "
+          "renewal question")
+    status, body = post(TOKEN_PATH, {"apiKey": key}, bearer=token)
+    print(f"  HTTP {status}")
+    print(f"  {json.dumps(redact(body), ensure_ascii=False)[:400]}")
+    if status == 200 and isinstance(body, dict) and body.get("token"):
+        print("  => RENEWAL WITHOUT AN OTP WORKS. The nightly job can refresh "
+              "itself; the\n     manual-prime design collapses to a background "
+              "loop. Confirm it twice\n     before relying on it — this is "
+              "undocumented behaviour and may be withdrawn.")
+        fresh = jwt_exp_claims(body["token"])
+        if fresh:
+            describe_claims(fresh)
+    else:
+        print("  => NO. A fresh OTP is required for every token, so an "
+              "unattended nightly job\n     is impossible as scheduled. The "
+              "design options are in\n     docs/backlog142_adapter_design.md "
+              "§2: move the sync so one prime covers\n     both jobs, prime "
+              "twice a day, or keep the price path on a source that\n     "
+              "needs no interactive auth.")
 
     # ── Step 4 — the same two endpoints, now WITH the token ──────────────
     # Step 1 failed unauthenticated. If they answer with a bearer token, they
