@@ -339,6 +339,10 @@ services:
       - VNSTOCK_DATA_SOURCE=${VNSTOCK_DATA_SOURCE:-VCI}
       - VNSTOCK_API_KEY=${VNSTOCK_API_KEY:-}
       - VNSTOCK_MIN_INTERVAL_SECONDS=${VNSTOCK_MIN_INTERVAL_SECONDS:-}
+      # TCBS OpenAPI (#142). Empty until the adapter uses it; passing it
+      # through now is what makes a .env entry actually reach the container.
+      - TCBS_API_KEY=${TCBS_API_KEY:-}
+      - TCBS_BASE_URL=${TCBS_BASE_URL:-https://openapi.tcbs.com.vn}
       - TRACING_ENABLED=true
       - TRACING_JAEGER_HOST=jaeger
       - TRACING_JAEGER_PORT=6831

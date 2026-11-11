@@ -122,6 +122,27 @@ class Settings(BaseSettings):
     #: sync, slow enough not to re-provoke the limit immediately.
     VNSTOCK_RECOVERY_FACTOR: float = 0.98
 
+    # ── TCBS OpenAPI (Backlog #142, option (a)) ───────────────────────────
+    #
+    # Staged ahead of the adapter so the auth questions can be answered against
+    # a real key. NOTHING READS THIS YET beyond the probe — setting it changes
+    # no behaviour, which is deliberate: the vnstock path keeps running until
+    # the adapter replaces it endpoint by endpoint.
+    #
+    # Named TCBS_, not TCB_: `tcb_*` in news-service means the Techcombank
+    # research EMAIL (tcb_news, tcb_routes), which is a different source with a
+    # different shape. Keeping the broker API distinguishable from the mail
+    # feed matters once both are live.
+    TCBS_API_KEY: str = ""
+    TCBS_BASE_URL: str = "https://openapi.tcbs.com.vn"
+
+    #: The JWT from /gaia/v1/oauth2/openapi/token is valid for AT MOST 8 HOURS
+    #: ("Token có hiệu lực tối đa 8 giờ", developers.tcbs.com.vn). Refreshing
+    #: needs a Smart OTP from the TCInvest app, so whether an unattended nightly
+    #: job is possible at all turns on whether that OTP can be avoided on
+    #: refresh — unresolved, and the first thing to settle before endpoint work.
+    TCBS_TOKEN_TTL_SECONDS: float = 8 * 3600
+
     # ── StockComponents reuse (Backlog #144) ──────────────────────────────
     #: How long a cached `StockComponents` stays usable, in seconds.
     #:
