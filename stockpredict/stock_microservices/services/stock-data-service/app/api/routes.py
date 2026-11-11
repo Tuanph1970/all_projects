@@ -3,7 +3,7 @@ API Routes for Stock Data Service
 """
 from datetime import date
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, status, Query
 
 from app.models.schemas import (
     CompanyResponse,
@@ -20,6 +20,7 @@ from app.models.schemas import (
     CompanyFinancialsResponse,
 )
 from app.services.stock_service import StockService
+from app.services.tcbs_auth import TcbsAuthError, get_tcbs_auth
 from app.api.dependencies import get_stock_service, require_admin
 
 
@@ -625,3 +626,55 @@ async def repair_price_history(
     has; writing that much should be asked for explicitly.
     """
     return await stock_service.repair_price_seams(symbol, dry_run=dry_run)
+
+
+# ── TCBS OpenAPI auth (Backlog #142, P0) ──────────────────────────────────
+
+@router.post(
+    "/stocks/tcbs/prime",
+    summary="Prime the TCBS OpenAPI token with a Smart OTP",
+)
+async def prime_tcbs_token(
+    otp: str = Body(..., embed=True, description="Smart OTP from the TCInvest app"),
+    _user: dict = Depends(require_admin),
+):
+    """Exchange the API key plus a human-supplied OTP for a TCBS JWT.
+
+    ADMIN-ONLY, and not merely by convention: this endpoint SPENDS an OTP and
+    MINTS a credential. Unauthenticated, it would let anyone burn a daily
+    exchange budget nobody can measure (SECURITY_AUDIT.md HIGH #4 covers the
+    same ground for /companies/sync).
+
+    WHY THIS EXISTS AT ALL: the TCBS JWT lives at most 8 hours and — so far as
+    the probe could establish without spending an OTP — can only be minted with
+    a code a person reads off the TCInvest app. So the service cannot mint one
+    for itself, and somebody primes it once a day. See
+    docs/backlog142_adapter_design.md; if the token turns out to be renewable
+    without an OTP, this endpoint stays useful for the first prime and the rest
+    becomes a background loop.
+
+    One attempt, no retry — see TcbsAuth.prime. Neither the OTP nor the token
+    is logged or returned; the response says when it expires, not what it is.
+    """
+    try:
+        state = await get_tcbs_auth().prime(otp)
+    except TcbsAuthError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    return {"success": True, **state.as_dict()}
+
+
+@router.get(
+    "/stocks/tcbs/status",
+    summary="TCBS token and API-key expiry",
+)
+async def tcbs_status(_user: dict = Depends(require_admin)):
+    """Both clocks: the 8-hour token and the yearly API key.
+
+    Admin-gated because the two expiry dates together describe how long this
+    deployment can keep ingesting, which is not public information. The same
+    fields appear on /health for monitoring, without the key lookup's network
+    call.
+    """
+    auth = get_tcbs_auth()
+    state = await auth.token_state()
+    return {**state.as_dict(), **await auth.api_key_status()}

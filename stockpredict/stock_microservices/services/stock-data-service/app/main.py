@@ -334,6 +334,16 @@ async def health():
     from app.services.stock_service import (
         components_cache_state, vnstock_pacing_state,
     )
+    from app.services.tcbs_auth import get_tcbs_auth
+
+    # TCBS token state (#142). Redis only — NO network call, so /health stays a
+    # probe rather than becoming a thing that can time out. `needs_prime` is the
+    # field to alert on: it goes true BEFORE the token dies (there is a safety
+    # margin), which is the whole difference between a warning and an outage
+    # nobody noticed for four days (#143). The API KEY's yearly expiry does cost
+    # a request, so it lives on /stocks/tcbs/status instead.
+    tcbs = (await get_tcbs_auth().token_state()).as_dict()
+
     return {
         "status": "healthy",
         "service": settings.SERVICE_NAME,
@@ -341,6 +351,7 @@ async def health():
         "environment": settings.ENVIRONMENT,
         "vnstock_pacing": vnstock_pacing_state(),
         "vnstock_components": components_cache_state(),
+        "tcbs": tcbs,
     }
 
 
