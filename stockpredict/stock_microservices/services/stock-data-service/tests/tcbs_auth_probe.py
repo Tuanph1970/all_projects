@@ -2,6 +2,15 @@
 
     PYTHONPATH=. python3 tests/tcbs_auth_probe.py            # no OTP consumed
     PYTHONPATH=. python3 tests/tcbs_auth_probe.py --otp 123456
+    PYTHONPATH=. python3 tests/tcbs_auth_probe.py --otp 123456 --extend-key
+
+STEP 5 IS OPT-IN (`--extend-key`) AND THAT IS NOT CAUTION FOR ITS OWN SAKE.
+`apikey/extend` renews the API KEY, and the new term runs from the moment of
+extension instead of adding to what is left ("khong cong don vao thoi han cu").
+The key in use here runs to 2027-11-10, so a successful extend today does not
+extend anything — it SPENDS most of a year to buy a year. A probe whose default
+run can silently cost that is a probe that must not be run by default, and the
+flag is what makes the cost a decision rather than a side effect.
 
 Not a test. It answers ONE question that gates the whole adapter design:
 
@@ -128,6 +137,9 @@ def describe_claims(claims: Dict[str, Any]) -> None:
 
 def main(argv: list[str]) -> int:
     otp: Optional[str] = None
+    # Opt-in, default OFF: step 5 resets the API key's term rather than adding
+    # to it, so the default run must not be able to reach it.
+    extend_key = "--extend-key" in argv
     if "--otp" in argv:
         i = argv.index("--otp")
         if i + 1 >= len(argv):
@@ -140,6 +152,7 @@ def main(argv: list[str]) -> int:
     print(f"  base url : {settings.TCBS_BASE_URL}")
     print(f"  api key  : {'set, ' + str(len(key)) + ' chars' if key else 'NOT SET'}")
     print(f"  otp      : {'supplied' if otp else 'not supplied (steps 1-2 only)'}")
+    print(f"  extend   : {'ENABLED — step 5 will RESET the key term' if extend_key else 'off (step 5 reports only)'}")
     print("  no retries anywhere; at most one call per step\n")
 
     if not key:
@@ -281,9 +294,19 @@ def main(argv: list[str]) -> int:
           "AWAY the remainder. An EXPIRED key cannot be extended\n  at all — "
           "it has to be recreated in TCInvest. Both facts belong in whatever "
           "renews\n  this on a schedule.")
-    status, body = post(EXTEND_PATH, {"apiKey": key, "otp": otp}, bearer=token)
-    print(f"  HTTP {status}")
-    print(f"  {json.dumps(redact(body), ensure_ascii=False)[:600]}")
+    if not extend_key:
+        print("  SKIPPED — pass --extend-key to actually call it. Not calling "
+              "it costs nothing:\n  the key's expiry is already readable from "
+              "step 1/4, and extending EARLY would\n  replace the remaining "
+              "term rather than add to it. Run this only when the key is\n"
+              "  close to expiry and you mean to renew it.")
+    else:
+        print("  --extend-key given: calling it. The term after this runs from "
+              "NOW, not from\n  the old expiry — compare it against step 1's "
+              "expireDate to see what it cost.")
+        status, body = post(EXTEND_PATH, {"apiKey": key, "otp": otp}, bearer=token)
+        print(f"  HTTP {status}")
+        print(f"  {json.dumps(redact(body), ensure_ascii=False)[:600]}")
 
     print("\nTHE ANSWER THIS PROBE EXISTS FOR:")
     print("  - key -> JWT requires an OTP (step 2, HTTP 400 'Missing required "
